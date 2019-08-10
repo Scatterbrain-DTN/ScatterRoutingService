@@ -13,7 +13,7 @@ import java.io.InputStream;
  * external applications
  */
 
-public interface HighLevelApi {
+public interface HighLevelAPI {
 
     //system
     void startService();
