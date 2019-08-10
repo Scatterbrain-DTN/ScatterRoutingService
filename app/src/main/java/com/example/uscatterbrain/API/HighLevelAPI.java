@@ -14,6 +14,7 @@ import java.io.InputStream;
  */
 
 public interface HighLevelAPI {
+    int PROTOVERSION = 0;
 
     //system
     void startService();
