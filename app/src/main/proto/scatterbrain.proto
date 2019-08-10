@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+message Advertise {
+    uint32 magic = 1;
+    uint32 protocolversion = 2;
+    uint64 uuid = 4;
+    enum provides {
+        BLUETOOTHCLASSIC = 0;
+        BLE = 1;
+        WIFIP2P = 2;
+        ULTRASOUND = 4;
+        DEADDROP = 5;
+    }
+}
+
+message BlockData {
+    uint64 from = 1;
+    uint64 to = 2;
+    bool todisk = 3;
+    bool isfragmented = 4;
+    uint32 seqnum = 5;
+    repeated fixed64 data = 6;
+}
