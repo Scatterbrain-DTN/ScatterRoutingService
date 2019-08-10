@@ -8,6 +8,4 @@ import java.util.UUID;
 public interface ScatterTransport {
     UUID getUUID();
     String getNameString();
-    int getPriority();
-    void setPriority(int priority);
 }
