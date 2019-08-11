@@ -3,7 +3,10 @@ package com.example.uscatterbrain.network;
 import com.example.uscatterbrain.API.HighLevelAPI;
 import com.example.uscatterbrain.DeviceProfile;
 import com.example.uscatterbrain.ScatterProto;
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 public class AdvertisePacket {
@@ -18,6 +21,14 @@ public class AdvertisePacket {
         proto.setUuidUpper(profile.getLUID().getMostSignificantBits());
         proto.setUuidLower(profile.getLUID().getLeastSignificantBits());
         advertise = proto.build();
+    }
+
+    public AdvertisePacket(byte[] bytes) throws InvalidProtocolBufferException {
+        advertise = ScatterProto.Advertise.parseFrom(bytes);
+    }
+
+    public AdvertisePacket(InputStream is) throws IOException {
+        advertise = ScatterProto.Advertise.parseFrom(is);
     }
 
     public void writeToOutputStream(OutputStream out) throws IOException {
