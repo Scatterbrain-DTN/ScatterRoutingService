@@ -18,7 +18,6 @@ public class DeviceProfile {
     }
     private HardwareServices services;
 
-    private final byte protocolVersion = 2;
 
     public DeviceProfile (HardwareServices services, UUID id) {
         this.services = services;
@@ -31,10 +30,6 @@ public class DeviceProfile {
 
     public HardwareServices getServices() {
         return services;
-    }
-
-    public byte getProtocolVersion() {
-        return protocolVersion;
     }
 
     public UUID getLUID(){ return this.luid;}
