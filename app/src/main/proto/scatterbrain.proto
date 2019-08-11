@@ -16,11 +16,18 @@ message Advertise {
     }
 }
 
+message BlockSequence {
+    uint32 seqnum = 1;
+    bytes data = 2;
+}
+
 message BlockData {
-    uint64 from = 1;
-    uint64 to = 2;
-    bool todisk = 3;
-    bool isfragmented = 4;
-    uint32 seqnum = 5;
-    repeated fixed64 data = 6;
+    fixed64 from_low = 1;
+    fixed64 from_high = 2;
+    fixed64 to_low = 3;
+    fixed64 to_high = 4;
+    string application = 5;
+    bool todisk = 6;
+    bool isfragmented = 7; //if fragmented, data is expected to be empty. Expect BlockSequence
+    bytes data = 9;
 }
