@@ -1,5 +1,6 @@
 package com.example.uscatterbrain;
 
+import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockDataPacket;
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -54,7 +55,21 @@ public class ProtocolUnitTest {
             byte[] res = bd.getBytes();
             BlockDataPacket bd2 = new BlockDataPacket(res);
         } catch (InvalidProtocolBufferException p) {
-            Assert.fail();
+            Assert.fail("protobuf invalid");
+        }
+    }
+
+    @Test
+    public void advertiseSerializeByteArray() {
+        UUID uid = UUID.randomUUID();
+        AdvertisePacket ad2;
+        DeviceProfile dp = new DeviceProfile(DeviceProfile.HardwareServices.BLUETOOTHCLASSIC,uid);
+        try {
+            AdvertisePacket ad = new AdvertisePacket(dp);
+            byte[] b = ad.getBytes();
+            ad2 = new AdvertisePacket(b);
+        } catch(InvalidProtocolBufferException i) {
+            Assert.fail("protobuf invalid");
         }
     }
 
