@@ -18,6 +18,8 @@ import java.util.Random;
 import java.util.UUID;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 
@@ -48,21 +50,25 @@ public class ProtocolUnitTest {
         localRandom.nextBytes(bytes);
         UUID uid1 = UUID.randomUUID();
         UUID uid2 = UUID.randomUUID();
+        byte[] res = null;
 
         try {
             BlockDataPacket bd = new BlockDataPacket(APPNAME, uid1, uid2, false);
             bd.setData(bytes);
-            byte[] res = bd.getBytes();
+            res = bd.getBytes();
             BlockDataPacket bd2 = new BlockDataPacket(res);
+            assertArrayEquals(bd2.getBlockdata().getData().toByteArray(), bytes);
+
         } catch (InvalidProtocolBufferException p) {
             Assert.fail("protobuf invalid");
         }
+
     }
 
     @Test
     public void advertiseSerializeByteArray() {
         UUID uid = UUID.randomUUID();
-        AdvertisePacket ad2;
+        AdvertisePacket ad2 = null;
         DeviceProfile dp = new DeviceProfile(DeviceProfile.HardwareServices.BLUETOOTHCLASSIC,uid);
         try {
             AdvertisePacket ad = new AdvertisePacket(dp);
@@ -71,6 +77,9 @@ public class ProtocolUnitTest {
         } catch(InvalidProtocolBufferException i) {
             Assert.fail("protobuf invalid");
         }
+
+        assertEquals("UUID lower is preserved", ad2.getAdvertise().getUuidLower(), uid.getLeastSignificantBits());
+        assertEquals("UUID upper is preserved", ad2.getAdvertise().getUuidUpper(), uid.getMostSignificantBits());
     }
 
 }

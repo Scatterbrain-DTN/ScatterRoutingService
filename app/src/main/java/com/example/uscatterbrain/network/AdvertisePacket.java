@@ -38,4 +38,8 @@ public class AdvertisePacket {
     public byte[] getBytes() {
         return advertise.toByteArray();
     }
+
+    public ScatterProto.Advertise getAdvertise() {
+        return advertise;
+    }
 }
