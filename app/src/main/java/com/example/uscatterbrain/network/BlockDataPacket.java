@@ -2,6 +2,7 @@ package com.example.uscatterbrain.network;
 
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +22,14 @@ public class BlockDataPacket {
         proto.setToLow(from.getLeastSignificantBits());
         proto.setToHigh(to.getMostSignificantBits());
         proto.setTodisk(disk);
+    }
+
+    public BlockDataPacket(byte[] data) throws InvalidProtocolBufferException {
+        blockdata = ScatterProto.BlockData.parseFrom(data);
+    }
+
+    public BlockDataPacket(InputStream in) throws IOException {
+        blockdata = ScatterProto.BlockData.parseFrom(in);
     }
 
     public void setData(InputStream istream) throws IOException {
@@ -46,5 +55,9 @@ public class BlockDataPacket {
             return blockdata.toByteArray();
         else
             return null;
+    }
+
+    public ScatterProto.BlockData getBlockdata() {
+        return blockdata;
     }
 }
