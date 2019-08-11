@@ -1,6 +1,14 @@
 package com.example.uscatterbrain;
 
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Binder;
+import android.os.IBinder;
+import android.support.v4.app.NotificationCompat;
+import android.util.Log;
 
 import com.example.uscatterbrain.API.HighLevelAPI;
 import com.example.uscatterbrain.API.OnRecieveCallback;
@@ -9,12 +17,10 @@ import com.example.uscatterbrain.network.BlockDataPacket;
 
 import java.io.InputStream;
 
-public class ScatterRoutingService implements HighLevelAPI {
-    //system
-    @Override
-    public void startService() {
-
-    }
+public class ScatterRoutingService extends Service implements HighLevelAPI {
+    public final String TAG = "ScatterRoutingService";
+    private boolean bound;
+    private final IBinder mBinder = new ScatterBinder();
 
     @Override
     public void stopService() {
@@ -55,7 +61,6 @@ public class ScatterRoutingService implements HighLevelAPI {
     public void setScatterApplication(String application) {
 
     }
-
 
     //peers
     @Override
@@ -125,5 +130,51 @@ public class ScatterRoutingService implements HighLevelAPI {
     @Override
     public int getDatastoreLimit() {
         return 0;
+    }
+
+    @Override
+    public void startService() {
+        NotificationCompat.Builder not = new NotificationCompat.Builder(this)
+                .setSmallIcon(R.drawable.ic_toys_black_24dp)
+                .setContentTitle("Scatterbrain")
+                .setContentText("Discoverting Peers...");
+
+        Intent result = new Intent(this, ScatterRoutingService.class);
+
+        PendingIntent resultPendingIntent =
+                PendingIntent.getActivity(
+                        this,
+                        0,
+                        result,
+                        PendingIntent.FLAG_UPDATE_CURRENT
+                );
+
+        not.setContentIntent(resultPendingIntent);
+
+        int notificationId = 1;
+        NotificationManager man = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        try {
+            man.notify(notificationId, not.build());
+        } catch(NullPointerException e) {
+            Log.e(TAG, "NullPointerException while creating persistent notification");
+        }
+    }
+
+    @Override
+    public IBinder onBind(Intent i) {
+        bound = true;
+        return mBinder;
+    }
+
+    @Override
+    public boolean onUnbind(Intent i) {
+        bound = false;
+        return true;
+    }
+
+    public class ScatterBinder extends Binder {
+        public ScatterRoutingService getService() {
+            return ScatterRoutingService.this;
+        }
     }
 }
