@@ -71,9 +71,14 @@ public class ScatterBluetoothLEManager {
         if(current == null)
             return false;
 
-        current.setScanResponseData(new AdvertiseData.Builder()
-                .addServiceUuid(new ParcelUuid(SERVICE_UUID))
+        if(data.length > 20)
+            return false;
+
+        current.setAdvertisingData(new AdvertiseData.Builder()
+                .setIncludeDeviceName(false)
+                .setIncludeTxPowerLevel(false)
                 .addServiceData(new ParcelUuid(SERVICE_UUID), data)
+                .addServiceUuid(new ParcelUuid(SERVICE_UUID))
                 .build());
 
         return true;
