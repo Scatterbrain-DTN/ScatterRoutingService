@@ -4,6 +4,8 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockDataPacket;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -21,6 +23,8 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.hamcrest.Matchers.*;
 
 
 @RunWith(RobolectricTestRunner.class)
@@ -77,9 +81,14 @@ public class ProtocolUnitTest {
         } catch(InvalidProtocolBufferException i) {
             Assert.fail("protobuf invalid");
         }
+    }
 
-        assertEquals("UUID lower is preserved", ad2.getAdvertise().getUuidLower(), uid.getLeastSignificantBits());
-        assertEquals("UUID upper is preserved", ad2.getAdvertise().getUuidUpper(), uid.getMostSignificantBits());
+    @Test
+    public void advertisePacketFitsInBLEAdvertise() {
+        UUID uid = UUID.randomUUID();
+        DeviceProfile dp = new DeviceProfile(DeviceProfile.HardwareServices.BLUETOOTHLE, uid);
+        AdvertisePacket ad = new AdvertisePacket(dp);
+        assertThat(ad.getBytes().length , lessThanOrEqualTo(20));
     }
 
 }

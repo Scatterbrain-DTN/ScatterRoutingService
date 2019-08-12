@@ -5,14 +5,11 @@ option java_outer_classname = "ScatterProto";
 message Advertise {
     uint32 magic = 1;
     uint32 protocolversion = 2;
-    fixed64 uuid_lower = 4;
-    fixed64 uuid_upper = 5;
     enum provides {
         BLUETOOTHCLASSIC = 0;
         BLE = 1;
         WIFIP2P = 2;
         ULTRASOUND = 4;
-        DEADDROP = 5;
     }
 }
 

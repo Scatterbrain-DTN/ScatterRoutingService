@@ -18,8 +18,6 @@ public class AdvertisePacket {
         proto = ScatterProto.Advertise.newBuilder();
         proto.setMagic(magic);
         proto.setProtocolversion(HighLevelAPI.PROTOVERSION);
-        proto.setUuidUpper(profile.getLUID().getMostSignificantBits());
-        proto.setUuidLower(profile.getLUID().getLeastSignificantBits());
         advertise = proto.build();
     }
 
