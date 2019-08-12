@@ -9,9 +9,14 @@ import android.bluetooth.le.AdvertisingSetCallback;
 import android.bluetooth.le.AdvertisingSetParameters;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.bluetooth.le.BluetoothLeScanner;
+import android.os.ParcelUuid;
+
+import java.util.UUID;
 
 public class ScatterBluetoothLEManager {
     public static final String TAG = "BluetoothLE";
+    public static final int SERVICE_ID = 0xFEEF;
+    public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
 
     BluetoothLeAdvertiser mAdvertiser;
     BluetoothLeScanner mScanner;
@@ -60,5 +65,17 @@ public class ScatterBluetoothLEManager {
         };
 
         mAdvertiser.stopAdvertising(callback);
+    }
+
+    public boolean setAdvertisingData(byte[] data) {
+        if(current == null)
+            return false;
+
+        current.setScanResponseData(new AdvertiseData.Builder()
+                .addServiceUuid(new ParcelUuid(SERVICE_UUID))
+                .addServiceData(new ParcelUuid(SERVICE_UUID), data)
+                .build());
+
+        return true;
     }
 }
