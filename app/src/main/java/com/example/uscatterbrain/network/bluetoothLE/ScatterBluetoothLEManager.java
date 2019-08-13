@@ -68,6 +68,7 @@ public class ScatterBluetoothLEManager {
 
             mAdvertiser.startAdvertisingSet(parameters, data, null,
                     null, null, callback);
+
         }
     }
 
@@ -94,12 +95,14 @@ public class ScatterBluetoothLEManager {
         if(data.length > 20)
             return false;
 
-        current.setAdvertisingData(new AdvertiseData.Builder()
-                .setIncludeDeviceName(false)
-                .setIncludeTxPowerLevel(false)
-                .addServiceData(new ParcelUuid(SERVICE_UUID), data)
-                .addServiceUuid(new ParcelUuid(SERVICE_UUID))
-                .build());
+        if(Build.VERSION.SDK_INT >= 26) {
+            current.setAdvertisingData(new AdvertiseData.Builder()
+                    .setIncludeDeviceName(false)
+                    .setIncludeTxPowerLevel(false)
+                    .addServiceData(new ParcelUuid(SERVICE_UUID), data)
+                    .addServiceUuid(new ParcelUuid(SERVICE_UUID))
+                    .build());
+        }
 
         return true;
     }
