@@ -76,6 +76,8 @@ public class ScatterBluetoothLEManager {
         for(Map.Entry<String, BluetoothDevice> entry: deviceList.entrySet()) {
             //TODO: initiate GATT, perform transfers, etc
         }
+
+        deviceList.clear();
     }
 
 
