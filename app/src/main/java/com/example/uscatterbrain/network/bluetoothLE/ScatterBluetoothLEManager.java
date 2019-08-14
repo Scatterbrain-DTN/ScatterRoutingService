@@ -27,10 +27,10 @@ public class ScatterBluetoothLEManager {
 
     private final int REQUEST_ENABLE_BT = 1;
 
-    BluetoothLeAdvertiser mAdvertiser;
-    BluetoothLeScanner mScanner;
-    BluetoothAdapter mAdapter;
-    AdvertisingSet current;
+    private BluetoothLeAdvertiser mAdvertiser;
+    private BluetoothLeScanner mScanner;
+    private BluetoothAdapter mAdapter;
+    private AdvertisingSet current;
 
     public ScatterBluetoothLEManager(Service mService) {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
