@@ -3,6 +3,7 @@ package com.example.uscatterbrain.network.bluetoothLE;
 import android.app.Activity;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
@@ -11,13 +12,21 @@ import android.bluetooth.le.AdvertisingSetCallback;
 import android.bluetooth.le.AdvertisingSetParameters;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.ParcelUuid;
 
 import com.example.uscatterbrain.ScatterRoutingService;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class ScatterBluetoothLEManager {
@@ -32,10 +41,72 @@ public class ScatterBluetoothLEManager {
     private BluetoothAdapter mAdapter;
     private AdvertisingSet current;
 
+    private ScanCallback leScanCallback;
+
+    private Map<String, BluetoothDevice> deviceList;
+
     public ScatterBluetoothLEManager(Service mService) {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mAdvertiser = mAdapter.getBluetoothLeAdvertiser();
         mScanner = mAdapter.getBluetoothLeScanner();
+        leScanCallback = new ScanCallback() {
+            @Override
+            public void onScanResult(int callbackType, ScanResult result) {
+                super.onScanResult(callbackType, result);
+                BluetoothDevice device = result.getDevice();
+                deviceList.put(device.getAddress(), device);
+            }
+
+            @Override
+            public void onBatchScanResults(List<ScanResult> results) {
+                super.onBatchScanResults(results);
+                for(ScanResult result : results){
+                    deviceList.put(result.getDevice().getAddress(), result.getDevice());
+                }
+            }
+
+            @Override
+            public void onScanFailed(int errorCode) {
+                super.onScanFailed(errorCode);
+            }
+        };
+    }
+
+    private void processScanResults() {
+        for(Map.Entry<String, BluetoothDevice> entry: deviceList.entrySet()) {
+            //TODO: initiate GATT, perform transfers, etc
+        }
+    }
+
+
+    public void startScan() {
+        AsyncTask.execute(new Runnable() {
+            @Override
+            public void run() {
+                ScanFilter s = new ScanFilter.Builder()
+                        .setServiceUuid(new ParcelUuid(SERVICE_UUID))
+                        .build();
+
+                ScanSettings settings = new ScanSettings.Builder()
+                        .build();
+
+                List<ScanFilter> sflist = new ArrayList<>();
+                sflist.add(s);
+
+
+                mScanner.startScan(sflist, settings, leScanCallback);
+            }
+        });
+    }
+
+    public void stopScan() {
+        AsyncTask.execute(new Runnable() {
+            @Override
+            public void run() {
+                mScanner.stopScan(leScanCallback);
+                processScanResults();
+            }
+        });
     }
 
     public void enableBluetooth(Activity activity) {
