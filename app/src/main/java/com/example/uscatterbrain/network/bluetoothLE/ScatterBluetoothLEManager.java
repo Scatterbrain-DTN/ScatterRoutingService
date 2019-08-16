@@ -140,13 +140,13 @@ public class ScatterBluetoothLEManager {
                     .setConnectable(true)
                     .setScannable(true)
                     .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                    .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_MEDIUM)
+                    .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                     .build();
 
             AdvertiseData addata = new AdvertiseData.Builder()
                     .setIncludeDeviceName(false)
                     .setIncludeTxPowerLevel(false)
-                    .addServiceData(new ParcelUuid(SERVICE_UUID), data)
+                    .addServiceUuid(new ParcelUuid(SERVICE_UUID))
                     .build();
             AdvertisingSetCallback callback = new AdvertisingSetCallback() {
                 @Override
