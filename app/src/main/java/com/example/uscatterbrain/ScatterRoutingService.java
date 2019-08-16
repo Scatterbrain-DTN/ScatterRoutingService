@@ -82,9 +82,8 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
 
     @Override
     public void advertiseOn() {
-        leManager.startLEAdvertise();
         if(myprofile != null) {
-            leManager.stopLEAdvertise();
+            leManager.startLEAdvertise();
             AdvertisePacket ad = new AdvertisePacket(myprofile);
             leManager.setAdvertisingData(ad.getBytes());
         } else {

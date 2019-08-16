@@ -131,6 +131,7 @@ public class ScatterBluetoothLEManager {
             AdvertisingSetParameters parameters = (new AdvertisingSetParameters.Builder())
                     .setLegacyMode(true) // True by default, but set here as a reminder.
                     .setConnectable(true)
+                    .setScannable(true)
                     .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
                     .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_MEDIUM)
                     .build();
