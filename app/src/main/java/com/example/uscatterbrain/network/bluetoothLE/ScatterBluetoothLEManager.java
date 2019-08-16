@@ -21,6 +21,7 @@ import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.ParcelUuid;
+import android.util.Log;
 
 import com.example.uscatterbrain.ScatterRoutingService;
 
@@ -55,6 +56,7 @@ public class ScatterBluetoothLEManager {
                 super.onScanResult(callbackType, result);
                 BluetoothDevice device = result.getDevice();
                 deviceList.put(device.getAddress(), device);
+                Log.v(TAG, "enqueued scan result " + device.getAddress());
             }
 
             @Override
@@ -62,6 +64,7 @@ public class ScatterBluetoothLEManager {
                 super.onBatchScanResults(results);
                 for(ScanResult result : results){
                     deviceList.put(result.getDevice().getAddress(), result.getDevice());
+                    Log.v(TAG, "batchEnqueued " + results.size() + " scan results");
                 }
             }
 
@@ -82,6 +85,7 @@ public class ScatterBluetoothLEManager {
 
 
     public void startScan() {
+        Log.v(TAG, "Starting LE scan");
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
@@ -102,6 +106,7 @@ public class ScatterBluetoothLEManager {
     }
 
     public void stopScan() {
+        Log.v(TAG, "Stopping LE scan");
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
@@ -121,6 +126,7 @@ public class ScatterBluetoothLEManager {
     }
 
     public void startLEAdvertise() {
+        Log.v(TAG, "Starting LE advertise");
         if(Build.VERSION.SDK_INT >= 26) {
             AdvertisingSetParameters parameters = (new AdvertisingSetParameters.Builder())
                     .setLegacyMode(true) // True by default, but set here as a reminder.
@@ -142,10 +148,13 @@ public class ScatterBluetoothLEManager {
             mAdvertiser.startAdvertisingSet(parameters, data, null,
                     null, null, callback);
 
+        } else {
+            Log.e(TAG, "err: could not start LE advertise due to wrong SDK version");
         }
     }
 
     public void stopLEAdvertise() {
+        Log.v(TAG, "stopping LE advertise");
         AdvertiseCallback callback = new AdvertiseCallback() {
             @Override
             public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -162,11 +171,16 @@ public class ScatterBluetoothLEManager {
     }
 
     public boolean setAdvertisingData(byte[] data) {
-        if(current == null)
+        Log.v(TAG, "setting advertise data");
+        if(current == null) {
+            Log.e(TAG, "err: AdvertisingSet is null");
             return false;
+        }
 
-        if(data.length > 20)
+        if(data.length > 20) {
+            Log.e(TAG, "err: data is longer than LE advertise frame");
             return false;
+        }
 
         if(Build.VERSION.SDK_INT >= 26) {
             current.setAdvertisingData(new AdvertiseData.Builder()
@@ -175,6 +189,8 @@ public class ScatterBluetoothLEManager {
                     .addServiceData(new ParcelUuid(SERVICE_UUID), data)
                     .addServiceUuid(new ParcelUuid(SERVICE_UUID))
                     .build());
+        } else {
+            Log.e(TAG, "err: could not update advertising data due to wrong SDK version");
         }
 
         return true;
