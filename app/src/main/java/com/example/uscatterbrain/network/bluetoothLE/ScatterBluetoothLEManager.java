@@ -125,8 +125,15 @@ public class ScatterBluetoothLEManager {
 
     }
 
-    public void startLEAdvertise() {
+    public void startLEAdvertise(byte[] data) {
         Log.v(TAG, "Starting LE advertise");
+
+        if(data.length > 20) {
+            Log.e(TAG, "err: data is longer than LE advertise frame");
+            return;
+        }
+
+
         if(Build.VERSION.SDK_INT >= 26) {
             AdvertisingSetParameters parameters = (new AdvertisingSetParameters.Builder())
                     .setLegacyMode(true) // True by default, but set here as a reminder.
@@ -136,8 +143,12 @@ public class ScatterBluetoothLEManager {
                     .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_MEDIUM)
                     .build();
 
-            AdvertiseData data = (new AdvertiseData.Builder()).setIncludeDeviceName(true).build();
-
+            AdvertiseData addata = new AdvertiseData.Builder()
+                    .setIncludeDeviceName(false)
+                    .setIncludeTxPowerLevel(false)
+                    .addServiceData(new ParcelUuid(SERVICE_UUID), data)
+                    .addServiceUuid(new ParcelUuid(SERVICE_UUID))
+                    .build();
             AdvertisingSetCallback callback = new AdvertisingSetCallback() {
                 @Override
                 public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
@@ -146,7 +157,7 @@ public class ScatterBluetoothLEManager {
                 }
             };
 
-            mAdvertiser.startAdvertisingSet(parameters, data, null,
+            mAdvertiser.startAdvertisingSet(parameters, addata, null,
                     null, null, callback);
 
         } else {
