@@ -147,7 +147,6 @@ public class ScatterBluetoothLEManager {
                     .setIncludeDeviceName(false)
                     .setIncludeTxPowerLevel(false)
                     .addServiceData(new ParcelUuid(SERVICE_UUID), data)
-                    .addServiceUuid(new ParcelUuid(SERVICE_UUID))
                     .build();
             AdvertisingSetCallback callback = new AdvertisingSetCallback() {
                 @Override

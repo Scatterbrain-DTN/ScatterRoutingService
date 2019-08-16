@@ -3,8 +3,6 @@ option java_package = "com.example.uscatterbrain";
 option java_outer_classname = "ScatterProto";
 
 message Advertise {
-    uint32 magic = 1;
-    uint32 protocolversion = 2;
     enum provides {
         BLUETOOTHCLASSIC = 0;
         BLE = 1;

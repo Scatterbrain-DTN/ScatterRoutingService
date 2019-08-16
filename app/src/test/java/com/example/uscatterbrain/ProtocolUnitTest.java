@@ -88,7 +88,7 @@ public class ProtocolUnitTest {
         UUID uid = UUID.randomUUID();
         DeviceProfile dp = new DeviceProfile(DeviceProfile.HardwareServices.BLUETOOTHLE, uid);
         AdvertisePacket ad = new AdvertisePacket(dp);
-        assertThat(ad.getBytes().length , lessThanOrEqualTo(20));
+        assertThat(ad.getBytes().length , lessThanOrEqualTo(10));
     }
 
 }
