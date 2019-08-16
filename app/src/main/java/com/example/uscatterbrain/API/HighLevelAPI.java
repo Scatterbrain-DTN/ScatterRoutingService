@@ -30,6 +30,8 @@ public interface HighLevelAPI {
     //peers
     void scanOn(ScatterTransport transport);
     void scanOff(ScatterTransport transport);
+    void advertiseOn();
+    void advertiseOff();
     DeviceProfile[] getPeers();
 
     //communications

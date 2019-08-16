@@ -13,7 +13,9 @@ import android.util.Log;
 import com.example.uscatterbrain.API.HighLevelAPI;
 import com.example.uscatterbrain.API.OnRecieveCallback;
 import com.example.uscatterbrain.API.ScatterTransport;
+import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockDataPacket;
+import com.example.uscatterbrain.network.bluetoothLE.ScatterBluetoothLEManager;
 
 import java.io.InputStream;
 
@@ -21,10 +23,15 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
     public final String TAG = "ScatterRoutingService";
     private boolean bound;
     private final IBinder mBinder = new ScatterBinder();
+    private ScatterBluetoothLEManager leManager;
+    private DeviceProfile myprofile;
+
+    public ScatterRoutingService() {
+        leManager = new ScatterBluetoothLEManager(this);
+    }
 
     @Override
     public void stopService() {
-
     }
 
     @Override
@@ -39,12 +46,12 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
 
     @Override
     public DeviceProfile getProfile() {
-        return null;
+        return myprofile;
     }
 
     @Override
     public void setProfile(DeviceProfile prof) {
-
+        this.myprofile = prof;
     }
 
     @Override
@@ -65,12 +72,29 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
     //peers
     @Override
     public void scanOn(ScatterTransport transport) {
-
+        leManager.startScan();
     }
 
     @Override
     public void scanOff(ScatterTransport transport) {
+        leManager.stopScan();
+    }
 
+    @Override
+    public void advertiseOn() {
+        leManager.startLEAdvertise();
+        if(myprofile != null) {
+            leManager.stopLEAdvertise();
+            AdvertisePacket ad = new AdvertisePacket(myprofile);
+            leManager.setAdvertisingData(ad.getBytes());
+        } else {
+            Log.e(TAG, "err: tried to start advertise with null profile");
+        }
+    }
+
+    @Override
+    public void advertiseOff() {
+        leManager.stopLEAdvertise();
     }
 
     @Override
