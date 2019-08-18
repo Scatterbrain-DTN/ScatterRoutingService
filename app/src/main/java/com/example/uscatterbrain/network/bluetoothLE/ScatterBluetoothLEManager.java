@@ -30,7 +30,10 @@ import android.os.Build;
 import android.os.ParcelUuid;
 import android.util.Log;
 
+import com.example.uscatterbrain.DeviceProfile;
 import com.example.uscatterbrain.ScatterRoutingService;
+import com.example.uscatterbrain.network.AdvertisePacket;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -87,8 +90,10 @@ public class ScatterBluetoothLEManager {
                 if(gatt.getService(SERVICE_UUID) == null) {
                     Log.w(TAG, "onServicesDiscovered: remote device does not support scatterbrain");
                 } else {
-                    //TODO: exchange advertise packets
-
+                    BluetoothGattCharacteristic ch = gatt.getService(SERVICE_UUID).getCharacteristic(SERVICE_UUID);
+                    AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService)mService).getProfile());
+                    ch.setValue(ap.getBytes());
+                    gatt.writeCharacteristic(ch);
                 }
             } else {
                 Log.w(TAG, "onServicesDiscovered received: " + status);
@@ -101,11 +106,25 @@ public class ScatterBluetoothLEManager {
             super.onCharacteristicRead(gatt, characteristic, status);
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
-
+                if(characteristic.getUuid().equals(SERVICE_UUID)) {
+                    byte[] value = characteristic.getValue();
+                    try {
+                        AdvertisePacket ad = new AdvertisePacket(value);
+                        //TODO: create transaction class
+                    } catch(InvalidProtocolBufferException e) {
+                        Log.w(TAG, "err: received invalid advertisepacket from GATT");
+                    }
+                } else {
+                    Log.w(TAG, "err: received GATT characteristic with wrong UUID");
+                }
             }
 
         }
     };
+
+    private void multiPartMessage(BluetoothGattCharacteristic characteristic, byte[] data) {
+
+    }
 
     public List<BluetoothGattService> getSupportedGattServices() {
         if (mGatt == null) return null;
