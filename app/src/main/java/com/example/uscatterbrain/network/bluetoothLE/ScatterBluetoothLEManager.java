@@ -4,6 +4,12 @@ import android.app.Activity;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
@@ -16,6 +22,7 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
@@ -34,6 +41,8 @@ public class ScatterBluetoothLEManager {
     public static final String TAG = "BluetoothLE";
     public static final int SERVICE_ID = 0xFEEF;
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
+    private boolean gattConnected = false;
+    private Service mService;
 
     private final int REQUEST_ENABLE_BT = 1;
 
@@ -41,6 +50,85 @@ public class ScatterBluetoothLEManager {
     private BluetoothLeScanner mScanner;
     private BluetoothAdapter mAdapter;
     private AdvertisingSet current;
+    private BluetoothGatt mGatt;
+
+    private static final int STATE_DISCONNECTED = 0;
+    private static final int STATE_CONNECTING = 1;
+    private static final int STATE_CONNECTED = 2;
+    private int connectionState = STATE_DISCONNECTED;
+
+    public final static String ACTION_GATT_CONNECTED =
+            "com.example.uscatterbrain.network.bluetoothLE.ACTION_GATT_CONNECTED";
+    public final static String ACTION_GATT_DISCONNECTED =
+            "com.example.uscatterbrain.network.bluetoothLE.ACTION_GATT_DISCONNECTED";
+    public final static String ACTION_GATT_SERVICES_DISCOVERED =
+            "com.example.uscatterbrain.network.bluetoothLE.ACTION_GATT_SERVICES_DISCOVERED";
+    public final static String ACTION_DATA_AVAILABLE =
+            "com.example.uscatterbrain.network.bluetoothLE.ACTION_DATA_AVAILABLE";
+    public final static String EXTRA_DATA =
+            "com.example.uscatterbrain.network.bluetoothLE.EXTRA_DATA";
+
+    private void broadcastUpdate(final String action) {
+        final Intent intent = new Intent(action);
+        mService.sendBroadcast(intent);
+    }
+
+    private void broadcastUpdate(final String action, final BluetoothGattCharacteristic characteristic) {
+        final Intent intent = new Intent(action);
+
+        if(SERVICE_UUID.equals(characteristic.getUuid())) {
+
+        }
+    }
+
+    private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
+        @Override
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            super.onConnectionStateChange(gatt, status, newState);
+            String intentAction;
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                intentAction = ACTION_GATT_CONNECTED;
+                connectionState = STATE_CONNECTED;
+                broadcastUpdate(intentAction);
+                Log.i(TAG, "Connected to GATT server.");
+                Log.i(TAG, "Attempting to start service discovery:" +
+                        mGatt.discoverServices());
+
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                intentAction = ACTION_GATT_DISCONNECTED;
+                connectionState = STATE_DISCONNECTED;
+                Log.i(TAG, "Disconnected from GATT server.");
+                broadcastUpdate(intentAction);
+            }
+
+        }
+
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            super.onServicesDiscovered(gatt, status);
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
+            } else {
+                Log.w(TAG, "onServicesDiscovered received: " + status);
+            }
+
+        }
+
+        @Override
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            super.onCharacteristicRead(gatt, characteristic, status);
+
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+            }
+
+        }
+    };
+
+    public List<BluetoothGattService> getSupportedGattServices() {
+        if (mGatt == null) return null;
+        return mGatt.getServices();
+    }
 
     private ScanCallback leScanCallback;
 
@@ -50,6 +138,9 @@ public class ScatterBluetoothLEManager {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mAdvertiser = mAdapter.getBluetoothLeAdvertiser();
         mScanner = mAdapter.getBluetoothLeScanner();
+
+        this.mService = mService;
+
         leScanCallback = new ScanCallback() {
             @Override
             public void onScanResult(int callbackType, ScanResult result) {
@@ -78,6 +169,7 @@ public class ScatterBluetoothLEManager {
     private void processScanResults() {
         for(Map.Entry<String, BluetoothDevice> entry: deviceList.entrySet()) {
             //TODO: initiate GATT, perform transfers, etc
+
         }
 
         deviceList.clear();
@@ -205,5 +297,13 @@ public class ScatterBluetoothLEManager {
         }
 
         return true;
+    }
+
+    public void setGattConnected(boolean mGattConnected) {
+        this.gattConnected = mGattConnected;
+    }
+
+    public boolean isGattConnected() {
+        return gattConnected;
     }
 }
