@@ -35,6 +35,7 @@ import com.example.uscatterbrain.ScatterRoutingService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 import java.util.UUID;
 
 public class ScatterBluetoothLEManager {
@@ -51,6 +52,9 @@ public class ScatterBluetoothLEManager {
     private BluetoothAdapter mAdapter;
     private AdvertisingSet current;
     private BluetoothGatt mGatt;
+    private ScanCallback leScanCallback;
+
+    private Stack<BluetoothDevice> deviceList;
 
     private static final int STATE_DISCONNECTED = 0;
     private static final int STATE_CONNECTING = 1;
@@ -130,10 +134,6 @@ public class ScatterBluetoothLEManager {
         return mGatt.getServices();
     }
 
-    private ScanCallback leScanCallback;
-
-    private Map<String, BluetoothDevice> deviceList;
-
     public ScatterBluetoothLEManager(Service mService) {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mAdvertiser = mAdapter.getBluetoothLeAdvertiser();
@@ -146,7 +146,7 @@ public class ScatterBluetoothLEManager {
             public void onScanResult(int callbackType, ScanResult result) {
                 super.onScanResult(callbackType, result);
                 BluetoothDevice device = result.getDevice();
-                deviceList.put(device.getAddress(), device);
+                deviceList.add(device);
                 Log.v(TAG, "enqueued scan result " + device.getAddress());
             }
 
@@ -154,7 +154,7 @@ public class ScatterBluetoothLEManager {
             public void onBatchScanResults(List<ScanResult> results) {
                 super.onBatchScanResults(results);
                 for(ScanResult result : results){
-                    deviceList.put(result.getDevice().getAddress(), result.getDevice());
+                    deviceList.add(result.getDevice());
                     Log.v(TAG, "batchEnqueued " + results.size() + " scan results");
                 }
             }
@@ -166,13 +166,13 @@ public class ScatterBluetoothLEManager {
         };
     }
 
-    private void processScanResults() {
-        for(Map.Entry<String, BluetoothDevice> entry: deviceList.entrySet()) {
-            //TODO: initiate GATT, perform transfers, etc
+    private boolean processOneScanResults() {
+        if(deviceList.empty())
+            return false;
 
-        }
-
-        deviceList.clear();
+        BluetoothDevice d = deviceList.pop();
+        mGatt = d.connectGatt(mService, false, gattCallback);
+        return true;
     }
 
 
@@ -199,13 +199,6 @@ public class ScatterBluetoothLEManager {
 
     public void stopScan() {
         Log.v(TAG, "Stopping LE scan");
-        AsyncTask.execute(new Runnable() {
-            @Override
-            public void run() {
-                mScanner.stopScan(leScanCallback);
-                processScanResults();
-            }
-        });
     }
 
     public void enableBluetooth(Activity activity) {
