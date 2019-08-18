@@ -200,42 +200,15 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
     }
 
 
-    private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-
-            if (ScatterBluetoothLEManager.ACTION_GATT_CONNECTED.equals(action)) {
-                leManager.setGattConnected(true);
-            } else if (ScatterBluetoothLEManager.ACTION_GATT_DISCONNECTED.equals(action)) {
-                leManager.setGattConnected(false);
-            } else if (ScatterBluetoothLEManager.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
-                List<BluetoothGattService> services = leManager.getSupportedGattServices();
-
-            } else if (ScatterBluetoothLEManager.ACTION_DATA_AVAILABLE.equals(action)) {
-                String extra = intent.getStringExtra(ScatterBluetoothLEManager.EXTRA_DATA);
-            }
-        }
-    };
-
-    private static IntentFilter makeGattUpdateIntentFilter() {
-        final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(ScatterBluetoothLEManager.ACTION_GATT_CONNECTED);
-        intentFilter.addAction(ScatterBluetoothLEManager.ACTION_GATT_DISCONNECTED);
-        intentFilter.addAction(ScatterBluetoothLEManager.ACTION_GATT_SERVICES_DISCOVERED);
-        intentFilter.addAction(ScatterBluetoothLEManager.ACTION_DATA_AVAILABLE);
-        return intentFilter;
-    }
-
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
+
         return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
-        unregisterReceiver(mGattUpdateReceiver);
+
     }
 
     public class ScatterBinder extends Binder {

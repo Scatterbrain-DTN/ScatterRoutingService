@@ -61,48 +61,21 @@ public class ScatterBluetoothLEManager {
     private static final int STATE_CONNECTED = 2;
     private int connectionState = STATE_DISCONNECTED;
 
-    public final static String ACTION_GATT_CONNECTED =
-            "com.example.uscatterbrain.network.bluetoothLE.ACTION_GATT_CONNECTED";
-    public final static String ACTION_GATT_DISCONNECTED =
-            "com.example.uscatterbrain.network.bluetoothLE.ACTION_GATT_DISCONNECTED";
-    public final static String ACTION_GATT_SERVICES_DISCOVERED =
-            "com.example.uscatterbrain.network.bluetoothLE.ACTION_GATT_SERVICES_DISCOVERED";
-    public final static String ACTION_DATA_AVAILABLE =
-            "com.example.uscatterbrain.network.bluetoothLE.ACTION_DATA_AVAILABLE";
-    public final static String EXTRA_DATA =
-            "com.example.uscatterbrain.network.bluetoothLE.EXTRA_DATA";
-
-    private void broadcastUpdate(final String action) {
-        final Intent intent = new Intent(action);
-        mService.sendBroadcast(intent);
-    }
-
-    private void broadcastUpdate(final String action, final BluetoothGattCharacteristic characteristic) {
-        final Intent intent = new Intent(action);
-
-        if(SERVICE_UUID.equals(characteristic.getUuid())) {
-
-        }
-    }
-
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             super.onConnectionStateChange(gatt, status, newState);
             String intentAction;
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                intentAction = ACTION_GATT_CONNECTED;
                 connectionState = STATE_CONNECTED;
-                broadcastUpdate(intentAction);
                 Log.i(TAG, "Connected to GATT server.");
                 Log.i(TAG, "Attempting to start service discovery:" +
                         mGatt.discoverServices());
 
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                intentAction = ACTION_GATT_DISCONNECTED;
                 connectionState = STATE_DISCONNECTED;
                 Log.i(TAG, "Disconnected from GATT server.");
-                broadcastUpdate(intentAction);
+                processOneScanResults();
             }
 
         }
@@ -111,7 +84,12 @@ public class ScatterBluetoothLEManager {
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             super.onServicesDiscovered(gatt, status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
+                if(gatt.getService(SERVICE_UUID) == null) {
+                    Log.w(TAG, "onServicesDiscovered: remote device does not support scatterbrain");
+                } else {
+                    //TODO: exchange advertise packets
+
+                }
             } else {
                 Log.w(TAG, "onServicesDiscovered received: " + status);
             }
@@ -123,7 +101,7 @@ public class ScatterBluetoothLEManager {
             super.onCharacteristicRead(gatt, characteristic, status);
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+
             }
 
         }
@@ -147,16 +125,10 @@ public class ScatterBluetoothLEManager {
                 super.onScanResult(callbackType, result);
                 BluetoothDevice device = result.getDevice();
                 deviceList.add(device);
-                Log.v(TAG, "enqueued scan result " + device.getAddress());
-            }
-
-            @Override
-            public void onBatchScanResults(List<ScanResult> results) {
-                super.onBatchScanResults(results);
-                for(ScanResult result : results){
-                    deviceList.add(result.getDevice());
-                    Log.v(TAG, "batchEnqueued " + results.size() + " scan results");
+                if(deviceList.size() == 1 && !gattConnected) {
+                    processOneScanResults();
                 }
+                Log.v(TAG, "enqueued scan result " + device.getAddress());
             }
 
             @Override
@@ -199,6 +171,12 @@ public class ScatterBluetoothLEManager {
 
     public void stopScan() {
         Log.v(TAG, "Stopping LE scan");
+        AsyncTask.execute(new Runnable() {
+            @Override
+            public void run() {
+                 mScanner.stopScan(leScanCallback);
+            }
+        });
     }
 
     public void enableBluetooth(Activity activity) {
