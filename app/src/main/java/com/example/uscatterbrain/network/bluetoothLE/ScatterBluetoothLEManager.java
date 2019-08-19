@@ -36,6 +36,7 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.util.ArrayList;
+import java.util.EmptyStackException;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
@@ -99,6 +100,7 @@ public class ScatterBluetoothLEManager {
                     AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService)mService).getProfile());
                     ch.setValue(ap.getBytes());
                     gatt.writeCharacteristic(ch);
+                    Log.v(TAG, "Wrote AdvertisePacket");
                 }
             } else {
                 Log.w(TAG, "onServicesDiscovered received: " + status);
@@ -116,6 +118,7 @@ public class ScatterBluetoothLEManager {
                     try {
                         AdvertisePacket ad = new AdvertisePacket(value);
                         //TODO: create transaction class
+                        Log.v(TAG, "Successfully read AdvertisePacket");
                     } catch(InvalidProtocolBufferException e) {
                         Log.w(TAG, "err: received invalid advertisepacket from GATT");
                     }
@@ -164,11 +167,13 @@ public class ScatterBluetoothLEManager {
     }
 
     private boolean processOneScanResults() {
-        if(deviceList.empty())
-            return false;
 
-        BluetoothDevice d = deviceList.pop();
-        mGatt = d.connectGatt(mService, false, gattCallback);
+        try {
+            BluetoothDevice d = deviceList.pop();
+            mGatt = d.connectGatt(mService, false, gattCallback);
+        } catch(EmptyStackException e) {
+            return false;
+        }
         return true;
     }
 
