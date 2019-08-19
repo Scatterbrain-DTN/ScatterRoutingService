@@ -64,6 +64,11 @@ public class ScatterBluetoothLEManager {
     private static final int STATE_CONNECTED = 2;
     private int connectionState = STATE_DISCONNECTED;
 
+
+    private static final int STATE_ADVERTISE_SEND = 1;
+    private static final int STATE_ADVERTISE_REPLY = 1;
+    private int currentstate = STATE_ADVERTISE_SEND;
+
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
