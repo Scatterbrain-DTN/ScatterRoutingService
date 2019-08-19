@@ -140,6 +140,7 @@ public class ScatterBluetoothLEManager {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mAdvertiser = mAdapter.getBluetoothLeAdvertiser();
         mScanner = mAdapter.getBluetoothLeScanner();
+        deviceList = new Stack<>();
 
         this.mService = mService;
 
