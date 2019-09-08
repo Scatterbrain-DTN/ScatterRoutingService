@@ -8,7 +8,10 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattServer;
+import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
@@ -60,6 +63,7 @@ public class ScatterBluetoothLEManager {
     private BluetoothAdapter mAdapter;
     private AdvertisingSet current;
     private BluetoothGatt mGatt;
+    private BluetoothGattServer mGattServer;
     private ScanCallback leScanCallback;
 
     private final Handler mHandler = new Handler();
@@ -80,6 +84,38 @@ public class ScatterBluetoothLEManager {
     public static long DEFAULT_SCAN_TIME = 30 * 1000;
     public static long DEFAULT_CONNECT_TIME = 60 * 1000;
     public static long DEFAULT_COOLDOWN_TIMEOUT = 1 * 1000;
+
+    private final BluetoothGattServerCallback gattServerCallback = new BluetoothGattServerCallback() {
+        @Override
+        public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
+            super.onConnectionStateChange(device, status, newState);
+        }
+
+        @Override
+        public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
+            super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
+        }
+
+        @Override
+        public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
+            super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value);
+        }
+
+        @Override
+        public void onDescriptorReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattDescriptor descriptor) {
+            super.onDescriptorReadRequest(device, requestId, offset, descriptor);
+        }
+
+        @Override
+        public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
+            super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value);
+        }
+
+        @Override
+        public void onNotificationSent(BluetoothDevice device, int status) {
+            super.onNotificationSent(device, status);
+        }
+    };
 
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
@@ -159,6 +195,11 @@ public class ScatterBluetoothLEManager {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mAdvertiser = mAdapter.getBluetoothLeAdvertiser();
         mScanner = mAdapter.getBluetoothLeScanner();
+        BluetoothManager btmanager = (BluetoothManager) mService.getSystemService(Context.BLUETOOTH_SERVICE);
+
+
+        mGattServer = btmanager.openGattServer(mService, gattServerCallback);
+
         deviceList = new HashMap<>();
 
         this.mService = mService;
@@ -315,6 +356,7 @@ public class ScatterBluetoothLEManager {
             return;
         }
 
+        mGattServer.addService(new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY));
 
         if(Build.VERSION.SDK_INT >= 26) {
             AdvertisingSetParameters parameters = (new AdvertisingSetParameters.Builder())
