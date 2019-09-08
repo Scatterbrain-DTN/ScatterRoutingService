@@ -32,7 +32,6 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
     private DeviceProfile myprofile;
 
     public ScatterRoutingService() {
-        leManager = new ScatterBluetoothLEManager(this);
     }
 
     @Override
@@ -185,6 +184,8 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
         } catch(NullPointerException e) {
             Log.e(TAG, "NullPointerException while creating persistent notification");
         }
+        leManager = new ScatterBluetoothLEManager(getApplicationContext());
+
     }
 
     @Override
@@ -202,7 +203,6 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-
         return START_NOT_STICKY;
     }
 

@@ -54,7 +54,7 @@ public class ScatterBluetoothLEManager {
     public static final String TAG = "BluetoothLE";
     public static final int SERVICE_ID = 0xFEEF;
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
-    private Service mService;
+    private Context mService;
 
     private final int REQUEST_ENABLE_BT = 1;
 
@@ -191,18 +191,18 @@ public class ScatterBluetoothLEManager {
         return mGatt.getServices();
     }
 
-    public ScatterBluetoothLEManager(Service mService) {
+    public ScatterBluetoothLEManager(Context context) {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mAdvertiser = mAdapter.getBluetoothLeAdvertiser();
         mScanner = mAdapter.getBluetoothLeScanner();
-        BluetoothManager btmanager = (BluetoothManager) mService.getSystemService(Context.BLUETOOTH_SERVICE);
 
-
-        mGattServer = btmanager.openGattServer(mService, gattServerCallback);
 
         deviceList = new HashMap<>();
 
-        this.mService = mService;
+        this.mService = context;
+
+        BluetoothManager btmanager = (BluetoothManager) mService.getSystemService(Context.BLUETOOTH_SERVICE);
+        mGattServer = btmanager.openGattServer(mService, gattServerCallback);
 
         leScanCallback = new ScanCallback() {
             @Override
