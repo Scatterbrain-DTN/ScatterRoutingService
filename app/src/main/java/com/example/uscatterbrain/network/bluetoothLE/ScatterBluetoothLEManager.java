@@ -79,7 +79,8 @@ public class ScatterBluetoothLEManager {
                 connectionState = STATE_CONNECTED;
                 Log.i(TAG, "Connected to GATT server " + gatt.getDevice().getAddress());
 
-                BluetoothGattCharacteristic ch = mGatt.getService(SERVICE_UUID).getCharacteristic(SERVICE_UUID);
+                BluetoothGattCharacteristic ch = new BluetoothGattCharacteristic(SERVICE_UUID,
+                        BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ);
                 AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService)mService).getProfile());
                 ch.setValue(ap.getBytes());
                 gatt.writeCharacteristic(ch);
