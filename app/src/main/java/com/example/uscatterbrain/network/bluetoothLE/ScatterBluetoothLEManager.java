@@ -25,8 +25,10 @@ import android.bluetooth.le.ScanSettings;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.net.MacAddress;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.os.Handler;
 import android.os.ParcelUuid;
 import android.util.Log;
 
@@ -37,16 +39,18 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.util.ArrayList;
 import java.util.EmptyStackException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Stack;
 import java.util.UUID;
+import java.util.concurrent.Delayed;
 
 public class ScatterBluetoothLEManager {
     public static final String TAG = "BluetoothLE";
     public static final int SERVICE_ID = 0xFEEF;
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
-    private boolean gattConnected = false;
     private Service mService;
 
     private final int REQUEST_ENABLE_BT = 1;
@@ -58,7 +62,9 @@ public class ScatterBluetoothLEManager {
     private BluetoothGatt mGatt;
     private ScanCallback leScanCallback;
 
-    private Stack<BluetoothDevice> deviceList;
+    private final Handler mHandler = new Handler();
+
+    private Map<String,BluetoothDevice> deviceList;
 
     private static final int STATE_DISCONNECTED = 0;
     private static final int STATE_CONNECTING = 1;
@@ -66,9 +72,14 @@ public class ScatterBluetoothLEManager {
     private int connectionState = STATE_DISCONNECTED;
 
 
-    private static final int STATE_ADVERTISE_SEND = 1;
-    private static final int STATE_ADVERTISE_REPLY = 1;
-    private int currentstate = STATE_ADVERTISE_SEND;
+    private static final int STATE_DISCOVER = 0;
+    private static final int STATE_CONNECT = 1;
+    private static final int STATE_IDLE = 3;
+    private int currentstate = STATE_IDLE;
+
+    public static long DEFAULT_SCAN_TIME = 30 * 1000;
+    public static long DEFAULT_CONNECT_TIME = 60 * 1000;
+    public static long DEFAULT_COOLDOWN_TIMEOUT = 1 * 1000;
 
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
@@ -76,18 +87,11 @@ public class ScatterBluetoothLEManager {
             super.onConnectionStateChange(gatt, status, newState);
             String intentAction;
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                connectionState = STATE_CONNECTED;
-                Log.i(TAG, "Connected to GATT server " + gatt.getDevice().getAddress());
+                    connectionState = STATE_CONNECTED;
+                    Log.i(TAG, "Connected to GATT server " + gatt.getDevice().getAddress() + "discovering services");
 
-                BluetoothGattCharacteristic ch = new BluetoothGattCharacteristic(SERVICE_UUID,
-                        BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ);
-                AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService)mService).getProfile());
-                ch.setValue(ap.getBytes());
-                gatt.writeCharacteristic(ch);
-                Log.v(TAG, "Wrote AdvertisePacket");
+                    gatt.discoverServices();
 
-                //TODO: don't disconnect here, validate response and then disconnect.
-                gatt.disconnect();
 
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connectionState = STATE_DISCONNECTED;
@@ -117,6 +121,29 @@ public class ScatterBluetoothLEManager {
             }
 
         }
+
+
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+
+
+         /*
+            BluetoothGattCharacteristic ch = new BluetoothGattCharacteristic(SERVICE_UUID,
+                    BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ);
+            AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService) mService).getProfile());
+            ch.setValue(ap.getBytes());
+            gatt.writeCharacteristic(ch);
+            Log.v(TAG, "Wrote AdvertisePacket");
+*/
+
+            for(BluetoothGattService b : gatt.getServices()) {
+                Log.v(TAG, "Discovered service: " + b.getUuid());
+            }
+            //TODO: don't disconnect here, validate response and then disconnect.
+            gatt.disconnect();
+        }
+
+
     };
 
     private void multiPartMessage(BluetoothGattCharacteristic characteristic, byte[] data) {
@@ -132,7 +159,7 @@ public class ScatterBluetoothLEManager {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mAdvertiser = mAdapter.getBluetoothLeAdvertiser();
         mScanner = mAdapter.getBluetoothLeScanner();
-        deviceList = new Stack<>();
+        deviceList = new HashMap<>();
 
         this.mService = mService;
 
@@ -150,15 +177,13 @@ public class ScatterBluetoothLEManager {
                 for(ParcelUuid p : result.getScanRecord().getServiceUuids()) {
                     if (p.getUuid().equals(SERVICE_UUID)) {
                         Log.v(TAG, "found a scatterbrain UUID");
-                        deviceList.add(device);
+                        deviceList.put(device.getAddress(),device);
                         break;
                     } else {
                         Log.v(TAG, "found nonscatterbrain UUID " + p.getUuid().toString());
                     }
 
                 }
-
-                processOneScanResults();
 
                 Log.v(TAG, "enqueued scan result " + device.getAddress());
             }
@@ -171,22 +196,57 @@ public class ScatterBluetoothLEManager {
         };
     }
 
-    private boolean processOneScanResults() {
-        if(gattConnected)
-            return false;
 
+
+    private boolean processOneScanResults() {
+        if(currentstate != STATE_CONNECT)
+            return false;
         try {
-            BluetoothDevice d = deviceList.pop();
+            String key = deviceList.entrySet().iterator().next().getKey();
+            BluetoothDevice d = deviceList.remove(key);
             mGatt = d.connectGatt(mService, false, gattCallback);
-        } catch(EmptyStackException e) {
+        } catch(NoSuchElementException e) {
             return false;
         }
         return true;
     }
 
+    public void processPeers(long timeoutmillis) {
+        currentstate = STATE_CONNECT;
+        processOneScanResults();
 
-    public void startScan() {
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if(mGatt != null) {
+                    mGatt.disconnect();
+                }
+                currentstate = STATE_IDLE;
+                mHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        onConnectTimeout();
+                    }
+                }, DEFAULT_COOLDOWN_TIMEOUT);
+
+            }
+        }, timeoutmillis);
+    }
+
+
+    private void onDiscoverTimeout() {
+        Log.v(TAG, "Discovery timed out, processing peers");
+        processPeers(DEFAULT_CONNECT_TIME);
+    }
+
+    private void onConnectTimeout() {
+        Log.v(TAG, "Connedt timed out, switching back to discovery");
+        scanTime(DEFAULT_SCAN_TIME);
+    }
+
+    public void scanTime(long scantimemillis) {
         Log.v(TAG, "Starting LE scan");
+        deviceList.clear();
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
@@ -200,11 +260,32 @@ public class ScatterBluetoothLEManager {
                 List<ScanFilter> sflist = new ArrayList<>();
                 sflist.add(s);
 
-
+                currentstate = STATE_DISCOVER;
                 mScanner.startScan(sflist, settings, leScanCallback);
 
             }
         });
+
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                mScanner.stopScan(leScanCallback);
+                currentstate = STATE_IDLE;
+
+                mHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        onDiscoverTimeout();
+                    }
+                },DEFAULT_COOLDOWN_TIMEOUT);
+
+            }
+        }, scantimemillis);
+
+    }
+
+    public void startScan() {
+        scanTime(DEFAULT_SCAN_TIME);
     }
 
     public void stopScan() {
@@ -308,11 +389,4 @@ public class ScatterBluetoothLEManager {
         return true;
     }
 
-    public void setGattConnected(boolean mGattConnected) {
-        this.gattConnected = mGattConnected;
-    }
-
-    public boolean isGattConnected() {
-        return gattConnected;
-    }
 }
