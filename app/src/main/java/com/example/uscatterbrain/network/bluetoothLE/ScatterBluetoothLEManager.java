@@ -77,33 +77,21 @@ public class ScatterBluetoothLEManager {
             String intentAction;
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 connectionState = STATE_CONNECTED;
-                Log.i(TAG, "Connected to GATT server.");
-                Log.i(TAG, "Attempting to start service discovery:" +
-                        mGatt.discoverServices());
+                Log.i(TAG, "Connected to GATT server " + gatt.getDevice().getAddress());
+
+                BluetoothGattCharacteristic ch = mGatt.getService(SERVICE_UUID).getCharacteristic(SERVICE_UUID);
+                AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService)mService).getProfile());
+                ch.setValue(ap.getBytes());
+                gatt.writeCharacteristic(ch);
+                Log.v(TAG, "Wrote AdvertisePacket");
+
+                //TODO: don't disconnect here, validate response and then disconnect.
+                gatt.disconnect();
 
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connectionState = STATE_DISCONNECTED;
-                Log.i(TAG, "Disconnected from GATT server.");
+                Log.i(TAG, "Disconnected from GATT server " + gatt.getDevice().getAddress());
                 processOneScanResults();
-            }
-
-        }
-
-        @Override
-        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            super.onServicesDiscovered(gatt, status);
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                if(gatt.getService(SERVICE_UUID) == null) {
-                    Log.w(TAG, "onServicesDiscovered: remote device does not support scatterbrain");
-                } else {
-                    BluetoothGattCharacteristic ch = gatt.getService(SERVICE_UUID).getCharacteristic(SERVICE_UUID);
-                    AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService)mService).getProfile());
-                    ch.setValue(ap.getBytes());
-                    gatt.writeCharacteristic(ch);
-                    Log.v(TAG, "Wrote AdvertisePacket");
-                }
-            } else {
-                Log.w(TAG, "onServicesDiscovered received: " + status);
             }
 
         }
@@ -152,21 +140,39 @@ public class ScatterBluetoothLEManager {
             public void onScanResult(int callbackType, ScanResult result) {
                 super.onScanResult(callbackType, result);
                 BluetoothDevice device = result.getDevice();
-                deviceList.add(device);
-                if(deviceList.size() == 1 && !gattConnected) {
-                    processOneScanResults();
+
+                if(result.getScanRecord()== null) {
+                    Log.e(TAG, "onScanResult called with null service record");
+                    return;
                 }
+
+                for(ParcelUuid p : result.getScanRecord().getServiceUuids()) {
+                    if (p.getUuid().equals(SERVICE_UUID)) {
+                        Log.v(TAG, "found a scatterbrain UUID");
+                        deviceList.add(device);
+                        break;
+                    } else {
+                        Log.v(TAG, "found nonscatterbrain UUID " + p.getUuid().toString());
+                    }
+
+                }
+
+                processOneScanResults();
+
                 Log.v(TAG, "enqueued scan result " + device.getAddress());
             }
 
             @Override
             public void onScanFailed(int errorCode) {
                 super.onScanFailed(errorCode);
+                Log.v(TAG, "scan failed " + errorCode);
             }
         };
     }
 
     private boolean processOneScanResults() {
+        if(gattConnected)
+            return false;
 
         try {
             BluetoothDevice d = deviceList.pop();
@@ -195,6 +201,7 @@ public class ScatterBluetoothLEManager {
 
 
                 mScanner.startScan(sflist, settings, leScanCallback);
+
             }
         });
     }
