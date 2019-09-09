@@ -81,6 +81,9 @@ public class ProtocolUnitTest {
         } catch(InvalidProtocolBufferException i) {
             Assert.fail("protobuf invalid");
         }
+
+        assertEquals("UUID lower is preserved", ad2.getAdvertise().getUuidLower(), uid.getLeastSignificantBits());
+        assertEquals("UUID upper is preserved", ad2.getAdvertise().getUuidUpper(), uid.getMostSignificantBits());
     }
 
     @Test
