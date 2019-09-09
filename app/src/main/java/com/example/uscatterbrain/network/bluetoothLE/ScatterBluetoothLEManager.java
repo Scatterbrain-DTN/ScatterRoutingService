@@ -205,6 +205,11 @@ public class ScatterBluetoothLEManager {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mAdvertiser = mAdapter.getBluetoothLeAdvertiser();
         mScanner = mAdapter.getBluetoothLeScanner();
+        BluetoothManager btmanager = (BluetoothManager) mService.getSystemService(Context.BLUETOOTH_SERVICE);
+
+
+        mGattServer = btmanager.openGattServer(mService, gattServerCallback);
+
         deviceList = new HashMap<>();
 
 
