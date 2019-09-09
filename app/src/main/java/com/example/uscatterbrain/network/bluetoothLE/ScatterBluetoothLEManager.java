@@ -54,6 +54,8 @@ public class ScatterBluetoothLEManager {
     public static final String TAG = "BluetoothLE";
     public static final int SERVICE_ID = 0xFEEF;
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
+    public static final UUID UUID_READ_SSID = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
+    public static final UUID UUID_READ_PSK =  UUID.fromString("9a23e79f-4a6d-4e28-95c6-257f5e47fd90");
     private Context mService;
 
     private final int REQUEST_ENABLE_BT = 1;
@@ -82,7 +84,7 @@ public class ScatterBluetoothLEManager {
     private int currentstate = STATE_IDLE;
 
     public static long DEFAULT_SCAN_TIME = 30 * 1000;
-    public static long DEFAULT_CONNECT_TIME = 60 * 1000;
+    public static long DEFAULT_CONNECT_TIME = 190 * 1000;
     public static long DEFAULT_COOLDOWN_TIMEOUT = 1 * 1000;
 
     private final BluetoothGattServerCallback gattServerCallback = new BluetoothGattServerCallback() {
@@ -94,6 +96,15 @@ public class ScatterBluetoothLEManager {
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
+
+
+            if(characteristic.getUuid().equals(SERVICE_UUID)) {
+                AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService) mService).getProfile());
+                mGattServer.sendResponse(device,  requestId,BluetoothGatt.GATT_SUCCESS, 0, ap.getBytes());
+                Log.v(TAG, "Wrote AdvertisePacket");
+            } else {
+                Log.v(TAG, "Someone tried to read a nonexistant UUID " + characteristic.getUuid());
+            }
         }
 
         @Override
@@ -163,20 +174,19 @@ public class ScatterBluetoothLEManager {
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
 
 
-         /*
-            BluetoothGattCharacteristic ch = new BluetoothGattCharacteristic(SERVICE_UUID,
-                    BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ);
-            AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService) mService).getProfile());
-            ch.setValue(ap.getBytes());
-            gatt.writeCharacteristic(ch);
-            Log.v(TAG, "Wrote AdvertisePacket");
-*/
-
-            for(BluetoothGattService b : gatt.getServices()) {
-                Log.v(TAG, "Discovered service: " + b.getUuid());
+            BluetoothGattService s = gatt.getService(SERVICE_UUID);
+            if(s != null) {
+                BluetoothGattCharacteristic ch = s.getCharacteristic(UUID_READ_SSID);
+                if(ch != null) {
+                    gatt.readCharacteristic(ch);
+                    Log.v(TAG, "starting characteristic read");
+                } else {
+                    Log.e(TAG, "read failed, characteristic is null");
+                }
+            } else {
+                Log.e(TAG, "read failed, service is null");
             }
-            //TODO: don't disconnect here, validate response and then disconnect.
-            gatt.disconnect();
+
         }
 
 
@@ -356,7 +366,12 @@ public class ScatterBluetoothLEManager {
             return;
         }
 
-        mGattServer.addService(new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY));
+        BluetoothGattService service = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
+        BluetoothGattCharacteristic ssidCharacteristic = new
+                BluetoothGattCharacteristic(UUID_READ_SSID, BluetoothGattCharacteristic.PROPERTY_READ,
+                BluetoothGattCharacteristic.PERMISSION_READ);
+        service.addCharacteristic(ssidCharacteristic);
+        mGattServer.addService(service);
 
         if(Build.VERSION.SDK_INT >= 26) {
             AdvertisingSetParameters parameters = (new AdvertisingSetParameters.Builder())
