@@ -98,7 +98,7 @@ public class ScatterBluetoothLEManager {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
 
 
-            if(characteristic.getUuid().equals(SERVICE_UUID)) {
+            if(characteristic.getUuid().equals(UUID_READ_SSID)) {
                 AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService) mService).getProfile());
                 mGattServer.sendResponse(device,  requestId,BluetoothGatt.GATT_SUCCESS, 0, ap.getBytes());
                 Log.v(TAG, "Wrote AdvertisePacket");
