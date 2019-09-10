@@ -104,6 +104,7 @@ public class ScatterBluetoothLEManager {
                 Log.v(TAG, "Wrote AdvertisePacket");
             } else {
                 Log.v(TAG, "Someone tried to read a nonexistant UUID " + characteristic.getUuid());
+                mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
             }
         }
 
