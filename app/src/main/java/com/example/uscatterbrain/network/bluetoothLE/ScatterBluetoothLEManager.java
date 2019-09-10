@@ -97,7 +97,7 @@ public class ScatterBluetoothLEManager {
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
 
-
+            Log.v(TAG, "Accepting characteristic read request from " + device.getAddress());
             if(characteristic.getUuid().equals(UUID_READ_SSID)) {
                 AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService) mService).getProfile());
                 mGattServer.sendResponse(device,  requestId,BluetoothGatt.GATT_SUCCESS, 0, ap.getBytes());
@@ -151,7 +151,7 @@ public class ScatterBluetoothLEManager {
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             super.onCharacteristicRead(gatt, characteristic, status);
-
+            Log.v(TAG, "called onCharacteristicRead");
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 if(characteristic.getUuid().equals(SERVICE_UUID)) {
                     byte[] value = characteristic.getValue();
@@ -273,6 +273,7 @@ public class ScatterBluetoothLEManager {
             @Override
             public void run() {
                 if(mGatt != null) {
+                    mGatt.close();
                     mGatt.disconnect();
                 }
                 currentstate = STATE_IDLE;
