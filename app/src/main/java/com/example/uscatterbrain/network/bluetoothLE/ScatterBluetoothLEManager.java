@@ -1,7 +1,6 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.app.Activity;
-import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -25,30 +24,24 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.net.MacAddress;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Handler;
 import android.os.ParcelUuid;
 import android.util.Log;
 
-import com.example.uscatterbrain.DeviceProfile;
 import com.example.uscatterbrain.ScatterRoutingService;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.util.ArrayList;
-import java.util.EmptyStackException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Stack;
 import java.util.UUID;
-import java.util.concurrent.Delayed;
 
 public class ScatterBluetoothLEManager {
     public static final String TAG = "BluetoothLE";
@@ -82,15 +75,32 @@ public class ScatterBluetoothLEManager {
     private static final int STATE_CONNECT = 1;
     private static final int STATE_IDLE = 3;
     private int currentstate = STATE_IDLE;
+    private boolean scanpaused;
 
     public static long DEFAULT_SCAN_TIME = 30 * 1000;
     public static long DEFAULT_CONNECT_TIME = 190 * 1000;
     public static long DEFAULT_COOLDOWN_TIMEOUT = 1 * 1000;
 
+    public void setScanPaused() {
+        scanpaused = true;
+    }
+
+    public void setScanUnpaused() {
+        scanpaused = false;
+    }
+
     private final BluetoothGattServerCallback gattServerCallback = new BluetoothGattServerCallback() {
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
             super.onConnectionStateChange(device, status, newState);
+            if(newState == BluetoothProfile.STATE_CONNECTING) {
+
+            }
+            else if(newState == BluetoothProfile.STATE_CONNECTED) {
+
+            } else if(newState == BluetoothProfile.STATE_DISCONNECTED) {
+
+            }
         }
 
         @Override
@@ -269,13 +279,14 @@ public class ScatterBluetoothLEManager {
     public void processPeers(long timeoutmillis) {
         currentstate = STATE_CONNECT;
         processOneScanResults();
-
         mHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                if(mGatt != null) {
-                    mGatt.close();
-                    mGatt.disconnect();
+                if(!scanpaused) {
+                    if (mGatt != null) {
+                        mGatt.close();
+                        mGatt.disconnect();
+                    }
                 }
                 currentstate = STATE_IDLE;
                 mHandler.postDelayed(new Runnable() {
@@ -302,30 +313,33 @@ public class ScatterBluetoothLEManager {
 
     public void scanTime(long scantimemillis) {
         Log.v(TAG, "Starting LE scan");
-        deviceList.clear();
-        AsyncTask.execute(new Runnable() {
-            @Override
-            public void run() {
-                ScanFilter s = new ScanFilter.Builder()
-                        .setServiceUuid(new ParcelUuid(SERVICE_UUID))
-                        .build();
+        if(!scanpaused) {
+            deviceList.clear();
+            AsyncTask.execute(new Runnable() {
+                @Override
+                public void run() {
+                    ScanFilter s = new ScanFilter.Builder()
+                            .setServiceUuid(new ParcelUuid(SERVICE_UUID))
+                            .build();
 
-                ScanSettings settings = new ScanSettings.Builder()
-                        .build();
+                    ScanSettings settings = new ScanSettings.Builder()
+                            .build();
 
-                List<ScanFilter> sflist = new ArrayList<>();
-                sflist.add(s);
+                    List<ScanFilter> sflist = new ArrayList<>();
+                    sflist.add(s);
 
-                currentstate = STATE_DISCOVER;
-                mScanner.startScan(sflist, settings, leScanCallback);
+                    currentstate = STATE_DISCOVER;
+                    mScanner.startScan(sflist, settings, leScanCallback);
 
-            }
-        });
+                }
+            });
+        }
 
         mHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                mScanner.stopScan(leScanCallback);
+                if(!scanpaused)
+                    mScanner.stopScan(leScanCallback);
                 currentstate = STATE_IDLE;
 
                 mHandler.postDelayed(new Runnable() {
