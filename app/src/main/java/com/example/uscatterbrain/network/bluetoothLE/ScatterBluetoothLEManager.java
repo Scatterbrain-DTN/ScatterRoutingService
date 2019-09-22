@@ -94,12 +94,14 @@ public class ScatterBluetoothLEManager {
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
             super.onConnectionStateChange(device, status, newState);
             if(newState == BluetoothProfile.STATE_CONNECTING) {
-
+                Log.v(TAG, "BLE GattServer connecting...");
+                setScanPaused();
             }
             else if(newState == BluetoothProfile.STATE_CONNECTED) {
-
+                Log.v(TAG, "BLE GattServer connected");
             } else if(newState == BluetoothProfile.STATE_DISCONNECTED) {
-
+                Log.v(TAG, "BLE GattServer disconnected");
+                setScanUnpaused();
             }
         }
 
@@ -121,21 +123,6 @@ public class ScatterBluetoothLEManager {
         @Override
         public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
             super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value);
-        }
-
-        @Override
-        public void onDescriptorReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattDescriptor descriptor) {
-            super.onDescriptorReadRequest(device, requestId, offset, descriptor);
-        }
-
-        @Override
-        public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
-            super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value);
-        }
-
-        @Override
-        public void onNotificationSent(BluetoothDevice device, int status) {
-            super.onNotificationSent(device, status);
         }
     };
 
@@ -202,15 +189,6 @@ public class ScatterBluetoothLEManager {
 
 
     };
-
-    private void multiPartMessage(BluetoothGattCharacteristic characteristic, byte[] data) {
-
-    }
-
-    public List<BluetoothGattService> getSupportedGattServices() {
-        if (mGatt == null) return null;
-        return mGatt.getServices();
-    }
 
     public ScatterBluetoothLEManager(Context context) {
         mAdapter = BluetoothAdapter.getDefaultAdapter();
