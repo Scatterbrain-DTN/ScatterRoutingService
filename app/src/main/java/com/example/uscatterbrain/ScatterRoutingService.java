@@ -3,15 +3,11 @@ package com.example.uscatterbrain;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.bluetooth.BluetoothGattService;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Binder;
 import android.os.IBinder;
-import android.support.v4.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
 import android.util.Log;
 
 import com.example.uscatterbrain.API.HighLevelAPI;
@@ -22,7 +18,6 @@ import com.example.uscatterbrain.network.BlockDataPacket;
 import com.example.uscatterbrain.network.bluetoothLE.ScatterBluetoothLEManager;
 
 import java.io.InputStream;
-import java.util.List;
 
 public class ScatterRoutingService extends Service implements HighLevelAPI {
     public final String TAG = "ScatterRoutingService";
