@@ -131,7 +131,11 @@ public class ScatterBluetoothLEManager {
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             super.onConnectionStateChange(gatt, status, newState);
             String intentAction;
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
+
+            if (newState == BluetoothProfile.STATE_CONNECTING) {
+                Log.v(TAG, "Connecting to GATT server");
+            }
+            else if (newState == BluetoothProfile.STATE_CONNECTED) {
                     connectionState = STATE_CONNECTED;
                     Log.i(TAG, "Connected to GATT server " + gatt.getDevice().getAddress() + "discovering services");
 
