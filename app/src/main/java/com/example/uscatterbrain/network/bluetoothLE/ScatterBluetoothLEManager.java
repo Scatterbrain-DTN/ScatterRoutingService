@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Random;
 import java.util.UUID;
 
 public class ScatterBluetoothLEManager {
@@ -111,8 +112,10 @@ public class ScatterBluetoothLEManager {
 
             Log.v(TAG, "Accepting characteristic read request from " + device.getAddress());
             if(characteristic.getService().getUuid().equals(UUID_READ_SSID)) {
-                AdvertisePacket ap = new AdvertisePacket(((ScatterRoutingService) mService).getProfile());
-                mGattServer.sendResponse(device,  requestId,BluetoothGatt.GATT_SUCCESS, 0, ap.getBytes());
+                Random random = new Random();
+                byte[] data = new byte[19];
+                random.nextBytes(data);
+                mGattServer.sendResponse(device,  requestId,BluetoothGatt.GATT_SUCCESS, 0, data);
                 Log.v(TAG, "Wrote AdvertisePacket");
             } else {
                 Log.v(TAG, "Someone tried to read a nonexistant UUID " + characteristic.getUuid());
@@ -146,6 +149,7 @@ public class ScatterBluetoothLEManager {
                 connectionState = STATE_DISCONNECTED;
                 Log.i(TAG, "Disconnected from GATT server " + gatt.getDevice().getAddress());
                 processOneScanResults();
+                //TODO: unpause scanning
             }
 
         }
@@ -157,13 +161,7 @@ public class ScatterBluetoothLEManager {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 if(characteristic.getUuid().equals(SERVICE_UUID)) {
                     byte[] value = characteristic.getValue();
-                    try {
-                        AdvertisePacket ad = new AdvertisePacket(value);
-                        //TODO: create transaction class
-                        Log.v(TAG, "Successfully read AdvertisePacket");
-                    } catch(InvalidProtocolBufferException e) {
-                        Log.w(TAG, "err: received invalid advertisepacket from GATT");
-                    }
+                    Log.v(TAG, "gatt client ead byte value ");
                 } else {
                     Log.w(TAG, "err: received GATT characteristic with wrong UUID");
                 }
