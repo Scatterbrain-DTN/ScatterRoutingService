@@ -165,6 +165,8 @@ public class ScatterBluetoothLEManager {
                 } else {
                     Log.w(TAG, "err: received GATT characteristic with wrong UUID");
                 }
+            } else {
+                Log.v(TAG, "err: characteristicread GATT_FAILURE");
             }
 
         }
