@@ -15,9 +15,10 @@ public class BlockDataTransactionEvent implements ScatterEventBusEvent {
     private List<BlockDataPacket> mBlockDataList;
     private TransactionType mTransactionType;
 
-    public BlockDataTransactionEvent(String componentID, TransactionType type) {
-        this.mTransactionType = type;
-        this.mComponentID = componentID;
+    public BlockDataTransactionEvent(BlockDataTransactionEventBuilder builder) {
+        this.mTransactionType =  builder.mTransactionType;
+        this.mComponentID = builder.mComponentID;
+        this.mBlockDataList = builder.mBlockDataList;
     }
 
     public String getComponentID() {
@@ -34,5 +35,30 @@ public class BlockDataTransactionEvent implements ScatterEventBusEvent {
 
     public List<BlockDataPacket> getContent() {
         return this.mBlockDataList;
+    }
+
+    public static class BlockDataTransactionEventBuilder {
+        private String mComponentID;
+        private List<BlockDataPacket> mBlockDataList;
+        private TransactionType mTransactionType;
+
+        public BlockDataTransactionEventBuilder(String componentID) {
+            this.mComponentID = componentID;
+        }
+
+        public BlockDataTransactionEventBuilder setContents(List<BlockDataPacket> blockDataPackets) {
+            this.mBlockDataList = blockDataPackets;
+            return this;
+        }
+
+        public BlockDataTransactionEventBuilder setTransactionType(TransactionType type) {
+            this.mTransactionType = type;
+            return this;
+        }
+
+        public BlockDataTransactionEvent build() {
+            BlockDataTransactionEvent event = new BlockDataTransactionEvent(this);
+            return event;
+        }
     }
 }
