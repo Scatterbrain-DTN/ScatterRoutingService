@@ -7,10 +7,7 @@ import androidx.room.PrimaryKey;
 import static androidx.room.ForeignKey.CASCADE;
 
 
-@Entity(tableName = "messages", foreignKeys = @ForeignKey(entity = Identity.class,
-        parentColumns = "identityID",
-        childColumns = "identityID",
-        onDelete = CASCADE))
+@Entity(tableName = "messages")
 public class ScatterMessage {
     @PrimaryKey
     public int messageID;

@@ -17,4 +17,11 @@ public class ScatterMessagesWithFiles {
             entity = DiskFiles.class
     )
     List<DiskFiles> messageDiskFiles;
+
+    @Relation(
+            parentColumn = "messageID",
+            entityColumn = "identityID",
+            entity = Identity.class
+    )
+    List<Identity> messageIdentities;
 }
