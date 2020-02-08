@@ -9,13 +9,13 @@ import java.util.List;
 
 @Dao
 public interface DiskFilesDao {
-    @Query("SELECT * FROM DiskFiles")
+    @Query("SELECT * FROM diskfiles")
     List<DiskFiles> getAll();
 
-    @Query("SELECT * FROM DiskFiles WHERE fileID IN (:ids) ")
+    @Query("SELECT * FROM diskfiles WHERE fileID IN (:ids) ")
     List<DiskFiles> getById(int[] ids);
 
-    @Query("SELECT * FROM DiskFiles WHERE filepath IN (:paths)")
+    @Query("SELECT * FROM diskfiles WHERE filepath IN (:paths)")
     List<DiskFiles> getByPath(String[] paths);
 
     @Insert

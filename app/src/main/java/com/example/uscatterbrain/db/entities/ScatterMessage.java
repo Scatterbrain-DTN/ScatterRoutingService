@@ -15,6 +15,4 @@ public class ScatterMessage {
     @ColumnInfo
     public int identityID;
 
-    @ColumnInfo
-    public int[] fileID;
 }
