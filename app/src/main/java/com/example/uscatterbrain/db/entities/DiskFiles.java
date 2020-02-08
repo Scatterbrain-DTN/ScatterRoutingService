@@ -11,6 +11,9 @@ public class DiskFiles {
     public int fileID;
 
     @ColumnInfo
+    public int ownerID;
+
+    @ColumnInfo
     public String filepath;
 
     @ColumnInfo
