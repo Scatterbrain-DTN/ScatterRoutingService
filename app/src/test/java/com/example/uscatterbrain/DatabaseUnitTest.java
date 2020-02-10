@@ -48,6 +48,8 @@ public class DatabaseUnitTest {
         ScatterMessage sm = new ScatterMessage();
         sm.files.add(new DiskFiles());
         List<ScatterMessage> sms = new ArrayList<ScatterMessage>();
+        Identity identity = new Identity();
+        sm.identity = identity;
         sms.add(sm);
 
         db.scatterMessageDao().insertMessages(sms);

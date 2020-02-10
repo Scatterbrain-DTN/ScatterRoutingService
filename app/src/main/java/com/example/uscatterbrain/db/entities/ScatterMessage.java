@@ -1,5 +1,6 @@
 package com.example.uscatterbrain.db.entities;
 
+import androidx.annotation.NonNull;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.ForeignKey;
@@ -18,12 +19,13 @@ public class ScatterMessage {
     public int messageID;
 
     @ColumnInfo
-    public int identityID;
+    @ForeignKey(entity = Identity.class, parentColumns = "identityID", childColumns = "identityID")
+    @NonNull
+    public long identityID;
 
     @Ignore
     public List<DiskFiles> files = new ArrayList<>();
 
     @Ignore
-    public List<Identity> identities = new ArrayList<>();
-
+    public Identity identity;
 }

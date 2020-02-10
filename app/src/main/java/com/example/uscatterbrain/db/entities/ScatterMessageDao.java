@@ -44,6 +44,8 @@ public abstract class ScatterMessageDao {
                     xrefs.add(xref);
                 }
             }
+            Long identityID = insertIdentity(message.identity);
+            message.identityID = identityID;
         }
 
         insertMessagesWithFiles(xrefs);
@@ -61,7 +63,10 @@ public abstract class ScatterMessageDao {
     public abstract List<Long> insertDiskFiles(List<DiskFiles> df);
 
     @Insert
-    public abstract void insertIdentities(List<Identity> ids);
+    public abstract  Long insertIdentity(Identity identity);
+
+    @Insert
+    public abstract List<Long> insertIdentities(List<Identity> ids);
 
     @Delete
     public abstract void delete(ScatterMessage message);
