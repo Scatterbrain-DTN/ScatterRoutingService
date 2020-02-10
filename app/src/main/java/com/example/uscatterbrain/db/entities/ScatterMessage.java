@@ -16,7 +16,7 @@ import static androidx.room.ForeignKey.CASCADE;
 @Entity(tableName = "messages")
 public class ScatterMessage {
     @PrimaryKey(autoGenerate = true)
-    public int messageID;
+    public long messageID;
 
     @ColumnInfo
     @ForeignKey(entity = Identity.class, parentColumns = "identityID", childColumns = "identityID")

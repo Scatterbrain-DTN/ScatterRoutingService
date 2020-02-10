@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey;
 @Entity(tableName = "identities")
 public class Identity {
     @PrimaryKey
-    public int identityID;
+    public long identityID;
 
     @ColumnInfo(name = "givenname")
     public String givenName;

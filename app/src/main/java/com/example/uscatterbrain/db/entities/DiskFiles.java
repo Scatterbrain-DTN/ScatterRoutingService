@@ -11,7 +11,7 @@ import androidx.room.PrimaryKey;
 public class DiskFiles {
 
     @PrimaryKey(autoGenerate = true)
-    public int fileID;
+    public long fileID;
 
     @ColumnInfo
     public int ownerID;
