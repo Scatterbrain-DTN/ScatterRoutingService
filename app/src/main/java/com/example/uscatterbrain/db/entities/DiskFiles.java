@@ -2,12 +2,15 @@ package com.example.uscatterbrain.db.entities;
 
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
+import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
-@Entity(tableName = "diskfiles")
+@Entity(
+        tableName = "diskfiles"
+)
 public class DiskFiles {
 
-    @PrimaryKey
+    @PrimaryKey(autoGenerate = true)
     public int fileID;
 
     @ColumnInfo
