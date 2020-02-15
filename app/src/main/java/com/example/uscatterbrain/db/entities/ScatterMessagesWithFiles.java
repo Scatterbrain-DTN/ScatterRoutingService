@@ -4,10 +4,12 @@ import androidx.room.Embedded;
 import androidx.room.Junction;
 import androidx.room.Relation;
 
+import com.example.uscatterbrain.db.DatastoreEntity;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class ScatterMessagesWithFiles {
+public class ScatterMessagesWithFiles implements DatastoreEntity {
     @Embedded public ScatterMessage message;
 
     @Relation(

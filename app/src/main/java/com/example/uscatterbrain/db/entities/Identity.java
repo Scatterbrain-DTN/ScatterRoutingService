@@ -4,8 +4,10 @@ import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
+import com.example.uscatterbrain.db.DatastoreEntity;
+
 @Entity(tableName = "identities")
-public class Identity {
+public class Identity implements DatastoreEntity {
     @PrimaryKey
     public long identityID;
 
