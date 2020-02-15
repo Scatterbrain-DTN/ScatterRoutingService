@@ -13,4 +13,9 @@ public class MessageDiskFileCrossRef implements DatastoreEntity {
 
     @ColumnInfo(name = "fileID")
     public long fileID;
+
+    @Override
+    public entityType getType() {
+        return null;
+    }
 }

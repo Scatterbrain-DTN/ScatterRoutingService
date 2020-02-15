@@ -29,6 +29,24 @@ public abstract class ScatterMessageDao {
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
     public abstract List<ScatterMessage> getTopRandom(int count);
 
+    public void insertMessages(ScatterMessage message) {
+        Long id = _insertMessages(message);
+
+        List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
+
+        List<Long> fileids = insertDiskFiles(message.files);
+        for(Long fileID : fileids) {
+            MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
+            xref.messageID = id;
+            xref.fileID = fileID;
+            xrefs.add(xref);
+        }
+        Long identityID = insertIdentity(message.identity);
+        message.identityID = identityID;
+
+        insertMessagesWithFiles(xrefs);
+    }
+
     public void insertMessages(List<ScatterMessage> messages) {
         List<Long> ids =  _insertMessages(messages);
 
@@ -58,6 +76,9 @@ public abstract class ScatterMessageDao {
 
     @Insert
     public abstract List<Long> _insertMessages(List<ScatterMessage> messages);
+
+    @Insert
+    public abstract Long _insertMessages(ScatterMessage message);
 
     @Insert
     public abstract List<Long> insertDiskFiles(List<DiskFiles> df);

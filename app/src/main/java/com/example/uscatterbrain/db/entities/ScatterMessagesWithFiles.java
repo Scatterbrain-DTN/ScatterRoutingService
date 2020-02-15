@@ -18,4 +18,9 @@ public class ScatterMessagesWithFiles implements DatastoreEntity {
             associateBy = @Junction(MessageDiskFileCrossRef.class)
     )
     public List<DiskFiles> messageDiskFiles = new ArrayList<>();
+
+    @Override
+    public entityType getType() {
+        return null;
+    }
 }

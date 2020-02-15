@@ -21,6 +21,9 @@ public interface DiskFilesDao {
     @Insert
     void insertAll(DiskFiles... files);
 
+    @Insert
+    void insertAll(List<DiskFiles> files);
+
     @Delete
     void delete(DiskFiles file);
 }

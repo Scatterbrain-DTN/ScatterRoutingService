@@ -30,4 +30,9 @@ public class ScatterMessage implements DatastoreEntity {
 
     @Ignore
     public Identity identity;
+
+    @Override
+    public entityType getType() {
+        return entityType.TYPE_MESSAGE;
+    }
 }

@@ -2,7 +2,6 @@ package com.example.uscatterbrain.db.entities;
 
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
-import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
 import com.example.uscatterbrain.db.DatastoreEntity;
@@ -24,4 +23,8 @@ public class DiskFiles implements DatastoreEntity {
     @ColumnInfo
     public byte[] sha256;
 
+    @Override
+    public entityType getType() {
+        return entityType.TYPE_FILE;
+    }
 }

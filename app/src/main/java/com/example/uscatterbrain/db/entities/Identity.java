@@ -19,4 +19,9 @@ public class Identity implements DatastoreEntity {
 
     @ColumnInfo(name = "publickey")
     public byte[] publicKey;
+
+    @Override
+    public entityType getType() {
+        return entityType.TYPE_IDENTITY;
+    }
 }

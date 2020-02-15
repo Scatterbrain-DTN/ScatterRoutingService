@@ -3,6 +3,7 @@ package com.example.uscatterbrain;
 import androidx.room.Room;
 
 import com.example.uscatterbrain.db.Datastore;
+import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
@@ -21,6 +22,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(RobolectricTestRunner.class)
 public class DatabaseUnitTest {
@@ -61,5 +63,22 @@ public class DatabaseUnitTest {
 
         db.clearAllTables();
         db.close();
+    }
+
+    @Test
+    public void publicApiInsertsMessage() {
+        ScatterbrainDatastore datastore = new ScatterbrainDatastore(RuntimeEnvironment.application);
+        ScatterMessage sm = new ScatterMessage();
+        sm.files.add(new DiskFiles());
+        List<ScatterMessage> sms = new ArrayList<ScatterMessage>();
+        Identity identity = new Identity();
+        sm.identity = identity;
+
+        try {
+            datastore.insertMessage(sm);
+        }
+        catch(ScatterbrainDatastore.DatastoreInsertException e) {
+            fail();
+        }
     }
 }
