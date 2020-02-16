@@ -30,7 +30,7 @@ public class ScatterbrainDatastore {
 
     public void insertMessage(List<ScatterMessage> messages) throws DatastoreInsertException {
         for(ScatterMessage message : messages) {
-            if (message.identity == null || message.files == null) {
+            if (message.getIdentity() == null || message.getFiles() == null) {
                 throw new DatastoreInsertException();
             }
         }
@@ -39,7 +39,7 @@ public class ScatterbrainDatastore {
     }
 
     public void insertMessage(ScatterMessage message) throws DatastoreInsertException {
-        if(message.identity == null || message.files == null) {
+        if(message.getIdentity() == null || message.getFiles() == null) {
             throw new DatastoreInsertException();
         }
 

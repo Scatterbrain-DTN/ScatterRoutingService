@@ -34,15 +34,15 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
         List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
 
-        List<Long> fileids = insertDiskFiles(message.files);
+        List<Long> fileids = insertDiskFiles(message.getFiles());
         for(Long fileID : fileids) {
             MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
             xref.messageID = id;
             xref.fileID = fileID;
             xrefs.add(xref);
         }
-        Long identityID = insertIdentity(message.identity);
-        message.identityID = identityID;
+        Long identityID = insertIdentity(message.getIdentity());
+        message.setIdentityID(identityID);
 
         insertMessagesWithFiles(xrefs);
     }
@@ -53,7 +53,7 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
         List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
 
         for(ScatterMessage message : messages) {
-            List<Long> fileids = insertDiskFiles(message.files);
+            List<Long> fileids = insertDiskFiles(message.getFiles());
             for(Long messageID : ids) {
                 for(Long fileID : fileids) {
                     MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
@@ -62,8 +62,8 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
                     xrefs.add(xref);
                 }
             }
-            Long identityID = insertIdentity(message.identity);
-            message.identityID = identityID;
+            Long identityID = insertIdentity(message.getIdentity());
+            message.setIdentityID(identityID);
         }
 
         insertMessagesWithFiles(xrefs);

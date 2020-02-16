@@ -13,17 +13,67 @@ import java.util.List;
 
 @Entity(tableName = "messages")
 public class ScatterMessage {
+
+    public ScatterMessage() {
+        this.identity = null;
+        this.body = null;
+    }
+
+    public ScatterMessage(Identity identity, byte[] body) {
+        this.identity = identity;
+        this.body = body;
+    }
+
     @PrimaryKey(autoGenerate = true)
-    public long messageID;
+    private long messageID;
+
+    @ColumnInfo
+    private byte[] body;
 
     @ColumnInfo
     @ForeignKey(entity = Identity.class, parentColumns = "identityID", childColumns = "identityID")
     @NonNull
-    public long identityID;
+    private long identityID;
 
     @Ignore
-    public List<DiskFiles> files = new ArrayList<>();
+    private List<DiskFiles> files = new ArrayList<>();
 
     @Ignore
-    public Identity identity;
+    private Identity identity;
+
+    public byte[] getBody() {
+        return body;
+    }
+
+    public List<DiskFiles> getFiles() {
+        return files;
+    }
+
+    public void addFile(DiskFiles files) {
+        this.files.add(files);
+    }
+
+    public void setBody(byte[] body) {
+        this.body = body;
+    }
+
+    public void setIdentityID(long identityID) {
+        this.identityID = identityID;
+    }
+
+    public long getIdentityID() {
+        return identityID;
+    }
+
+    public long getMessageID() {
+        return messageID;
+    }
+
+    public void setMessageID(long messageID) {
+        this.messageID = messageID;
+    }
+
+    public Identity getIdentity() {
+        return identity;
+    }
 }

@@ -47,11 +47,9 @@ public class DatabaseUnitTest {
     public void test() {
         Datastore db = buildDB();
 
-        ScatterMessage sm = new ScatterMessage();
-        sm.files.add(new DiskFiles());
+        ScatterMessage sm = new ScatterMessage(new Identity(), new byte[5]);
+        sm.addFile(new DiskFiles());
         List<ScatterMessage> sms = new ArrayList<ScatterMessage>();
-        Identity identity = new Identity();
-        sm.identity = identity;
         sms.add(sm);
 
         db.scatterMessageDao().insertMessages(sms);
@@ -68,11 +66,9 @@ public class DatabaseUnitTest {
     @Test
     public void publicApiInsertsMessage() {
         ScatterbrainDatastore datastore = new ScatterbrainDatastore(RuntimeEnvironment.application);
-        ScatterMessage sm = new ScatterMessage();
-        sm.files.add(new DiskFiles());
+        ScatterMessage sm = new ScatterMessage(new Identity(), new byte[5]);
+        sm.addFile(new DiskFiles());
         List<ScatterMessage> sms = new ArrayList<ScatterMessage>();
-        Identity identity = new Identity();
-        sm.identity = identity;
 
         try {
             datastore.insertMessage(sm);

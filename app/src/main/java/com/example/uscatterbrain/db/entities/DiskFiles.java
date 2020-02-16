@@ -9,15 +9,51 @@ import androidx.room.PrimaryKey;
 )
 public class DiskFiles {
 
+    public DiskFiles() {
+
+    }
+
     @PrimaryKey(autoGenerate = true)
-    public long fileID;
+    private long fileID;
 
     @ColumnInfo
-    public int ownerID;
+    private int ownerID;
 
     @ColumnInfo
-    public String filepath;
+    private String filepath;
 
     @ColumnInfo
-    public byte[] sha256;
+    private byte[] sha256;
+
+    public byte[] getSha256() {
+        return sha256;
+    }
+
+    public int getOwnerID() {
+        return ownerID;
+    }
+
+    public long getFileID() {
+        return fileID;
+    }
+
+    public String getFilepath() {
+        return filepath;
+    }
+
+    public void setFileID(long fileID) {
+        this.fileID = fileID;
+    }
+
+    public void setFilepath(String filepath) {
+        this.filepath = filepath;
+    }
+
+    public void setOwnerID(int ownerID) {
+        this.ownerID = ownerID;
+    }
+
+    public void setSha256(byte[] sha256) {
+        this.sha256 = sha256;
+    }
 }
