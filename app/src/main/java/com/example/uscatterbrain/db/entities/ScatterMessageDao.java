@@ -1,5 +1,6 @@
 package com.example.uscatterbrain.db.entities;
 
+import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Delete;
 import androidx.room.Insert;
@@ -15,19 +16,19 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Transaction
     @Query("SELECT * FROM messages")
-    public abstract List<ScatterMessage> getAll();
+    public abstract LiveData<List<ScatterMessage>> getAll();
 
     @Transaction
     @Query("SELECT * FROM messages")
-    public abstract List<ScatterMessagesWithFiles> getMessagesWithFiles();
+    public abstract LiveData<List<ScatterMessagesWithFiles>> getMessagesWithFiles();
 
     @Transaction
     @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
-    public abstract List<ScatterMessage> getByID(int[] ids);
+    public abstract LiveData<List<ScatterMessage>> getByID(int[] ids);
 
     @Transaction
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
-    public abstract List<ScatterMessage> getTopRandom(int count);
+    public abstract LiveData<List<ScatterMessage>> getTopRandom(int count);
 
     public void insertMessages(ScatterMessage message) {
         Long id = _insertMessages(message);

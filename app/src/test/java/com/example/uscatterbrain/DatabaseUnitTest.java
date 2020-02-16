@@ -1,5 +1,6 @@
 package com.example.uscatterbrain;
 
+import androidx.lifecycle.Observer;
 import androidx.room.Room;
 
 import com.example.uscatterbrain.db.Datastore;
@@ -46,6 +47,7 @@ public class DatabaseUnitTest {
     @Test
     public void test() {
         Datastore db = buildDB();
+        ScatterRoutingService service = new ScatterRoutingService();
 
         ScatterMessage sm = new ScatterMessage(new Identity(), new byte[5]);
         sm.addFile(new DiskFiles());
@@ -54,13 +56,16 @@ public class DatabaseUnitTest {
 
         db.scatterMessageDao().insertMessages(sms);
 
-        List<ScatterMessagesWithFiles> sff = db.scatterMessageDao().getMessagesWithFiles();
+        db.scatterMessageDao().getMessagesWithFiles().observe(service, new Observer<List<ScatterMessagesWithFiles>>() {
+            @Override
+            public void onChanged(List<ScatterMessagesWithFiles> sff) {
+                assertThat(sff.size(), is(1));
+                assertThat(sff.get(0).messageDiskFiles.size(), is(1));
 
-        assertThat(sff.size(), is(1));
-        assertThat(sff.get(0).messageDiskFiles.size(), is(1));
-
-        db.clearAllTables();
-        db.close();
+                db.clearAllTables();
+                db.close();
+            }
+        });
     }
 
     @Test

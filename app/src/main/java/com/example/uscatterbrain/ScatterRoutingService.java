@@ -8,6 +8,8 @@ import android.content.SharedPreferences;
 import android.os.Binder;
 import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
+import androidx.lifecycle.LifecycleService;
+
 import android.util.Log;
 
 import com.example.uscatterbrain.API.HighLevelAPI;
@@ -19,7 +21,7 @@ import com.example.uscatterbrain.network.bluetoothLE.ScatterBluetoothLEManager;
 
 import java.io.InputStream;
 
-public class ScatterRoutingService extends Service implements HighLevelAPI {
+public class ScatterRoutingService extends LifecycleService implements HighLevelAPI {
     public final String TAG = "ScatterRoutingService";
     private boolean bound;
     private final IBinder mBinder = new ScatterBinder();
@@ -185,12 +187,14 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
 
     @Override
     public IBinder onBind(Intent i) {
+        super.onBind(i);
         bound = true;
         return mBinder;
     }
 
     @Override
     public boolean onUnbind(Intent i) {
+        super.onUnbind(i);
         bound = false;
         return true;
     }
@@ -198,12 +202,13 @@ public class ScatterRoutingService extends Service implements HighLevelAPI {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        super.onStartCommand(intent, flags, startId);
         return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
-
+        super.onDestroy();
     }
 
     public class ScatterBinder extends Binder {
