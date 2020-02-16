@@ -18,10 +18,10 @@ public interface IdentityDao extends BaseDao<Identity> {
     List<Identity> getByGivenName(String[] names);
 
     @Insert
-    void insertAll(Identity... identities);
+    List<Long> insertAll(Identity... identities);
 
     @Insert
-    void insertAll(List<Identity> identities);
+    List<Long> insertAll(List<Identity> identities);
 
     @Delete
     void delete(Identity identity);

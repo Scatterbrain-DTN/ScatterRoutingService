@@ -10,10 +10,10 @@ import java.util.List;
 public interface BaseDao<T> {
 
     @Insert
-    void insertAll(List<T> entites);
+    List<Long> insertAll(List<T> entites);
 
     @Insert
-    void insertAll(T... entities);
+    List<Long> insertAll(T... entities);
 
     @Delete
     void delete(T entities);

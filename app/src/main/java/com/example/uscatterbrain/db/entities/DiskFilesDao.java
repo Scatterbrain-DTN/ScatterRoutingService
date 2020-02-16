@@ -19,10 +19,10 @@ public interface DiskFilesDao extends BaseDao<DiskFiles>{
     List<DiskFiles> getByPath(String[] paths);
 
     @Insert
-    void insertAll(DiskFiles... files);
+    List<Long> insertAll(DiskFiles... files);
 
     @Insert
-    void insertAll(List<DiskFiles> files);
+    List<Long> insertAll(List<DiskFiles> files);
 
     @Delete
     void delete(DiskFiles file);

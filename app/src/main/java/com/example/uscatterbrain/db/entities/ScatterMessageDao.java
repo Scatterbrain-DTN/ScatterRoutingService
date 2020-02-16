@@ -27,10 +27,14 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
     public abstract LiveData<List<ScatterMessage>> getByID(int[] ids);
 
     @Transaction
+    @Query("SELECT * FROM messages WHERE identityID IN (:ids)")
+    public abstract LiveData<List<ScatterMessage>> getByIdentity(long ids);
+
+    @Transaction
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
     public abstract LiveData<List<ScatterMessage>> getTopRandom(int count);
 
-    public void insertMessages(ScatterMessage message) {
+    public Long insertMessages(ScatterMessage message) {
         Long id = _insertMessages(message);
 
         List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
@@ -46,9 +50,10 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
         message.setIdentityID(identityID);
 
         insertMessagesWithFiles(xrefs);
+        return id;
     }
 
-    public void insertMessages(List<ScatterMessage> messages) {
+    public List<Long> insertMessages(List<ScatterMessage> messages) {
         List<Long> ids =  _insertMessages(messages);
 
         List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
@@ -69,6 +74,7 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
         insertMessagesWithFiles(xrefs);
 
+        return ids;
     }
 
     @Transaction
