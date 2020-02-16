@@ -11,7 +11,7 @@ public class Identity {
 
     }
 
-    @PrimaryKey
+    @PrimaryKey(autoGenerate = true)
     private long identityID;
 
     @ColumnInfo(name = "givenname")
