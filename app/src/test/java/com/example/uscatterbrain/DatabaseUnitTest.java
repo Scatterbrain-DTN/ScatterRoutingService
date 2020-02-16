@@ -38,6 +38,18 @@ public class DatabaseUnitTest {
         return db;
     }
 
+    public void blockForThread() {
+        while(testRunning) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    static volatile boolean testRunning = false;
+
 
     @Test
     public void dataStoreInitializesSuccessfully() {
@@ -51,9 +63,21 @@ public class DatabaseUnitTest {
         ScatterMessage sm = new ScatterMessage(new Identity(), new byte[5]);
         sm.addFile(new DiskFiles());
         List<ScatterMessage> sms = new ArrayList<ScatterMessage>();
+        sms.add(sm);
 
         try {
-            datastore.insertMessage(sm);
+            testRunning = true;
+            datastore.insertMessage(sms, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<List<Long>>() {
+                @Override
+                public void onRowUpdate(List<Long> rowids) {
+                    assertThat(rowids.size(), is(1));
+                    assertThat(rowids.get(0), is(1L));
+                    testRunning = false;
+                }
+            });
+
+            blockForThread();
+
         }
         catch(ScatterbrainDatastore.DatastoreInsertException e) {
             fail();
@@ -67,13 +91,17 @@ public class DatabaseUnitTest {
         identity.setGivenName("NewIdentity");
         ScatterMessage sm = new ScatterMessage(identity, new byte[5]);
         try {
+            testRunning = true;
             datastore.insertMessage(sm, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<Long>() {
                 @Override
                 public void onRowUpdate(Long rowids) {
-                    assertThat(rowids, is(1));
+                    assertThat(rowids, is(1L));
+                    testRunning = false;
 
                 }
             });
+
+            blockForThread();
         } catch (ScatterbrainDatastore.DatastoreInsertException e) {
             Assert.fail();
         }
