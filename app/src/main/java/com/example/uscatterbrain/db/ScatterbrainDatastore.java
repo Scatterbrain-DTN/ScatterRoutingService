@@ -10,6 +10,7 @@ import androidx.room.Room;
 
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
+import com.example.uscatterbrain.db.entities.MessageDiskFileCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 
 import org.greenrobot.eventbus.EventBus;
@@ -39,6 +40,51 @@ public class ScatterbrainDatastore {
         });
     }
 
+
+    public Long insertMessages(ScatterMessage message) {
+        Long id = this.mDatastore.scatterMessageDao()._insertMessages(message);
+
+        List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
+
+        List<Long> fileids = this.mDatastore.scatterMessageDao().insertDiskFiles(message.getFiles());
+        for(Long fileID : fileids) {
+            MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
+            xref.messageID = id;
+            xref.fileID = fileID;
+            xrefs.add(xref);
+        }
+        Long identityID = this.mDatastore.scatterMessageDao().insertIdentity(message.getIdentity());
+        message.setIdentityID(identityID);
+
+        this.mDatastore.scatterMessageDao().insertMessagesWithFiles(xrefs);
+        return id;
+    }
+
+    private List<Long> insertMessages(List<ScatterMessage> messages) {
+        List<Long> ids =  this.mDatastore.scatterMessageDao()._insertMessages(messages);
+
+        List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
+
+        for(ScatterMessage message : messages) {
+            List<Long> fileids = this.mDatastore.scatterMessageDao().insertDiskFiles(message.getFiles());
+            for(Long messageID : ids) {
+                for(Long fileID : fileids) {
+                    MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
+                    xref.messageID = messageID;
+                    xref.fileID = fileID;
+                    xrefs.add(xref);
+                }
+            }
+            Long identityID = this.mDatastore.scatterMessageDao().insertIdentity(message.getIdentity());
+            message.setIdentityID(identityID);
+        }
+
+        this.mDatastore.scatterMessageDao().insertMessagesWithFiles(xrefs);
+
+        return ids;
+    }
+
+
     public void insertMessage(List<ScatterMessage> messages, DatastoreInsertUpdateCallback<List<Long>> callback) throws DatastoreInsertException {
         for(ScatterMessage message : messages) {
             if (message.getIdentity() == null || message.getFiles() == null) {
@@ -49,7 +95,7 @@ public class ScatterbrainDatastore {
         executor.execute(new Runnable() {
             @Override
             public void run() {
-                List<Long> ids = mDatastore.scatterMessageDao().insertMessages(messages);
+                List<Long> ids = insertMessages(messages);
                 callback.onRowUpdate(ids);
             }
         });
@@ -72,7 +118,7 @@ public class ScatterbrainDatastore {
         executor.execute(new Runnable() {
             @Override
             public void run() {
-                Long id = mDatastore.scatterMessageDao().insertMessages(message);
+                Long id = insertMessages(message);
                 callback.onRowUpdate(id);
             }
         });

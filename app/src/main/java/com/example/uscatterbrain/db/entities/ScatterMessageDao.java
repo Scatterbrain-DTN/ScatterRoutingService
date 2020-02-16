@@ -34,49 +34,6 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
     public abstract LiveData<List<ScatterMessage>> getTopRandom(int count);
 
-    public Long insertMessages(ScatterMessage message) {
-        Long id = _insertMessages(message);
-
-        List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
-
-        List<Long> fileids = insertDiskFiles(message.getFiles());
-        for(Long fileID : fileids) {
-            MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
-            xref.messageID = id;
-            xref.fileID = fileID;
-            xrefs.add(xref);
-        }
-        Long identityID = insertIdentity(message.getIdentity());
-        message.setIdentityID(identityID);
-
-        insertMessagesWithFiles(xrefs);
-        return id;
-    }
-
-    public List<Long> insertMessages(List<ScatterMessage> messages) {
-        List<Long> ids =  _insertMessages(messages);
-
-        List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
-
-        for(ScatterMessage message : messages) {
-            List<Long> fileids = insertDiskFiles(message.getFiles());
-            for(Long messageID : ids) {
-                for(Long fileID : fileids) {
-                    MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
-                    xref.messageID = messageID;
-                    xref.fileID = fileID;
-                    xrefs.add(xref);
-                }
-            }
-            Long identityID = insertIdentity(message.getIdentity());
-            message.setIdentityID(identityID);
-        }
-
-        insertMessagesWithFiles(xrefs);
-
-        return ids;
-    }
-
     @Transaction
     @Insert
     public abstract void insertMessagesWithFiles(List<MessageDiskFileCrossRef> messagesWithFiles);
