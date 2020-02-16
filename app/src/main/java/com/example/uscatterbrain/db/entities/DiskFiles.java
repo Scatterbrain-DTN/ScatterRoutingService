@@ -4,12 +4,10 @@ import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
-import com.example.uscatterbrain.db.DatastoreEntity;
-
 @Entity(
         tableName = "diskfiles"
 )
-public class DiskFiles implements DatastoreEntity {
+public class DiskFiles {
 
     @PrimaryKey(autoGenerate = true)
     public long fileID;
@@ -22,9 +20,4 @@ public class DiskFiles implements DatastoreEntity {
 
     @ColumnInfo
     public byte[] sha256;
-
-    @Override
-    public entityType getType() {
-        return entityType.TYPE_FILE;
-    }
 }

@@ -7,16 +7,12 @@ import androidx.room.ForeignKey;
 import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
-import com.example.uscatterbrain.db.DatastoreEntity;
-
 import java.util.ArrayList;
 import java.util.List;
 
-import static androidx.room.ForeignKey.CASCADE;
-
 
 @Entity(tableName = "messages")
-public class ScatterMessage implements DatastoreEntity {
+public class ScatterMessage {
     @PrimaryKey(autoGenerate = true)
     public long messageID;
 
@@ -30,9 +26,4 @@ public class ScatterMessage implements DatastoreEntity {
 
     @Ignore
     public Identity identity;
-
-    @Override
-    public entityType getType() {
-        return entityType.TYPE_MESSAGE;
-    }
 }

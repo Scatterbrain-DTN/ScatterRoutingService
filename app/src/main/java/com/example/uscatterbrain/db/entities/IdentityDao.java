@@ -7,7 +7,7 @@ import androidx.room.Query;
 import java.util.List;
 
 @Dao
-public interface IdentityDao {
+public interface IdentityDao extends BaseDao<Identity> {
     @Query("SELECT * FROM identities")
     List<Identity> getAll();
 
@@ -19,6 +19,9 @@ public interface IdentityDao {
 
     @Insert
     void insertAll(Identity... identities);
+
+    @Insert
+    void insertAll(List<Identity> identities);
 
     @Delete
     void delete(Identity identity);

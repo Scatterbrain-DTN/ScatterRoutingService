@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Dao
-public abstract class ScatterMessageDao {
+public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Transaction
     @Query("SELECT * FROM messages")

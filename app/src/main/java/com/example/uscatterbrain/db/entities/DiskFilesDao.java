@@ -8,7 +8,7 @@ import androidx.room.Query;
 import java.util.List;
 
 @Dao
-public interface DiskFilesDao {
+public interface DiskFilesDao extends BaseDao<DiskFiles>{
     @Query("SELECT * FROM diskfiles")
     List<DiskFiles> getAll();
 
