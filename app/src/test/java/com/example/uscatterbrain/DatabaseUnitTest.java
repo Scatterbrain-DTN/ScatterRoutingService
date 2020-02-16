@@ -48,6 +48,20 @@ public class DatabaseUnitTest {
         }
     }
 
+    public ScatterMessage defaultMessage() {
+        ScatterMessage sm = new ScatterMessage(new Identity(), new byte[5]);
+        sm.addFile(new DiskFiles());
+        return sm;
+    }
+
+    public List<ScatterMessage> defaultMessages(int count) {
+        List<ScatterMessage> sl = new ArrayList<>();
+        for(int i=0;i<count;i++) {
+            sl.add(defaultMessage());
+        }
+        return sl;
+    }
+
     static volatile boolean testRunning = false;
 
 
@@ -60,10 +74,7 @@ public class DatabaseUnitTest {
     @Test
     public void publicApiInsertsMessage() {
         ScatterbrainDatastore datastore = new ScatterbrainDatastore(RuntimeEnvironment.application);
-        ScatterMessage sm = new ScatterMessage(new Identity(), new byte[5]);
-        sm.addFile(new DiskFiles());
-        List<ScatterMessage> sms = new ArrayList<ScatterMessage>();
-        sms.add(sm);
+        List<ScatterMessage> sms = defaultMessages(1);
 
         try {
             testRunning = true;
@@ -87,9 +98,7 @@ public class DatabaseUnitTest {
     @Test
     public void publicApiQueryMessageByIdentity() {
         ScatterbrainDatastore datastore = new ScatterbrainDatastore(RuntimeEnvironment.application);
-        Identity identity = new Identity();
-        identity.setGivenName("NewIdentity");
-        ScatterMessage sm = new ScatterMessage(identity, new byte[5]);
+        ScatterMessage sm = defaultMessage();
         try {
             testRunning = true;
             datastore.insertMessage(sm, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<Long>() {
