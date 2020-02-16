@@ -1,5 +1,9 @@
 package com.example.uscatterbrain;
 
+import android.app.Service;
+import android.os.Handler;
+import android.os.Looper;
+
 import androidx.lifecycle.Observer;
 import androidx.room.Room;
 
@@ -13,8 +17,13 @@ import com.example.uscatterbrain.db.entities.ScatterMessagesWithFiles;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.Shadows;
+import org.robolectric.android.controller.ServiceController;
+import org.robolectric.annotation.LooperMode;
+import org.robolectric.shadows.ShadowLooper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -115,4 +124,40 @@ public class DatabaseUnitTest {
             Assert.fail();
         }
     }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    public void topRandomMessagesWork() {
+        ServiceController<ScatterRoutingService> service = Robolectric.buildService(ScatterRoutingService.class);
+        ScatterbrainDatastore datastore = new ScatterbrainDatastore(RuntimeEnvironment.application);
+        List<ScatterMessage> messages = defaultMessages(20);
+        service.bind();
+        try {
+            testRunning = true;
+            datastore.insertMessage(messages, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<List<Long>>() {
+                @Override
+                public void onRowUpdate(List<Long> rowids) {
+                    assertThat(rowids.size(), is(20));
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            datastore.getTopRandomMessages(5).observe(service.get(), new Observer<List<ScatterMessage>>() {
+                                @Override
+                                public void onChanged(List<ScatterMessage> messages) {
+                                    assertThat(messages.size(), is(5));
+                                    testRunning = false;
+                                    System.out.println("done");
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+            Shadows.shadowOf(Looper.getMainLooper()).idle();
+            blockForThread();
+        } catch(ScatterbrainDatastore.DatastoreInsertException e) {
+            Assert.fail();
+        }
+    }
+
 }
