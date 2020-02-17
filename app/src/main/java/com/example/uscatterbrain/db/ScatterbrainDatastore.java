@@ -20,17 +20,33 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
+/**
+ * Interface to the androidx room backed datastore
+ * used for storing messages, identities, and other metadata.
+ */
 public class ScatterbrainDatastore {
 
     private Datastore mDatastore;
     private Executor executor;
     public static final String DATABASE_NAME = "scatterdb";
 
+    /**
+     * constructor
+     * @param ctx  application or service context
+     */
     public ScatterbrainDatastore(Context ctx) {
         mDatastore = Room.databaseBuilder(ctx, Datastore.class, DATABASE_NAME).build();
         executor = Executors.newSingleThreadExecutor();
     }
 
+
+    /**
+     * asynchronously inserts a lit of messages into the database without
+     * waiting for the result
+     *
+     * @param messages  list of room entities for messages to insert
+     * @throws DatastoreInsertException  thrown if inner classes of message object are null
+     */
     public void insertMessage(List<ScatterMessage> messages) throws DatastoreInsertException {
         insertMessage(messages, new DatastoreInsertUpdateCallback<List<Long>>() {
             @Override
@@ -41,6 +57,11 @@ public class ScatterbrainDatastore {
     }
 
 
+    /**
+     *  For internal use, synchronously inserts messages to database
+     * @param message room entity for message to insert
+     * @return primary keys of message inserted
+     */
     public Long insertMessages(ScatterMessage message) {
         Long id = this.mDatastore.scatterMessageDao()._insertMessages(message);
 
@@ -60,6 +81,11 @@ public class ScatterbrainDatastore {
         return id;
     }
 
+    /**
+     * For internal use, synchronously inserts messages into the database
+     * @param messages list of room entities to insert
+     * @return list of primary keys for rows inserted
+     */
     private List<Long> insertMessages(List<ScatterMessage> messages) {
         List<Long> ids =  this.mDatastore.scatterMessageDao()._insertMessages(messages);
 
@@ -85,6 +111,14 @@ public class ScatterbrainDatastore {
     }
 
 
+    /**
+     * Asynchronously inserts a list of messages into the datastore, allows tracking result
+     * via provided callback
+     *
+     * @param messages room entities to insert
+     * @param callback callback object to retrieve list of primary keys on successful insert
+     * @throws DatastoreInsertException
+     */
     public void insertMessage(List<ScatterMessage> messages, DatastoreInsertUpdateCallback<List<Long>> callback) throws DatastoreInsertException {
         for(ScatterMessage message : messages) {
             if (message.getIdentity() == null || message.getFiles() == null) {
@@ -101,6 +135,12 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts messages into the datastore
+     *
+     * @param message room entities to insert
+     * @throws DatastoreInsertException thrown if inner classes are null
+     */
     public void insertMessage(ScatterMessage message) throws DatastoreInsertException {
         insertMessage(message, new DatastoreInsertUpdateCallback<Long>() {
             @Override
@@ -110,6 +150,14 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts a list of messages into the datastore, allows tracking result
+     * via provided callback
+     *
+     * @param message room entity to insert
+     * @param callback callback object to retrieve primary key on successful insert
+     * @throws DatastoreInsertException thrown if inner classes are null
+     */
     public void insertMessage(ScatterMessage message, DatastoreInsertUpdateCallback<Long> callback) throws DatastoreInsertException {
         if(message.getIdentity() == null || message.getFiles() == null) {
             throw new DatastoreInsertException();
@@ -124,6 +172,11 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts identities into the datastore
+     *
+     * @param identities list of room entities to insert
+     */
     public void insertIdentity(Identity[] identities) {
         insertIdentity(identities, new DatastoreInsertUpdateCallback<List<Long>>() {
             @Override
@@ -133,6 +186,13 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts a list of identities into the datastore, allows tracking result
+     * via provided callback
+     *
+     * @param identities list of room entities to insert
+     * @param callback callback to retrive primary key on successful insert
+     */
     public  void insertIdentity(Identity[] identities, DatastoreInsertUpdateCallback<List<Long>> callback) {
         executor.execute(new Runnable() {
             @Override
@@ -143,6 +203,11 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts an identity into the datastore.
+     *
+     * @param identity room entity to insert
+     */
     public void insertIdentity(Identity identity) {
         insertIdentity(identity, new DatastoreInsertUpdateCallback<Long>() {
             @Override
@@ -152,6 +217,13 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts an identity into the datastore, allows tracking result
+     * via provided callback
+     *
+     * @param identity room entity to insert
+     * @param callback callback to retrieve primary key on successful insert
+     */
     public void insertIdentity(Identity identity, DatastoreInsertUpdateCallback<Long> callback) {
         executor.execute(new Runnable() {
             @Override
@@ -162,6 +234,11 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts a disk file record into the datastore
+     *
+     * @param files room entity to insert
+     */
     public void insertFile(DiskFiles files) {
         insertFile(files, new DatastoreInsertUpdateCallback<Long>() {
             @Override
@@ -171,6 +248,13 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts a isk file record into the datastore, allows tracking result
+     * via provided callback
+     *
+     * @param files room entity to insert
+     * @param callback callback to retrieve primary key on successful insert
+     */
     public void insertFile(DiskFiles files, DatastoreInsertUpdateCallback<Long> callback) {
         executor.execute(new Runnable() {
             @Override
@@ -181,6 +265,11 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts a list of disk file records into the datastore
+     *
+     * @param files list of room entities to insert
+     */
     public void insertFile(List<DiskFiles> files) {
         insertFile(files, new DatastoreInsertUpdateCallback<List<Long>>() {
             @Override
@@ -190,6 +279,13 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * Asynchronously inserts a list of disk file records into the datastore, allows tracking result
+     * via provided callback
+     *
+     * @param files list of room entities to insert
+     * @param callback callback to retrive primary keys on successful insert
+     */
     public void insertFile(List<DiskFiles> files, DatastoreInsertUpdateCallback<List<Long>> callback) {
         executor.execute(new Runnable() {
             @Override
@@ -200,10 +296,23 @@ public class ScatterbrainDatastore {
         });
     }
 
+    /**
+     * gets a randomized list of messages from the datastore. Needs to be observed
+     * to get async result
+     *
+     * @param count how many messages to retrieve
+     * @return livedata representation of list of messages
+     */
     public LiveData<List<ScatterMessage>> getTopRandomMessages(int count) {
         return this.mDatastore.scatterMessageDao().getTopRandom(count);
     }
 
+    /**
+     * Retrieves a message by an identity room entity
+     *
+     * @param id room entity to search by
+     * @return livedata representation of list of messages
+     */
     public LiveData<List<ScatterMessage>> getMessagesByIdentity(Identity id) {
         return this.mDatastore.scatterMessageDao().getByIdentity(id.getIdentityID());
     }
