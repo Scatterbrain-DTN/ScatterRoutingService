@@ -23,6 +23,8 @@ android {
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
     }
+
+
     useLibrary 'android.test.runner'
 
     useLibrary 'android.test.base'
@@ -94,4 +96,8 @@ dependencies {
     // classpath.
     androidTestImplementation 'androidx.test.espresso:espresso-idling-resource:3.2.0'
     testImplementation 'junit:junit:4.12'
+
+    //lazysodium cryptographic library
+    implementation "com.goterl.lazycode:lazysodium-android:4.1.0@aar"
+    implementation 'net.java.dev.jna:jna:4.5.1@aar'
 }
