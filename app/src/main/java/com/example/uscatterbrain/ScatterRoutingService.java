@@ -15,6 +15,8 @@ import android.util.Log;
 import com.example.uscatterbrain.API.HighLevelAPI;
 import com.example.uscatterbrain.API.OnRecieveCallback;
 import com.example.uscatterbrain.API.ScatterTransport;
+import com.example.uscatterbrain.db.Datastore;
+import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockDataPacket;
 import com.example.uscatterbrain.network.bluetoothLE.ScatterBluetoothLEManager;
@@ -29,6 +31,7 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
     private DeviceProfile myprofile;
 
     public ScatterRoutingService() {
+
     }
 
     @Override
@@ -203,6 +206,7 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
+        ScatterbrainDatastore.initialize(this);
         return START_NOT_STICKY;
     }
 

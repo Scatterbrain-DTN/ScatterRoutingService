@@ -28,8 +28,8 @@ public class ScatterbrainDatastore {
 
     private Datastore mDatastore;
     private Executor executor;
+    private static ScatterbrainDatastore singleton = null;
     public static final String DATABASE_NAME = "scatterdb";
-
     /**
      * constructor
      * @param ctx  application or service context
@@ -37,6 +37,23 @@ public class ScatterbrainDatastore {
     public ScatterbrainDatastore(Context ctx) {
         mDatastore = Room.databaseBuilder(ctx, Datastore.class, DATABASE_NAME).build();
         executor = Executors.newSingleThreadExecutor();
+    }
+
+    public static ScatterbrainDatastore getInstance() {
+        if(singleton == null)
+            return null;
+        else
+            return singleton;
+    }
+
+
+    /**
+     * initialize the singleton
+     * @param ctx application or service context
+     */
+    public static void initialize(Context ctx) {
+        if(singleton == null)
+            singleton = new ScatterbrainDatastore(ctx);
     }
 
 
