@@ -2,6 +2,8 @@ syntax = "proto3";
 option java_package = "com.example.uscatterbrain";
 option java_outer_classname = "ScatterProto";
 
+// used to advertise the presence of a scatterbrain device
+// and to request the exchange of identities and blockdata
 message Advertise {
     enum provides {
         BLUETOOTHCLASSIC = 0;
@@ -11,32 +13,46 @@ message Advertise {
     }
 }
 
+
+// header + metadata for a file, message or data stream
 message BlockData {
-    fixed64 from_low = 1;
-    fixed64 from_high = 2;
-    fixed64 to_low = 3;
-    fixed64 to_high = 4;
-    string application = 5;
-    uint32 sessionid = 6;
-    bool todisk = 7;
-    repeated bytes nexthashes = 8; //size of this is fragment count
-    bytes sig = 9;
+    bytes from_fingerprint = 1;
+    bytes to_fingerprint = 2;
+    string application = 3;
+    uint32 sessionid = 4;
+    bool todisk = 5;
+    repeated bytes nexthashes = 6; //size of this is fragment count
+    bytes sig = 7;
 }
 
+// body of file, message, or data stream.
 message BlockSequence {
     uint32 seqnum = 1;
     bytes data = 2;
 }
 
+
+// used to request switching to a different physical transport
 message Upgrade {
     Advertise.provides provides = 1;
     uint32 sessionid = 2;
 }
 
+
+// a user identity with name and one or more keys
 message Identity {
-    fixed64 uuid_low = 1;
-    fixed64 uuid_high = 2;
-    string givenname = 3;
-    bytes pubkey = 4;
-    bytes sig = 5;
+    string givenname = 1;
+    map<string, bytes> keys = 2;
+    bytes sig = 3;
+}
+
+// arbitrary metadata about the network
+// used for building more complex routing algorithms someday
+message RoutingMetadata {
+    message RoutingPoint {
+        uint64 uuid_lower = 1;
+        uint64 uuid_upper = 2;
+        bytes data = 3;
+    }
+    map<string, RoutingPoint> keyval = 4;
 }

@@ -1,6 +1,7 @@
 package com.example.uscatterbrain;
 
 import android.content.Intent;
+import android.net.wifi.hotspot2.pps.Credential;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -18,6 +19,12 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.network.LibsodiumInterface;
+import com.goterl.lazycode.lazysodium.LazySodiumAndroid;
+import com.goterl.lazycode.lazysodium.SodiumAndroid;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
+import com.goterl.lazycode.lazysodium.interfaces.Hash;
+import com.goterl.lazycode.lazysodium.interfaces.Sign;
 
 import org.junit.Assert;
 import org.junit.Rule;
