@@ -11,18 +11,32 @@ message Advertise {
     }
 }
 
-message BlockSequence {
-    uint32 seqnum = 1;
-    bytes data = 2;
-}
-
 message BlockData {
     fixed64 from_low = 1;
     fixed64 from_high = 2;
     fixed64 to_low = 3;
     fixed64 to_high = 4;
     string application = 5;
-    bool todisk = 6;
-    bool isfragmented = 7; //if fragmented, data is expected to be empty. Expect BlockSequence
-    bytes data = 9;
+    uint32 sessionid = 6;
+    bool todisk = 7;
+    repeated bytes nexthashes = 8; //size of this is fragment count
+    bytes sig = 9;
+}
+
+message BlockSequence {
+    uint32 seqnum = 1;
+    bytes data = 2;
+}
+
+message Upgrade {
+    Advertise.provides provides = 1;
+    uint32 sessionid = 2;
+}
+
+message Identity {
+    fixed64 uuid_low = 1;
+    fixed64 uuid_high = 2;
+    string givenname = 3;
+    bytes pubkey = 4;
+    bytes sig = 5;
 }
