@@ -54,7 +54,7 @@ public class BlockDataPacket {
                 pubkey) == 0;
     }
 
-    public BlockDataPacket(byte[] data, int chunksize) throws InvalidProtocolBufferException,
+    public BlockDataPacket(byte[] data) throws InvalidProtocolBufferException,
             IOException, InvalidChecksumException {
         InputStream is = new ByteArrayInputStream(data);
         this.blockdata = ScatterProto.BlockData.parseDelimitedFrom(is);
@@ -65,9 +65,8 @@ public class BlockDataPacket {
 
     }
 
-    public BlockDataPacket(InputStream in, int chunksize) throws IOException {
+    public BlockDataPacket(InputStream in) throws IOException {
         blockdata = ScatterProto.BlockData.parseFrom(in);
-
     }
 
 
@@ -97,6 +96,10 @@ public class BlockDataPacket {
 
     public ByteString getHash(int seqnum) {
         return this.blockdata.getNexthashes(seqnum);
+    }
+
+    public String getApplication() {
+        return this.mApplication;
     }
 
     public static class Builder {

@@ -15,7 +15,9 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.network.BlockDataPacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
+import com.google.protobuf.ByteString;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 
@@ -90,6 +92,22 @@ public class ProtocolInstrumentedTest {
 
     @Test
     public void blockDataPacketFragmentFromByteArray() throws TimeoutException {
+        List<ByteString> bl = new ArrayList<ByteString>();
+        bl.add(ByteString.EMPTY);
+        BlockDataPacket bd = new BlockDataPacket.Builder()
+                .setApplication("test")
+                .setSessionID(0)
+                .setHashes(bl)
+                .setToDisk(false)
+                .build();
 
+        byte[] bytelist = bd.getBytes();
+
+        try {
+            BlockDataPacket newbd = new BlockDataPacket(bytelist);
+            assertThat(newbd.getApplication(), is("test"));
+        } catch (Exception e) {
+            Assert.fail();
+        }
     }
 }
