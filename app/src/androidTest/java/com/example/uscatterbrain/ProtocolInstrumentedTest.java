@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.lifecycle.Observer;
 import androidx.test.core.app.ApplicationProvider;
@@ -32,6 +33,8 @@ import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -91,23 +94,65 @@ public class ProtocolInstrumentedTest {
 
 
     @Test
-    public void blockDataPacketFragmentFromByteArray() throws TimeoutException {
+    public void blockDataPacketFromByteArray() throws TimeoutException {
         List<ByteString> bl = new ArrayList<ByteString>();
         bl.add(ByteString.EMPTY);
         BlockDataPacket bd = new BlockDataPacket.Builder()
-                .setApplication("test")
+                .setApplication("test".getBytes())
                 .setSessionID(0)
                 .setHashes(bl)
+                .setFromFingerprint(ByteString.copyFrom(new byte[1]))
+                .setToFingerprint(ByteString.copyFrom(new byte[1]))
                 .setToDisk(false)
                 .build();
 
         byte[] bytelist = bd.getBytes();
 
+        Log.e("debug", "" +bytelist.length);
+
         try {
             BlockDataPacket newbd = new BlockDataPacket(bytelist);
-            assertThat(newbd.getApplication(), is("test"));
+            assertThat(newbd.getApplication(), is("test".getBytes()));
         } catch (Exception e) {
+            e.printStackTrace();
             Assert.fail();
         }
     }
+
+    @Test
+    public void blockDataPacketSignatureWorks() throws TimeoutException {
+        List<ByteString> bl = new ArrayList<ByteString>();
+        bl.add(ByteString.EMPTY);
+        BlockDataPacket bd = new BlockDataPacket.Builder()
+                .setApplication("test".getBytes())
+                .setSessionID(0)
+                .setHashes(bl)
+                .setFromFingerprint(ByteString.copyFrom(new byte[1]))
+                .setToFingerprint(ByteString.copyFrom(new byte[1]))
+                .setToDisk(false)
+                .build();
+
+        byte[] privkey = new byte[Sign.SECRETKEYBYTES];
+        byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
+        LibsodiumInterface.getSodium().crypto_sign_keypair(pubkey, privkey);
+
+        assertThat(bd.signEd25519(privkey), is(true));
+
+        assertThat(bd.getSig().toByteArray() != null, is(true));
+
+        byte[] bytelist = bd.getBytes();
+
+        try {
+            BlockDataPacket newbd = new BlockDataPacket(bytelist);
+            assertThat(newbd.getApplication(), is("test".getBytes()));
+            assertThat(newbd.getSig() != null, is(true));
+            assertEquals(bd.getSig().size(), newbd.getSig().size());
+            assertArrayEquals(bd.getSig().toByteArray(), newbd.getSig().toByteArray());
+            assertThat(newbd.verifyed25519(pubkey), is(true));
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail();
+        }
+    }
+
 }

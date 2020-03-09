@@ -6,6 +6,8 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.Sodium;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
+import com.sun.jna.Pointer;
+import com.sun.jna.ptr.PointerByReference;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -23,46 +25,96 @@ public class BlockDataPacket {
     private List<ByteString> mHashList;
     private ByteString mFromFingerprint;
     private ByteString mToFingerprint;
-    private String mApplication;
-    public BlockDataPacket(Builder builder) {
+    private byte[] mSignature;
+    private byte[] mApplication;
+    private int mSessionID;
+    private boolean mToDisk;
+
+    private BlockDataPacket(Builder builder) {
         this.mHashList = builder.getHashlist();
+        this.mSignature = new byte[Sign.ED25519_BYTES];
+        this.mToFingerprint = builder.getmToFingerprint();
+        this.mFromFingerprint = builder.getmFromFingerprint();
+        this.mHashList = builder.getHashlist();
+        this.mApplication = builder.getApplication();
+        this.mToDisk = builder.isTodisk();
+        this.mSessionID = builder.getSessionid();
+    }
+
+    private void buildBlockData() {
+        if (this.mSignature == null) {
+            this.mSignature = new byte[1];
+        }
+        if (this.blockdata == null) {
+            this.blockdata = ScatterProto.BlockData.newBuilder()
+                    .setApplicationBytes(ByteString.copyFrom(this.mApplication))
+                    .setFromFingerprint(this.mFromFingerprint)
+                    .setToFingerprint(this.mToFingerprint)
+                    .setTodisk(this.mToDisk)
+                    .addAllNexthashes(this.mHashList)
+                    .setSessionid(this.mSessionID)
+                    .setSig(ByteString.copyFrom(this.mSignature))
+                    .build();
+        }
+    }
+
+    private ByteString sumBytes() {
+        ByteString messagebytes = ByteString.EMPTY;
+        messagebytes = messagebytes.concat(this.mFromFingerprint);
+        messagebytes = messagebytes.concat(this.mToFingerprint);
+        messagebytes = messagebytes.concat(ByteString.copyFrom(this.mApplication));
+        ByteString sessionidBytes = ByteString.copyFrom(ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(this.mSessionID).array());
+        messagebytes = messagebytes.concat(sessionidBytes);
+        byte td = 0;
+        if (this.mToDisk)
+            td = 1;
+        ByteString toDiskBytes = ByteString.copyFrom(ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).put(td).array());
+        messagebytes = messagebytes.concat(toDiskBytes);
+
+        for (ByteString hash : this.mHashList) {
+            messagebytes = messagebytes.concat(hash);
+        }
+        return messagebytes;
     }
 
     public boolean verifyed25519(byte[] pubkey) {
-        if (pubkey.length != Sign.ED25519_PUBLICKEYBYTES)
+        if (pubkey.length != Sign.PUBLICKEYBYTES)
             return false;
 
-        ByteString messagebytes = ByteString.EMPTY;
-        messagebytes = messagebytes.concat(this.blockdata.getFromFingerprint());
-        messagebytes = messagebytes.concat(this.blockdata.getToFingerprint());
-        messagebytes = messagebytes.concat(this.blockdata.getApplicationBytes());
-        ByteString sessionidBytes = ByteString.copyFrom(ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(blockdata.getSessionid()).array());
-        messagebytes = messagebytes.concat(sessionidBytes);
-        byte td = 0;
-        if (this.blockdata.getTodisk())
-            td = 1;
-        ByteString toDiskBytes = ByteString.copyFrom(ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).putInt(td).array());
-        messagebytes = messagebytes.concat(toDiskBytes);
-
-        for (ByteString hash : this.blockdata.getNexthashesList()) {
-            messagebytes = messagebytes.concat(hash);
-        }
-
+        ByteString messagebytes = sumBytes();
         return LibsodiumInterface.getSodium().crypto_sign_verify_detached(this.blockdata.getSig().toByteArray(),
                 messagebytes.toByteArray(),
                 messagebytes.size(),
                 pubkey) == 0;
     }
 
+    public boolean signEd25519(byte[] secretkey) {
+        if (secretkey.length != Sign.SECRETKEYBYTES)
+            return false;
+
+        ByteString messagebytes = sumBytes();
+
+        this.mSignature = new byte[Sign.ED25519_BYTES];
+        Pointer p = new PointerByReference(Pointer.NULL).getPointer();
+        if (LibsodiumInterface.getSodium().crypto_sign_detached(this.mSignature,
+                p, messagebytes.toByteArray(), messagebytes.size(), secretkey) == 0) {
+            buildBlockData();
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     public BlockDataPacket(byte[] data) throws InvalidProtocolBufferException,
             IOException, InvalidChecksumException {
-        InputStream is = new ByteArrayInputStream(data);
-        this.blockdata = ScatterProto.BlockData.parseDelimitedFrom(is);
-        this.mApplication = blockdata.getApplication();
+        this.blockdata = ScatterProto.BlockData.parseFrom(data);
+        this.mApplication = blockdata.getApplicationBytes().toByteArray();
         this.mHashList = blockdata.getNexthashesList();
         this.mFromFingerprint = blockdata.getFromFingerprint();
         this.mToFingerprint = blockdata.getToFingerprint();
-
+        this.mSignature = blockdata.getSig().toByteArray();
+        this.mToDisk = blockdata.getTodisk();
+        this.mSessionID = blockdata.getSessionid();
     }
 
     public BlockDataPacket(InputStream in) throws IOException {
@@ -83,11 +135,13 @@ public class BlockDataPacket {
     }
 
     public byte[] getBytes() {
+        buildBlockData();
         return blockdata.toByteArray();
     }
 
     public ScatterProto.BlockData getBlockdata() {
-        return blockdata;
+        buildBlockData();
+        return this.blockdata;
     }
 
     public static class InvalidChecksumException extends Exception {
@@ -98,30 +152,53 @@ public class BlockDataPacket {
         return this.blockdata.getNexthashes(seqnum);
     }
 
-    public String getApplication() {
+    public ByteString getSig() {
+        return ByteString.copyFrom(this.mSignature);
+    }
+
+    public byte[] getApplication() {
         return this.mApplication;
     }
 
+    public List<ByteString> getmHashList() {
+        return mHashList;
+    }
+
+    public ByteString getmFromFingerprint() {
+        return mFromFingerprint;
+    }
+
+    public ByteString getmToFingerprint() {
+        return mToFingerprint;
+    }
+
+    public byte[] getmSignature() {
+        return mSignature;
+    }
+
     public static class Builder {
-        private ScatterProto.BlockData.Builder proto;
-        private ScatterProto.BlockData blockdata;
-        private boolean dataready;
-        private int chunksize;
         private boolean todisk;
-        private String application;
+        private byte[] application;
         private int sessionid;
+        private ByteString mToFingerprint;
+        private ByteString mFromFingerprint;
         private List<ByteString> hashlist;
 
         public Builder() {
 
         }
 
-        public Builder setChunkSize(int chunksize) {
-            this.chunksize = chunksize;
+        public Builder setToFingerprint(ByteString toFingerprint) {
+            this.mToFingerprint = toFingerprint;
             return this;
         }
 
-        public Builder setApplication(String application) {
+        public Builder setFromFingerprint(ByteString fromFingerprint) {
+            this.mFromFingerprint = fromFingerprint;
+            return this;
+        }
+
+        public Builder setApplication(byte[] application) {
             this.application = application;
             return this;
         }
@@ -145,27 +222,11 @@ public class BlockDataPacket {
             return new BlockDataPacket(this);
         }
 
-        public ScatterProto.BlockData.Builder getProto() {
-            return proto;
-        }
-
-        public ScatterProto.BlockData getBlockdata() {
-            return blockdata;
-        }
-
-        public boolean isDataready() {
-            return dataready;
-        }
-
-        public int getChunksize() {
-            return chunksize;
-        }
-
         public boolean isTodisk() {
             return todisk;
         }
 
-        public String getApplication() {
+        public byte[] getApplication() {
             return application;
         }
 
@@ -175,6 +236,14 @@ public class BlockDataPacket {
 
         public List<ByteString> getHashlist() {
             return hashlist;
+        }
+
+        public ByteString getmToFingerprint() {
+            return mToFingerprint;
+        }
+
+        public ByteString getmFromFingerprint() {
+            return mFromFingerprint;
         }
     }
 }
