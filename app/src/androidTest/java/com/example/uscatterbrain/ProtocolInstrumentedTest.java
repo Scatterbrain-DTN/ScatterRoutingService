@@ -17,8 +17,10 @@ import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockDataPacket;
+import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 
@@ -89,6 +91,14 @@ public class ProtocolInstrumentedTest {
                 .setToDisk(false)
                 .build();
         return bd;
+    }
+
+    public BlockSequencePacket getSequencePacket(int seq) {
+        BlockSequencePacket bs = new BlockSequencePacket.Builder()
+                .setData(ByteString.copyFrom(new byte[20]))
+                .setSequenceNumber(seq)
+                .build();
+        return bs;
     }
 
     public BlockDataPacket getSignedPacket() {
@@ -163,6 +173,19 @@ public class ProtocolInstrumentedTest {
 
     @Test
     public void blockSequencePacketWorks() throws TimeoutException {
+        BlockSequencePacket bs = getSequencePacket(0);
+
+        byte[] data = bs.getBytes();
+
+        try {
+            BlockSequencePacket newbs = new BlockSequencePacket(data);
+            assertThat(newbs.getmData() != null, is(true));
+        }
+        catch (InvalidProtocolBufferException e) {
+            e.printStackTrace();
+            Assert.fail();
+        }
+
 
     }
 

@@ -2,6 +2,7 @@ package com.example.uscatterbrain.network;
 
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
 import java.io.ByteArrayInputStream;
@@ -32,13 +33,16 @@ public class BlockSequencePacket {
     }
 
 
-    public BlockSequencePacket(byte[] data) throws IOException {
-        InputStream is = new ByteArrayInputStream(data);
-        this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
+    public BlockSequencePacket(byte[] data) throws InvalidProtocolBufferException {
+        this.mBlockSequence = ScatterProto.BlockSequence.parseFrom(data);
         this.mDataOnDisk = null;
         this.mData = this.mBlockSequence.getData();
         this.mSequenceNumber = this.mBlockSequence.getSeqnum();
         this.mOnDisk = false;
+    }
+
+    public byte[] getBytes() {
+        return mBlockSequence.toByteArray();
     }
 
 
@@ -59,6 +63,10 @@ public class BlockSequencePacket {
         this.mData = builder.getmData();
         this.mDataOnDisk = builder.getmDataOnDisk();
         this.mOnDisk = builder.ismOnDisk();
+        this.mBlockSequence = ScatterProto.BlockSequence.newBuilder()
+                .setData(this.mData)
+                .setSeqnum(this.mSequenceNumber)
+                .build();
     }
 
     public int getmSequenceNumber() {
