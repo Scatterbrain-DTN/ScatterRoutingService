@@ -105,8 +105,7 @@ public class BlockDataPacket {
         }
     }
 
-    public BlockDataPacket(byte[] data) throws InvalidProtocolBufferException,
-            IOException, InvalidChecksumException {
+    public BlockDataPacket(byte[] data) throws IOException {
         this.blockdata = ScatterProto.BlockData.parseFrom(data);
         this.mApplication = blockdata.getApplicationBytes().toByteArray();
         this.mHashList = blockdata.getNexthashesList();
@@ -121,7 +120,6 @@ public class BlockDataPacket {
         blockdata = ScatterProto.BlockData.parseFrom(in);
     }
 
-
     public boolean verifySequence(List<BlockSequencePacket> seqlist) {
         for (BlockSequencePacket s : seqlist) {
             if (!s.verifyHash(this))
@@ -131,6 +129,7 @@ public class BlockDataPacket {
     }
 
     public void writeToOutputStream(OutputStream out) throws IOException {
+        buildBlockData();
         blockdata.writeTo(out);
     }
 
@@ -142,10 +141,6 @@ public class BlockDataPacket {
     public ScatterProto.BlockData getBlockdata() {
         buildBlockData();
         return this.blockdata;
-    }
-
-    public static class InvalidChecksumException extends Exception {
-
     }
 
     public ByteString getHash(int seqnum) {
@@ -160,20 +155,28 @@ public class BlockDataPacket {
         return this.mApplication;
     }
 
-    public List<ByteString> getmHashList() {
+    public List<ByteString> getHashList() {
         return mHashList;
     }
 
-    public ByteString getmFromFingerprint() {
+    public ByteString getFromFingerprint() {
         return mFromFingerprint;
     }
 
-    public ByteString getmToFingerprint() {
+    public ByteString getToFingerprint() {
         return mToFingerprint;
     }
 
-    public byte[] getmSignature() {
+    public byte[] getSignature() {
         return mSignature;
+    }
+
+    public int getSessionID() {
+        return mSessionID;
+    }
+
+    public boolean getToDisk() {
+        return mToDisk;
     }
 
     public static class Builder {

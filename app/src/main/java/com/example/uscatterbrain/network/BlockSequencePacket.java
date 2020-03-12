@@ -32,7 +32,7 @@ public class BlockSequencePacket {
     }
 
 
-    public BlockSequencePacket(byte[] data) throws IOException, BlockDataPacket.InvalidChecksumException {
+    public BlockSequencePacket(byte[] data) throws IOException {
         InputStream is = new ByteArrayInputStream(data);
         this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
         this.mDataOnDisk = null;
