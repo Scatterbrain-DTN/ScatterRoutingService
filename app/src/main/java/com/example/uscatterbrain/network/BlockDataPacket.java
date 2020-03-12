@@ -1,5 +1,7 @@
 package com.example.uscatterbrain.network;
 
+import androidx.annotation.NonNull;
+
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -12,15 +14,22 @@ import com.sun.jna.ptr.PointerByReference;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.UUID;
+import java.util.function.Consumer;
 
-public class BlockDataPacket {
+public class BlockDataPacket implements Iterable<BlockSequencePacket>,
+        Iterator<BlockSequencePacket> {
     private ScatterProto.BlockData blockdata;
     private List<ByteString> mHashList;
     private ByteString mFromFingerprint;
@@ -29,6 +38,13 @@ public class BlockDataPacket {
     private byte[] mApplication;
     private int mSessionID;
     private boolean mToDisk;
+    private boolean mBuildOnFly;
+    private int mBlocksize;
+    private int mSize;
+    private int mIndex;
+    private InputStream mFragmentStream;
+    public static final int DEFAULT_BLOCK_SIZE = 1024*1024*1024;
+    public static final long MAX_SIZE_NONFILE = 512*1024;
 
     private BlockDataPacket(Builder builder) {
         this.mHashList = builder.getHashlist();
@@ -39,6 +55,17 @@ public class BlockDataPacket {
         this.mApplication = builder.getApplication();
         this.mToDisk = builder.isTodisk();
         this.mSessionID = builder.getSessionid();
+        this.mSize = builder.getSize();
+        this.mBlocksize = builder.getBlockSize();
+        this.mFragmentStream = builder.getFragmentStream();
+        this.mIndex = 0;
+
+        if (mHashList == null) {
+            mBuildOnFly = true;
+            mHashList = new ArrayList<>();
+        } else {
+            mBuildOnFly = false;
+        }
     }
 
     private void buildBlockData() {
@@ -105,7 +132,7 @@ public class BlockDataPacket {
         }
     }
 
-    public BlockDataPacket(byte[] data) throws IOException {
+    private void init(byte[] data) throws IOException {
         this.blockdata = ScatterProto.BlockData.parseFrom(data);
         this.mApplication = blockdata.getApplicationBytes().toByteArray();
         this.mHashList = blockdata.getNexthashesList();
@@ -114,6 +141,16 @@ public class BlockDataPacket {
         this.mSignature = blockdata.getSig().toByteArray();
         this.mToDisk = blockdata.getTodisk();
         this.mSessionID = blockdata.getSessionid();
+    }
+
+    public BlockDataPacket(byte[] data)  throws IOException {
+        this.mBlocksize = DEFAULT_BLOCK_SIZE;
+        init(data);
+    }
+
+    public BlockDataPacket(byte[] data, int blocksize) throws IOException {
+        this.mBlocksize = blocksize;
+        init(data);
     }
 
     public BlockDataPacket(InputStream in) throws IOException {
@@ -179,6 +216,68 @@ public class BlockDataPacket {
         return mToDisk;
     }
 
+    @NonNull
+    @Override
+    public Iterator<BlockSequencePacket> iterator() {
+        return this;
+    }
+
+    @Override
+    public void forEach(@NonNull Consumer<? super BlockSequencePacket> action) {
+        Objects.requireNonNull(action);
+        for (BlockSequencePacket packet : this) {
+            action.accept(packet);
+        }
+    }
+
+    @NonNull
+    @Override
+    public Spliterator<BlockSequencePacket> spliterator() {
+        return Spliterators.spliterator(iterator(), mHashList.size(),Spliterator.ORDERED
+        | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.SIZED);
+    }
+
+    @Override
+    public boolean hasNext() {
+        return mIndex < mSize;
+    }
+
+    @Override
+    public BlockSequencePacket next() {
+        try {
+
+            // super hacky limited/capped inputstream. Only lets us read up to mBlocksize
+            InputStream is = new CappedInputStream(mFragmentStream, mBlocksize);
+            ByteString data =  ByteString.readFrom(is);
+            BlockSequencePacket bs = new BlockSequencePacket.Builder()
+                    .setData(data)
+                    .setSequenceNumber(mIndex)
+                    .build();
+
+            if (mBuildOnFly) {
+                mHashList.add(bs.calculateHashByteString());
+            }
+
+            mIndex++;
+            return bs;
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    @Override
+    public void remove() {
+
+    }
+
+    @Override
+    public void forEachRemaining(@NonNull Consumer<? super BlockSequencePacket> action) {
+        Objects.requireNonNull(action);
+        for (BlockSequencePacket packet : this) {
+            action.accept(packet);
+        }
+    }
+
     public static class Builder {
         private boolean todisk;
         private byte[] application;
@@ -186,9 +285,15 @@ public class BlockDataPacket {
         private ByteString mToFingerprint;
         private ByteString mFromFingerprint;
         private List<ByteString> hashlist;
+        private InputStream mFragmentStream;
+        private int mSize;
+        private int mBlockSize;
 
         public Builder() {
-
+            mSize = 0;
+            todisk = false;
+            sessionid = -1;
+            mBlockSize = DEFAULT_BLOCK_SIZE;
         }
 
         public Builder setToFingerprint(ByteString toFingerprint) {
@@ -218,10 +323,42 @@ public class BlockDataPacket {
 
         public Builder setHashes(List<ByteString> hashes) {
             this.hashlist = hashes;
+            this.mSize = hashes.size();
+            return this;
+        }
+
+        public Builder setSize(int size) {
+            this.mSize = size;
+            return this;
+        }
+
+        public Builder setFragmentStream(InputStream fragmentStream) {
+            this.mFragmentStream = fragmentStream;
             return this;
         }
 
         public BlockDataPacket build() {
+            // fail if we have no hashlist and can't build one
+            if (hashlist == null && mFragmentStream == null) {
+                return null;
+            }
+
+            // We have to either use the hashlist size OR set the size manually
+            if ((hashlist != null) &&  (hashlist.size() != mSize)) {
+                return null;
+            }
+
+            // fingerprints and application are required
+            if (mFromFingerprint == null || mToFingerprint == null || application == null) {
+                return null;
+            }
+
+            // Make sure that we don't exceed that maximum size for diskless messages
+            // TODO: for messages with 1 sequence packet this should be checked elsewhere
+            if (!todisk && mSize > 1 && (mSize * mBlockSize) > MAX_SIZE_NONFILE ) {
+                return  null;
+            }
+
             return new BlockDataPacket(this);
         }
 
@@ -237,6 +374,14 @@ public class BlockDataPacket {
             return sessionid;
         }
 
+        public int getSize() {
+            return mSize;
+        }
+
+        public int getBlockSize() {
+            return mBlockSize;
+        }
+
         public List<ByteString> getHashlist() {
             return hashlist;
         }
@@ -247,6 +392,10 @@ public class BlockDataPacket {
 
         public ByteString getmFromFingerprint() {
             return mFromFingerprint;
+        }
+
+        public InputStream getFragmentStream() {
+            return mFragmentStream;
         }
     }
 }

@@ -4,6 +4,7 @@ import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
+import com.goterl.lazycode.lazysodium.interfaces.Hash;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -37,6 +38,21 @@ public class BlockSequencePacket {
         this.mDataOnDisk = null;
         this.mData = this.mBlockSequence.getData();
         this.mSequenceNumber = this.mBlockSequence.getSeqnum();
+    }
+
+    public byte[] calculateHash() {
+        byte[] hashbytes = new byte[GenericHash.BYTES];
+        byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
+        byte[] seqnum = ByteBuffer.allocate(4).putInt(this.mSequenceNumber).order(ByteOrder.BIG_ENDIAN).array();
+        LibsodiumInterface.getSodium().crypto_generichash_init(state, null, 0, hashbytes.length);
+        LibsodiumInterface.getSodium().crypto_generichash_update(state, seqnum, seqnum.length);
+        LibsodiumInterface.getSodium().crypto_generichash_update(state, mData.toByteArray(), mData.size());
+        LibsodiumInterface.getSodium().crypto_generichash_final(state, hashbytes, hashbytes.length);
+        return hashbytes;
+    }
+
+    public ByteString calculateHashByteString() {
+        return ByteString.copyFrom(calculateHash());
     }
 
     public byte[] getBytes() {

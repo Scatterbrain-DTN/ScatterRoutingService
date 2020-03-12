@@ -27,8 +27,11 @@ import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
@@ -90,6 +93,22 @@ public class ProtocolInstrumentedTest {
                 .setToFingerprint(ByteString.copyFrom(new byte[1]))
                 .setToDisk(false)
                 .build();
+        return bd;
+    }
+
+    public BlockDataPacket getPacket(InputStream is) {
+        List<ByteString> bl = new ArrayList<ByteString>();
+        bl.add(ByteString.EMPTY);
+        BlockDataPacket bd = new BlockDataPacket.Builder()
+                .setApplication("test".getBytes())
+                .setSessionID(0)
+                .setHashes(bl)
+                .setFromFingerprint(ByteString.copyFrom(new byte[1]))
+                .setToFingerprint(ByteString.copyFrom(new byte[1]))
+                .setToDisk(false)
+                .setFragmentStream(is)
+                .build();
+
         return bd;
     }
 
@@ -171,6 +190,24 @@ public class ProtocolInstrumentedTest {
         }
     }
 
+
+    @Test
+    public void blockSequencePacketCalculateHashWorks() throws TimeoutException {
+        BlockSequencePacket bs = getSequencePacket(0);
+        byte[] firsthash = bs.calculateHash();
+
+        byte[] data = bs.getBytes();
+
+        try {
+            BlockSequencePacket newbs = new BlockSequencePacket(data);
+            assertArrayEquals(newbs.calculateHash(), firsthash);
+        }
+        catch (InvalidProtocolBufferException e) {
+            e.printStackTrace();
+            Assert.fail();
+        }
+    }
+
     @Test
     public void blockSequencePacketWorks() throws TimeoutException {
         BlockSequencePacket bs = getSequencePacket(0);
@@ -185,8 +222,20 @@ public class ProtocolInstrumentedTest {
             e.printStackTrace();
             Assert.fail();
         }
+    }
 
 
+    @Test
+    public void multipleBlockSequencePacketsWork() throws TimeoutException {
+        byte[] data = new byte[5096];
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+
+        BlockDataPacket bd = getPacket(is);
+        int i = 0;
+        for (BlockSequencePacket bs : bd) {
+            assertThat(bs.getmSequenceNumber(), is(i));
+            i++;
+        }
     }
 
 }
