@@ -77,6 +77,30 @@ public class ProtocolInstrumentedTest {
         return sl;
     }
 
+    public BlockDataPacket getPacket() {
+        List<ByteString> bl = new ArrayList<ByteString>();
+        bl.add(ByteString.EMPTY);
+        BlockDataPacket bd = new BlockDataPacket.Builder()
+                .setApplication("test".getBytes())
+                .setSessionID(0)
+                .setHashes(bl)
+                .setFromFingerprint(ByteString.copyFrom(new byte[1]))
+                .setToFingerprint(ByteString.copyFrom(new byte[1]))
+                .setToDisk(false)
+                .build();
+        return bd;
+    }
+
+    public BlockDataPacket getSignedPacket() {
+        BlockDataPacket bd = getPacket();
+
+        byte[] privkey = new byte[Sign.SECRETKEYBYTES];
+        byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
+        LibsodiumInterface.getSodium().crypto_sign_keypair(pubkey, privkey);
+        bd.signEd25519(privkey);
+        return bd;
+    }
+
     static volatile boolean testRunning = false;
 
     @Test
@@ -95,16 +119,7 @@ public class ProtocolInstrumentedTest {
 
     @Test
     public void blockDataPacketFromByteArray() throws TimeoutException {
-        List<ByteString> bl = new ArrayList<ByteString>();
-        bl.add(ByteString.EMPTY);
-        BlockDataPacket bd = new BlockDataPacket.Builder()
-                .setApplication("test".getBytes())
-                .setSessionID(0)
-                .setHashes(bl)
-                .setFromFingerprint(ByteString.copyFrom(new byte[1]))
-                .setToFingerprint(ByteString.copyFrom(new byte[1]))
-                .setToDisk(false)
-                .build();
+        BlockDataPacket bd = getPacket();
 
         byte[] bytelist = bd.getBytes();
 
@@ -121,16 +136,7 @@ public class ProtocolInstrumentedTest {
 
     @Test
     public void blockDataPacketSignatureWorks() throws TimeoutException {
-        List<ByteString> bl = new ArrayList<ByteString>();
-        bl.add(ByteString.EMPTY);
-        BlockDataPacket bd = new BlockDataPacket.Builder()
-                .setApplication("test".getBytes())
-                .setSessionID(0)
-                .setHashes(bl)
-                .setFromFingerprint(ByteString.copyFrom(new byte[1]))
-                .setToFingerprint(ByteString.copyFrom(new byte[1]))
-                .setToDisk(false)
-                .build();
+        BlockDataPacket bd = getPacket();
 
         byte[] privkey = new byte[Sign.SECRETKEYBYTES];
         byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
@@ -153,6 +159,11 @@ public class ProtocolInstrumentedTest {
             e.printStackTrace();
             Assert.fail();
         }
+    }
+
+    @Test
+    public void blockSequencePacketWorks() throws TimeoutException {
+
     }
 
 }
