@@ -17,7 +17,6 @@ public class BlockSequencePacket {
     private int mSequenceNumber;
     private ByteString mData;
     private File mDataOnDisk;
-    private boolean mOnDisk;
     private ScatterProto.BlockSequence mBlockSequence;
 
     public boolean verifyHash(BlockDataPacket bd) {
@@ -38,7 +37,6 @@ public class BlockSequencePacket {
         this.mDataOnDisk = null;
         this.mData = this.mBlockSequence.getData();
         this.mSequenceNumber = this.mBlockSequence.getSeqnum();
-        this.mOnDisk = false;
     }
 
     public byte[] getBytes() {
@@ -62,7 +60,6 @@ public class BlockSequencePacket {
         this.mSequenceNumber = builder.getmSequenceNumber();
         this.mData = builder.getmData();
         this.mDataOnDisk = builder.getmDataOnDisk();
-        this.mOnDisk = builder.ismOnDisk();
         this.mBlockSequence = ScatterProto.BlockSequence.newBuilder()
                 .setData(this.mData)
                 .setSeqnum(this.mSequenceNumber)
@@ -79,10 +76,6 @@ public class BlockSequencePacket {
 
     public File getmDataOnDisk() {
         return mDataOnDisk;
-    }
-
-    public boolean ismOnDisk() {
-        return mOnDisk;
     }
 
     public ScatterProto.BlockSequence getmBlockSequence() {
@@ -107,18 +100,8 @@ public class BlockSequencePacket {
 
         public Builder setData(ByteString data) {
             this.mData = data;
-            this.mOnDisk = false;
-            this.mDataOnDisk = null;
             return this;
         }
-
-        public Builder setData(File file) {
-            this.mData = null;
-            this.mOnDisk = true;
-            this.mDataOnDisk = file;
-            return this;
-        }
-
         public BlockSequencePacket build() {
             return new BlockSequencePacket(this);
         }
@@ -133,12 +116,7 @@ public class BlockSequencePacket {
 
         public File getmDataOnDisk() {
             return mDataOnDisk;
-        }
-
-        public boolean ismOnDisk() {
-            return mOnDisk;
-        }
-    }
+        }}
 
     public class NotImplementedException extends Exception {
 
