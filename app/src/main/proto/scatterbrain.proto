@@ -56,3 +56,10 @@ message RoutingMetadata {
     }
     map<string, RoutingPoint> keyval = 4;
 }
+
+
+// Header for a BlockData stream. Sent before any BlockSequence pakcets
+message BlockHeader {
+    uint32 sequencecount = 1;
+    uint32 blocksize = 2;
+}

@@ -17,12 +17,14 @@ import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockDataPacket;
+import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
+import com.sun.jna.ptr.ByteByReference;
 
 import org.junit.Assert;
 import org.junit.Rule;
@@ -31,7 +33,9 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.sql.Time;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
@@ -226,7 +230,7 @@ public class ProtocolInstrumentedTest {
 
 
     @Test
-    public void multipleBlockSequencePacketsWork() throws TimeoutException {
+    public void multipleBlockSequencePacketsSend() throws TimeoutException {
         byte[] data = new byte[5096];
         ByteArrayInputStream is = new ByteArrayInputStream(data);
 
@@ -235,6 +239,48 @@ public class ProtocolInstrumentedTest {
         for (BlockSequencePacket bs : bd) {
             assertThat(bs.getmSequenceNumber(), is(i));
             i++;
+        }
+    }
+
+
+    @Test
+    public void BlockHeaderWorks() throws TimeoutException {
+        BlockHeaderPacket headerPacket = new BlockHeaderPacket.Builder()
+                .setBlockSize(1024)
+                .setNumSequence(4)
+                .build();
+
+        ByteString bs = headerPacket.getBytes();
+
+        try {
+            BlockHeaderPacket newheader = new BlockHeaderPacket(bs.toByteArray());
+            assertThat(newheader.getBlockSize(), is(1024));
+            assertThat(newheader.getNumSequence(), is(4));
+        } catch (Exception e) {
+            Assert.fail();
+        }
+
+
+    }
+
+    @Test
+    public void multipleBlockSequencePacketsVerify() throws TimeoutException {
+        byte[] data = new byte[5096];
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        BlockDataPacket bd = getPacket(is);
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream(6000);
+
+        int i = 0;
+        try {
+            for (BlockSequencePacket bs : bd) {
+                os.write(bs.getBytes());
+                i++;
+            }
+
+            os.write(bd.getBytes());
+        } catch (Exception e) {
+            Assert.fail();
         }
     }
 
