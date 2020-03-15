@@ -18,6 +18,7 @@ import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.ScatterDataPacket;
 import com.example.uscatterbrain.network.ScatterSerializable;
+import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
@@ -115,8 +116,10 @@ public class ProtocolInstrumentedTest {
     }
 
     public AdvertisePacket getAdvertise() {
+        List<ScatterProto.Advertise.Provides> p = new ArrayList<>();
+        p.add(ScatterProto.Advertise.Provides.BLE);
         AdvertisePacket advertisePacket = new AdvertisePacket.Builder()
-                .setProvides(ScatterProto.Advertise.Provides.BLE)
+                .setProvides(p)
                 .build();
         return advertisePacket;
     }
@@ -277,7 +280,7 @@ public class ProtocolInstrumentedTest {
         try {
             ByteArrayInputStream is = new ByteArrayInputStream(data);
             AdvertisePacket n = new AdvertisePacket(is);
-            assertThat(n.getProvides(), is(ScatterProto.Advertise.Provides.BLE));
+            assertThat(n.getProvides().get(0), is(ScatterProto.Advertise.Provides.BLE));
         } catch (IOException e) {
             Assert.fail();
         }

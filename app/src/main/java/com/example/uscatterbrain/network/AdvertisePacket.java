@@ -9,24 +9,25 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 
 public class AdvertisePacket implements ScatterSerializable {
     private ScatterProto.Advertise mAdvertise;
-    private ScatterProto.Advertise.Provides mProvides;
+    private List<ScatterProto.Advertise.Provides> mProvides;
 
     private AdvertisePacket(Builder builder) {
         this.mProvides = builder.getProvides();
         this.mAdvertise = ScatterProto.Advertise.newBuilder()
-                .setProvides(mProvides)
+                .addAllProvides(mProvides)
                 .build();
     }
 
     public AdvertisePacket(InputStream is) throws IOException {
         mAdvertise =  ScatterProto.Advertise.parseFrom(is);
-        this.mProvides = mAdvertise.getProvides();
+        this.mProvides = mAdvertise.getProvidesList();
     }
 
-    public ScatterProto.Advertise.Provides getProvides() {
+    public List<ScatterProto.Advertise.Provides> getProvides() {
         return mProvides;
     }
 
@@ -56,13 +57,13 @@ public class AdvertisePacket implements ScatterSerializable {
     }
 
     public static class Builder {
-        private ScatterProto.Advertise.Provides mProvides;
+        private List<ScatterProto.Advertise.Provides> mProvides;
 
         public Builder() {
 
         }
 
-        public  Builder setProvides(ScatterProto.Advertise.Provides provides) {
+        public  Builder setProvides(List<ScatterProto.Advertise.Provides> provides) {
             this.mProvides = provides;
             return this;
         }
@@ -74,7 +75,7 @@ public class AdvertisePacket implements ScatterSerializable {
             return new AdvertisePacket(this);
         }
 
-        public ScatterProto.Advertise.Provides getProvides() {
+        public List<ScatterProto.Advertise.Provides> getProvides() {
             return mProvides;
         }
 

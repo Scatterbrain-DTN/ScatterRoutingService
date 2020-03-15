@@ -11,7 +11,7 @@ message Advertise {
         WIFIP2P = 2;
         ULTRASOUND = 4;
     }
-    Provides provides = 1;
+    repeated Provides provides = 1;
 }
 
 
