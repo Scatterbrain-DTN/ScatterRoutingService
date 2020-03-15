@@ -5,12 +5,13 @@ option java_outer_classname = "ScatterProto";
 // used to advertise the presence of a scatterbrain device
 // and to request the exchange of identities and blockdata
 message Advertise {
-    enum provides {
+    enum Provides {
         BLUETOOTHCLASSIC = 0;
         BLE = 1;
         WIFIP2P = 2;
         ULTRASOUND = 4;
     }
+    Provides provides = 1;
 }
 
 
@@ -35,7 +36,7 @@ message BlockSequence {
 
 // used to request switching to a different physical transport
 message Upgrade {
-    Advertise.provides provides = 1;
+    Advertise.Provides provides = 1;
     uint32 sessionid = 2;
 }
 

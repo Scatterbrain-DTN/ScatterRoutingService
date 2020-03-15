@@ -3,38 +3,80 @@ package com.example.uscatterbrain.network;
 import com.example.uscatterbrain.API.HighLevelAPI;
 import com.example.uscatterbrain.DeviceProfile;
 import com.example.uscatterbrain.ScatterProto;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public class AdvertisePacket {
-    private ScatterProto.Advertise advertise;
+public class AdvertisePacket implements ScatterSerializable {
+    private ScatterProto.Advertise mAdvertise;
+    private ScatterProto.Advertise.Provides mProvides;
 
-    public AdvertisePacket(DeviceProfile profile) {
-        ScatterProto.Advertise.Builder proto;
-        proto = ScatterProto.Advertise.newBuilder();
-        advertise = proto.build();
-    }
-
-    public AdvertisePacket(byte[] bytes) throws InvalidProtocolBufferException {
-        advertise = ScatterProto.Advertise.parseFrom(bytes);
+    private AdvertisePacket(Builder builder) {
+        this.mProvides = builder.getProvides();
+        this.mAdvertise = ScatterProto.Advertise.newBuilder()
+                .setProvides(mProvides)
+                .build();
     }
 
     public AdvertisePacket(InputStream is) throws IOException {
-        advertise = ScatterProto.Advertise.parseFrom(is);
+        mAdvertise =  ScatterProto.Advertise.parseFrom(is);
+        this.mProvides = mAdvertise.getProvides();
     }
 
-    public void writeToOutputStream(OutputStream out) throws IOException {
-        advertise.writeTo(out);
+    public ScatterProto.Advertise.Provides getProvides() {
+        return mProvides;
     }
 
+    @Override
     public byte[] getBytes() {
-        return advertise.toByteArray();
+        return mAdvertise.toByteArray();
     }
 
-    public ScatterProto.Advertise getAdvertise() {
-        return advertise;
+    @Override
+    public ByteString getByteString() {
+        return mAdvertise.toByteString();
+    }
+
+    @Override
+    public boolean writeToStream(OutputStream os) {
+        try {
+            mAdvertise.writeTo(os);
+        } catch (IOException e) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int size() {
+        return mAdvertise.toByteString().size();
+    }
+
+    public static class Builder {
+        private ScatterProto.Advertise.Provides mProvides;
+
+        public Builder() {
+
+        }
+
+        public  Builder setProvides(ScatterProto.Advertise.Provides provides) {
+            this.mProvides = provides;
+            return this;
+        }
+
+        public AdvertisePacket build() {
+            if (this.mProvides == null)
+                return null;
+
+            return new AdvertisePacket(this);
+        }
+
+        public ScatterProto.Advertise.Provides getProvides() {
+            return mProvides;
+        }
+
     }
 }

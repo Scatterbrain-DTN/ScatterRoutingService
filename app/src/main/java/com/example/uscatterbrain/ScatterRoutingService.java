@@ -84,12 +84,7 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
 
     @Override
     public void advertiseOn() {
-        if(myprofile != null) {
-            AdvertisePacket ad = new AdvertisePacket(myprofile);
-            leManager.startLEAdvertise(ad.getBytes());
-        } else {
-            Log.e(TAG, "err: tried to start advertise with null profile");
-        }
+
     }
 
     @Override

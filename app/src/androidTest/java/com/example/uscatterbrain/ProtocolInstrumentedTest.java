@@ -12,6 +12,7 @@ import androidx.test.rule.ServiceTestRule;
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
@@ -29,6 +30,7 @@ import org.junit.runner.RunWith;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -110,6 +112,13 @@ public class ProtocolInstrumentedTest {
 
 
         return bd;
+    }
+
+    public AdvertisePacket getAdvertise() {
+        AdvertisePacket advertisePacket = new AdvertisePacket.Builder()
+                .setProvides(ScatterProto.Advertise.Provides.BLE)
+                .build();
+        return advertisePacket;
     }
 
     public BlockSequencePacket getSequencePacket(int seq) {
@@ -256,6 +265,20 @@ public class ProtocolInstrumentedTest {
             }
 
         } catch (Exception e) {
+            Assert.fail();
+        }
+    }
+
+    @Test
+    public void AdvertisePacketWorks() throws TimeoutException {
+        AdvertisePacket ad = getAdvertise();
+
+        byte[] data = ad.getBytes();
+        try {
+            ByteArrayInputStream is = new ByteArrayInputStream(data);
+            AdvertisePacket n = new AdvertisePacket(is);
+            assertThat(n.getProvides(), is(ScatterProto.Advertise.Provides.BLE));
+        } catch (IOException e) {
             Assert.fail();
         }
     }
