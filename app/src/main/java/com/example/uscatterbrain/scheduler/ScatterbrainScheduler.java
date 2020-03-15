@@ -4,13 +4,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
-
-import com.example.uscatterbrain.ScatterRoutingService;
-import com.example.uscatterbrain.db.ScatterbrainDatastore;
-import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.eventbus.events.BlockDataTransactionEvent;
-import com.example.uscatterbrain.network.BlockDataPacket;
+import com.example.uscatterbrain.network.BlockHeaderPacket;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -155,7 +150,7 @@ public class ScatterbrainScheduler extends Thread {
         EventBus.getDefault().unregister(this);
     }
 
-    public void sendBlockData(List<BlockDataPacket> packets) {
+    public void sendBlockData(List<BlockHeaderPacket> packets) {
         BlockDataTransactionEvent event = new BlockDataTransactionEvent.BlockDataTransactionEventBuilder("")
                 .setContents(packets)
                 .setTransactionType(BlockDataTransactionEvent.TransactionType.BD_TRANSACTION_SEND)

@@ -2,7 +2,6 @@ package com.example.uscatterbrain;
 
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Binder;
@@ -15,10 +14,9 @@ import android.util.Log;
 import com.example.uscatterbrain.API.HighLevelAPI;
 import com.example.uscatterbrain.API.OnRecieveCallback;
 import com.example.uscatterbrain.API.ScatterTransport;
-import com.example.uscatterbrain.db.Datastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.BlockDataPacket;
+import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.bluetoothLE.ScatterBluetoothLEManager;
 
 import java.io.InputStream;
@@ -132,12 +130,12 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
 
     //datastore
     @Override
-    public BlockDataPacket[] getTopMessages(int num) {
+    public BlockHeaderPacket[] getTopMessages(int num) {
         return null;
     }
 
     @Override
-    public BlockDataPacket[] getRandomMessages(int num) {
+    public BlockHeaderPacket[] getRandomMessages(int num) {
         return null;
     }
 

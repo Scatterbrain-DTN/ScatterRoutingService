@@ -4,23 +4,22 @@ import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
-import com.goterl.lazycode.lazysodium.interfaces.Hash;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public class BlockSequencePacket {
+public class BlockSequencePacket implements ScatterSerializable {
 
     private int mSequenceNumber;
     private ByteString mData;
     private File mDataOnDisk;
     private ScatterProto.BlockSequence mBlockSequence;
 
-    public boolean verifyHash(BlockDataPacket bd) {
+    public boolean verifyHash(BlockHeaderPacket bd) {
         byte[] seqnum = ByteBuffer.allocate(4).putInt(this.mSequenceNumber).order(ByteOrder.BIG_ENDIAN).array();
         byte[] data = this.mBlockSequence.getData().toByteArray();
         byte[] testhash = new byte[GenericHash.BYTES];
@@ -55,21 +54,44 @@ public class BlockSequencePacket {
         return ByteString.copyFrom(calculateHash());
     }
 
+    @Override
     public byte[] getBytes() {
         return mBlockSequence.toByteArray();
     }
 
+    @Override
+    public ByteString getByteString() {
+        return mBlockSequence.toByteString();
+    }
 
-    //TODO: implement filestore for database to write files to
-    public BlockSequencePacket(InputStream is) throws Exception {
-        throw new NotImplementedException();
-        /*
+    @Override
+    public boolean writeToStream(OutputStream os) {
+        try {
+            mBlockSequence.writeTo(os);
+        } catch (IOException e) {
+            return false;
+        }
+
+        return true;
+    }
+
+    @Override
+    public int size() {
+        return mBlockSequence.toByteString().size();
+    }
+
+    public static BlockSequencePacket parseFrom(InputStream is) {
+        try {
+            return new BlockSequencePacket(is);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    public BlockSequencePacket(InputStream is) throws IOException {
         this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
-        //this.mDataOnDisk = ;
-        this.mData = this.mBlockSequence.getData();
-        this.mSequenceNumber = this.mBlockSequence.getSeqnum();
-        this.mOnDisk = true;
-         */
+        this.mData = mBlockSequence.getData();
+        this.mSequenceNumber = mBlockSequence.getSeqnum();
     }
 
     private BlockSequencePacket(Builder builder) {

@@ -1,6 +1,6 @@
 package com.example.uscatterbrain.API;
 
-import com.example.uscatterbrain.network.BlockDataPacket;
+import com.example.uscatterbrain.network.BlockHeaderPacket;
 
 /**
  * Used by highlevel api. run() is called when packets are recieved.
@@ -8,5 +8,5 @@ import com.example.uscatterbrain.network.BlockDataPacket;
 
 public interface OnRecieveCallback {
 
-    void run(BlockDataPacket[] packets);
+    void run(BlockHeaderPacket[] packets);
 }

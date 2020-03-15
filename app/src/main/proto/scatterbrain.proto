@@ -22,7 +22,8 @@ message BlockData {
     uint32 sessionid = 4;
     bool todisk = 5;
     repeated bytes nexthashes = 6; //size of this is fragment count
-    bytes sig = 7;
+    uint32 blocksize = 7;
+    bytes sig = 8;
 }
 
 // body of file, message, or data stream.
@@ -55,11 +56,4 @@ message RoutingMetadata {
         bytes data = 3;
     }
     map<string, RoutingPoint> keyval = 4;
-}
-
-
-// Header for a BlockData stream. Sent before any BlockSequence pakcets
-message BlockHeader {
-    uint32 sequencecount = 1;
-    uint32 blocksize = 2;
 }

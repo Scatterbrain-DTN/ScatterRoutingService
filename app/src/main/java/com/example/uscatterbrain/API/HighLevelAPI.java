@@ -4,7 +4,7 @@ import android.content.SharedPreferences;
 
 
 import com.example.uscatterbrain.DeviceProfile;
-import com.example.uscatterbrain.network.BlockDataPacket;
+import com.example.uscatterbrain.network.BlockHeaderPacket;
 
 import java.io.InputStream;
 
@@ -43,8 +43,8 @@ public interface HighLevelAPI {
 
 
     //datastore
-    BlockDataPacket[] getTopMessages(int num);
-    BlockDataPacket[] getRandomMessages(int num);
+    BlockHeaderPacket[] getTopMessages(int num);
+    BlockHeaderPacket[] getRandomMessages(int num);
 
     //datastore systems tasks
     void flushDatastore();

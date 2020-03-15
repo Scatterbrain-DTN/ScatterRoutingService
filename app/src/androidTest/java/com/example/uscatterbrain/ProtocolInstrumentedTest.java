@@ -1,41 +1,35 @@
 package com.example.uscatterbrain;
 
 import android.content.Intent;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.util.Log;
 
-import androidx.lifecycle.Observer;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.rule.ServiceTestRule;
 
-import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.network.BlockDataPacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
+import com.example.uscatterbrain.network.ScatterDataPacket;
+import com.example.uscatterbrain.network.ScatterSerializable;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
-import com.sun.jna.ptr.ByteByReference;
 
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.sql.Time;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
@@ -86,10 +80,10 @@ public class ProtocolInstrumentedTest {
         return sl;
     }
 
-    public BlockDataPacket getPacket() {
+    public BlockHeaderPacket getHeaderPacket() {
         List<ByteString> bl = new ArrayList<ByteString>();
         bl.add(ByteString.EMPTY);
-        BlockDataPacket bd = new BlockDataPacket.Builder()
+        BlockHeaderPacket bd = new BlockHeaderPacket.Builder()
                 .setApplication("test".getBytes())
                 .setSessionID(0)
                 .setHashes(bl)
@@ -100,18 +94,20 @@ public class ProtocolInstrumentedTest {
         return bd;
     }
 
-    public BlockDataPacket getPacket(InputStream is) {
+    public ScatterDataPacket getPacket(InputStream is, int count, int bs) {
         List<ByteString> bl = new ArrayList<ByteString>();
         bl.add(ByteString.EMPTY);
-        BlockDataPacket bd = new BlockDataPacket.Builder()
-                .setApplication("test".getBytes())
-                .setSessionID(0)
-                .setHashes(bl)
-                .setFromFingerprint(ByteString.copyFrom(new byte[1]))
-                .setToFingerprint(ByteString.copyFrom(new byte[1]))
-                .setToDisk(false)
+
+        ScatterDataPacket bd = new ScatterDataPacket.Builder()
+                .setFragmentCount(count)
+                .setBlockSize(bs)
                 .setFragmentStream(is)
+                .setFromAddress(new byte[32])
+                .setToAddress(new byte[32])
+                .setSessionID(0)
+                .setApplication("test")
                 .build();
+
 
         return bd;
     }
@@ -124,8 +120,8 @@ public class ProtocolInstrumentedTest {
         return bs;
     }
 
-    public BlockDataPacket getSignedPacket() {
-        BlockDataPacket bd = getPacket();
+    public BlockHeaderPacket getSignedPacket() {
+        BlockHeaderPacket bd = getHeaderPacket();
 
         byte[] privkey = new byte[Sign.SECRETKEYBYTES];
         byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
@@ -152,14 +148,14 @@ public class ProtocolInstrumentedTest {
 
     @Test
     public void blockDataPacketFromByteArray() throws TimeoutException {
-        BlockDataPacket bd = getPacket();
+        BlockHeaderPacket bd = getHeaderPacket();
 
         byte[] bytelist = bd.getBytes();
 
         Log.e("debug", "" +bytelist.length);
 
         try {
-            BlockDataPacket newbd = new BlockDataPacket(bytelist);
+            BlockHeaderPacket newbd = new BlockHeaderPacket(bytelist);
             assertThat(newbd.getApplication(), is("test".getBytes()));
         } catch (Exception e) {
             e.printStackTrace();
@@ -169,7 +165,7 @@ public class ProtocolInstrumentedTest {
 
     @Test
     public void blockDataPacketSignatureWorks() throws TimeoutException {
-        BlockDataPacket bd = getPacket();
+        BlockHeaderPacket bd = getHeaderPacket();
 
         byte[] privkey = new byte[Sign.SECRETKEYBYTES];
         byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
@@ -182,7 +178,7 @@ public class ProtocolInstrumentedTest {
         byte[] bytelist = bd.getBytes();
 
         try {
-            BlockDataPacket newbd = new BlockDataPacket(bytelist);
+            BlockHeaderPacket newbd = new BlockHeaderPacket(bytelist);
             assertThat(newbd.getApplication(), is("test".getBytes()));
             assertThat(newbd.getSig() != null, is(true));
             assertEquals(bd.getSig().size(), newbd.getSig().size());
@@ -231,54 +227,34 @@ public class ProtocolInstrumentedTest {
 
     @Test
     public void multipleBlockSequencePacketsSend() throws TimeoutException {
-        byte[] data = new byte[5096];
+        byte[] data = new byte[4096];
         ByteArrayInputStream is = new ByteArrayInputStream(data);
 
-        BlockDataPacket bd = getPacket(is);
+        ScatterDataPacket bd = getPacket(is, 2, 2048);
         int i = 0;
-        for (BlockSequencePacket bs : bd) {
-            assertThat(bs.getmSequenceNumber(), is(i));
+        for (ScatterSerializable bs : bd) {
+            assertThat(bs.size() > 0, is(true));
             i++;
         }
     }
 
 
-    @Test
-    public void BlockHeaderWorks() throws TimeoutException {
-        BlockHeaderPacket headerPacket = new BlockHeaderPacket.Builder()
-                .setBlockSize(1024)
-                .setNumSequence(4)
-                .build();
-
-        ByteString bs = headerPacket.getBytes();
-
-        try {
-            BlockHeaderPacket newheader = new BlockHeaderPacket(bs.toByteArray());
-            assertThat(newheader.getBlockSize(), is(1024));
-            assertThat(newheader.getNumSequence(), is(4));
-        } catch (Exception e) {
-            Assert.fail();
-        }
-
-
-    }
 
     @Test
     public void multipleBlockSequencePacketsVerify() throws TimeoutException {
-        byte[] data = new byte[5096];
+        byte[] data = new byte[4096];
         ByteArrayInputStream is = new ByteArrayInputStream(data);
-        BlockDataPacket bd = getPacket(is);
+        ScatterDataPacket bd = getPacket(is, 2, 2048);
 
         ByteArrayOutputStream os = new ByteArrayOutputStream(6000);
 
         int i = 0;
         try {
-            for (BlockSequencePacket bs : bd) {
+            for (ScatterSerializable bs : bd) {
                 os.write(bs.getBytes());
                 i++;
             }
 
-            os.write(bd.getBytes());
         } catch (Exception e) {
             Assert.fail();
         }
