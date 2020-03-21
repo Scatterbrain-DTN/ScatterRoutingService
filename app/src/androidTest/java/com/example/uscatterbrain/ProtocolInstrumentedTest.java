@@ -303,7 +303,7 @@ public class ProtocolInstrumentedTest {
         byte[] data = up.getBytes();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         UpgradePacket nu = UpgradePacket.parseFrom(is);
-        assertThat(nu.getProvies(), is(ScatterProto.Advertise.Provides.ULTRASOUND));
+        assertThat(nu.getProvides(), is(ScatterProto.Advertise.Provides.ULTRASOUND));
     }
 
     @Test

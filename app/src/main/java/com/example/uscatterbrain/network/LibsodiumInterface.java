@@ -6,6 +6,9 @@ import com.goterl.lazycode.lazysodium.SodiumAndroid;
 import com.goterl.lazycode.lazysodium.interfaces.Hash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 
+/**
+ * Singleton interface to libsodium/lazysodium over JNA
+ */
 public class LibsodiumInterface {
     private static LazySodiumAndroid mSodiumInstance = null;
 

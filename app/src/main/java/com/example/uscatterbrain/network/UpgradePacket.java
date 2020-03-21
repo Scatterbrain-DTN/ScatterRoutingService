@@ -9,6 +9,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+/**
+ * Wrapper class for protocol buffer upgrade message
+ */
 public class UpgradePacket implements ScatterSerializable {
 
     private ScatterProto.Upgrade mUpgrade;
@@ -16,7 +19,7 @@ public class UpgradePacket implements ScatterSerializable {
     private ScatterProto.Advertise.Provides mProvides;
 
     private UpgradePacket(Builder builder) {
-        this.mProvides = builder.getProvies();
+        this.mProvides = builder.getProvides();
         this.mSessionID = builder.getSessionID();
         this.mUpgrade = ScatterProto.Upgrade.newBuilder()
                 .setProvides(mProvides)
@@ -30,6 +33,12 @@ public class UpgradePacket implements ScatterSerializable {
         this.mProvides = this.mUpgrade.getProvides();
     }
 
+    /**
+     * Parse from upgrade packet.
+     *
+     * @param is the is
+     * @return the upgrade packet
+     */
     public static UpgradePacket parseFrom(InputStream is) {
         try {
             return new UpgradePacket(is);
@@ -69,44 +78,85 @@ public class UpgradePacket implements ScatterSerializable {
         return mUpgrade;
     }
 
+    /**
+     * Gets session id.
+     *
+     * @return the session id
+     */
     public int getSessionID() {
         return this.mSessionID;
     }
 
-    public ScatterProto.Advertise.Provides getProvies() {
+    /**
+     * Gets provides.
+     *
+     * @return the provies
+     */
+    public ScatterProto.Advertise.Provides getProvides() {
         return this.mProvides;
     }
 
+    /**
+     * Constructs a new builder class.
+     *
+     * @return the builder
+     */
     public static Builder newBuilder() {
         return new Builder();
     }
 
+    /**
+     * The type Builder.
+     */
     public static class Builder {
         private int mSessionid;
         private ScatterProto.Advertise.Provides mProvides;
 
-        public Builder() {
-
-        }
-
+        /**
+         * Sets session id.
+         *
+         * @param sessionID the session id
+         * @return builder
+         */
         public Builder setSessionID(int sessionID) {
             this.mSessionid = sessionID;
             return this;
         }
 
+        /**
+         * Sets provides.
+         *
+         * @param provides the provides
+         * @return builder
+         */
         public Builder setProvides(ScatterProto.Advertise.Provides provides) {
             this.mProvides = provides;
             return this;
         }
 
+        /**
+         * Gets session id.
+         *
+         * @return the session id
+         */
         public int getSessionID() {
             return this.mSessionid;
         }
 
-        public ScatterProto.Advertise.Provides getProvies() {
+        /**
+         * Gets provies.
+         *
+         * @return provides
+         */
+        public ScatterProto.Advertise.Provides getProvides() {
             return this.mProvides;
         }
 
+        /**
+         * Build upgrade packet.
+         *
+         * @return the upgrade packet
+         */
         public UpgradePacket build() {
             if (mProvides == null || mSessionid <= 0)
                 return null;

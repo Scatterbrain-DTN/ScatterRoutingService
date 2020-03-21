@@ -15,6 +15,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 
+/**
+ * Wrapper class for protocol buffer blockdata message
+ */
 public class BlockHeaderPacket implements ScatterSerializable {
     private ScatterProto.BlockData blockdata;
     private List<ByteString> mHashList;
@@ -72,6 +75,12 @@ public class BlockHeaderPacket implements ScatterSerializable {
         return messagebytes;
     }
 
+    /**
+     * Verifyed 25519 boolean.
+     *
+     * @param pubkey the pubkey
+     * @return the boolean
+     */
     public boolean verifyed25519(byte[] pubkey) {
         if (pubkey.length != Sign.PUBLICKEYBYTES)
             return false;
@@ -83,6 +92,12 @@ public class BlockHeaderPacket implements ScatterSerializable {
                 pubkey) == 0;
     }
 
+    /**
+     * Sign ed 25519 boolean.
+     *
+     * @param secretkey the secretkey
+     * @return the boolean
+     */
     public boolean signEd25519(byte[] secretkey) {
         if (secretkey.length != Sign.SECRETKEYBYTES)
             return false;
@@ -119,6 +134,12 @@ public class BlockHeaderPacket implements ScatterSerializable {
         init(in);
     }
 
+    /**
+     * Parse from blockheader packet.
+     *
+     * @param is the is
+     * @return the block header packet
+     */
     public static BlockHeaderPacket parseFrom(InputStream is) {
         try {
             return new BlockHeaderPacket(is);
@@ -160,53 +181,117 @@ public class BlockHeaderPacket implements ScatterSerializable {
         return blockdata;
     }
 
+    /**
+     * Gets blockdata.
+     *
+     * @return the blockdata
+     */
     public ScatterProto.BlockData getBlockdata() {
         buildBlockData();
         return this.blockdata;
     }
 
+    /**
+     * Gets hash.
+     *
+     * @param seqnum the seqnum
+     * @return the hash
+     */
     public ByteString getHash(int seqnum) {
         return this.blockdata.getNexthashes(seqnum);
     }
 
+    /**
+     * Gets sig.
+     *
+     * @return the sig
+     */
     public ByteString getSig() {
         return ByteString.copyFrom(this.mSignature);
     }
 
+    /**
+     * Get application byte [ ].
+     *
+     * @return the byte [ ]
+     */
     public byte[] getApplication() {
         return this.mApplication;
     }
 
+    /**
+     * Gets hash list.
+     *
+     * @return the hash list
+     */
     public List<ByteString> getHashList() {
         return mHashList;
     }
 
+    /**
+     * Gets from fingerprint.
+     *
+     * @return the from fingerprint
+     */
     public ByteString getFromFingerprint() {
         return mFromFingerprint;
     }
 
+    /**
+     * Gets to fingerprint.
+     *
+     * @return the to fingerprint
+     */
     public ByteString getToFingerprint() {
         return mToFingerprint;
     }
 
+    /**
+     * Get signature byte [ ].
+     *
+     * @return the byte [ ]
+     */
     public byte[] getSignature() {
         return mSignature;
     }
 
+    /**
+     * Gets session id.
+     *
+     * @return the session id
+     */
     public int getSessionID() {
         return mSessionID;
     }
 
+    /**
+     * Gets to disk.
+     *
+     * @return the to disk
+     */
     public boolean getToDisk() {
         return mToDisk;
     }
 
+    /**
+     * Sets to disk.
+     *
+     * @param t the t
+     */
     public void setToDisk(boolean t) { this.mToDisk = t; }
 
+    /**
+     * New builder builder.
+     *
+     * @return the builder
+     */
     public static Builder newBuilder() {
         return new Builder();
     }
 
+    /**
+     * The type Builder.
+     */
     public static class Builder {
         private boolean todisk;
         private byte[] application;
@@ -215,41 +300,85 @@ public class BlockHeaderPacket implements ScatterSerializable {
         private ByteString mFromFingerprint;
         private List<ByteString> hashlist;
 
+        /**
+         * Instantiates a new Builder.
+         */
         public Builder() {
             todisk = false;
             sessionid = -1;
         }
 
+        /**
+         * Sets the fingerprint for the recipient.
+         *
+         * @param toFingerprint the to fingerprint
+         * @return builder
+         */
         public Builder setToFingerprint(ByteString toFingerprint) {
             this.mToFingerprint = toFingerprint;
             return this;
         }
 
+        /**
+         * Sets from fingerprint.
+         *
+         * @param fromFingerprint sets the fingerprint for the sender
+         * @return builder
+         */
         public Builder setFromFingerprint(ByteString fromFingerprint) {
             this.mFromFingerprint = fromFingerprint;
             return this;
         }
 
+        /**
+         * Sets application.
+         *
+         * @param application bytes for UTF encoded scatterbrain application string
+         * @return builder
+         */
         public Builder setApplication(byte[] application) {
             this.application = application;
             return this;
         }
 
+        /**
+         * Sets to disk.
+         *
+         * @param toDisk whether to write this file to disk or attempt to store it in the database
+         * @return builder
+         */
         public Builder setToDisk(boolean toDisk) {
             this.todisk = toDisk;
             return this;
         }
 
+        /**
+         * Sets session id.
+         *
+         * @param sessionID the session id (used for upgrading between protocols)
+         * @return builder
+         */
         public Builder setSessionID(int sessionID) {
             this.sessionid = sessionID;
             return this;
         }
 
+        /**
+         * Sets hashes.
+         *
+         * @param hashes list of hashes of following blocksequence packets.
+         * @return builder
+         */
         public Builder setHashes(List<ByteString> hashes) {
             this.hashlist = hashes;
             return this;
         }
 
+        /**
+         * Build block header packet.
+         *
+         * @return the block header packet
+         */
         public BlockHeaderPacket build() {
             if (hashlist == null)
                 return null;
@@ -262,26 +391,56 @@ public class BlockHeaderPacket implements ScatterSerializable {
             return new BlockHeaderPacket(this);
         }
 
+        /**
+         * Get application name (in UTF-8).
+         *
+         * @return the byte [ ]
+         */
         public byte[] getApplication() {
             return application;
         }
 
+        /**
+         * Gets sessionid.
+         *
+         * @return the sessionid
+         */
         public int getSessionid() {
             return sessionid;
         }
 
+        /**
+         * Gets hashlist.
+         *
+         * @return the hashlist
+         */
         public List<ByteString> getHashlist() {
             return hashlist;
         }
 
+        /**
+         * Gets to fingerprint.
+         *
+         * @return the to fingerprint
+         */
         public ByteString getmToFingerprint() {
             return mToFingerprint;
         }
 
+        /**
+         * Gets from fingerprint.
+         *
+         * @return the from fingerprint
+         */
         public ByteString getmFromFingerprint() {
             return mFromFingerprint;
         }
 
+        /**
+         * Gets to disk.
+         *
+         * @return the to disk
+         */
         public boolean getToDisk() {
             return todisk;
         }

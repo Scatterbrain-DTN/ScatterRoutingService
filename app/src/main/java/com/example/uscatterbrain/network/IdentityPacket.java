@@ -15,6 +15,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Map;
 
+/**
+ * Wrapper class for protocol buffer upgrade message
+ */
 public class IdentityPacket implements ScatterSerializable {
 
     private ScatterProto.Identity mIdentity;
@@ -40,6 +43,12 @@ public class IdentityPacket implements ScatterSerializable {
         this.mSig = mIdentity.getSig();
     }
 
+    /**
+     * Parse from identity packet.
+     *
+     * @param is the is
+     * @return the identity packet
+     */
     public static IdentityPacket parseFrom(InputStream is) {
         try {
             return new IdentityPacket(is);
@@ -59,6 +68,12 @@ public class IdentityPacket implements ScatterSerializable {
         return  result;
     }
 
+    /**
+     * Verify ed25519 signature of this packet
+     *
+     * @param pubkey the pubkey
+     * @return the boolean
+     */
     public boolean verifyed25519(byte[] pubkey) {
         if (pubkey.length != Sign.PUBLICKEYBYTES)
             return false;
@@ -102,42 +117,86 @@ public class IdentityPacket implements ScatterSerializable {
         return mIdentity;
     }
 
+    /**
+     * Gets name.
+     *
+     * @return the name
+     */
     public String getName() {
         return mGivenName;
     }
 
+    /**
+     * Gets keys.
+     *
+     * @return the keys
+     */
     public Map<String, ByteString> getKeys() {
         return mKeys;
     }
 
+    /**
+     * Gets sig.
+     *
+     * @return the sig
+     */
     public ByteString getSig() {
         return mSig;
     }
 
+    /**
+     * New builder builder.
+     *
+     * @return the builder
+     */
     public static Builder newBuilder() {
         return new Builder();
     }
 
+    /**
+     * The type Builder.
+     */
     public static class Builder {
         private String mGivenName;
         private Map<String, ByteString> mKeys;
         private byte[] mPrivateKey;
         private ByteString mSig;
 
+        /**
+         * Instantiates a new Builder.
+         */
         public Builder() {
 
         }
 
+        /**
+         * Sets name.
+         *
+         * @param name the name
+         * @return the name
+         */
         public Builder setName(String name) {
             this.mGivenName = name;
             return this;
         }
 
+        /**
+         * Sets keys.
+         *
+         * @param keys the keys
+         * @return the keys
+         */
         public Builder setKeys(Map<String, ByteString> keys) {
             this.mKeys = keys;
             return this;
         }
 
+        /**
+         * Sets ed25519 private key used for signing this packet
+         *
+         * @param key the key
+         * @return the sign key
+         */
         public Builder setSignKey(byte[] key) {
             this.mPrivateKey = key;
             return this;
@@ -172,18 +231,38 @@ public class IdentityPacket implements ScatterSerializable {
             return true;
         }
 
+        /**
+         * Gets name.
+         *
+         * @return the name
+         */
         public String getName() {
             return mGivenName;
         }
 
+        /**
+         * Gets keys.
+         *
+         * @return the keys
+         */
         public Map<String, ByteString> getKeys() {
             return mKeys;
         }
 
+        /**
+         * Gets sig.
+         *
+         * @return the sig
+         */
         public ByteString getSig() {
             return mSig;
         }
 
+        /**
+         * Build identity packet.
+         *
+         * @return the identity packet
+         */
         public IdentityPacket build() {
             if (mGivenName == null || mPrivateKey == null || mKeys == null) {
                 return null;

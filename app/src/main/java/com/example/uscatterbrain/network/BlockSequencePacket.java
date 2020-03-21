@@ -13,6 +13,9 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+/**
+ * Wrapper class for protocol buffer BlockSequence message
+ */
 public class BlockSequencePacket implements ScatterSerializable {
 
     private int mSequenceNumber;
@@ -20,6 +23,12 @@ public class BlockSequencePacket implements ScatterSerializable {
     private File mDataOnDisk;
     private ScatterProto.BlockSequence mBlockSequence;
 
+    /**
+     * Verify the hash of this message against its header
+     *
+     * @param bd the bd
+     * @return boolean whether verification succeeded
+     */
     public boolean verifyHash(BlockHeaderPacket bd) {
         byte[] seqnum = ByteBuffer.allocate(4).putInt(this.mSequenceNumber).order(ByteOrder.BIG_ENDIAN).array();
         byte[] data = this.mBlockSequence.getData().toByteArray();
@@ -32,6 +41,11 @@ public class BlockSequencePacket implements ScatterSerializable {
         return LibsodiumInterface.getSodium().sodium_compare(testhash, bd.getHash(this.mSequenceNumber).toByteArray(), testhash.length) == 0;
     }
 
+    /**
+     * Calculates the hash of this message
+     *
+     * @return the hash
+     */
     public byte[] calculateHash() {
         byte[] hashbytes = new byte[GenericHash.BYTES];
         byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
@@ -43,6 +57,11 @@ public class BlockSequencePacket implements ScatterSerializable {
         return hashbytes;
     }
 
+    /**
+     * Calculates the hash of this message
+     *
+     * @return hash as ByteString
+     */
     public ByteString calculateHashByteString() {
         return ByteString.copyFrom(calculateHash());
     }
@@ -85,6 +104,12 @@ public class BlockSequencePacket implements ScatterSerializable {
         this.mSequenceNumber = mBlockSequence.getSeqnum();
     }
 
+    /**
+     * Parse from block sequence packet.
+     *
+     * @param is the is
+     * @return the block sequence packet
+     */
     public static BlockSequencePacket parseFrom(InputStream is) {
         try {
             return new BlockSequencePacket(is);
@@ -103,26 +128,54 @@ public class BlockSequencePacket implements ScatterSerializable {
                 .build();
     }
 
+    /**
+     * Gets sequence number.
+     *
+     * @return the sequence number
+     */
     public int getmSequenceNumber() {
         return mSequenceNumber;
     }
 
+    /**
+     * Gets data.
+     *
+     * @return the data
+     */
     public ByteString getmData() {
         return mData;
     }
 
+    /**
+     * Gets data on disk.
+     *
+     * @return the data on disk
+     */
     public File getmDataOnDisk() {
         return mDataOnDisk;
     }
 
+    /**
+     * Gets block sequence.
+     *
+     * @return the block sequence
+     */
     public ScatterProto.BlockSequence getmBlockSequence() {
         return mBlockSequence;
     }
 
+    /**
+     * New builder builder.
+     *
+     * @return the builder
+     */
     public static Builder newBuilder() {
         return new Builder();
     }
 
+    /**
+     * Builder class for BlockSequencePacket
+     */
     public static class Builder {
 
         private int mSequenceNumber;
@@ -130,31 +183,67 @@ public class BlockSequencePacket implements ScatterSerializable {
         private File mDataOnDisk;
         private boolean mOnDisk;
 
+        /**
+         * Instantiates a new Builder.
+         */
         public Builder() {
 
         }
 
+        /**
+         * Sets sequence number.
+         *
+         * @param sequenceNumber the sequence number
+         * @return the sequence number
+         */
         public Builder setSequenceNumber(int sequenceNumber) {
             this.mSequenceNumber = sequenceNumber;
             return this;
         }
 
+        /**
+         * Sets data.
+         *
+         * @param data the data
+         * @return the data
+         */
         public Builder setData(ByteString data) {
             this.mData = data;
             return this;
         }
+
+        /**
+         * Build block sequence packet.
+         *
+         * @return the block sequence packet
+         */
         public BlockSequencePacket build() {
             return new BlockSequencePacket(this);
         }
 
+        /**
+         * Gets sequence number.
+         *
+         * @return the sequence number
+         */
         public int getmSequenceNumber() {
             return mSequenceNumber;
         }
 
+        /**
+         * Gets data.
+         *
+         * @return the data
+         */
         public ByteString getmData() {
             return mData;
         }
 
+        /**
+         * Gets file to write packet to
+         *
+         * @return file object
+         */
         public File getmDataOnDisk() {
             return mDataOnDisk;
         }}
