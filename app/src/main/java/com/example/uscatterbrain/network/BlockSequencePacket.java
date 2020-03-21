@@ -90,14 +90,6 @@ public class BlockSequencePacket implements ScatterSerializable {
         return true;
     }
 
-    public static BlockSequencePacket parseFrom(InputStream is) {
-        try {
-            return new BlockSequencePacket(is);
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
     public BlockSequencePacket(InputStream is) throws IOException {
         this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
         this.mData = mBlockSequence.getData();
