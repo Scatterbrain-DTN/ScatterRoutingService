@@ -15,6 +15,7 @@ import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.ScatterDataPacket;
 import com.example.uscatterbrain.network.ScatterSerializable;
@@ -35,7 +36,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -96,6 +99,17 @@ public class ProtocolInstrumentedTest {
                 .setToDisk(false)
                 .build();
         return bd;
+    }
+
+
+    public IdentityPacket getIdentity(byte[] privkey) {
+        Map<String, ByteString> keymap = new HashMap<>();
+        keymap.put("scatterbrain", ByteString.copyFromUtf8("fmeef"));
+        return new IdentityPacket.Builder()
+                .setName("name")
+                .setKeys(keymap)
+                .setSignKey(privkey)
+                .build();
     }
 
     public ScatterDataPacket getPacket(InputStream is, int count, int bs) {
@@ -306,6 +320,25 @@ public class ProtocolInstrumentedTest {
             assertThat(nu.getProvies(), is(ScatterProto.Advertise.Provides.ULTRASOUND));
         } catch (IOException e) {
             assertThat(e.getStackTrace(), is(""));
+            Assert.fail();
+        }
+    }
+
+    @Test
+    public void IdentityPacketWorks() throws TimeoutException {
+        byte[] signingkey = new byte[Sign.SECRETKEYBYTES];
+        byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
+        LibsodiumInterface.getSodium().crypto_sign_keypair(pubkey, signingkey);
+        IdentityPacket id = getIdentity(signingkey);
+
+        byte[] data = id.getBytes();
+
+        try {
+            ByteArrayInputStream is = new ByteArrayInputStream(data);
+            IdentityPacket idnew = new IdentityPacket(is);
+            assertThat(idnew.getKeys().get("scatterbrain"), is(ByteString.copyFromUtf8("fmeef")));
+            assertThat(idnew.verifyed25519(pubkey), is(true));
+        } catch (IOException e) {
             Assert.fail();
         }
     }
