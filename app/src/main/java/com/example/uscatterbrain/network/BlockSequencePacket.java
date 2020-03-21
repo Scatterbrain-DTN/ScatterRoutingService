@@ -160,8 +160,4 @@ public class BlockSequencePacket implements ScatterSerializable {
             return mDataOnDisk;
         }}
 
-    public class NotImplementedException extends Exception {
-
-    }
-
 }
