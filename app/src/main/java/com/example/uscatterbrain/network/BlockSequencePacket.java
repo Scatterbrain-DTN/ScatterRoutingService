@@ -5,6 +5,8 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,8 +34,9 @@ public class BlockSequencePacket implements ScatterSerializable {
     }
 
 
-    public BlockSequencePacket(byte[] data) throws InvalidProtocolBufferException {
-        this.mBlockSequence = ScatterProto.BlockSequence.parseFrom(data);
+    public BlockSequencePacket(byte[] data) throws IOException {
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
         this.mDataOnDisk = null;
         this.mData = this.mBlockSequence.getData();
         this.mSequenceNumber = this.mBlockSequence.getSeqnum();
@@ -56,12 +59,18 @@ public class BlockSequencePacket implements ScatterSerializable {
 
     @Override
     public byte[] getBytes() {
-        return mBlockSequence.toByteArray();
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try {
+            this.mBlockSequence.writeDelimitedTo(os);
+            return os.toByteArray();
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     @Override
     public ByteString getByteString() {
-        return mBlockSequence.toByteString();
+        return ByteString.copyFrom(getBytes());
     }
 
     @Override

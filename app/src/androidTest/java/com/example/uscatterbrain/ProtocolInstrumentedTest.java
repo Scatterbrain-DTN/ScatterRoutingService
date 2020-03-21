@@ -222,7 +222,7 @@ public class ProtocolInstrumentedTest {
             BlockSequencePacket newbs = new BlockSequencePacket(data);
             assertArrayEquals(newbs.calculateHash(), firsthash);
         }
-        catch (InvalidProtocolBufferException e) {
+        catch (IOException e) {
             e.printStackTrace();
             Assert.fail();
         }
@@ -238,7 +238,7 @@ public class ProtocolInstrumentedTest {
             BlockSequencePacket newbs = new BlockSequencePacket(data);
             assertThat(newbs.getmData() != null, is(true));
         }
-        catch (InvalidProtocolBufferException e) {
+        catch (IOException e) {
             e.printStackTrace();
             Assert.fail();
         }
@@ -305,6 +305,7 @@ public class ProtocolInstrumentedTest {
             UpgradePacket nu = new UpgradePacket(is);
             assertThat(nu.getProvies(), is(ScatterProto.Advertise.Provides.ULTRASOUND));
         } catch (IOException e) {
+            assertThat(e.getStackTrace(), is(""));
             Assert.fail();
         }
     }

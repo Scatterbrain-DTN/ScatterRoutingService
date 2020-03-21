@@ -6,6 +6,8 @@ import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -114,7 +116,8 @@ public class BlockHeaderPacket implements ScatterSerializable {
     }
 
     private void init(byte[] data) throws IOException{
-        init(ScatterProto.BlockData.parseFrom(data));
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        init(ScatterProto.BlockData.parseDelimitedFrom(is));
     }
 
     public BlockHeaderPacket(byte[] data)  throws IOException {
@@ -137,12 +140,18 @@ public class BlockHeaderPacket implements ScatterSerializable {
     @Override
     public byte[] getBytes() {
         buildBlockData();
-        return blockdata.toByteArray();
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try {
+            this.blockdata.writeDelimitedTo(os);
+            return os.toByteArray();
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     @Override
     public ByteString getByteString() {
-        return blockdata.toByteString();
+        return ByteString.copyFrom(getBytes());
     }
 
     @Override

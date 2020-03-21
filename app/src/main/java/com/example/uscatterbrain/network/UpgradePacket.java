@@ -3,6 +3,7 @@ package com.example.uscatterbrain.network;
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -30,12 +31,18 @@ public class UpgradePacket implements ScatterSerializable {
 
     @Override
     public byte[] getBytes() {
-        return this.mUpgrade.toByteArray();
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try {
+            mUpgrade.writeDelimitedTo(os);
+            return os.toByteArray();
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     @Override
     public ByteString getByteString() {
-        return this.mUpgrade.toByteString();
+        return ByteString.copyFrom(getBytes());
     }
 
     @Override

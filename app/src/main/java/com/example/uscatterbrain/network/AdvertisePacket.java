@@ -6,6 +6,7 @@ import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -23,7 +24,7 @@ public class AdvertisePacket implements ScatterSerializable {
     }
 
     public AdvertisePacket(InputStream is) throws IOException {
-        mAdvertise =  ScatterProto.Advertise.parseFrom(is);
+        mAdvertise =  ScatterProto.Advertise.parseDelimitedFrom(is);
         this.mProvides = mAdvertise.getProvidesList();
     }
 
@@ -33,12 +34,18 @@ public class AdvertisePacket implements ScatterSerializable {
 
     @Override
     public byte[] getBytes() {
-        return mAdvertise.toByteArray();
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try {
+            this.mAdvertise.writeDelimitedTo(os);
+            return os.toByteArray();
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     @Override
     public ByteString getByteString() {
-        return mAdvertise.toByteString();
+        return ByteString.copyFrom(getBytes());
     }
 
     @Override
