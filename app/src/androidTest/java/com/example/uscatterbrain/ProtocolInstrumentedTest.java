@@ -187,9 +187,9 @@ public class ProtocolInstrumentedTest {
         byte[] bytelist = bd.getBytes();
 
         Log.e("debug", "" +bytelist.length);
-
         try {
-            BlockHeaderPacket newbd = new BlockHeaderPacket(bytelist);
+            ByteArrayInputStream is = new ByteArrayInputStream(bytelist);
+            BlockHeaderPacket newbd = BlockHeaderPacket.parseFrom(is);
             assertThat(newbd.getApplication(), is("test".getBytes()));
         } catch (Exception e) {
             e.printStackTrace();
@@ -212,7 +212,8 @@ public class ProtocolInstrumentedTest {
         byte[] bytelist = bd.getBytes();
 
         try {
-            BlockHeaderPacket newbd = new BlockHeaderPacket(bytelist);
+            ByteArrayInputStream is = new ByteArrayInputStream(bytelist);
+            BlockHeaderPacket newbd = BlockHeaderPacket.parseFrom(is);
             assertThat(newbd.getApplication(), is("test".getBytes()));
             assertThat(newbd.getSig() != null, is(true));
             assertEquals(bd.getSig().size(), newbd.getSig().size());
@@ -232,14 +233,9 @@ public class ProtocolInstrumentedTest {
 
         byte[] data = bs.getBytes();
 
-        try {
-            BlockSequencePacket newbs = new BlockSequencePacket(data);
-            assertArrayEquals(newbs.calculateHash(), firsthash);
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-            Assert.fail();
-        }
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        BlockSequencePacket newbs = BlockSequencePacket.parseFrom(is);
+        assertArrayEquals(newbs.calculateHash(), firsthash);
     }
 
     @Test
@@ -248,14 +244,10 @@ public class ProtocolInstrumentedTest {
 
         byte[] data = bs.getBytes();
 
-        try {
-            BlockSequencePacket newbs = new BlockSequencePacket(data);
-            assertThat(newbs.getmData() != null, is(true));
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-            Assert.fail();
-        }
+
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        BlockSequencePacket newbs = BlockSequencePacket.parseFrom(is);
+        assertThat(newbs.getmData() != null, is(true));
     }
 
 
@@ -299,13 +291,9 @@ public class ProtocolInstrumentedTest {
         AdvertisePacket ad = getAdvertise();
 
         byte[] data = ad.getBytes();
-        try {
-            ByteArrayInputStream is = new ByteArrayInputStream(data);
-            AdvertisePacket n = new AdvertisePacket(is);
-            assertThat(n.getProvides().get(0), is(ScatterProto.Advertise.Provides.BLE));
-        } catch (IOException e) {
-            Assert.fail();
-        }
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        AdvertisePacket n = AdvertisePacket.parseFrom(is);
+        assertThat(n.getProvides().get(0), is(ScatterProto.Advertise.Provides.BLE));
     }
 
     @Test
@@ -313,15 +301,9 @@ public class ProtocolInstrumentedTest {
         UpgradePacket up = getUpgrade();
 
         byte[] data = up.getBytes();
-
-        try {
-            ByteArrayInputStream is = new ByteArrayInputStream(data);
-            UpgradePacket nu = new UpgradePacket(is);
-            assertThat(nu.getProvies(), is(ScatterProto.Advertise.Provides.ULTRASOUND));
-        } catch (IOException e) {
-            assertThat(e.getStackTrace(), is(""));
-            Assert.fail();
-        }
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        UpgradePacket nu = UpgradePacket.parseFrom(is);
+        assertThat(nu.getProvies(), is(ScatterProto.Advertise.Provides.ULTRASOUND));
     }
 
     @Test
@@ -333,14 +315,10 @@ public class ProtocolInstrumentedTest {
 
         byte[] data = id.getBytes();
 
-        try {
-            ByteArrayInputStream is = new ByteArrayInputStream(data);
-            IdentityPacket idnew = new IdentityPacket(is);
-            assertThat(idnew.getKeys().get("scatterbrain"), is(ByteString.copyFromUtf8("fmeef")));
-            assertThat(idnew.verifyed25519(pubkey), is(true));
-        } catch (IOException e) {
-            Assert.fail();
-        }
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+        IdentityPacket idnew = IdentityPacket.parseFrom(is);
+        assertThat(idnew.getKeys().get("scatterbrain"), is(ByteString.copyFromUtf8("fmeef")));
+        assertThat(idnew.verifyed25519(pubkey), is(true));
     }
 
 }

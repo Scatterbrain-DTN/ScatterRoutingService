@@ -24,9 +24,17 @@ public class AdvertisePacket implements ScatterSerializable {
                 .build();
     }
 
-    public AdvertisePacket(InputStream is) throws IOException {
+    private AdvertisePacket(InputStream is) throws IOException {
         mAdvertise =  ScatterProto.Advertise.parseDelimitedFrom(is);
         this.mProvides = mAdvertise.getProvidesList();
+    }
+
+    public static AdvertisePacket parseFrom(InputStream is) {
+        try {
+            return new AdvertisePacket(is);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     public List<ScatterProto.Advertise.Provides> getProvides() {
@@ -62,6 +70,10 @@ public class AdvertisePacket implements ScatterSerializable {
     @Override
     public GeneratedMessageLite getMessage() {
         return mAdvertise;
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
     }
 
     public static class Builder {

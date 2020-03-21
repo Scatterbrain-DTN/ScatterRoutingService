@@ -34,15 +34,6 @@ public class BlockSequencePacket implements ScatterSerializable {
         return LibsodiumInterface.getSodium().sodium_compare(testhash, bd.getHash(this.mSequenceNumber).toByteArray(), testhash.length) == 0;
     }
 
-
-    public BlockSequencePacket(byte[] data) throws IOException {
-        ByteArrayInputStream is = new ByteArrayInputStream(data);
-        this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
-        this.mDataOnDisk = null;
-        this.mData = this.mBlockSequence.getData();
-        this.mSequenceNumber = this.mBlockSequence.getSeqnum();
-    }
-
     public byte[] calculateHash() {
         byte[] hashbytes = new byte[GenericHash.BYTES];
         byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
@@ -90,11 +81,19 @@ public class BlockSequencePacket implements ScatterSerializable {
         return true;
     }
 
-    public BlockSequencePacket(InputStream is) throws IOException {
+    private BlockSequencePacket(InputStream is) throws IOException {
         this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
         this.mData = mBlockSequence.getData();
         this.mSequenceNumber = mBlockSequence.getSeqnum();
     }
+
+    public static BlockSequencePacket parseFrom(InputStream is) {
+        try {
+            return new BlockSequencePacket(is);
+        } catch (IOException e) {
+            return null;
+        }
+     }
 
     private BlockSequencePacket(Builder builder) {
         this.mSequenceNumber = builder.getmSequenceNumber();
@@ -120,6 +119,10 @@ public class BlockSequencePacket implements ScatterSerializable {
 
     public ScatterProto.BlockSequence getmBlockSequence() {
         return mBlockSequence;
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
     }
 
     public static class Builder {

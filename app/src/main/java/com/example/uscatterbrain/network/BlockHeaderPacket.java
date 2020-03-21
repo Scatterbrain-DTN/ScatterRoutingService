@@ -116,26 +116,16 @@ public class BlockHeaderPacket implements ScatterSerializable {
         init(ScatterProto.BlockData.parseDelimitedFrom(data));
     }
 
-    private void init(byte[] data) throws IOException{
-        ByteArrayInputStream is = new ByteArrayInputStream(data);
-        init(ScatterProto.BlockData.parseDelimitedFrom(is));
-    }
-
-    public BlockHeaderPacket(byte[] data)  throws IOException {
-        init(data);
-    }
-
-    public BlockHeaderPacket(byte[] data, int blocksize) throws IOException {
-        init(data);
-    }
-
-    public BlockHeaderPacket(InputStream in) throws IOException {
+    private BlockHeaderPacket(InputStream in) throws IOException {
         init(in);
     }
 
-    public void writeToOutputStream(OutputStream out) throws IOException {
-        buildBlockData();
-        blockdata.writeTo(out);
+    public static BlockHeaderPacket parseFrom(InputStream is) {
+        try {
+            return new BlockHeaderPacket(is);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     @Override
@@ -214,6 +204,9 @@ public class BlockHeaderPacket implements ScatterSerializable {
 
     public void setToDisk(boolean t) { this.mToDisk = t; }
 
+    public static Builder newBuilder() {
+        return new Builder();
+    }
 
     public static class Builder {
         private boolean todisk;

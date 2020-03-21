@@ -120,6 +120,9 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
         }
     }
 
+    public static Builder newBuilder() {
+        return new Builder();
+    }
 
     public static class Builder {
         private BlockHeaderPacket mHeader;

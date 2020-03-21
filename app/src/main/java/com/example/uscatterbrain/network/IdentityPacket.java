@@ -24,7 +24,7 @@ public class IdentityPacket implements ScatterSerializable {
     private Map<String, ByteString> mKeys;
     private ByteString mSig;
 
-    public IdentityPacket(Builder builder) {
+    private IdentityPacket(Builder builder) {
         this.mGivenName = builder.getName();
         this.mKeys = builder.getKeys();
         this.mSig = builder.getSig();
@@ -35,11 +35,19 @@ public class IdentityPacket implements ScatterSerializable {
                 .build();
     }
 
-    public IdentityPacket(InputStream is) throws IOException {
+    private IdentityPacket(InputStream is) throws IOException {
         this.mIdentity = ScatterProto.Identity.parseDelimitedFrom(is);
         this.mGivenName = mIdentity.getGivenname();
         this.mKeys = mIdentity.getKeysMap();
         this.mSig = mIdentity.getSig();
+    }
+
+    public static IdentityPacket parseFrom(InputStream is) {
+        try {
+            return new IdentityPacket(is);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private ByteString sumBytes() {
@@ -108,6 +116,9 @@ public class IdentityPacket implements ScatterSerializable {
         return mSig;
     }
 
+    public static Builder newBuilder() {
+        return new Builder();
+    }
 
     public static class Builder {
         private String mGivenName;

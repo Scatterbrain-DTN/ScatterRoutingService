@@ -24,10 +24,18 @@ public class UpgradePacket implements ScatterSerializable {
                 .build();
     }
 
-    public UpgradePacket(InputStream is) throws IOException {
+    private UpgradePacket(InputStream is) throws IOException {
         this.mUpgrade = ScatterProto.Upgrade.parseDelimitedFrom(is);
         this.mSessionID = this.mUpgrade.getSessionid();
         this.mProvides = this.mUpgrade.getProvides();
+    }
+
+    public static UpgradePacket parseFrom(InputStream is) {
+        try {
+            return new UpgradePacket(is);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     @Override
@@ -67,6 +75,10 @@ public class UpgradePacket implements ScatterSerializable {
 
     public ScatterProto.Advertise.Provides getProvies() {
         return this.mProvides;
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
     }
 
     public static class Builder {
