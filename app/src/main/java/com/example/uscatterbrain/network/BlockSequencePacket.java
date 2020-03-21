@@ -3,10 +3,8 @@ package com.example.uscatterbrain.network;
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;

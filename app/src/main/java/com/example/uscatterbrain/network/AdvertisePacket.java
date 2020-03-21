@@ -1,11 +1,8 @@
 package com.example.uscatterbrain.network;
 
-import com.example.uscatterbrain.API.HighLevelAPI;
-import com.example.uscatterbrain.DeviceProfile;
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
-import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

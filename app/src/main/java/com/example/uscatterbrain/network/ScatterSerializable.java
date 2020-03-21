@@ -1,6 +1,5 @@
 package com.example.uscatterbrain.network;
 
-import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
 

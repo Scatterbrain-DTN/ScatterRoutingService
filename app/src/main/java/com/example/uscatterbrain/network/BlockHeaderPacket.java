@@ -7,7 +7,6 @@ import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;

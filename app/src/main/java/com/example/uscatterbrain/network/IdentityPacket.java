@@ -12,10 +12,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class IdentityPacket implements ScatterSerializable {
 
