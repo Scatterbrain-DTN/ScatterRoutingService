@@ -8,5 +8,4 @@ public interface ScatterSerializable {
     byte[] getBytes();
     ByteString getByteString();
     boolean writeToStream(OutputStream os);
-    int size();
 }

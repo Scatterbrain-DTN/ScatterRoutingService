@@ -84,11 +84,6 @@ public class BlockSequencePacket implements ScatterSerializable {
         return true;
     }
 
-    @Override
-    public int size() {
-        return mBlockSequence.toByteString().size();
-    }
-
     public static BlockSequencePacket parseFrom(InputStream is) {
         try {
             return new BlockSequencePacket(is);

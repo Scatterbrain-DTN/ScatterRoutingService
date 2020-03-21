@@ -55,11 +55,6 @@ public class UpgradePacket implements ScatterSerializable {
         return true;
     }
 
-    @Override
-    public int size() {
-        return this.mUpgrade.toByteString().size();
-    }
-
     public int getSessionID() {
         return this.mSessionID;
     }

@@ -90,12 +90,6 @@ public class IdentityPacket implements ScatterSerializable {
         return true;
     }
 
-    @Override
-    public int size() {
-        return 0;
-    }
-
-
     public String getName() {
         return mGivenName;
     }

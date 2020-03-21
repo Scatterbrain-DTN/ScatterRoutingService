@@ -58,11 +58,6 @@ public class AdvertisePacket implements ScatterSerializable {
         return true;
     }
 
-    @Override
-    public int size() {
-        return mAdvertise.toByteString().size();
-    }
-
     public static class Builder {
         private List<ScatterProto.Advertise.Provides> mProvides;
 

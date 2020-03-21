@@ -165,11 +165,6 @@ public class BlockHeaderPacket implements ScatterSerializable {
         return true;
     }
 
-    @Override
-    public int size() {
-        return blockdata.toByteString().size();
-    }
-
     public ScatterProto.BlockData getBlockdata() {
         buildBlockData();
         return this.blockdata;

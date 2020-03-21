@@ -267,7 +267,7 @@ public class ProtocolInstrumentedTest {
         ScatterDataPacket bd = getPacket(is, 2, 2048);
         int i = 0;
         for (ScatterSerializable bs : bd) {
-            assertThat(bs.size() > 0, is(true));
+            assertThat(bs.getBytes().length > 0, is(true));
             i++;
         }
     }
