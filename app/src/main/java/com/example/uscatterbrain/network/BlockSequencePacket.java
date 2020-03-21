@@ -2,6 +2,7 @@ package com.example.uscatterbrain.network;
 
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.GeneratedMessageLite;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
@@ -55,6 +56,11 @@ public class BlockSequencePacket implements ScatterSerializable {
 
     public ByteString calculateHashByteString() {
         return ByteString.copyFrom(calculateHash());
+    }
+
+    @Override
+    public GeneratedMessageLite getMessage() {
+        return mBlockSequence;
     }
 
     @Override

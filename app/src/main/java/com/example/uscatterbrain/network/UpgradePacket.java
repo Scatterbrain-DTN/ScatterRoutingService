@@ -2,6 +2,7 @@ package com.example.uscatterbrain.network;
 
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.GeneratedMessageLite;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -53,6 +54,11 @@ public class UpgradePacket implements ScatterSerializable {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public GeneratedMessageLite getMessage() {
+        return mUpgrade;
     }
 
     public int getSessionID() {

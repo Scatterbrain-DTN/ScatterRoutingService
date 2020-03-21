@@ -4,6 +4,7 @@ import com.example.uscatterbrain.API.HighLevelAPI;
 import com.example.uscatterbrain.DeviceProfile;
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.GeneratedMessageLite;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.io.ByteArrayOutputStream;
@@ -56,6 +57,11 @@ public class AdvertisePacket implements ScatterSerializable {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public GeneratedMessageLite getMessage() {
+        return mAdvertise;
     }
 
     public static class Builder {

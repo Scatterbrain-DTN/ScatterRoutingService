@@ -2,6 +2,7 @@ package com.example.uscatterbrain.network;
 
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.GeneratedMessageLite;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
@@ -163,6 +164,11 @@ public class BlockHeaderPacket implements ScatterSerializable {
         }
 
         return true;
+    }
+
+    @Override
+    public GeneratedMessageLite getMessage() {
+        return blockdata;
     }
 
     public ScatterProto.BlockData getBlockdata() {
