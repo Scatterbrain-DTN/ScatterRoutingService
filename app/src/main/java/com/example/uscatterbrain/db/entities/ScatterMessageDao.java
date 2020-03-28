@@ -4,11 +4,9 @@ import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Delete;
 import androidx.room.Insert;
-import androidx.room.PrimaryKey;
 import androidx.room.Query;
 import androidx.room.Transaction;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Dao
@@ -20,7 +18,7 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Transaction
     @Query("SELECT * FROM messages")
-    public abstract LiveData<List<ScatterMessagesWithFiles>> getMessagesWithFiles();
+    public abstract LiveData<List<ScatterMessageRelations>> getMessagesWithFiles();
 
     @Transaction
     @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
@@ -38,6 +36,10 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
     @Insert
     public abstract void insertMessagesWithFiles(List<MessageDiskFileCrossRef> messagesWithFiles);
 
+    @Transaction
+    @Insert
+    public abstract void insertMessagesWithHashes(List<MessageHashCrossRef> messagesWithHashes);
+
     @Insert
     public abstract List<Long> _insertMessages(List<ScatterMessage> messages);
 
@@ -46,6 +48,9 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Insert
     public abstract List<Long> insertDiskFiles(List<DiskFiles> df);
+
+    @Insert
+    public abstract List<Long> insertHashes(List<Hashes> h);
 
     @Insert
     public abstract  Long insertIdentity(Identity identity);

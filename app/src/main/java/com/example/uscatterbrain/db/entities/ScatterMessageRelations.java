@@ -6,7 +6,7 @@ import androidx.room.Relation;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ScatterMessagesWithFiles {
+public class ScatterMessageRelations {
     @Embedded public ScatterMessage message;
 
     @Relation(
@@ -15,4 +15,11 @@ public class ScatterMessagesWithFiles {
             associateBy = @Junction(MessageDiskFileCrossRef.class)
     )
     public List<DiskFiles> messageDiskFiles = new ArrayList<>();
+
+    @Relation(
+            parentColumn = "messageID",
+            entityColumn = "hashID",
+            associateBy = @Junction(MessageHashCrossRef.class)
+    )
+    public List<Hashes> messageHashes = new ArrayList<>();
 }

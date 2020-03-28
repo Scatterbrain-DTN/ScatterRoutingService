@@ -1,6 +1,5 @@
 package com.example.uscatterbrain;
 
-import android.app.Service;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -12,7 +11,6 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.db.entities.ScatterMessagesWithFiles;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -23,7 +21,6 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.Shadows;
 import org.robolectric.android.controller.ServiceController;
 import org.robolectric.annotation.LooperMode;
-import org.robolectric.shadows.ShadowLooper;
 
 import java.util.ArrayList;
 import java.util.List;

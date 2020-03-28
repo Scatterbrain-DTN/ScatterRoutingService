@@ -1,21 +1,18 @@
 package com.example.uscatterbrain.db;
 
 import android.content.Context;
-import android.os.AsyncTask;
 
 import androidx.lifecycle.LiveData;
-import androidx.room.Entity;
-import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.Room;
 
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.MessageDiskFileCrossRef;
+import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 
-import org.greenrobot.eventbus.EventBus;
-
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -83,9 +80,18 @@ public class ScatterbrainDatastore {
         Long id = this.mDatastore.scatterMessageDao()._insertMessages(message);
 
         List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
+        List<MessageHashCrossRef> hashes = new ArrayList<>();
+
+        List<Long> hashids = this.mDatastore.scatterMessageDao().insertHashes(message.getHashes());
+        for (Long hashID : hashids) {
+            MessageHashCrossRef xref = new MessageHashCrossRef();
+            xref.messageID = id;
+            xref.hashID = hashID;
+            hashes.add(xref);
+        }
 
         List<Long> fileids = this.mDatastore.scatterMessageDao().insertDiskFiles(message.getFiles());
-        for(Long fileID : fileids) {
+        for (Long fileID : fileids) {
             MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
             xref.messageID = id;
             xref.fileID = fileID;
@@ -95,6 +101,7 @@ public class ScatterbrainDatastore {
         message.setIdentityID(identityID);
 
         this.mDatastore.scatterMessageDao().insertMessagesWithFiles(xrefs);
+        this.mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes);
         return id;
     }
 
@@ -107,22 +114,35 @@ public class ScatterbrainDatastore {
         List<Long> ids =  this.mDatastore.scatterMessageDao()._insertMessages(messages);
 
         List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
+        List<MessageHashCrossRef> hashes = new ArrayList<>();
 
-        for(ScatterMessage message : messages) {
+        Iterator<Long> idItr = ids.iterator();
+        Iterator<ScatterMessage> messageItr = messages.iterator();
+        while (idItr.hasNext() && messageItr.hasNext()) {
+            ScatterMessage message = messageItr.next();
+            Long id = idItr.next();
             List<Long> fileids = this.mDatastore.scatterMessageDao().insertDiskFiles(message.getFiles());
-            for(Long messageID : ids) {
-                for(Long fileID : fileids) {
-                    MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
-                    xref.messageID = messageID;
-                    xref.fileID = fileID;
-                    xrefs.add(xref);
-                }
+            List<Long> hashids = this.mDatastore.scatterMessageDao().insertHashes(message.getHashes());
+            for (Long fileID : fileids) {
+                MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
+                xref.messageID = id;
+                xref.fileID = fileID;
+                xrefs.add(xref);
             }
+
+            for (Long hashID : hashids) {
+                MessageHashCrossRef xref = new MessageHashCrossRef();
+                xref.messageID = id;
+                xref.hashID = hashID;
+                hashes.add(xref);
+            }
+
             Long identityID = this.mDatastore.scatterMessageDao().insertIdentity(message.getIdentity());
             message.setIdentityID(identityID);
         }
 
         this.mDatastore.scatterMessageDao().insertMessagesWithFiles(xrefs);
+        this.mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes);
 
         return ids;
     }
@@ -132,13 +152,14 @@ public class ScatterbrainDatastore {
      * Asynchronously inserts a list of messages into the datastore, allows tracking result
      * via provided callback
      *
+    @Delete
      * @param messages room entities to insert
      * @param callback callback object to retrieve list of primary keys on successful insert
      * @throws DatastoreInsertException
      */
     public void insertMessage(List<ScatterMessage> messages, DatastoreInsertUpdateCallback<List<Long>> callback) throws DatastoreInsertException {
         for(ScatterMessage message : messages) {
-            if (message.getIdentity() == null || message.getFiles() == null) {
+            if (message.getIdentity() == null || message.getFiles() == null || message.getHashes() == null) {
                 throw new DatastoreInsertException();
             }
         }
@@ -176,7 +197,7 @@ public class ScatterbrainDatastore {
      * @throws DatastoreInsertException thrown if inner classes are null
      */
     public void insertMessage(ScatterMessage message, DatastoreInsertUpdateCallback<Long> callback) throws DatastoreInsertException {
-        if(message.getIdentity() == null || message.getFiles() == null) {
+        if(message.getIdentity() == null || message.getFiles() == null || message.getHashes() == null) {
             throw new DatastoreInsertException();
         }
 

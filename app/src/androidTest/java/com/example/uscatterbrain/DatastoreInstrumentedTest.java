@@ -72,6 +72,7 @@ public class DatastoreInstrumentedTest {
     public ScatterMessage defaultMessage() {
         ScatterMessage sm = new ScatterMessage(new Identity(), new byte[5]);
         sm.addFile(new DiskFiles());
+        sm.setTo(new byte[16]);
         return sm;
     }
 
@@ -105,7 +106,7 @@ public class DatastoreInstrumentedTest {
 
         }
         catch(ScatterbrainDatastore.DatastoreInsertException e) {
-            fail();
+            Assert.fail();
         }
     }
 

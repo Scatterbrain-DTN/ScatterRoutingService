@@ -61,8 +61,6 @@ public class BlockHeaderPacket implements ScatterSerializable {
         messagebytes = messagebytes.concat(this.mFromFingerprint);
         messagebytes = messagebytes.concat(this.mToFingerprint);
         messagebytes = messagebytes.concat(ByteString.copyFrom(this.mApplication));
-        ByteString sessionidBytes = ByteString.copyFrom(ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(this.mSessionID).array());
-        messagebytes = messagebytes.concat(sessionidBytes);
         byte td = 0;
         if (this.mToDisk)
             td = 1;
