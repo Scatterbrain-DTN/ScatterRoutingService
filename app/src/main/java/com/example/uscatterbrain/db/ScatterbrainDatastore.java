@@ -346,6 +346,14 @@ public class ScatterbrainDatastore {
     }
 
     /**
+     * gets a list of all the files in the datastore.
+     * @return list of DiskFiles objects
+     */
+    public LiveData<List<DiskFiles>> getAllFiles() {
+        return this.mDatastore.diskFilesDao().getAllAsync();
+    }
+
+    /**
      * Retrieves a message by an identity room entity
      *
      * @param id room entity to search by
@@ -353,6 +361,13 @@ public class ScatterbrainDatastore {
      */
     public LiveData<List<ScatterMessage>> getMessagesByIdentity(Identity id) {
         return this.mDatastore.scatterMessageDao().getByIdentity(id.getIdentityID());
+    }
+
+    /**
+     * Clears the datastore, dropping all tables
+     */
+    public void clear() {
+        this.mDatastore.clearAllTables();
     }
 
     public static class DatastoreInsertException extends Exception {

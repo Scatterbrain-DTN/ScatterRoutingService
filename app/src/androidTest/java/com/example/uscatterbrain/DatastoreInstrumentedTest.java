@@ -19,6 +19,7 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.db.file.FileStore;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.goterl.lazycode.lazysodium.LazySodiumAndroid;
 import com.goterl.lazycode.lazysodium.SodiumAndroid;
@@ -31,9 +32,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.nio.file.Path;
 import java.sql.Time;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -90,6 +96,7 @@ public class DatastoreInstrumentedTest {
     @Test
     public void publicApiInsertsMessage() {
         ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+        datastore.clear();
         List<ScatterMessage> sms = defaultMessages(1);
 
         try {
@@ -113,6 +120,7 @@ public class DatastoreInstrumentedTest {
     @Test
     public void publicApiQueryMessageByIdentity() {
         ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+        datastore.clear();
         ScatterMessage sm = defaultMessage();
         try {
             testRunning = true;
@@ -135,6 +143,7 @@ public class DatastoreInstrumentedTest {
     public void topRandomMessagesWork() throws TimeoutException {
         ScatterRoutingService service = getService();
         ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+        datastore.clear();
         List<ScatterMessage> messages = defaultMessages(20);
         try {
             testRunning = true;
@@ -161,6 +170,52 @@ public class DatastoreInstrumentedTest {
         } catch(ScatterbrainDatastore.DatastoreInsertException e) {
             Assert.fail();
         }
+    }
+
+    @Test
+    public void getAllFilesWorks() throws TimeoutException {
+        ScatterRoutingService service = getService();
+        ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+        datastore.clear();
+        List<ScatterMessage> messages = defaultMessages(30);
+        try {
+            testRunning = true;
+            datastore.insertMessage(messages, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<List<Long>>() {
+                @Override
+                public void onRowUpdate(List<Long> rowids) {
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            datastore.getAllFiles().observe(service, new Observer<List<DiskFiles>>() {
+                                @Override
+                                public void onChanged(List<DiskFiles> diskFiles) {
+                                    testRunning = false;
+                                    assertThat(diskFiles.size(), is(30));
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+            blockForThread();
+        } catch (ScatterbrainDatastore.DatastoreInsertException e) {
+            Assert.fail();
+        }
+    }
+
+    @Test
+    public void fileStoreAddWorks() throws TimeoutException, InterruptedException , ExecutionException {
+        ScatterRoutingService service = getService();
+        FileStore store = new FileStore();
+        byte[] data = new byte[4096*4];
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+
+        File f = new File(service.getFilesDir(), "fmef");
+
+        Future<FileStore.FileCallbackResult> deleteResult = store.deleteFile(f.toPath());
+        deleteResult.get();
+        Future<FileStore.FileCallbackResult> result = store.insertFile(is, f.toPath());
+        assertThat(result.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
     }
 
     @Test

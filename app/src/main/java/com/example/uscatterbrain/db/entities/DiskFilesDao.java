@@ -1,5 +1,6 @@
 package com.example.uscatterbrain.db.entities;
 
+import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Delete;
 import androidx.room.Insert;
@@ -11,6 +12,9 @@ import java.util.List;
 public interface DiskFilesDao extends BaseDao<DiskFiles>{
     @Query("SELECT * FROM diskfiles")
     List<DiskFiles> getAll();
+
+    @Query("SELECT * FROM diskfiles")
+    LiveData<List<DiskFiles>> getAllAsync();
 
     @Query("SELECT * FROM diskfiles WHERE fileID IN (:ids) ")
     List<DiskFiles> getById(int[] ids);
