@@ -33,11 +33,17 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.Time;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
@@ -206,20 +212,32 @@ public class DatastoreInstrumentedTest {
     @Test
     public void fileStoreAddWorks() throws TimeoutException, InterruptedException , ExecutionException {
         ScatterRoutingService service = getService();
-        FileStore store = new FileStore();
-        byte[] data = new byte[4096*4];
+        FileStore store = new FileStore(service);
+        byte[] data = new byte[100];
+        Random r = new Random();
+        r.nextBytes(data);
         ByteArrayInputStream is = new ByteArrayInputStream(data);
 
         File f = new File(service.getFilesDir(), "fmef");
 
-        Future<FileStore.FileCallbackResult> deleteResult = store.deleteFile(f.toPath());
+        Future<FileStore.FileCallbackResult> deleteResult = store.deleteFile(f.toPath().toAbsolutePath());
         deleteResult.get();
-        Future<FileStore.FileCallbackResult> result = store.insertFile(is, f.toPath());
+        Future<FileStore.FileCallbackResult> result = store.insertFile(is, f.toPath().toAbsolutePath());
         assertThat(result.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
-    }
 
-    @Test
-    public void testBindService() throws TimeoutException {
-
+        File verify = new File(service.getFilesDir(), "fmef");
+        System.out.println("verify full path " + verify.getAbsolutePath());
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            Future<FileStore.FileCallbackResult> readresult = store.getFile(bos, verify.toPath().toAbsolutePath());
+            assertThat(readresult.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
+            for (int i=0;i<data.length;i++) {
+                System.out.print(data[i]);
+            }
+            System.out.println();
+            for (int i=0;i<bos.toByteArray().length;i++) {
+                System.out.print(bos.toByteArray()[i]);
+            }
+            System.out.println();
+            assertArrayEquals(data, bos.toByteArray());
     }
 }
