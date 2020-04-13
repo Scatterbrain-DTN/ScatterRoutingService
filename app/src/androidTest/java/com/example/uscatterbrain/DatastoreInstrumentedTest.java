@@ -21,6 +21,8 @@ import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.db.file.FileStore;
 import com.example.uscatterbrain.network.LibsodiumInterface;
+import com.google.common.io.ByteStreams;
+import com.google.protobuf.ByteString;
 import com.goterl.lazycode.lazysodium.LazySodiumAndroid;
 import com.goterl.lazycode.lazysodium.SodiumAndroid;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
@@ -212,7 +214,7 @@ public class DatastoreInstrumentedTest {
     @Test
     public void fileStoreAddWorks() throws TimeoutException, InterruptedException , ExecutionException {
         ScatterRoutingService service = getService();
-        FileStore store = new FileStore(service);
+        FileStore store = FileStore.getFileStore();
         byte[] data = new byte[100];
         Random r = new Random();
         r.nextBytes(data);
@@ -239,5 +241,27 @@ public class DatastoreInstrumentedTest {
             }
             System.out.println();
             assertArrayEquals(data, bos.toByteArray());
+    }
+
+    @Test
+    public void hashingFromDiskWorks() throws TimeoutException, InterruptedException, ExecutionException {
+        ScatterRoutingService service = getService();
+        FileStore store = FileStore.getFileStore();
+        byte[] data = new byte[4096*10];
+        Random r = new Random();
+        r.nextBytes(data);
+
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+
+        File f = new File(service.getFilesDir(), "fmef");
+
+        Future<FileStore.FileCallbackResult> deleteResult = store.deleteFile(f.toPath().toAbsolutePath());
+        deleteResult.get();
+        Future<FileStore.FileCallbackResult> result = store.insertFile(is, f.toPath().toAbsolutePath());
+        assertThat(result.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
+
+        Future<List<ByteString>> hashlist = store.hashFile(f.toPath().toAbsolutePath(), 4096);
+        assertThat(hashlist.get() == null, is(false));
+        assertThat(hashlist.get().size(), is(10));
     }
 }

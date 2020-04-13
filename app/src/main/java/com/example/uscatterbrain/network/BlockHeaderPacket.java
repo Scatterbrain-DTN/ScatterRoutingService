@@ -1,5 +1,7 @@
 package com.example.uscatterbrain.network;
 
+import android.util.Log;
+
 import com.example.uscatterbrain.ScatterProto;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
@@ -33,27 +35,19 @@ public class BlockHeaderPacket implements ScatterSerializable {
         this.mSignature = new byte[Sign.ED25519_BYTES];
         this.mToFingerprint = builder.getmToFingerprint();
         this.mFromFingerprint = builder.getmFromFingerprint();
-        this.mHashList = builder.getHashlist();
         this.mApplication = builder.getApplication();
         this.mSessionID = builder.getSessionid();
         this.mToDisk = builder.getToDisk();
-    }
-
-    private void buildBlockData() {
-        if (this.mSignature == null) {
-            this.mSignature = new byte[1];
-        }
-        if (this.blockdata == null) {
-            this.blockdata = ScatterProto.BlockData.newBuilder()
-                    .setApplicationBytes(ByteString.copyFrom(this.mApplication))
-                    .setFromFingerprint(this.mFromFingerprint)
-                    .setToFingerprint(this.mToFingerprint)
-                    .setTodisk(this.mToDisk)
-                    .addAllNexthashes(this.mHashList)
-                    .setSessionid(this.mSessionID)
-                    .setSig(ByteString.copyFrom(this.mSignature))
-                    .build();
-        }
+        Log.e("debug", "adding all nexthashes " + mHashList.size());
+        this.blockdata = ScatterProto.BlockData.newBuilder()
+                .setApplicationBytes(ByteString.copyFrom(this.mApplication))
+                .setFromFingerprint(this.mFromFingerprint)
+                .setToFingerprint(this.mToFingerprint)
+                .setTodisk(this.mToDisk)
+                .addAllNexthashes(this.mHashList)
+                .setSessionid(this.mSessionID)
+                .setSig(ByteString.copyFrom(this.mSignature))
+                .build();
     }
 
     private ByteString sumBytes() {
@@ -106,30 +100,32 @@ public class BlockHeaderPacket implements ScatterSerializable {
         Pointer p = new PointerByReference(Pointer.NULL).getPointer();
         if (LibsodiumInterface.getSodium().crypto_sign_detached(this.mSignature,
                 p, messagebytes.toByteArray(), messagebytes.size(), secretkey) == 0) {
-            buildBlockData();
+            this.blockdata = ScatterProto.BlockData.newBuilder()
+                    .setApplicationBytes(ByteString.copyFrom(this.mApplication))
+                    .setFromFingerprint(this.mFromFingerprint)
+                    .setToFingerprint(this.mToFingerprint)
+                    .setTodisk(this.mToDisk)
+                    .addAllNexthashes(this.mHashList)
+                    .setSessionid(this.mSessionID)
+                    .setSig(ByteString.copyFrom(this.mSignature))
+                    .build();
             return true;
         } else {
             return false;
         }
     }
 
-    private void init(ScatterProto.BlockData data) {
-        this.blockdata = data;
+    private BlockHeaderPacket(InputStream in) throws IOException {
+        this.blockdata = ScatterProto.BlockData.parseDelimitedFrom(in);
         this.mApplication = blockdata.getApplicationBytes().toByteArray();
+        Log.e("debug ", "header nexthashes count" + blockdata.getNexthashesList().size());
+        Log.e("debug", "header nexthashes raw count " + blockdata.getNexthashesCount());
         this.mHashList = blockdata.getNexthashesList();
         this.mFromFingerprint = blockdata.getFromFingerprint();
         this.mToFingerprint = blockdata.getToFingerprint();
         this.mSignature = blockdata.getSig().toByteArray();
         this.mToDisk = blockdata.getTodisk();
         this.mSessionID = blockdata.getSessionid();
-    }
-
-    private void init(InputStream data) throws IOException{
-        init(ScatterProto.BlockData.parseDelimitedFrom(data));
-    }
-
-    private BlockHeaderPacket(InputStream in) throws IOException {
-        init(in);
     }
 
     /**
@@ -148,7 +144,6 @@ public class BlockHeaderPacket implements ScatterSerializable {
 
     @Override
     public byte[] getBytes() {
-        buildBlockData();
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
             this.blockdata.writeDelimitedTo(os);
@@ -166,7 +161,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
     @Override
     public boolean writeToStream(OutputStream os) {
         try {
-            blockdata.writeTo(os);
+            blockdata.writeDelimitedTo(os);
         } catch (IOException e) {
             return false;
         }
@@ -185,8 +180,15 @@ public class BlockHeaderPacket implements ScatterSerializable {
      * @return the blockdata
      */
     public ScatterProto.BlockData getBlockdata() {
-        buildBlockData();
         return this.blockdata;
+    }
+
+    /**
+     * Gets the blocksize
+     * @return int blocksize
+     */
+    public int getBlockSize() {
+        return this.blockdata.getBlocksize();
     }
 
     /**

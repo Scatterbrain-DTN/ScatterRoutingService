@@ -12,6 +12,7 @@ import androidx.test.rule.ServiceTestRule;
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.db.file.FileStore;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
@@ -31,14 +32,21 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -90,6 +98,9 @@ public class ProtocolInstrumentedTest {
     public BlockHeaderPacket getHeaderPacket() {
         List<ByteString> bl = new ArrayList<ByteString>();
         bl.add(ByteString.EMPTY);
+        bl.add(ByteString.EMPTY);
+        bl.add(ByteString.EMPTY);
+        bl.add(ByteString.EMPTY);
         BlockHeaderPacket bd = new BlockHeaderPacket.Builder()
                 .setApplication("test".getBytes())
                 .setSessionID(0)
@@ -110,24 +121,6 @@ public class ProtocolInstrumentedTest {
                 .setKeys(keymap)
                 .setSignKey(privkey)
                 .build();
-    }
-
-    public ScatterDataPacket getPacket(InputStream is, int count, int bs) {
-        List<ByteString> bl = new ArrayList<ByteString>();
-        bl.add(ByteString.EMPTY);
-
-        ScatterDataPacket bd = new ScatterDataPacket.Builder()
-                .setFragmentCount(count)
-                .setBlockSize(bs)
-                .setFragmentStream(is)
-                .setFromAddress(new byte[32])
-                .setToAddress(new byte[32])
-                .setSessionID(0)
-                .setApplication("test")
-                .build();
-
-
-        return bd;
     }
 
     public AdvertisePacket getAdvertise() {
@@ -227,6 +220,24 @@ public class ProtocolInstrumentedTest {
 
 
     @Test
+    public void hashListWorks() throws TimeoutException {
+        BlockHeaderPacket bd = getHeaderPacket();
+        int size = bd.getHashList().size();
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        bd.writeToStream(os);
+
+        try {
+            ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
+            BlockHeaderPacket blockHeaderPacket = BlockHeaderPacket.parseFrom(is);
+            assertThat(blockHeaderPacket != null, is(true));
+            assertThat(blockHeaderPacket.getHashList().size(), is(size));
+        } catch (Exception e) {
+            Assert.fail();
+        }
+    }
+
+
+    @Test
     public void blockSequencePacketCalculateHashWorks() throws TimeoutException {
         BlockSequencePacket bs = getSequencePacket(0);
         byte[] firsthash = bs.calculateHash();
@@ -252,36 +263,57 @@ public class ProtocolInstrumentedTest {
 
 
     @Test
-    public void multipleBlockSequencePacketsSend() throws TimeoutException {
-        byte[] data = new byte[4096];
+    public void multipleBlockSequencePacketsVerify() throws TimeoutException, ExecutionException, InterruptedException {
+        byte[] data = new byte[4096*20];
+        Random r = new Random();
+        r.nextBytes(data);
+        ScatterRoutingService service = getService();
+        FileStore store = FileStore.getFileStore();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
-
-        ScatterDataPacket bd = getPacket(is, 2, 2048);
-        int i = 0;
-        for (ScatterSerializable bs : bd) {
-            assertThat(bs.getBytes().length > 0, is(true));
-            i++;
-        }
-    }
+        List<ByteString> bl = new ArrayList<ByteString>();
+        bl.add(ByteString.EMPTY);
 
 
+        File file = new File(service.getFilesDir(), "test2");
+        Future<FileStore.FileCallbackResult> resultFuture = store.deleteFile(file.toPath().toAbsolutePath());
+        resultFuture.get();
+        resultFuture =  store.insertFile(is, file.toPath().toAbsolutePath());
+        assertThat(resultFuture.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
+        ScatterDataPacket bd = new ScatterDataPacket.Builder()
+                    .setBlockSize(1024)
+                    .setFragmentFile(file)
+                    .setFromAddress(ByteString.copyFrom(new byte[32]))
+                    .setToAddress(ByteString.copyFrom(new byte[32]))
+                    .setSessionID(0)
+                    .setApplication("test")
+                    .build();
 
-    @Test
-    public void multipleBlockSequencePacketsVerify() throws TimeoutException {
-        byte[] data = new byte[4096];
-        ByteArrayInputStream is = new ByteArrayInputStream(data);
-        ScatterDataPacket bd = getPacket(is, 2, 2048);
+        assertThat(bd != null, is(true));
 
-        ByteArrayOutputStream os = new ByteArrayOutputStream(6000);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
 
         int i = 0;
         try {
             for (ScatterSerializable bs : bd) {
-                os.write(bs.getBytes());
+                Log.e("test", "writing packet " + i);
+                if (i == 0) {
+                    assertThat(((BlockHeaderPacket)bs).getHashList().size(), is(80));
+                }
+                bs.writeToStream(os);
                 i++;
             }
 
+            assertThat(i, is(81));
+
+            ByteArrayInputStream bis = new ByteArrayInputStream(os.toByteArray());
+            File newfile = new File(service.getFilesDir(), "newfile");
+            FileStore.getFileStore().deleteFile(newfile.toPath().toAbsolutePath()).get();
+            Log.e("debug", "starting parse");
+            ScatterDataPacket newdp = ScatterDataPacket.parseFrom(bis, newfile);
+            assertThat(newdp != null, is(true));
+            assertThat(newdp.isHashValid(), is(true));
         } catch (Exception e) {
+            e.printStackTrace();
             Assert.fail();
         }
     }

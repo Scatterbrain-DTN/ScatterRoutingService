@@ -66,7 +66,7 @@ public class UpgradePacket implements ScatterSerializable {
     @Override
     public boolean writeToStream(OutputStream os) {
         try {
-            this.mUpgrade.writeTo(os);
+            this.mUpgrade.writeDelimitedTo(os);
         } catch (IOException e) {
             return false;
         }

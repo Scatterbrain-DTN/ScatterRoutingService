@@ -71,7 +71,7 @@ public class AdvertisePacket implements ScatterSerializable {
     @Override
     public boolean writeToStream(OutputStream os) {
         try {
-            mAdvertise.writeTo(os);
+            mAdvertise.writeDelimitedTo(os);
         } catch (IOException e) {
             return false;
         }

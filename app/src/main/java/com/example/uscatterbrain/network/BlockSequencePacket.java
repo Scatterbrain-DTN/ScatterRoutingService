@@ -90,7 +90,7 @@ public class BlockSequencePacket implements ScatterSerializable {
     @Override
     public boolean writeToStream(OutputStream os) {
         try {
-            mBlockSequence.writeTo(os);
+            mBlockSequence.writeDelimitedTo(os);
         } catch (IOException e) {
             return false;
         }

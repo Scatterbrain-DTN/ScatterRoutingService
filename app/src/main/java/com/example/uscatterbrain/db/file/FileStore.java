@@ -1,8 +1,16 @@
 package com.example.uscatterbrain.db.file;
 
 import android.content.Context;
+import android.util.Log;
+import android.util.Range;
 
+import com.example.uscatterbrain.network.BlockHeaderPacket;
+import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.LibsodiumInterface;
+import com.example.uscatterbrain.network.ScatterSerializable;
 import com.google.protobuf.ByteString;
+import com.goterl.lazycode.lazysodium.Sodium;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
 import java.io.Closeable;
 import java.io.File;
@@ -13,22 +21,31 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
 public class FileStore {
+    private static FileStore mFileStoreInstance = null;
     private Executor mWriteExecutor;
     private Map<Path, OpenFile> mOpenFiles;
-    private Context context;
 
-    public FileStore(Context context) {
-        this.context = context;
+    private FileStore() {
         mWriteExecutor = Executors.newSingleThreadExecutor();
         mOpenFiles = new HashMap<>();
+    }
+
+    public static FileStore getFileStore() {
+        if (mFileStoreInstance == null) {
+            mFileStoreInstance = new FileStore();
+        }
+        return mFileStoreInstance;
     }
 
     public FutureTask<FileCallbackResult> deleteFile(Path path) {
@@ -77,7 +94,7 @@ public class FileStore {
     public boolean open(Path path) {
         if (!isOpen(path)) {
             try {
-                OpenFile f = new OpenFile(context, path, false);
+                OpenFile f = new OpenFile(path, false);
                 mOpenFiles.put(path, f);
             } catch (Exception e) {
                 return false;
@@ -124,9 +141,66 @@ public class FileStore {
     }
 
     public FutureTask<FileCallbackResult> insertFile(ByteString data, Path path, WriteMode mode) {
+        return insertFile(data, path, mode, null);
+    }
+
+    public FutureTask<FileCallbackResult> insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path) {
+        FutureTask<FileCallbackResult> await = null;
+
+        for (int i=0;i<count;i++) {
+            Log.e("debug", "writing file "+ i);
+            BlockSequencePacket blockSequencePacket = BlockSequencePacket.parseFrom(inputStream);
+            if (blockSequencePacket == null) {
+                await =  new FutureTask<>(new Callable<FileCallbackResult>() {
+                    @Override
+                    public FileCallbackResult call() throws Exception {
+                        return FileCallbackResult.ERR_FAILED;
+                    }
+                });
+                Log.e("debug", "blocksequence was null");
+                mWriteExecutor.execute(await);
+                return await;
+            }
+
+            if (!blockSequencePacket.verifyHash(header)) {
+                await = new FutureTask<>(new Callable<FileCallbackResult>() {
+                    @Override
+                    public FileCallbackResult call() throws Exception {
+                        return FileCallbackResult.ERR_FAILED;
+                    }
+                });
+                Log.e("debug", "failed to verify blocksequence hash");
+                mWriteExecutor.execute(await);
+                return await;
+            }
+
+            await = insertFile(blockSequencePacket.getmData(), path, WriteMode.APPEND, await);
+        }
+        if (await == null) {
+            await = new FutureTask<FileCallbackResult>(new Callable<FileCallbackResult>() {
+                @Override
+                public FileCallbackResult call() throws Exception {
+                    return FileCallbackResult.ERR_FAILED;
+                }
+            });
+
+            Log.e("debug", "await was null");
+            mWriteExecutor.execute(await);
+            return await;
+        } else {
+            return await;
+        }
+     }
+
+    public FutureTask<FileCallbackResult> insertFile(ByteString data, Path path, WriteMode mode, FutureTask<FileCallbackResult> await) {
         FutureTask<FileCallbackResult> result = new FutureTask<>(new Callable<FileCallbackResult>() {
             @Override
             public FileCallbackResult call() throws Exception {
+                if (await != null) {
+                    if (await.get() != FileCallbackResult.ERR_SUCCESS) {
+                        return FileCallbackResult.ERR_FAILED;
+                    }
+                }
                 if (!open(path)) {
                     return FileCallbackResult.ERR_IO_EXCEPTION;
                 }
@@ -192,6 +266,35 @@ public class FileStore {
         return result;
     }
 
+    public FutureTask<List<ByteString>> hashFile(Path path, int blocksize) {
+        FutureTask<List<ByteString>> result = new FutureTask<>(new Callable<List<ByteString>>() {
+            @Override
+            public List<ByteString> call() throws Exception {
+                List<ByteString> r = new ArrayList<>();
+                if (!path.toFile().exists()) {
+                    return null;
+                }
+
+                FileInputStream is = new FileInputStream(path.toFile());
+                byte[] hash = new byte[GenericHash.BYTES];
+                byte[] buf = new byte[blocksize];
+                int read = 0;
+                int seqnum = 0;
+                while((read = is.read(buf)) != -1){
+                    BlockSequencePacket blockSequencePacket = BlockSequencePacket.newBuilder()
+                            .setSequenceNumber(seqnum)
+                            .setData(ByteString.copyFrom(buf, 0, read))
+                            .build();
+                    r.add(blockSequencePacket.calculateHashByteString());
+                    seqnum++;
+                }
+                return r;
+            }
+        });
+        mWriteExecutor.execute(result);
+        return result;
+    }
+
     public enum FileCallbackResult {
         ERR_FILE_EXISTS,
         ERR_FILE_NO_EXISTS,
@@ -217,15 +320,13 @@ public class FileStore {
         private File mFile;
         private WriteMode mMode;
         private boolean mLocked;
-        private Context mContext;
 
-        public OpenFile(Context context, Path path, boolean append) throws IOException {
+        public OpenFile(Path path, boolean append) throws IOException {
             this.mMode = WriteMode.OVERWRITE;
             this.mFile = path.toFile();
             this.mOs = new FileOutputStream(mFile,append);
             this.mIs = new FileInputStream(mFile);
             this.mLocked = false;
-            this.mContext = context;
         }
 
         public void lock() {
