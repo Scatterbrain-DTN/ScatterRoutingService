@@ -15,6 +15,7 @@ import java.util.List;
 
 public class ScatterbrainScheduler extends Thread {
     static final String TAG = "Scheduler";
+    private static ScatterbrainScheduler mInstance;
     private enum RoutingServiceState {
         STATE_DISCOVER_PEERS {
             @Override
@@ -99,9 +100,16 @@ public class ScatterbrainScheduler extends Thread {
     private Handler mHandler;
     private int mTickDelay;
 
-    public ScatterbrainScheduler() {
+    private ScatterbrainScheduler() {
         this.mState = RoutingServiceState.STATE_SUSPEND;
         this.mTickDelay = 1000;
+    }
+
+    public static ScatterbrainScheduler getInstance() {
+        if (mInstance == null) {
+            mInstance = new ScatterbrainScheduler();
+        }
+        return mInstance;
     }
 
     public void setTickDelay(int delay) {
