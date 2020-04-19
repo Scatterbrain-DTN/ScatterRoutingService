@@ -23,8 +23,7 @@ public class BinderClientRegistrationEvent implements ScatterEventBusEvent {
         }
 
         public BinderClientRegistrationEvent build() {
-            BinderClientRegistrationEvent event = new BinderClientRegistrationEvent(this);
-            return event;
+            return new BinderClientRegistrationEvent(this);
         }
 
     }

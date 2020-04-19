@@ -1,33 +1,21 @@
 package com.example.uscatterbrain;
 
 import android.content.Intent;
-import android.net.wifi.hotspot2.pps.Credential;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 
-import androidx.lifecycle.Observer;
-import androidx.room.Room;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.rule.ServiceTestRule;
-import androidx.test.runner.AndroidJUnitRunner;
 
-import com.example.uscatterbrain.db.Datastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.db.file.FileStore;
-import com.example.uscatterbrain.network.LibsodiumInterface;
-import com.google.common.io.ByteStreams;
 import com.google.protobuf.ByteString;
-import com.goterl.lazycode.lazysodium.LazySodiumAndroid;
-import com.goterl.lazycode.lazysodium.SodiumAndroid;
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
-import com.goterl.lazycode.lazysodium.interfaces.Hash;
-import com.goterl.lazycode.lazysodium.interfaces.Sign;
 
 import org.junit.Assert;
 import org.junit.Rule;
@@ -37,13 +25,7 @@ import org.junit.runner.RunWith;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.sql.Time;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
@@ -53,10 +35,7 @@ import java.util.concurrent.TimeoutException;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @RunWith(AndroidJUnit4.class)
 @SmallTest
@@ -79,8 +58,7 @@ public class DatastoreInstrumentedTest {
     public ScatterRoutingService getService() throws TimeoutException {
         Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingService.class);
         IBinder binder = serviceRule.bindService(bindIntent);
-        ScatterRoutingService service = ((ScatterRoutingService.ScatterBinder)binder).getService();
-        return service;
+        return ((ScatterRoutingService.ScatterBinder)binder).getService();
     }
 
     public ScatterMessage defaultMessage() {
@@ -109,12 +87,9 @@ public class DatastoreInstrumentedTest {
 
         try {
             testRunning = true;
-            datastore.insertMessage(sms, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<List<Long>>() {
-                @Override
-                public void onRowUpdate(List<Long> rowids) {
-                    assertThat(rowids.size(), is(1));
-                    testRunning = false;
-                }
+            datastore.insertMessage(sms, rowids -> {
+                assertThat(rowids.size(), is(1));
+                testRunning = false;
             });
 
             blockForThread();
@@ -132,13 +107,10 @@ public class DatastoreInstrumentedTest {
         ScatterMessage sm = defaultMessage();
         try {
             testRunning = true;
-            datastore.insertMessage(sm, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<Long>() {
-                @Override
-                public void onRowUpdate(Long rowids) {
-                    assertThat(rowids, not(0L));
-                    testRunning = false;
+            datastore.insertMessage(sm, rowids -> {
+                assertThat(rowids, not(0L));
+                testRunning = false;
 
-                }
             });
 
             blockForThread();
@@ -155,24 +127,13 @@ public class DatastoreInstrumentedTest {
         List<ScatterMessage> messages = defaultMessages(20);
         try {
             testRunning = true;
-            datastore.insertMessage(messages, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<List<Long>>() {
-                @Override
-                public void onRowUpdate(List<Long> rowids) {
-                    assertThat(rowids.size(), is(20));
-                    new Handler(Looper.getMainLooper()).post(new Runnable() {
-                        @Override
-                        public void run() {
-                            datastore.getTopRandomMessages(5).observe(service, new Observer<List<ScatterMessage>>() {
-                                @Override
-                                public void onChanged(List<ScatterMessage> messages) {
-                                    assertThat(messages.size(), is(5));
-                                    testRunning = false;
-                                    System.out.println("done");
-                                }
-                            });
-                        }
-                    });
-                }
+            datastore.insertMessage(messages, rowids -> {
+                assertThat(rowids.size(), is(20));
+                new Handler(Looper.getMainLooper()).post(() -> datastore.getTopRandomMessages(5).observe(service, messages1 -> {
+                    assertThat(messages1.size(), is(5));
+                    testRunning = false;
+                    System.out.println("done");
+                }));
             });
             blockForThread();
         } catch(ScatterbrainDatastore.DatastoreInsertException e) {
@@ -188,23 +149,10 @@ public class DatastoreInstrumentedTest {
         List<ScatterMessage> messages = defaultMessages(30);
         try {
             testRunning = true;
-            datastore.insertMessage(messages, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<List<Long>>() {
-                @Override
-                public void onRowUpdate(List<Long> rowids) {
-                    new Handler(Looper.getMainLooper()).post(new Runnable() {
-                        @Override
-                        public void run() {
-                            datastore.getAllFiles().observe(service, new Observer<List<DiskFiles>>() {
-                                @Override
-                                public void onChanged(List<DiskFiles> diskFiles) {
-                                    testRunning = false;
-                                    assertThat(diskFiles.size(), is(30));
-                                }
-                            });
-                        }
-                    });
-                }
-            });
+            datastore.insertMessage(messages, rowids -> new Handler(Looper.getMainLooper()).post(() -> datastore.getAllFiles().observe(service, diskFiles -> {
+                testRunning = false;
+                assertThat(diskFiles.size(), is(30));
+            })));
             blockForThread();
         } catch (ScatterbrainDatastore.DatastoreInsertException e) {
             Assert.fail();
@@ -232,9 +180,9 @@ public class DatastoreInstrumentedTest {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             Future<FileStore.FileCallbackResult> readresult = store.getFile(bos, verify.toPath().toAbsolutePath());
             assertThat(readresult.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
-            for (int i=0;i<data.length;i++) {
-                System.out.print(data[i]);
-            }
+        for (byte datum : data) {
+            System.out.print(datum);
+        }
             System.out.println();
             for (int i=0;i<bos.toByteArray().length;i++) {
                 System.out.print(bos.toByteArray()[i]);

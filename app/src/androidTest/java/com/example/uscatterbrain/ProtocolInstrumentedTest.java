@@ -2,7 +2,6 @@ package com.example.uscatterbrain;
 
 import android.content.Intent;
 import android.os.IBinder;
-import android.util.Log;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -21,9 +20,7 @@ import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.ScatterDataPacket;
 import com.example.uscatterbrain.network.ScatterSerializable;
 import com.example.uscatterbrain.network.UpgradePacket;
-import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 
@@ -32,29 +29,23 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 @RunWith(AndroidJUnit4.class)
 @SmallTest
@@ -77,8 +68,7 @@ public class ProtocolInstrumentedTest {
     public ScatterRoutingService getService() throws TimeoutException {
         Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingService.class);
         IBinder binder = serviceRule.bindService(bindIntent);
-        ScatterRoutingService service = ((ScatterRoutingService.ScatterBinder)binder).getService();
-        return service;
+        return ((ScatterRoutingService.ScatterBinder)binder).getService();
     }
 
     public ScatterMessage defaultMessage() {
@@ -96,12 +86,12 @@ public class ProtocolInstrumentedTest {
     }
 
     public BlockHeaderPacket getHeaderPacket() {
-        List<ByteString> bl = new ArrayList<ByteString>();
+        List<ByteString> bl = new ArrayList<>();
         bl.add(ByteString.EMPTY);
         bl.add(ByteString.EMPTY);
         bl.add(ByteString.EMPTY);
         bl.add(ByteString.EMPTY);
-        BlockHeaderPacket bd = new BlockHeaderPacket.Builder()
+        return new BlockHeaderPacket.Builder()
                 .setApplication("test".getBytes())
                 .setSessionID(0)
                 .setHashes(bl)
@@ -109,7 +99,6 @@ public class ProtocolInstrumentedTest {
                 .setToFingerprint(ByteString.copyFrom(new byte[1]))
                 .setToDisk(false)
                 .build();
-        return bd;
     }
 
 
@@ -126,10 +115,9 @@ public class ProtocolInstrumentedTest {
     public AdvertisePacket getAdvertise() {
         List<ScatterProto.Advertise.Provides> p = new ArrayList<>();
         p.add(ScatterProto.Advertise.Provides.BLE);
-        AdvertisePacket advertisePacket = new AdvertisePacket.Builder()
+        return new AdvertisePacket.Builder()
                 .setProvides(p)
                 .build();
-        return advertisePacket;
     }
 
     public UpgradePacket getUpgrade() {
@@ -140,11 +128,10 @@ public class ProtocolInstrumentedTest {
     }
 
     public BlockSequencePacket getSequencePacket(int seq) {
-        BlockSequencePacket bs = new BlockSequencePacket.Builder()
+        return new BlockSequencePacket.Builder()
                 .setData(ByteString.copyFrom(new byte[20]))
                 .setSequenceNumber(seq)
                 .build();
-        return bs;
     }
 
     public BlockHeaderPacket getSignedPacket() {
@@ -160,7 +147,7 @@ public class ProtocolInstrumentedTest {
     static volatile boolean testRunning = false;
 
     @Test
-    public void testSodium() throws TimeoutException {
+    public void testSodium() {
         assertThat(LibsodiumInterface.getSignNative() == null, is(false));
 
         byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
@@ -174,16 +161,15 @@ public class ProtocolInstrumentedTest {
 
 
     @Test
-    public void blockDataPacketFromByteArray() throws TimeoutException {
+    public void blockDataPacketFromByteArray() {
         BlockHeaderPacket bd = getHeaderPacket();
 
         byte[] bytelist = bd.getBytes();
 
-        Log.e("debug", "" +bytelist.length);
         try {
             ByteArrayInputStream is = new ByteArrayInputStream(bytelist);
             BlockHeaderPacket newbd = BlockHeaderPacket.parseFrom(is);
-            assertThat(newbd.getApplication(), is("test".getBytes()));
+            assertThat(Objects.requireNonNull(newbd).getApplication(), is("test".getBytes()));
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail();
@@ -191,7 +177,7 @@ public class ProtocolInstrumentedTest {
     }
 
     @Test
-    public void blockDataPacketSignatureWorks() throws TimeoutException {
+    public void blockDataPacketSignatureWorks() {
         BlockHeaderPacket bd = getHeaderPacket();
 
         byte[] privkey = new byte[Sign.SECRETKEYBYTES];
@@ -207,7 +193,7 @@ public class ProtocolInstrumentedTest {
         try {
             ByteArrayInputStream is = new ByteArrayInputStream(bytelist);
             BlockHeaderPacket newbd = BlockHeaderPacket.parseFrom(is);
-            assertThat(newbd.getApplication(), is("test".getBytes()));
+            assertThat(Objects.requireNonNull(newbd).getApplication(), is("test".getBytes()));
             assertThat(newbd.getSig() != null, is(true));
             assertEquals(bd.getSig().size(), newbd.getSig().size());
             assertArrayEquals(bd.getSig().toByteArray(), newbd.getSig().toByteArray());
@@ -220,7 +206,7 @@ public class ProtocolInstrumentedTest {
 
 
     @Test
-    public void hashListWorks() throws TimeoutException {
+    public void hashListWorks() {
         BlockHeaderPacket bd = getHeaderPacket();
         int size = bd.getHashList().size();
         ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -230,7 +216,7 @@ public class ProtocolInstrumentedTest {
             ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
             BlockHeaderPacket blockHeaderPacket = BlockHeaderPacket.parseFrom(is);
             assertThat(blockHeaderPacket != null, is(true));
-            assertThat(blockHeaderPacket.getHashList().size(), is(size));
+            assertThat(Objects.requireNonNull(blockHeaderPacket).getHashList().size(), is(size));
         } catch (Exception e) {
             Assert.fail();
         }
@@ -238,7 +224,7 @@ public class ProtocolInstrumentedTest {
 
 
     @Test
-    public void blockSequencePacketCalculateHashWorks() throws TimeoutException {
+    public void blockSequencePacketCalculateHashWorks() {
         BlockSequencePacket bs = getSequencePacket(0);
         byte[] firsthash = bs.calculateHash();
 
@@ -246,11 +232,11 @@ public class ProtocolInstrumentedTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         BlockSequencePacket newbs = BlockSequencePacket.parseFrom(is);
-        assertArrayEquals(newbs.calculateHash(), firsthash);
+        assertArrayEquals(Objects.requireNonNull(newbs).calculateHash(), firsthash);
     }
 
     @Test
-    public void blockSequencePacketWorks() throws TimeoutException {
+    public void blockSequencePacketWorks() {
         BlockSequencePacket bs = getSequencePacket(0);
 
         byte[] data = bs.getBytes();
@@ -258,7 +244,7 @@ public class ProtocolInstrumentedTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         BlockSequencePacket newbs = BlockSequencePacket.parseFrom(is);
-        assertThat(newbs.getmData() != null, is(true));
+        assertThat(Objects.requireNonNull(newbs).getmData() != null, is(true));
     }
 
 
@@ -270,7 +256,7 @@ public class ProtocolInstrumentedTest {
         ScatterRoutingService service = getService();
         FileStore store = FileStore.getFileStore();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
-        List<ByteString> bl = new ArrayList<ByteString>();
+        List<ByteString> bl = new ArrayList<>();
         bl.add(ByteString.EMPTY);
 
 
@@ -294,8 +280,7 @@ public class ProtocolInstrumentedTest {
 
         int i = 0;
         try {
-            for (ScatterSerializable bs : bd) {
-                Log.e("test", "writing packet " + i);
+            for (ScatterSerializable bs : Objects.requireNonNull(bd)) {
                 if (i == 0) {
                     assertThat(((BlockHeaderPacket)bs).getHashList().size(), is(80));
                 }
@@ -308,10 +293,9 @@ public class ProtocolInstrumentedTest {
             ByteArrayInputStream bis = new ByteArrayInputStream(os.toByteArray());
             File newfile = new File(service.getFilesDir(), "newfile");
             FileStore.getFileStore().deleteFile(newfile.toPath().toAbsolutePath()).get();
-            Log.e("debug", "starting parse");
             ScatterDataPacket newdp = ScatterDataPacket.parseFrom(bis, newfile);
             assertThat(newdp != null, is(true));
-            assertThat(newdp.isHashValid(), is(true));
+            assertThat(Objects.requireNonNull(newdp).isHashValid(), is(true));
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail();
@@ -319,27 +303,27 @@ public class ProtocolInstrumentedTest {
     }
 
     @Test
-    public void AdvertisePacketWorks() throws TimeoutException {
+    public void AdvertisePacketWorks() {
         AdvertisePacket ad = getAdvertise();
 
         byte[] data = ad.getBytes();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         AdvertisePacket n = AdvertisePacket.parseFrom(is);
-        assertThat(n.getProvides().get(0), is(ScatterProto.Advertise.Provides.BLE));
+        assertThat(Objects.requireNonNull(n).getProvides().get(0), is(ScatterProto.Advertise.Provides.BLE));
     }
 
     @Test
-    public void UpgradePacketWorks() throws TimeoutException {
+    public void UpgradePacketWorks() {
         UpgradePacket up = getUpgrade();
 
         byte[] data = up.getBytes();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         UpgradePacket nu = UpgradePacket.parseFrom(is);
-        assertThat(nu.getProvides(), is(ScatterProto.Advertise.Provides.ULTRASOUND));
+        assertThat(Objects.requireNonNull(nu).getProvides(), is(ScatterProto.Advertise.Provides.ULTRASOUND));
     }
 
     @Test
-    public void IdentityPacketWorks() throws TimeoutException {
+    public void IdentityPacketWorks() {
         byte[] signingkey = new byte[Sign.SECRETKEYBYTES];
         byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
         LibsodiumInterface.getSodium().crypto_sign_keypair(pubkey, signingkey);
@@ -349,7 +333,7 @@ public class ProtocolInstrumentedTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         IdentityPacket idnew = IdentityPacket.parseFrom(is);
-        assertThat(idnew.getKeys().get("scatterbrain"), is(ByteString.copyFromUtf8("fmeef")));
+        assertThat(Objects.requireNonNull(idnew).getKeys().get("scatterbrain"), is(ByteString.copyFromUtf8("fmeef")));
         assertThat(idnew.verifyed25519(pubkey), is(true));
     }
 

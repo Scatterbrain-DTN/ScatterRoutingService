@@ -32,8 +32,7 @@ public class NetworkModuleRegistrationEvent implements ScatterEventBusEvent {
         }
 
         public NetworkModuleRegistrationEvent build() {
-            NetworkModuleRegistrationEvent event = new NetworkModuleRegistrationEvent(this);
-            return event;
+            return new NetworkModuleRegistrationEvent(this);
         }
     }
 }

@@ -7,8 +7,6 @@ import androidx.room.Insert;
 import androidx.room.Query;
 import androidx.room.Transaction;
 
-import com.goterl.lazycode.lazysodium.interfaces.Hash;
-
 import java.util.List;
 
 @Dao

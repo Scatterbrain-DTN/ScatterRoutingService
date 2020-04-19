@@ -6,7 +6,6 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattServer;
 import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
@@ -32,15 +31,12 @@ import android.os.Handler;
 import android.os.ParcelUuid;
 import android.util.Log;
 
-import com.example.uscatterbrain.ScatterRoutingService;
-import com.example.uscatterbrain.network.AdvertisePacket;
-import com.google.protobuf.InvalidProtocolBufferException;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 
@@ -80,7 +76,7 @@ public class ScatterBluetoothLEManager {
 
     public static long DEFAULT_SCAN_TIME = 30 * 1000;
     public static long DEFAULT_CONNECT_TIME = 190 * 1000;
-    public static long DEFAULT_COOLDOWN_TIMEOUT = 1 * 1000;
+    public static long DEFAULT_COOLDOWN_TIMEOUT = 1000;
 
     public void setScanPaused() {
         scanpaused = true;
@@ -208,7 +204,7 @@ public class ScatterBluetoothLEManager {
         this.mService = context;
 
         BluetoothManager btmanager = (BluetoothManager) mService.getSystemService(Context.BLUETOOTH_SERVICE);
-        mGattServer = btmanager.openGattServer(mService, gattServerCallback);
+        mGattServer = Objects.requireNonNull(btmanager).openGattServer(mService, gattServerCallback);
 
         leScanCallback = new ScanCallback() {
             @Override
@@ -251,7 +247,7 @@ public class ScatterBluetoothLEManager {
         try {
             String key = deviceList.entrySet().iterator().next().getKey();
             BluetoothDevice d = deviceList.remove(key);
-            mGatt = d.connectGatt(mService, false, gattCallback);
+            mGatt = Objects.requireNonNull(d).connectGatt(mService, false, gattCallback);
         } catch(NoSuchElementException e) {
             return false;
         }
@@ -261,24 +257,16 @@ public class ScatterBluetoothLEManager {
     public void processPeers(long timeoutmillis) {
         currentstate = STATE_CONNECT;
         processOneScanResults();
-        mHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if(!scanpaused) {
-                    if (mGatt != null) {
-                        mGatt.close();
-                        mGatt.disconnect();
-                    }
+        mHandler.postDelayed(() -> {
+            if(!scanpaused) {
+                if (mGatt != null) {
+                    mGatt.close();
+                    mGatt.disconnect();
                 }
-                currentstate = STATE_IDLE;
-                mHandler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        onConnectTimeout();
-                    }
-                }, DEFAULT_COOLDOWN_TIMEOUT);
-
             }
+            currentstate = STATE_IDLE;
+            mHandler.postDelayed(() -> onConnectTimeout(), DEFAULT_COOLDOWN_TIMEOUT);
+
         }, timeoutmillis);
     }
 
@@ -297,41 +285,30 @@ public class ScatterBluetoothLEManager {
         Log.v(TAG, "Starting LE scan");
         if(!scanpaused) {
             deviceList.clear();
-            AsyncTask.execute(new Runnable() {
-                @Override
-                public void run() {
-                    ScanFilter s = new ScanFilter.Builder()
-                            .setServiceUuid(new ParcelUuid(SERVICE_UUID))
-                            .build();
+            AsyncTask.execute(() -> {
+                ScanFilter s = new ScanFilter.Builder()
+                        .setServiceUuid(new ParcelUuid(SERVICE_UUID))
+                        .build();
 
-                    ScanSettings settings = new ScanSettings.Builder()
-                            .build();
+                ScanSettings settings = new ScanSettings.Builder()
+                        .build();
 
-                    List<ScanFilter> sflist = new ArrayList<>();
-                    sflist.add(s);
+                List<ScanFilter> sflist = new ArrayList<>();
+                sflist.add(s);
 
-                    currentstate = STATE_DISCOVER;
-                    mScanner.startScan(sflist, settings, leScanCallback);
+                currentstate = STATE_DISCOVER;
+                mScanner.startScan(sflist, settings, leScanCallback);
 
-                }
             });
         }
 
-        mHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                if(!scanpaused)
-                    mScanner.stopScan(leScanCallback);
-                currentstate = STATE_IDLE;
+        mHandler.postDelayed(() -> {
+            if(!scanpaused)
+                mScanner.stopScan(leScanCallback);
+            currentstate = STATE_IDLE;
 
-                mHandler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        onDiscoverTimeout();
-                    }
-                },DEFAULT_COOLDOWN_TIMEOUT);
+            mHandler.postDelayed(() -> onDiscoverTimeout(),DEFAULT_COOLDOWN_TIMEOUT);
 
-            }
         }, scantimemillis);
 
     }
@@ -342,12 +319,7 @@ public class ScatterBluetoothLEManager {
 
     public void stopScan() {
         Log.v(TAG, "Stopping LE scan");
-        AsyncTask.execute(new Runnable() {
-            @Override
-            public void run() {
-                 mScanner.stopScan(leScanCallback);
-            }
-        });
+        AsyncTask.execute(() -> mScanner.stopScan(leScanCallback));
     }
 
     public void enableBluetooth(Activity activity) {

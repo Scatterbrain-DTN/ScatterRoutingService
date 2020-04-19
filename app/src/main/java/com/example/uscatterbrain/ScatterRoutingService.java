@@ -15,11 +15,11 @@ import com.example.uscatterbrain.API.HighLevelAPI;
 import com.example.uscatterbrain.API.OnRecieveCallback;
 import com.example.uscatterbrain.API.ScatterTransport;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
-import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.bluetoothLE.ScatterBluetoothLEManager;
 
 import java.io.InputStream;
+import java.util.Objects;
 
 public class ScatterRoutingService extends LifecycleService implements HighLevelAPI {
     public final String TAG = "ScatterRoutingService";
@@ -173,7 +173,7 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
         int notificationId = 1;
         NotificationManager man = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         try {
-            man.notify(notificationId, not.build());
+            Objects.requireNonNull(man).notify(notificationId, not.build());
         } catch(NullPointerException e) {
             Log.e(TAG, "NullPointerException while creating persistent notification");
         }

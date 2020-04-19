@@ -27,21 +27,21 @@ public class LibsodiumInterface {
 
     public static Sign.Native getSignNative() {
         checkSodium();
-        return (Sign.Native) mSodiumInstance;
+        return mSodiumInstance;
     }
 
     public static Sign.Lazy getSignLazy() {
         checkSodium();
-        return (Sign.Lazy) mSodiumInstance;
+        return mSodiumInstance;
     }
 
     public static Hash.Native getHashNative() {
         checkSodium();
-        return (Hash.Native) mSodiumInstance;
+        return mSodiumInstance;
     }
 
     public static Hash.Lazy getHashLazy() {
         checkSodium();
-        return (Hash.Lazy) mSodiumInstance;
+        return mSodiumInstance;
     }
 }

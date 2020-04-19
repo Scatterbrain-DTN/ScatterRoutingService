@@ -7,8 +7,6 @@ import androidx.room.ForeignKey;
 import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
-import com.goterl.lazycode.lazysodium.interfaces.Hash;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,7 +32,6 @@ public class ScatterMessage {
 
     @ColumnInfo
     @ForeignKey(entity = Identity.class, parentColumns = "identityID", childColumns = "identityID")
-    @NonNull
     private long identityID;
 
     @ColumnInfo

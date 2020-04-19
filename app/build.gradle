@@ -4,7 +4,7 @@ apply plugin: 'com.google.protobuf'
 
 android {
     compileSdkVersion 29
-    buildToolsVersion "29.0.0"
+    buildToolsVersion "29.0.2"
     defaultConfig {
         minSdkVersion 26
         targetSdkVersion 29
@@ -63,15 +63,15 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.1.0'
     implementation 'com.google.protobuf:protobuf-lite:3.0.0'
     implementation 'org.greenrobot:eventbus:3.1.1'
-    implementation "androidx.room:room-runtime:2.2.3"
-    annotationProcessor "androidx.room:room-compiler:2.2.3" // For Kotlin use kapt instead of annotationProcessor
+    implementation "androidx.room:room-runtime:2.2.5"
+    annotationProcessor "androidx.room:room-compiler:2.2.5" // For Kotlin use kapt instead of annotationProcessor
     implementation "androidx.lifecycle:lifecycle-service:$lifecycle_version"
     testImplementation("org.robolectric:robolectric:4.3.1") {
         exclude group: 'com.google.protobuf'
     }
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     // Core library
-    androidTestImplementation 'androidx.test:core:1.0.0'
+    androidTestImplementation 'androidx.test:core:1.2.0'
 
     // AndroidJUnitRunner and JUnit Rules
     androidTestImplementation 'androidx.test:runner:1.2.0'

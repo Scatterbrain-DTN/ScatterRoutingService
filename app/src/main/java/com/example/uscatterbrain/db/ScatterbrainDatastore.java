@@ -62,11 +62,8 @@ public class ScatterbrainDatastore {
      * @throws DatastoreInsertException  thrown if inner classes of message object are null
      */
     public void insertMessage(List<ScatterMessage> messages) throws DatastoreInsertException {
-        insertMessage(messages, new DatastoreInsertUpdateCallback<List<Long>>() {
-            @Override
-            public void onRowUpdate(List<Long> rowids) {
-                //noop
-            }
+        insertMessage(messages, rowids -> {
+            //noop
         });
     }
 
@@ -152,7 +149,6 @@ public class ScatterbrainDatastore {
      * Asynchronously inserts a list of messages into the datastore, allows tracking result
      * via provided callback
      *
-    @Delete
      * @param messages room entities to insert
      * @param callback callback object to retrieve list of primary keys on successful insert
      * @throws DatastoreInsertException
@@ -164,12 +160,9 @@ public class ScatterbrainDatastore {
             }
         }
 
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-                List<Long> ids = insertMessages(messages);
-                callback.onRowUpdate(ids);
-            }
+        executor.execute(() -> {
+            List<Long> ids = insertMessages(messages);
+            callback.onRowUpdate(ids);
         });
     }
 
@@ -180,11 +173,8 @@ public class ScatterbrainDatastore {
      * @throws DatastoreInsertException thrown if inner classes are null
      */
     public void insertMessage(ScatterMessage message) throws DatastoreInsertException {
-        insertMessage(message, new DatastoreInsertUpdateCallback<Long>() {
-            @Override
-            public void onRowUpdate(Long rowids) {
-                //noop
-            }
+        insertMessage(message, rowids -> {
+            //noop
         });
     }
 
@@ -201,12 +191,9 @@ public class ScatterbrainDatastore {
             throw new DatastoreInsertException();
         }
 
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-                Long id = insertMessages(message);
-                callback.onRowUpdate(id);
-            }
+        executor.execute(() -> {
+            Long id = insertMessages(message);
+            callback.onRowUpdate(id);
         });
     }
 
@@ -216,11 +203,8 @@ public class ScatterbrainDatastore {
      * @param identities list of room entities to insert
      */
     public void insertIdentity(Identity[] identities) {
-        insertIdentity(identities, new DatastoreInsertUpdateCallback<List<Long>>() {
-            @Override
-            public void onRowUpdate(List<Long> rowids) {
-                //noop
-            }
+        insertIdentity(identities, rowids -> {
+            //noop
         });
     }
 
@@ -232,12 +216,9 @@ public class ScatterbrainDatastore {
      * @param callback callback to retrive primary key on successful insert
      */
     public  void insertIdentity(Identity[] identities, DatastoreInsertUpdateCallback<List<Long>> callback) {
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-                List<Long> ids = mDatastore.identityDao().insertAll(identities);
-                callback.onRowUpdate(ids);
-            }
+        executor.execute(() -> {
+            List<Long> ids = mDatastore.identityDao().insertAll(identities);
+            callback.onRowUpdate(ids);
         });
     }
 
@@ -247,11 +228,8 @@ public class ScatterbrainDatastore {
      * @param identity room entity to insert
      */
     public void insertIdentity(Identity identity) {
-        insertIdentity(identity, new DatastoreInsertUpdateCallback<Long>() {
-            @Override
-            public void onRowUpdate(Long rowids) {
-                //noop
-            }
+        insertIdentity(identity, rowids -> {
+            //noop
         });
     }
 
@@ -263,12 +241,9 @@ public class ScatterbrainDatastore {
      * @param callback callback to retrieve primary key on successful insert
      */
     public void insertIdentity(Identity identity, DatastoreInsertUpdateCallback<Long> callback) {
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-                List<Long> ids = mDatastore.identityDao().insertAll(identity);
-                callback.onRowUpdate(ids.get(0));
-            }
+        executor.execute(() -> {
+            List<Long> ids = mDatastore.identityDao().insertAll(identity);
+            callback.onRowUpdate(ids.get(0));
         });
     }
 
@@ -278,11 +253,8 @@ public class ScatterbrainDatastore {
      * @param files room entity to insert
      */
     public void insertFile(DiskFiles files) {
-        insertFile(files, new DatastoreInsertUpdateCallback<Long>() {
-            @Override
-            public void onRowUpdate(Long rowids) {
-                //noop
-            }
+        insertFile(files, rowids -> {
+            //noop
         });
     }
 
@@ -294,12 +266,9 @@ public class ScatterbrainDatastore {
      * @param callback callback to retrieve primary key on successful insert
      */
     public void insertFile(DiskFiles files, DatastoreInsertUpdateCallback<Long> callback) {
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-                List<Long> ids = mDatastore.diskFilesDao().insertAll(files);
-                callback.onRowUpdate(ids.get(0));
-            }
+        executor.execute(() -> {
+            List<Long> ids = mDatastore.diskFilesDao().insertAll(files);
+            callback.onRowUpdate(ids.get(0));
         });
     }
 
@@ -309,11 +278,8 @@ public class ScatterbrainDatastore {
      * @param files list of room entities to insert
      */
     public void insertFile(List<DiskFiles> files) {
-        insertFile(files, new DatastoreInsertUpdateCallback<List<Long>>() {
-            @Override
-            public void onRowUpdate(List<Long> rowids) {
-                //noop
-            }
+        insertFile(files, rowids -> {
+            //noop
         });
     }
 
@@ -325,12 +291,9 @@ public class ScatterbrainDatastore {
      * @param callback callback to retrive primary keys on successful insert
      */
     public void insertFile(List<DiskFiles> files, DatastoreInsertUpdateCallback<List<Long>> callback) {
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-               List<Long> ids = mDatastore.diskFilesDao().insertAll(files);
-               callback.onRowUpdate(ids);
-            }
+        executor.execute(() -> {
+           List<Long> ids = mDatastore.diskFilesDao().insertAll(files);
+           callback.onRowUpdate(ids);
         });
     }
 

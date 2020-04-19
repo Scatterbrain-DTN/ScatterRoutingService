@@ -57,8 +57,7 @@ public class BlockDataTransactionEvent implements ScatterEventBusEvent {
         }
 
         public BlockDataTransactionEvent build() {
-            BlockDataTransactionEvent event = new BlockDataTransactionEvent(this);
-            return event;
+            return new BlockDataTransactionEvent(this);
         }
     }
 }

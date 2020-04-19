@@ -23,8 +23,7 @@ public class IdentititesChangedEvent implements ScatterEventBusEvent {
         }
 
         public IdentititesChangedEvent build() {
-            IdentititesChangedEvent event = new IdentititesChangedEvent(this);
-            return event;
+            return new IdentititesChangedEvent(this);
         }
 
     }

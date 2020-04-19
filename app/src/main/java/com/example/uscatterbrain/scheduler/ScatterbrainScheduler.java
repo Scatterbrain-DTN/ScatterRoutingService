@@ -162,12 +162,9 @@ public class ScatterbrainScheduler extends Thread {
     @Subscribe(threadMode = ThreadMode.BACKGROUND)
     public void onReceiveBlockdata(BlockDataTransactionEvent event) {
         if(event.getmTransactionType() == BlockDataTransactionEvent.TransactionType.BD_TRANSACTION_RECEIVE) {
-            this.mHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    //ScatterMessage message = new ScatterMessage();
-                    //TODO: convert from blockdata/blocksequence to scattermessage
-                }
+            this.mHandler.post(() -> {
+                //ScatterMessage message = new ScatterMessage();
+                //TODO: convert from blockdata/blocksequence to scattermessage
             });
         }
     }

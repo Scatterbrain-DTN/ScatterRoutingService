@@ -1,30 +1,22 @@
 package com.example.uscatterbrain.network;
 
-import android.util.Log;
-
 import androidx.annotation.NonNull;
 
-import com.example.uscatterbrain.ScatterProto;
 import com.example.uscatterbrain.db.file.FileStore;
 import com.google.protobuf.ByteString;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.function.Consumer;
 
@@ -81,7 +73,6 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
     }
 
     private ScatterDataPacket(InputStream is, File file) throws ParseException {
-        Log.e("debug", "parsing packet");
         this.mDirection = Direction.RECEIVE;
         if (file.exists()) {
             throw new ParseException("file exists", 0);
@@ -89,18 +80,12 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
 
         this.mFile = file;
         this.mHeader = BlockHeaderPacket.parseFrom(is);
-        Log.e("debug", "headerpacket size " + mHeader.getHashList().size());
         if (mHeader == null) {
             throw new ParseException("failed to parse header", 0);
         }
 
         this.mBlockSize = mHeader.getBlockSize();
-        this.mHashList = new FutureTask<List<ByteString>>(new Callable<List<ByteString>>() {
-            @Override
-            public List<ByteString> call() throws Exception {
-                return mHeader.getHashList();
-            }
-        });
+        this.mHashList = new FutureTask<>(() -> mHeader.getHashList());
 
         mExecutor.execute(mHashList);
 
@@ -111,7 +96,6 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
         this.mApplication = ByteString.copyFrom(mHeader.getApplication());
         this.mSessionID = mHeader.getSessionID();
         try {
-            Log.e("debug", "hashlist size: " + mHashList.get().size());
             mFileResult = FileStore.getFileStore().insertFile(mHeader,
                             is,
                             mHashList.get().size(),
@@ -128,20 +112,16 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
     }
 
     public boolean isHashValid() {
+        //hashes should already be correct
         if (mFileResult != null && mDirection == Direction.RECEIVE) {
             try {
                 if (mFileResult.get() == FileStore.FileCallbackResult.ERR_SUCCESS) {
                     return true;
-                } else {
-                    Log.e("debug", "mFieleResult returned failure");
                 }
             } catch (Exception e) {
                 return false;
             }
-        } else if (mDirection == Direction.SEND) {
-            //hashes should already be correct
-            return true;
-        }
+        } else return mDirection == Direction.SEND;
         return false;
     }
 
@@ -161,12 +141,6 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
                         .setSessionID(mSessionID)
                         .setApplication(mApplication.toByteArray())
                         .build();
-
-            Log.e("debg", "getasyncheader with hashlist size " + mHeader.getHashList().size());
-            if (mHeader == null) {
-                Log.e("debug", "asyncGetHeader returned null");
-            }
-
             return mHeader;
         } catch (Exception e) {
             e.printStackTrace();
@@ -184,7 +158,7 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
      */
     public boolean verifySequence(List<BlockSequencePacket> seqlist) {
         for (BlockSequencePacket s : seqlist) {
-            if (!s.verifyHash(asyncGetHeader()))
+            if (!s.verifyHash(Objects.requireNonNull(asyncGetHeader())))
                 return false;
         }
         return true;
@@ -214,19 +188,19 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
     @NonNull
     @Override
     public Spliterator<ScatterSerializable> spliterator() {
-        return Spliterators.spliterator(iterator(), asyncGetHeader().getHashList().size() ,Spliterator.ORDERED
+        return Spliterators.spliterator(iterator(), Objects.requireNonNull(asyncGetHeader()).getHashList().size() ,Spliterator.ORDERED
                 | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.SIZED);
     }
 
     @Override
     public boolean hasNext() {
-        return mIndex < asyncGetHeader().getHashList().size()+1;
+        return mIndex < Objects.requireNonNull(asyncGetHeader()).getHashList().size()+1;
     }
 
     @Override
     public ScatterSerializable next() {
         try {
-            ScatterSerializable result = null;
+            ScatterSerializable result;
             if (mIndex == 0) {
                 result = asyncGetHeader();
             } else {
@@ -238,8 +212,7 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
                         .setSequenceNumber(mIndex-1)
                         .build();
 
-                if (!bs.verifyHash(asyncGetHeader())) {
-                    Log.e("debug", "blocksequence hash verify failed " + mIndex);
+                if (!bs.verifyHash(Objects.requireNonNull(asyncGetHeader()))) {
                     return null;
                 }
 
@@ -415,7 +388,7 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
 
         /**
          * get the fragment file
-         * @return
+         * @return reference to fragment file
          */
         public File getFragmentFile() {
             return mFile;
@@ -455,17 +428,13 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
             }
 
             mHashlist = FileStore.getFileStore().hashFile(mFile.toPath().toAbsolutePath(), mBlockSize);
-            try {
-                Log.e("debug", "hashlist size " + mHashlist.get().size() + " when sent");
-            } catch (Exception e) {
 
-            }
             return new ScatterDataPacket(this);
 
         }
     }
 
-    class DirectExecutor implements Executor {
+    static class DirectExecutor implements Executor {
         public void execute(Runnable r) {
             r.run();
         }

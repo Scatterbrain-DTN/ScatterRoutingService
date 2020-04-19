@@ -3,7 +3,6 @@ package com.example.uscatterbrain;
 import android.os.Handler;
 import android.os.Looper;
 
-import androidx.lifecycle.Observer;
 import androidx.room.Room;
 
 import com.example.uscatterbrain.db.Datastore;
@@ -26,22 +25,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 @RunWith(RobolectricTestRunner.class)
 public class DatabaseUnitTest {
 
     public Datastore buildDB() {
-        Datastore db = Room.databaseBuilder(
+
+        return Room.databaseBuilder(
                 RuntimeEnvironment.application,
                 Datastore.class,
                 "testdatabase").allowMainThreadQueries().build();
-
-        return db;
     }
 
     public void blockForThread() {
@@ -84,13 +79,10 @@ public class DatabaseUnitTest {
 
         try {
             testRunning = true;
-            datastore.insertMessage(sms, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<List<Long>>() {
-                @Override
-                public void onRowUpdate(List<Long> rowids) {
-                    assertThat(rowids.size(), is(1));
-                    assertThat(rowids.get(0), is(1L));
-                    testRunning = false;
-                }
+            datastore.insertMessage(sms, rowids -> {
+                assertThat(rowids.size(), is(1));
+                assertThat(rowids.get(0), is(1L));
+                testRunning = false;
             });
 
             blockForThread();
@@ -107,13 +99,10 @@ public class DatabaseUnitTest {
         ScatterMessage sm = defaultMessage();
         try {
             testRunning = true;
-            datastore.insertMessage(sm, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<Long>() {
-                @Override
-                public void onRowUpdate(Long rowids) {
-                    assertThat(rowids, is(1L));
-                    testRunning = false;
+            datastore.insertMessage(sm, rowids -> {
+                assertThat(rowids, is(1L));
+                testRunning = false;
 
-                }
             });
 
             blockForThread();
@@ -131,24 +120,13 @@ public class DatabaseUnitTest {
         service.bind();
         try {
             testRunning = true;
-            datastore.insertMessage(messages, new ScatterbrainDatastore.DatastoreInsertUpdateCallback<List<Long>>() {
-                @Override
-                public void onRowUpdate(List<Long> rowids) {
-                    assertThat(rowids.size(), is(20));
-                    new Handler(Looper.getMainLooper()).post(new Runnable() {
-                        @Override
-                        public void run() {
-                            datastore.getTopRandomMessages(5).observe(service.get(), new Observer<List<ScatterMessage>>() {
-                                @Override
-                                public void onChanged(List<ScatterMessage> messages) {
-                                    assertThat(messages.size(), is(5));
-                                    testRunning = false;
-                                    System.out.println("done");
-                                }
-                            });
-                        }
-                    });
-                }
+            datastore.insertMessage(messages, rowids -> {
+                assertThat(rowids.size(), is(20));
+                new Handler(Looper.getMainLooper()).post(() -> datastore.getTopRandomMessages(5).observe(service.get(), messages1 -> {
+                    assertThat(messages1.size(), is(5));
+                    testRunning = false;
+                    System.out.println("done");
+                }));
             });
             Shadows.shadowOf(Looper.getMainLooper()).idle();
             blockForThread();
