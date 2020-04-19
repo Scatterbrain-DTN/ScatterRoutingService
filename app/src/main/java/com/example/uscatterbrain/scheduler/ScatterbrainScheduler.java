@@ -2,6 +2,7 @@ package com.example.uscatterbrain.scheduler;
 
 import com.example.uscatterbrain.eventbus.events.BlockDataTransactionEvent;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
+import com.example.uscatterbrain.network.ScatterDataPacket;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -54,7 +55,7 @@ public class ScatterbrainScheduler {
         return true;
     }
 
-    public void sendBlockData(List<BlockHeaderPacket> packets) {
+    public void sendBlockData(List<ScatterDataPacket> packets) {
         BlockDataTransactionEvent event = new BlockDataTransactionEvent.BlockDataTransactionEventBuilder("")
                 .setContents(packets)
                 .setTransactionType(BlockDataTransactionEvent.TransactionType.BD_TRANSACTION_SEND)

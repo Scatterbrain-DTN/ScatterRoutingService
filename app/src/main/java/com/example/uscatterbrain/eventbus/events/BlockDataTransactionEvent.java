@@ -1,7 +1,7 @@
 package com.example.uscatterbrain.eventbus.events;
 
 import com.example.uscatterbrain.eventbus.ScatterEventBusEvent;
-import com.example.uscatterbrain.network.BlockHeaderPacket;
+import com.example.uscatterbrain.network.ScatterDataPacket;
 
 import java.util.List;
 
@@ -12,7 +12,7 @@ public class BlockDataTransactionEvent implements ScatterEventBusEvent {
     }
 
     private String mComponentID;
-    private List<BlockHeaderPacket> mBlockDataList;
+    private List<ScatterDataPacket> mBlockDataList;
     private TransactionType mTransactionType;
 
     public BlockDataTransactionEvent(BlockDataTransactionEventBuilder builder) {
@@ -29,24 +29,24 @@ public class BlockDataTransactionEvent implements ScatterEventBusEvent {
         return mTransactionType;
     }
 
-    public void setContent(List<BlockHeaderPacket> bdlist) {
+    public void setContent(List<ScatterDataPacket> bdlist) {
         this.mBlockDataList = bdlist;
     }
 
-    public List<BlockHeaderPacket> getContent() {
+    public List<ScatterDataPacket> getContent() {
         return this.mBlockDataList;
     }
 
     public static class BlockDataTransactionEventBuilder {
         private String mComponentID;
-        private List<BlockHeaderPacket> mBlockDataList;
+        private List<ScatterDataPacket> mBlockDataList;
         private TransactionType mTransactionType;
 
         public BlockDataTransactionEventBuilder(String componentID) {
             this.mComponentID = componentID;
         }
 
-        public BlockDataTransactionEventBuilder setContents(List<BlockHeaderPacket> blockHeaderPackets) {
+        public BlockDataTransactionEventBuilder setContents(List<ScatterDataPacket> blockHeaderPackets) {
             this.mBlockDataList = blockHeaderPackets;
             return this;
         }
