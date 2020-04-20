@@ -14,8 +14,10 @@ import com.example.uscatterbrain.db.entities.ScatterMessage;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
 
 /**
  * Interface to the androidx room backed datastore
@@ -53,27 +55,12 @@ public class ScatterbrainDatastore {
             singleton = new ScatterbrainDatastore(ctx);
     }
 
-
-    /**
-     * asynchronously inserts a lit of messages into the database without
-     * waiting for the result
-     *
-     * @param messages  list of room entities for messages to insert
-     * @throws DatastoreInsertException  thrown if inner classes of message object are null
-     */
-    public void insertMessage(List<ScatterMessage> messages) throws DatastoreInsertException {
-        insertMessage(messages, rowids -> {
-            //noop
-        });
-    }
-
-
     /**
      *  For internal use, synchronously inserts messages to database
      * @param message room entity for message to insert
      * @return primary keys of message inserted
      */
-    public Long insertMessages(ScatterMessage message) {
+    public Long insertMessagesSync(ScatterMessage message) {
         Long id = this.mDatastore.scatterMessageDao()._insertMessages(message);
 
         List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
@@ -107,7 +94,7 @@ public class ScatterbrainDatastore {
      * @param messages list of room entities to insert
      * @return list of primary keys for rows inserted
      */
-    private List<Long> insertMessages(List<ScatterMessage> messages) {
+    private List<Long> insertMessagesSync(List<ScatterMessage> messages) {
         List<Long> ids =  this.mDatastore.scatterMessageDao()._insertMessages(messages);
 
         List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
@@ -150,62 +137,41 @@ public class ScatterbrainDatastore {
      * via provided callback
      *
      * @param messages room entities to insert
-     * @param callback callback object to retrieve list of primary keys on successful insert
      * @throws DatastoreInsertException
+     * @return future returning list of ids inserted
      */
-    public void insertMessage(List<ScatterMessage> messages, DatastoreInsertUpdateCallback<List<Long>> callback) throws DatastoreInsertException {
+    public FutureTask<List<Long>> insertMessages(List<ScatterMessage> messages) throws DatastoreInsertException {
         for(ScatterMessage message : messages) {
             if (message.getIdentity() == null || message.getFiles() == null || message.getHashes() == null) {
                 throw new DatastoreInsertException();
             }
         }
 
-        executor.execute(() -> {
-            List<Long> ids = insertMessages(messages);
-            callback.onRowUpdate(ids);
+        FutureTask<List<Long>> result = new FutureTask<>(() -> {
+            return insertMessagesSync(messages);
         });
+        executor.execute(result);
+        return result;
     }
 
-    /**
-     * Asynchronously inserts messages into the datastore
-     *
-     * @param message room entities to insert
-     * @throws DatastoreInsertException thrown if inner classes are null
-     */
-    public void insertMessage(ScatterMessage message) throws DatastoreInsertException {
-        insertMessage(message, rowids -> {
-            //noop
-        });
-    }
 
     /**
-     * Asynchronously inserts a list of messages into the datastore, allows tracking result
+     * Asynchronously inserts a single message into the datastore, allows tracking result
      * via provided callback
      *
      * @param message room entity to insert
-     * @param callback callback object to retrieve primary key on successful insert
      * @throws DatastoreInsertException thrown if inner classes are null
+     * @return future returning id of row inserted
      */
-    public void insertMessage(ScatterMessage message, DatastoreInsertUpdateCallback<Long> callback) throws DatastoreInsertException {
+    public FutureTask<Long> insertMessage(ScatterMessage message) throws DatastoreInsertException {
         if(message.getIdentity() == null || message.getFiles() == null || message.getHashes() == null) {
             throw new DatastoreInsertException();
         }
 
-        executor.execute(() -> {
-            Long id = insertMessages(message);
-            callback.onRowUpdate(id);
-        });
-    }
+        FutureTask<Long> result = new FutureTask<>(() -> insertMessagesSync(message));
 
-    /**
-     * Asynchronously inserts identities into the datastore
-     *
-     * @param identities list of room entities to insert
-     */
-    public void insertIdentity(Identity[] identities) {
-        insertIdentity(identities, rowids -> {
-            //noop
-        });
+        executor.execute(result);
+        return result;
     }
 
     /**
@@ -213,24 +179,12 @@ public class ScatterbrainDatastore {
      * via provided callback
      *
      * @param identities list of room entities to insert
-     * @param callback callback to retrive primary key on successful insert
+     * @return future returning list of row ids inserted
      */
-    public  void insertIdentity(Identity[] identities, DatastoreInsertUpdateCallback<List<Long>> callback) {
-        executor.execute(() -> {
-            List<Long> ids = mDatastore.identityDao().insertAll(identities);
-            callback.onRowUpdate(ids);
-        });
-    }
-
-    /**
-     * Asynchronously inserts an identity into the datastore.
-     *
-     * @param identity room entity to insert
-     */
-    public void insertIdentity(Identity identity) {
-        insertIdentity(identity, rowids -> {
-            //noop
-        });
+    public FutureTask<List<Long>> insertIdentity(Identity[] identities) {
+        FutureTask<List<Long>> result = new FutureTask<>(() -> mDatastore.identityDao().insertAll(identities));
+        executor.execute(result);
+        return result;
     }
 
     /**
@@ -238,24 +192,15 @@ public class ScatterbrainDatastore {
      * via provided callback
      *
      * @param identity room entity to insert
-     * @param callback callback to retrieve primary key on successful insert
+     * @return future returning row id inserted
      */
-    public void insertIdentity(Identity identity, DatastoreInsertUpdateCallback<Long> callback) {
-        executor.execute(() -> {
+    public FutureTask<Long> insertIdentity(Identity identity) {
+        FutureTask<Long> result = new FutureTask<>(() -> {
             List<Long> ids = mDatastore.identityDao().insertAll(identity);
-            callback.onRowUpdate(ids.get(0));
+            return ids.get(0);
         });
-    }
-
-    /**
-     * Asynchronously inserts a disk file record into the datastore
-     *
-     * @param files room entity to insert
-     */
-    public void insertFile(DiskFiles files) {
-        insertFile(files, rowids -> {
-            //noop
-        });
+        executor.execute(result);
+        return result;
     }
 
     /**
@@ -263,24 +208,15 @@ public class ScatterbrainDatastore {
      * via provided callback
      *
      * @param files room entity to insert
-     * @param callback callback to retrieve primary key on successful insert
+     * @return future returning row id inserted
      */
-    public void insertFile(DiskFiles files, DatastoreInsertUpdateCallback<Long> callback) {
-        executor.execute(() -> {
-            List<Long> ids = mDatastore.diskFilesDao().insertAll(files);
-            callback.onRowUpdate(ids.get(0));
+    public FutureTask<Long> insertFile(DiskFiles files) {
+        FutureTask<Long> result = new FutureTask<>(() -> {
+            List<Long> r = mDatastore.diskFilesDao().insertAll(files);
+            return r.get(0);
         });
-    }
-
-    /**
-     * Asynchronously inserts a list of disk file records into the datastore
-     *
-     * @param files list of room entities to insert
-     */
-    public void insertFile(List<DiskFiles> files) {
-        insertFile(files, rowids -> {
-            //noop
-        });
+        executor.execute(result);
+        return result;
     }
 
     /**
@@ -288,13 +224,12 @@ public class ScatterbrainDatastore {
      * via provided callback
      *
      * @param files list of room entities to insert
-     * @param callback callback to retrive primary keys on successful insert
+     * @return future returning list of row ids inserted
      */
-    public void insertFile(List<DiskFiles> files, DatastoreInsertUpdateCallback<List<Long>> callback) {
-        executor.execute(() -> {
-           List<Long> ids = mDatastore.diskFilesDao().insertAll(files);
-           callback.onRowUpdate(ids);
-        });
+    public FutureTask<List<Long>> insertFile(List<DiskFiles> files) {
+        FutureTask<List<Long>> result = new FutureTask<>(() -> mDatastore.diskFilesDao().insertAll(files));
+        executor.execute(result);
+        return result;
     }
 
     /**
@@ -337,9 +272,5 @@ public class ScatterbrainDatastore {
         public DatastoreInsertException() {
             super();
         }
-    }
-
-    public interface DatastoreInsertUpdateCallback<T> {
-        void onRowUpdate(T rowids);
     }
 }
