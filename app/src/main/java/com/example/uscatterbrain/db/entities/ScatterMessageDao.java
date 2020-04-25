@@ -22,7 +22,31 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Transaction
     @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
-    public abstract LiveData<List<ScatterMessage>> getByID(int[] ids);
+    public abstract LiveData<List<ScatterMessage>> getByID(long[] ids);
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
+    public abstract LiveData<List<ScatterMessage>> getByID(List<Long> ids);
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
+    public abstract List<ScatterMessage> getByIDSync(long[] ids);
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
+    public abstract List<ScatterMessage> getByIDSync(List<Long> ids);
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
+    public abstract  List<ScatterMessage> getByIDSync(long ids);
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE filePath IN (:filePaths)")
+    public abstract LiveData<List<ScatterMessage>> getByFilePath(String... filePaths);
+
+    @Transaction
+    @Query("SELECT filePath FROM messages")
+    public abstract LiveData<List<String>> getAllFiles();
 
     @Transaction
     @Query("SELECT * FROM messages WHERE identityID IN (:ids)")
@@ -34,10 +58,6 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Transaction
     @Insert
-    public abstract void insertMessagesWithFiles(List<MessageDiskFileCrossRef> messagesWithFiles);
-
-    @Transaction
-    @Insert
     public abstract void insertMessagesWithHashes(List<MessageHashCrossRef> messagesWithHashes);
 
     @Insert
@@ -45,9 +65,6 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Insert
     public abstract Long _insertMessages(ScatterMessage message);
-
-    @Insert
-    public abstract List<Long> insertDiskFiles(List<DiskFiles> df);
 
     @Insert
     public abstract List<Long> insertHashes(List<Hashes> h);

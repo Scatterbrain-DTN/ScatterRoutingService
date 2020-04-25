@@ -11,13 +11,6 @@ public class ScatterMessageRelations {
 
     @Relation(
             parentColumn = "messageID",
-            entityColumn = "fileID",
-            associateBy = @Junction(MessageDiskFileCrossRef.class)
-    )
-    public List<DiskFiles> messageDiskFiles = new ArrayList<>();
-
-    @Relation(
-            parentColumn = "messageID",
             entityColumn = "hashID",
             associateBy = @Junction(MessageHashCrossRef.class)
     )

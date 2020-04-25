@@ -240,10 +240,10 @@ public class FileStore {
             }
 
             FileInputStream is = new FileInputStream(path.toFile());
-            byte[] hash = new byte[GenericHash.BYTES];
             byte[] buf = new byte[blocksize];
             int read;
             int seqnum = 0;
+
             while((read = is.read(buf)) != -1){
                 BlockSequencePacket blockSequencePacket = BlockSequencePacket.newBuilder()
                         .setSequenceNumber(seqnum)
@@ -251,6 +251,7 @@ public class FileStore {
                         .build();
                 r.add(blockSequencePacket.calculateHashByteString());
                 seqnum++;
+                Log.e("debug", "hashing "+ read);
             }
             return r;
         });

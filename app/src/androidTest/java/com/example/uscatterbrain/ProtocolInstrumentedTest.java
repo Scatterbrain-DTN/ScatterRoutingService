@@ -8,7 +8,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.rule.ServiceTestRule;
 
-import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.db.file.FileStore;
@@ -73,7 +72,7 @@ public class ProtocolInstrumentedTest {
 
     public ScatterMessage defaultMessage() {
         ScatterMessage sm = new ScatterMessage(new Identity(), new byte[5]);
-        sm.addFile(new DiskFiles());
+        sm.setFilePath("/dev/null");
         return sm;
     }
 
@@ -98,6 +97,7 @@ public class ProtocolInstrumentedTest {
                 .setFromFingerprint(ByteString.copyFrom(new byte[1]))
                 .setToFingerprint(ByteString.copyFrom(new byte[1]))
                 .setToDisk(false)
+                .setBlockSize(1024)
                 .build();
     }
 

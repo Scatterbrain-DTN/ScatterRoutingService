@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -11,11 +12,13 @@ import androidx.test.filters.SmallTest;
 import androidx.test.rule.ServiceTestRule;
 
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
-import com.example.uscatterbrain.db.entities.DiskFiles;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.db.file.FileStore;
+import com.example.uscatterbrain.network.LibsodiumInterface;
+import com.example.uscatterbrain.network.ScatterDataPacket;
 import com.google.protobuf.ByteString;
+import com.goterl.lazycode.lazysodium.interfaces.Sign;
 
 import org.junit.Assert;
 import org.junit.Rule;
@@ -64,7 +67,7 @@ public class DatastoreInstrumentedTest {
 
     public ScatterMessage defaultMessage() {
         ScatterMessage sm = new ScatterMessage(new Identity(), new byte[5]);
-        sm.addFile(new DiskFiles());
+        sm.setFilePath("/dev/null");
         sm.setTo(new byte[16]);
         return sm;
     }
@@ -214,5 +217,53 @@ public class DatastoreInstrumentedTest {
         Future<List<ByteString>> hashlist = store.hashFile(f.toPath().toAbsolutePath(), 4096);
         assertThat(hashlist.get() == null, is(false));
         assertThat(hashlist.get().size(), is(10));
+    }
+
+    @Test
+    public void scatterDataPacketInsertWorks() throws TimeoutException, InterruptedException, ExecutionException, NullPointerException {
+        ScatterRoutingService service = getService();
+        FileStore store = FileStore.getFileStore();
+        ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+
+        byte[] data = new byte[4096*10];
+        Random r = new Random();
+        r.nextBytes(data);
+
+        ByteArrayInputStream is = new ByteArrayInputStream(data);
+
+        File f = new File(service.getFilesDir(), "fmef");
+
+        Future<FileStore.FileCallbackResult> deleteResult = store.deleteFile(f.toPath().toAbsolutePath());
+        deleteResult.get();
+        Future<FileStore.FileCallbackResult> result = store.insertFile(is, f.toPath().toAbsolutePath());
+        assertThat(result.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
+
+        ScatterDataPacket bd = new ScatterDataPacket.Builder()
+                .setBlockSize(1024)
+                .setFragmentFile(f)
+                .setFromAddress(ByteString.copyFrom(new byte[32]))
+                .setToAddress(ByteString.copyFrom(new byte[32]))
+                .setSessionID(0)
+                .setApplication("test")
+                .build();
+
+        byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
+        byte[] secretkey = new byte[Sign.SECRETKEYBYTES];
+        LibsodiumInterface.getSodium().crypto_sign_keypair(pubkey,secretkey);
+        bd.getHeader().signEd25519(secretkey);
+
+        FutureTask<ScatterbrainDatastore.ScatterDataPacketInsertResult> res = datastore.insertDataPacket(bd);
+        assertThat(res.get().getSuccessCode(), is(ScatterbrainDatastore.DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS));
+
+        List<Long> ids = new ArrayList<>();
+        ids.add(res.get().getScatterMessageId());
+
+        Log.e("debug", "getting packet");
+        FutureTask<List<ScatterDataPacket>> newdplist = datastore.getDataPacket(ids);
+        Log.e("debug", "got packet");
+        assertThat(newdplist.get().size(), is(1));
+        assertThat(newdplist.get().get(0).getHeader().getHashList().size(), is(bd.getHeader().getHashList().size()));
+
+        assertThat(newdplist.get().get(0).getHeader().verifyed25519(pubkey), is(true));
     }
 }

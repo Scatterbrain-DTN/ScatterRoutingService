@@ -36,6 +36,7 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
     private ByteString mApplication;
     private int mSessionID;
     private File mFile;
+    private ByteString mSig;
     private FutureTask<FileStore.FileCallbackResult> mFileResult;
     private Direction mDirection;
     private DirectExecutor mExecutor = new DirectExecutor();
@@ -69,6 +70,8 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
         this.mSessionID = builder.getSessionID();
         this.mFile = builder.getFragmentFile();
         this.mDirection = Direction.SEND;
+        this.mToDisk = builder.getToDisk();
+        this.mSig = builder.getSig();
         mIndex = 0;
     }
 
@@ -134,19 +137,26 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
         try {
             List<ByteString> hashlist = this.mHashList.get();
             mHeader  = BlockHeaderPacket.newBuilder()
-                        .setToDisk(mToDisk)
-                        .setToFingerprint(mToFingerprint)
-                        .setFromFingerprint(mFromFingerprint)
-                        .setHashes(hashlist)
-                        .setSessionID(mSessionID)
-                        .setApplication(mApplication.toByteArray())
-                        .build();
+                    .setToDisk(mToDisk)
+                    .setToFingerprint(mToFingerprint)
+                    .setFromFingerprint(mFromFingerprint)
+                    .setHashes(hashlist)
+                    .setSessionID(mSessionID)
+                    .setApplication(mApplication.toByteArray())
+                    .setBlockSize(mBlockSize)
+                    .setToDisk(mToDisk)
+                    .setSig(mSig)
+                    .build();
             return mHeader;
         } catch (Exception e) {
             e.printStackTrace();
             this.mHeader = null;
             return null;
         }
+    }
+
+    public File getFile() {
+        return mFile;
     }
 
     /**
@@ -166,6 +176,14 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
 
     public BlockHeaderPacket getHeader() {
         return asyncGetHeader();
+    }
+
+    public List<ByteString> getHashes() {
+        try {
+            return mHashList.get();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
 
@@ -262,7 +280,6 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
      * Builder for ScatterDataPacket class
      */
     public static class Builder {
-        private BlockHeaderPacket mHeader;
         private int mBlockSize;
         private long mSize;
         private boolean mToDisk;
@@ -271,6 +288,7 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
         private ByteString application;
         private int mSessionID;
         private File mFile;
+        private ByteString mSig;
         private FutureTask<List<ByteString>> mHashlist;
 
         /**
@@ -280,6 +298,7 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
             this.mBlockSize = DEFAULT_BLOCK_SIZE;
             this.mToDisk = false;
             this.mSessionID = 0;
+            this.mToDisk = true;
         }
 
         /**
@@ -349,6 +368,16 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
             return this;
         }
 
+        public Builder setToDisk(boolean toDisk) {
+            this.mToDisk = toDisk;
+            return this;
+        }
+
+        public Builder setSig(ByteString sig) {
+            this.mSig = sig;
+            return this;
+        }
+
         /**
          * Sets block size manually
          *
@@ -362,15 +391,6 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
 
         public FutureTask<List<ByteString>> getHashList() {
             return mHashlist;
-        }
-
-        /**
-         * Gets header.
-         *
-         * @return the header
-         */
-        public BlockHeaderPacket getHeader() {
-            return mHeader;
         }
 
         /**
@@ -410,6 +430,10 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
             return mSessionID;
         }
 
+        public boolean getToDisk() { return mToDisk; }
+
+        public ByteString getSig() { return mSig; }
+
         /**
          * Builds data packet.
          *
@@ -424,6 +448,10 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
             }
 
             if (!mFile.exists()) {
+                return null;
+            }
+
+            if (mBlockSize <= 0) {
                 return null;
             }
 

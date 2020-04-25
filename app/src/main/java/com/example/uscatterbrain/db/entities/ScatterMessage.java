@@ -2,6 +2,7 @@ package com.example.uscatterbrain.db.entities;
 
 import androidx.annotation.NonNull;
 import androidx.room.ColumnInfo;
+import androidx.room.Embedded;
 import androidx.room.Entity;
 import androidx.room.ForeignKey;
 import androidx.room.Ignore;
@@ -38,30 +39,31 @@ public class ScatterMessage {
     private byte[] to;
 
     @ColumnInfo
-    private String application;
+    private byte[] from;
+
+    @ColumnInfo
+    private byte[] application;
 
     @ColumnInfo
     private byte[] sig;
 
-    @Ignore
-    private List<Hashes> hashes = new ArrayList<>();
+    @ColumnInfo
+    private int sessionid;
+
+    @ColumnInfo
+    private int blocksize;
+
+    @ColumnInfo
+    String filePath;
 
     @Ignore
-    private List<DiskFiles> files = new ArrayList<>();
+    private List<Hashes> hashes = new ArrayList<>();
 
     @Ignore
     private Identity identity;
 
     public byte[] getBody() {
         return body;
-    }
-
-    public List<DiskFiles> getFiles() {
-        return files;
-    }
-
-    public void addFile(DiskFiles files) {
-        this.files.add(files);
     }
 
     public void setBody(byte[] body) {
@@ -84,11 +86,11 @@ public class ScatterMessage {
         this.to = to;
     }
 
-    public String getApplication() {
+    public byte[] getApplication() {
         return application;
     }
 
-    public void setApplication(String application) {
+    public void setApplication(byte[] application) {
         this.application = application;
     }
 
@@ -114,6 +116,42 @@ public class ScatterMessage {
 
     public void setSig(byte[] sig) {
         this.sig = sig;
+    }
+
+    public byte[] getFrom() {
+        return from;
+    }
+
+    public String getFilePath() {
+        return filePath;
+    }
+
+    public void setFrom(byte[] from) {
+        this.from = from;
+    }
+
+    public int getSessionid() {
+        return sessionid;
+    }
+
+    public void setSessionid(int sessionid) {
+        this.sessionid = sessionid;
+    }
+
+    public void setIdentity(Identity identity) {
+        this.identity = identity;
+    }
+
+    public void setFilePath(String file) {
+        this.filePath = file;
+    }
+
+    public int getBlocksize() {
+        return blocksize;
+    }
+
+    public void setBlocksize(int blocksize) {
+        this.blocksize = blocksize;
     }
 
     public Identity getIdentity() {

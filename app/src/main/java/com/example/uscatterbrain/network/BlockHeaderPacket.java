@@ -29,15 +29,21 @@ public class BlockHeaderPacket implements ScatterSerializable {
     private byte[] mApplication;
     private int mSessionID;
     private boolean mToDisk;
+    private int mBlocksize;
 
     private BlockHeaderPacket(Builder builder) {
         this.mHashList = builder.getHashlist();
-        this.mSignature = new byte[Sign.ED25519_BYTES];
+        if (builder.getSig() == null) {
+            this.mSignature = new byte[Sign.ED25519_BYTES];
+        } else {
+            this.mSignature = builder.getSig().toByteArray();
+        }
         this.mToFingerprint = builder.getmToFingerprint();
         this.mFromFingerprint = builder.getmFromFingerprint();
         this.mApplication = builder.getApplication();
         this.mSessionID = builder.getSessionid();
         this.mToDisk = builder.getToDisk();
+        this.mBlocksize = builder.getBlockSize();
         Log.e("debug", "adding all nexthashes " + mHashList.size());
         this.blockdata = ScatterProto.BlockData.newBuilder()
                 .setApplicationBytes(ByteString.copyFrom(this.mApplication))
@@ -47,6 +53,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
                 .addAllNexthashes(this.mHashList)
                 .setSessionid(this.mSessionID)
                 .setSig(ByteString.copyFrom(this.mSignature))
+                .setBlocksize(mBlocksize)
                 .build();
     }
 
@@ -107,6 +114,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
                     .setTodisk(this.mToDisk)
                     .addAllNexthashes(this.mHashList)
                     .setSessionid(this.mSessionID)
+                    .setBlocksize(mBlocksize)
                     .setSig(ByteString.copyFrom(this.mSignature))
                     .build();
             return true;
@@ -126,6 +134,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
         this.mSignature = blockdata.getSig().toByteArray();
         this.mToDisk = blockdata.getTodisk();
         this.mSessionID = blockdata.getSessionid();
+        this.mBlocksize = blockdata.getBlocksize();
     }
 
     /**
@@ -296,9 +305,11 @@ public class BlockHeaderPacket implements ScatterSerializable {
         private boolean todisk;
         private byte[] application;
         private int sessionid;
+        public int mBlockSize;
         private ByteString mToFingerprint;
         private ByteString mFromFingerprint;
         private List<ByteString> hashlist;
+        private ByteString mSig;
 
         /**
          * Instantiates a new Builder.
@@ -306,6 +317,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
         public Builder() {
             todisk = false;
             sessionid = -1;
+            mBlockSize = -1;
         }
 
         /**
@@ -375,6 +387,25 @@ public class BlockHeaderPacket implements ScatterSerializable {
         }
 
         /**
+         * Sets blocksize
+         * @param blockSize
+         * @return builder
+         */
+        public Builder setBlockSize(int blockSize) {
+            this.mBlockSize = blockSize;
+            return this;
+        }
+
+        public Builder setSig(ByteString sig) {
+            this.mSig = sig;
+            return this;
+        }
+
+        public ByteString getSig() {
+            return mSig;
+        }
+
+        /**
          * Build block header packet.
          *
          * @return the block header packet
@@ -385,6 +416,10 @@ public class BlockHeaderPacket implements ScatterSerializable {
 
             // fingerprints and application are required
             if (mFromFingerprint == null || mToFingerprint == null || application == null) {
+                return null;
+            }
+
+            if (mBlockSize <= 0) {
                 return null;
             }
 
@@ -444,5 +479,11 @@ public class BlockHeaderPacket implements ScatterSerializable {
         public boolean getToDisk() {
             return todisk;
         }
+
+        /**
+         * Gets blocksize
+         * @return blocksize
+         */
+        public int getBlockSize() { return mBlockSize; }
     }
 }

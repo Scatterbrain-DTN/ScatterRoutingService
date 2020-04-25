@@ -1,20 +1,23 @@
 package com.example.uscatterbrain.db;
 
 import android.content.Context;
+import android.util.Log;
 
 import androidx.lifecycle.LiveData;
 import androidx.room.Room;
 
-import com.example.uscatterbrain.db.entities.DiskFiles;
+import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.Identity;
-import com.example.uscatterbrain.db.entities.MessageDiskFileCrossRef;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.network.ScatterDataPacket;
+import com.google.protobuf.ByteString;
 
+import java.io.File;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
@@ -63,7 +66,6 @@ public class ScatterbrainDatastore {
     public Long insertMessagesSync(ScatterMessage message) {
         Long id = this.mDatastore.scatterMessageDao()._insertMessages(message);
 
-        List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
         List<MessageHashCrossRef> hashes = new ArrayList<>();
 
         List<Long> hashids = this.mDatastore.scatterMessageDao().insertHashes(message.getHashes());
@@ -74,17 +76,9 @@ public class ScatterbrainDatastore {
             hashes.add(xref);
         }
 
-        List<Long> fileids = this.mDatastore.scatterMessageDao().insertDiskFiles(message.getFiles());
-        for (Long fileID : fileids) {
-            MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
-            xref.messageID = id;
-            xref.fileID = fileID;
-            xrefs.add(xref);
-        }
         Long identityID = this.mDatastore.scatterMessageDao().insertIdentity(message.getIdentity());
         message.setIdentityID(identityID);
 
-        this.mDatastore.scatterMessageDao().insertMessagesWithFiles(xrefs);
         this.mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes);
         return id;
     }
@@ -97,7 +91,6 @@ public class ScatterbrainDatastore {
     private List<Long> insertMessagesSync(List<ScatterMessage> messages) {
         List<Long> ids =  this.mDatastore.scatterMessageDao()._insertMessages(messages);
 
-        List<MessageDiskFileCrossRef> xrefs = new ArrayList<>();
         List<MessageHashCrossRef> hashes = new ArrayList<>();
 
         Iterator<Long> idItr = ids.iterator();
@@ -105,15 +98,7 @@ public class ScatterbrainDatastore {
         while (idItr.hasNext() && messageItr.hasNext()) {
             ScatterMessage message = messageItr.next();
             Long id = idItr.next();
-            List<Long> fileids = this.mDatastore.scatterMessageDao().insertDiskFiles(message.getFiles());
             List<Long> hashids = this.mDatastore.scatterMessageDao().insertHashes(message.getHashes());
-            for (Long fileID : fileids) {
-                MessageDiskFileCrossRef xref = new MessageDiskFileCrossRef();
-                xref.messageID = id;
-                xref.fileID = fileID;
-                xrefs.add(xref);
-            }
-
             for (Long hashID : hashids) {
                 MessageHashCrossRef xref = new MessageHashCrossRef();
                 xref.messageID = id;
@@ -124,8 +109,6 @@ public class ScatterbrainDatastore {
             Long identityID = this.mDatastore.scatterMessageDao().insertIdentity(message.getIdentity());
             message.setIdentityID(identityID);
         }
-
-        this.mDatastore.scatterMessageDao().insertMessagesWithFiles(xrefs);
         this.mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes);
 
         return ids;
@@ -142,7 +125,7 @@ public class ScatterbrainDatastore {
      */
     public FutureTask<List<Long>> insertMessages(List<ScatterMessage> messages) throws DatastoreInsertException {
         for(ScatterMessage message : messages) {
-            if (message.getIdentity() == null || message.getFiles() == null || message.getHashes() == null) {
+            if (message.getIdentity() == null || message.getHashes() == null) {
                 throw new DatastoreInsertException();
             }
         }
@@ -164,7 +147,7 @@ public class ScatterbrainDatastore {
      * @return future returning id of row inserted
      */
     public FutureTask<Long> insertMessage(ScatterMessage message) throws DatastoreInsertException {
-        if(message.getIdentity() == null || message.getFiles() == null || message.getHashes() == null) {
+        if(message.getIdentity() == null || message.getHashes() == null) {
             throw new DatastoreInsertException();
         }
 
@@ -204,35 +187,6 @@ public class ScatterbrainDatastore {
     }
 
     /**
-     * Asynchronously inserts a isk file record into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param files room entity to insert
-     * @return future returning row id inserted
-     */
-    public FutureTask<Long> insertFile(DiskFiles files) {
-        FutureTask<Long> result = new FutureTask<>(() -> {
-            List<Long> r = mDatastore.diskFilesDao().insertAll(files);
-            return r.get(0);
-        });
-        executor.execute(result);
-        return result;
-    }
-
-    /**
-     * Asynchronously inserts a list of disk file records into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param files list of room entities to insert
-     * @return future returning list of row ids inserted
-     */
-    public FutureTask<List<Long>> insertFile(List<DiskFiles> files) {
-        FutureTask<List<Long>> result = new FutureTask<>(() -> mDatastore.diskFilesDao().insertAll(files));
-        executor.execute(result);
-        return result;
-    }
-
-    /**
      * gets a randomized list of messages from the datastore. Needs to be observed
      * to get async result
      *
@@ -247,8 +201,8 @@ public class ScatterbrainDatastore {
      * gets a list of all the files in the datastore.
      * @return list of DiskFiles objects
      */
-    public LiveData<List<DiskFiles>> getAllFiles() {
-        return this.mDatastore.diskFilesDao().getAllAsync();
+    public LiveData<List<String>> getAllFiles() {
+        return this.mDatastore.scatterMessageDao().getAllFiles();
     }
 
     /**
@@ -261,11 +215,120 @@ public class ScatterbrainDatastore {
         return this.mDatastore.scatterMessageDao().getByIdentity(id.getIdentityID());
     }
 
+    public List<FutureTask<ScatterDataPacketInsertResult>> insertDataPacket(List<ScatterDataPacket> packets) {
+        List<FutureTask<ScatterDataPacketInsertResult>> finalResult = new ArrayList<>();
+        for (ScatterDataPacket dataPacket : packets) {
+            FutureTask<ScatterDataPacketInsertResult> result = insertDataPacket(dataPacket);
+        }
+        return finalResult;
+     }
+
+     public FutureTask<ScatterDataPacketInsertResult> insertDataPacket(ScatterDataPacket packet) {
+        FutureTask<ScatterDataPacketInsertResult> result = new FutureTask<>(() -> {
+            if(!packet.isHashValid()) {
+                return ScatterDataPacketInsertResult.newFailure();
+            }
+
+            ScatterMessage message = new ScatterMessage();
+            message.setFilePath(packet.getFile().getAbsolutePath());
+            message.setBody(new byte[0]); //TODO: implement body
+            message.setFrom(packet.getHeader().getFromFingerprint().toByteArray());
+            message.setTo(packet.getHeader().getToFingerprint().toByteArray());
+            message.setSig(packet.getHeader().getSig().toByteArray());
+            message.setApplication(packet.getHeader().getApplication());
+            message.setSessionid(packet.getHeader().getSessionID());
+            message.setIdentity(null); //TODO: update identity later
+            Log.e("debug", "header blocksize " + packet.getHeader().getBlockSize());
+            message.setBlocksize(packet.getHeader().getBlockSize());
+
+            List<Hashes> hashlist = new ArrayList<>();
+            for (ByteString hash : packet.getHashes()) {
+                Hashes hashes = new Hashes();
+                hashes.setHash(hash.toByteArray());
+                hashlist.add(hashes);
+            }
+
+            message.setHashes(hashlist);
+            Long id = mDatastore.scatterMessageDao()._insertMessages(message);
+            List<Long> ids = mDatastore.scatterMessageDao().insertHashes(hashlist);
+            List<MessageHashCrossRef> xrefs = new ArrayList<>();
+            for (Long hashid : ids) {
+                MessageHashCrossRef crossRef = new MessageHashCrossRef();
+                crossRef.messageID = id;
+                crossRef.hashID = hashid;
+            }
+
+            mDatastore.scatterMessageDao().insertMessagesWithHashes(xrefs);
+
+            return ScatterDataPacketInsertResult.newScatterDataPacketInsertResult(id);
+        });
+
+        executor.execute(result);
+        return result;
+     }
+
+     public FutureTask<List<ScatterDataPacket>> getDataPacket(List<Long> id) {
+        FutureTask<List<ScatterDataPacket>> result = new FutureTask<>(() -> {
+            List<ScatterMessage> messages = mDatastore.scatterMessageDao().getByIDSync(id);
+            List<ScatterDataPacket> bdlist = new ArrayList<>();
+            for (ScatterMessage message : messages) {
+                File f = Paths.get(message.getFilePath()).toAbsolutePath().toFile();
+                ScatterDataPacket dataPacket = ScatterDataPacket.newBuilder()
+                        .setApplication(ByteString.copyFrom(message.getApplication()).toStringUtf8())
+                        .setFromAddress(ByteString.copyFrom(message.getFrom()))
+                        .setToAddress(ByteString.copyFrom(message.getTo()))
+                        .setSessionID(message.getSessionid())
+                        .setBlockSize(message.getBlocksize())
+                        .setFragmentFile(f)
+                        .setSig(ByteString.copyFrom(message.getSig()))
+                        .build();
+
+                bdlist.add(dataPacket);
+            }
+
+            return bdlist;
+        });
+
+        executor.execute(result);
+        return result;
+     }
+
     /**
      * Clears the datastore, dropping all tables
      */
     public void clear() {
         this.mDatastore.clearAllTables();
+    }
+
+    public enum DatastoreSuccessCode {
+        DATASTORE_SUCCESS_CODE_SUCCESS,
+        DATASTORE_SUCCESS_CODE_FAILURE
+    }
+
+    public static class ScatterDataPacketInsertResult {
+        private Long scatterMessageId;
+        private DatastoreSuccessCode successCode;
+
+        private ScatterDataPacketInsertResult(Long messageid, DatastoreSuccessCode code) {
+            this.scatterMessageId = messageid;
+            this.successCode = code;
+        }
+
+        public static ScatterDataPacketInsertResult newScatterDataPacketInsertResult(Long scatterMessageId) {
+            return new ScatterDataPacketInsertResult(scatterMessageId, DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS);
+        }
+
+        public static ScatterDataPacketInsertResult newFailure() {
+            return new ScatterDataPacketInsertResult(null, DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_FAILURE);
+        }
+
+        public Long getScatterMessageId() {
+            return scatterMessageId;
+        }
+
+        public DatastoreSuccessCode getSuccessCode() {
+            return successCode;
+        }
     }
 
     public static class DatastoreInsertException extends Exception {
