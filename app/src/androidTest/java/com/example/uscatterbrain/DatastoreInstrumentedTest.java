@@ -252,7 +252,7 @@ public class DatastoreInstrumentedTest {
         LibsodiumInterface.getSodium().crypto_sign_keypair(pubkey,secretkey);
         bd.getHeader().signEd25519(secretkey);
 
-        FutureTask<ScatterbrainDatastore.ScatterDataPacketInsertResult> res = datastore.insertDataPacket(bd);
+        FutureTask<ScatterbrainDatastore.ScatterDataPacketInsertResult<Long>> res = datastore.insertDataPacket(bd);
         assertThat(res.get().getSuccessCode(), is(ScatterbrainDatastore.DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS));
 
         List<Long> ids = new ArrayList<>();
@@ -265,5 +265,47 @@ public class DatastoreInstrumentedTest {
         assertThat(newdplist.get().get(0).getHeader().getHashList().size(), is(bd.getHeader().getHashList().size()));
 
         assertThat(newdplist.get().get(0).getHeader().verifyed25519(pubkey), is(true));
+    }
+
+
+    @Test
+    public void testBase64() throws InterruptedException, ExecutionException {
+        byte[] privkey = new byte[Sign.ED25519_SECRETKEYBYTES];
+        byte[] mScatterbrainPubKey = new byte[Sign.ED25519_PUBLICKEYBYTES];
+        LibsodiumInterface.getSodium().crypto_sign_keypair(mScatterbrainPubKey, privkey);
+        Log.e("base64", LibsodiumInterface.base64enc(mScatterbrainPubKey));
+        assertArrayEquals(LibsodiumInterface.base64dec(LibsodiumInterface.base64enc(mScatterbrainPubKey)),
+                mScatterbrainPubKey);
+    }
+
+    @Test
+    public void datastoreIdentityWorks() throws TimeoutException, ExecutionException, InterruptedException {
+        ScatterRoutingService service = getService();
+        ScatterbrainDatastore datastore = new ScatterbrainDatastore(service);
+        datastore.clear();
+        com.example.uscatterbrain.identity.Identity id = com.example.uscatterbrain.identity.Identity.newBuilder(service)
+                .setName("Menhera Chan")
+                .generateKeypair()
+                .build();
+
+        List<com.example.uscatterbrain.identity.Identity> identityList = new ArrayList<>();
+        identityList.add(id);
+
+        FutureTask<ScatterbrainDatastore.ScatterDataPacketInsertResult<List<Long>>> res =
+                datastore.insertIdentity(identityList);
+
+        assertThat(res.get().getSuccessCode(), is(ScatterbrainDatastore.DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS));
+        assertThat(res.get().getScatterMessageId().size(), is(1));
+
+        FutureTask<List<com.example.uscatterbrain.identity.Identity>> newid =
+        datastore.getIdentity(res.get().getScatterMessageId());
+
+        assertThat(newid.get().size(), is(1));
+        assertThat(newid.get().get(0).size(), is(1));
+        assertArrayEquals(id.sumBytes().toByteArray(), newid.get().get(0).sumBytes().toByteArray());
+        assertArrayEquals(newid.get().get(0).getSig(), id.getSig());
+        assertThat(newid.get().get(0).verifyed25519(id.getPubkey()), is(true));
+
+
     }
 }

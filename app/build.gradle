@@ -33,7 +33,7 @@ android {
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.0.0'
+        artifact = 'com.google.protobuf:protoc:3.8.0'
     }
     plugins {
         javalite {
@@ -43,10 +43,9 @@ protobuf {
     generateProtoTasks {
         all().each { task ->
             task.builtins {
-                remove java
-            }
-            task.plugins {
-                javalite { }
+                java {
+                    option "lite"
+                }
             }
         }
     }
@@ -61,13 +60,14 @@ dependencies {
 
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation 'androidx.appcompat:appcompat:1.1.0'
-    implementation 'com.google.protobuf:protobuf-lite:3.0.0'
+    implementation 'com.google.protobuf:protobuf-javalite:3.11.1'
     implementation 'org.greenrobot:eventbus:3.1.1'
     implementation "androidx.room:room-runtime:2.2.5"
+    implementation("androidx.security:security-crypto:1.0.0-rc01")
     annotationProcessor "androidx.room:room-compiler:2.2.5" // For Kotlin use kapt instead of annotationProcessor
     implementation "androidx.lifecycle:lifecycle-service:$lifecycle_version"
     testImplementation("org.robolectric:robolectric:4.3.1") {
-        exclude group: 'com.google.protobuf'
+        exclude group: 'com.google.protobuf', module: 'protobuf-java'
     }
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     // Core library

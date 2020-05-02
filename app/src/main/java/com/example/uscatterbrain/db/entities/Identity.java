@@ -3,6 +3,9 @@ package com.example.uscatterbrain.db.entities;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
+import androidx.room.Relation;
+
+import java.util.List;
 
 @Entity(tableName = "identities")
 public class Identity {
@@ -17,11 +20,11 @@ public class Identity {
     @ColumnInfo(name = "givenname")
     private String givenName;
 
-    @ColumnInfo(name = "description")
-    private String description;
-
     @ColumnInfo(name = "publickey")
     private byte[] publicKey;
+
+    @ColumnInfo(name = "signature")
+    private byte[] signature;
 
     public long getIdentityID() {
         return identityID;
@@ -39,17 +42,13 @@ public class Identity {
         this.publicKey = publicKey;
     }
 
-    public String getDescription() {
-        return description;
-    }
-
     public String getGivenName() {
         return givenName;
     }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
+    public void setSignature(byte[] signature) { this.signature = signature; }
+
+    public byte[] getSignature() { return signature; }
 
     public void setGivenName(String givenName) {
         this.givenName = givenName;

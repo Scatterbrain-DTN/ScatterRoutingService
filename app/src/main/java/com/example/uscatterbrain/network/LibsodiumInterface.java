@@ -6,11 +6,14 @@ import com.goterl.lazycode.lazysodium.SodiumAndroid;
 import com.goterl.lazycode.lazysodium.interfaces.Hash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 
+import java.util.Base64;
+
 /**
  * Singleton interface to libsodium/lazysodium over JNA
  */
 public class LibsodiumInterface {
     private static LazySodiumAndroid mSodiumInstance = null;
+    public static final int SODIUM_BASE64_VARIANT_ORIGINAL_NO_PADDING = 1;
 
     private LibsodiumInterface() {}
 
@@ -43,5 +46,13 @@ public class LibsodiumInterface {
     public static Hash.Lazy getHashLazy() {
         checkSodium();
         return mSodiumInstance;
+    }
+
+    public static String base64enc(byte[] data) {
+        return Base64.getEncoder().encodeToString(data);
+    }
+
+    public static byte[] base64dec(String data) {
+        return Base64.getDecoder().decode(data);
     }
 }

@@ -13,8 +13,7 @@ public class IdentityRelations {
 
     @Relation(
             parentColumn = "identityID",
-            entityColumn = "keyID",
-            associateBy = @Junction(IdentityKeyCrossRef.class)
+            entityColumn = "identityFK"
     )
-    public List<Keys> identityKeys = new ArrayList<>();
+    public List<Keys> keys;
 }

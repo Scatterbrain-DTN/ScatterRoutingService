@@ -10,6 +10,9 @@ public class Keys {
     private long keyID;
 
     @ColumnInfo
+    private long identityFK;
+
+    @ColumnInfo
     private String key;
 
     @ColumnInfo
@@ -38,5 +41,13 @@ public class Keys {
 
     public void setKeyID(long keyID) {
         this.keyID = keyID;
+    }
+
+    public long getIdentityFK() {
+        return identityFK;
+    }
+
+    public void setIdentityFK(long identityFK) {
+        this.identityFK = identityFK;
     }
 }

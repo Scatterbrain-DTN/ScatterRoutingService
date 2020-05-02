@@ -8,6 +8,8 @@ import androidx.room.Room;
 
 import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.Identity;
+import com.example.uscatterbrain.db.entities.IdentityRelations;
+import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.ScatterDataPacket;
@@ -16,8 +18,10 @@ import com.google.protobuf.ByteString;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
@@ -30,6 +34,7 @@ public class ScatterbrainDatastore {
 
     private Datastore mDatastore;
     private Executor executor;
+    private Context ctx;
     private static ScatterbrainDatastore singleton = null;
     public static final String DATABASE_NAME = "scatterdb";
     /**
@@ -39,6 +44,7 @@ public class ScatterbrainDatastore {
     public ScatterbrainDatastore(Context ctx) {
         mDatastore = Room.databaseBuilder(ctx, Datastore.class, DATABASE_NAME).build();
         executor = Executors.newSingleThreadExecutor();
+        this.ctx = ctx;
     }
 
     public static ScatterbrainDatastore getInstance() {
@@ -215,18 +221,54 @@ public class ScatterbrainDatastore {
         return this.mDatastore.scatterMessageDao().getByIdentity(id.getIdentityID());
     }
 
-    public List<FutureTask<ScatterDataPacketInsertResult>> insertDataPacket(List<ScatterDataPacket> packets) {
-        List<FutureTask<ScatterDataPacketInsertResult>> finalResult = new ArrayList<>();
+    public List<FutureTask<ScatterDataPacketInsertResult<Long>>> insertDataPacket(List<ScatterDataPacket> packets) {
+        List<FutureTask<ScatterDataPacketInsertResult<Long>>> finalResult = new ArrayList<>();
         for (ScatterDataPacket dataPacket : packets) {
-            FutureTask<ScatterDataPacketInsertResult> result = insertDataPacket(dataPacket);
+            FutureTask<ScatterDataPacketInsertResult<Long>> result = insertDataPacket(dataPacket);
         }
         return finalResult;
      }
 
-     public FutureTask<ScatterDataPacketInsertResult> insertDataPacket(ScatterDataPacket packet) {
-        FutureTask<ScatterDataPacketInsertResult> result = new FutureTask<>(() -> {
+     public FutureTask<ScatterDataPacketInsertResult<List<Long>>> insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity) {
+        FutureTask<ScatterDataPacketInsertResult<List<Long>>> result = new FutureTask<>(() -> {
+            List<Identity> idlist = new ArrayList<>();
+            List<Keys> keysList = new ArrayList<>();
+            for (com.example.uscatterbrain.identity.Identity identity1 : identity) {
+                Identity id = new Identity();
+                id.setGivenName(identity1.getName());
+                id.setPublicKey(identity1.getPubkey());
+                id.setSignature(identity1.getSig());
+
+                idlist.add(id);
+            }
+            List<Long> identityID = mDatastore.identityDao().insertAll(idlist);
+            if(identityID.size() != identity.size()) {
+                return new ScatterDataPacketInsertResult<>(null, DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_FAILURE);
+            }
+
+            for (int i=0;i<identity.size();i++) {
+                com.example.uscatterbrain.identity.Identity identity1 = identity.get(i);
+                for (Map.Entry<String, ByteString> entry : identity1.getKeymap().entrySet()) {
+                    Keys k = new Keys();
+                    k.setKey(entry.getKey());
+                    k.setValue(entry.getValue().toByteArray());
+                    k.setIdentityFK(identityID.get(i));
+                    keysList.add(k);
+                }
+            }
+            mDatastore.identityDao().insertKeys(keysList);
+
+            return new ScatterDataPacketInsertResult<List<Long>>(identityID, DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS);
+        });
+
+        executor.execute(result);
+        return result;
+     }
+
+     public FutureTask<ScatterDataPacketInsertResult<Long>> insertDataPacket(ScatterDataPacket packet) {
+        FutureTask<ScatterDataPacketInsertResult<Long>> result = new FutureTask<>(() -> {
             if(!packet.isHashValid()) {
-                return ScatterDataPacketInsertResult.newFailure();
+                return new ScatterDataPacketInsertResult<Long>(-1L,DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_FAILURE);
             }
 
             ScatterMessage message = new ScatterMessage();
@@ -260,7 +302,38 @@ public class ScatterbrainDatastore {
 
             mDatastore.scatterMessageDao().insertMessagesWithHashes(xrefs);
 
-            return ScatterDataPacketInsertResult.newScatterDataPacketInsertResult(id);
+            return new ScatterDataPacketInsertResult<Long>(id, DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS);
+        });
+
+        executor.execute(result);
+        return result;
+     }
+
+     public FutureTask<List<com.example.uscatterbrain.identity.Identity>> getIdentity(List<Long> ids) {
+        FutureTask<List<com.example.uscatterbrain.identity.Identity>> result = new FutureTask<>(() -> {
+            List<com.example.uscatterbrain.identity.Identity> r = new ArrayList<>();
+            try {
+                List<IdentityRelations> idlist = mDatastore.identityDao().getIdentitiesWithRelations(ids);
+                for (IdentityRelations relation : idlist) {
+                    Map<String, ByteString> keylist = new HashMap<>(relation.keys.size());
+                    for (Keys keys : relation.keys) {
+                        keylist.put(keys.getKey(), ByteString.copyFrom(keys.getValue()));
+                    }
+                    com.example.uscatterbrain.identity.Identity identity = com.example.uscatterbrain.identity.Identity.newBuilder(ctx)
+                            .setName(relation.identity.getGivenName())
+                            .setScatterbrainPubkey(ByteString.copyFrom(relation.identity.getPublicKey()))
+                            .setSig(relation.identity.getSignature())
+                            .build();
+
+                    identity.putAll(keylist);
+                    r.add(identity);
+
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                return new ArrayList<>();
+            }
+            return r;
         });
 
         executor.execute(result);
@@ -305,24 +378,16 @@ public class ScatterbrainDatastore {
         DATASTORE_SUCCESS_CODE_FAILURE
     }
 
-    public static class ScatterDataPacketInsertResult {
-        private Long scatterMessageId;
+    public static class ScatterDataPacketInsertResult<T> {
+        private T scatterMessageId;
         private DatastoreSuccessCode successCode;
 
-        private ScatterDataPacketInsertResult(Long messageid, DatastoreSuccessCode code) {
+        private ScatterDataPacketInsertResult(T messageid, DatastoreSuccessCode code) {
             this.scatterMessageId = messageid;
             this.successCode = code;
         }
 
-        public static ScatterDataPacketInsertResult newScatterDataPacketInsertResult(Long scatterMessageId) {
-            return new ScatterDataPacketInsertResult(scatterMessageId, DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS);
-        }
-
-        public static ScatterDataPacketInsertResult newFailure() {
-            return new ScatterDataPacketInsertResult(null, DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_FAILURE);
-        }
-
-        public Long getScatterMessageId() {
+        public T getScatterMessageId() {
             return scatterMessageId;
         }
 

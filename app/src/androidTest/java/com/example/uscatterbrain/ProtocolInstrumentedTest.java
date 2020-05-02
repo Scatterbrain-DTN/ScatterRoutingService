@@ -337,4 +337,30 @@ public class ProtocolInstrumentedTest {
         assertThat(idnew.verifyed25519(pubkey), is(true));
     }
 
+    @Test
+    public void IdentityWrapperWorks() throws TimeoutException {
+        ScatterRoutingService service = getService();
+        com.example.uscatterbrain.identity.Identity id = com.example.uscatterbrain.identity.Identity.newBuilder(service)
+                .setName("Menhera Chan")
+                .generateKeypair()
+                .build();
+
+        byte[] privkey = id.getPrivKey();
+        assertThat(privkey != null, is(true));
+
+        ByteString bs = id.getByteString();
+
+        ByteArrayInputStream is = new ByteArrayInputStream(bs.toByteArray());
+
+        try {
+            com.example.uscatterbrain.identity.Identity newid = com.example.uscatterbrain.identity.Identity.parseFrom(is, service);
+            assertThat(newid != null, is(true));
+            assertThat(newid.getPrivKey() != null, is(true));
+            assertArrayEquals(newid.getPrivKey(), privkey);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assert.fail();
+        }
+    }
+
 }

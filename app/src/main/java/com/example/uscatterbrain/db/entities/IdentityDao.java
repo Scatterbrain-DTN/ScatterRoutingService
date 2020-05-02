@@ -15,14 +15,17 @@ public interface IdentityDao extends BaseDao<Identity> {
     LiveData<List<Identity>> getAll();
 
     @Transaction
-    @Query("SELECT * FROM identities")
-    LiveData<List<IdentityRelations>> getIdentitiesWithRelations();
+    @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
+    List<IdentityRelations> getIdentitiesWithRelations(List<Long> ids);
 
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
-    LiveData<List<Identity>> getByID(int[] ids);
+    List<Identity> getByID(List<Long> ids);
 
     @Query("SELECT * FROM identities WHERE givenname IN (:names)")
     LiveData<List<Identity>> getByGivenName(String[] names);
+
+    @Query("SELECT * FROM keys WHERE keyID IN (:ids)")
+    List<Keys> getKeys(List<Long> ids);
 
     @Insert
     List<Long> insertAll(Identity... identities);
@@ -32,6 +35,9 @@ public interface IdentityDao extends BaseDao<Identity> {
 
     @Insert
     List<Long> insertHashes(List<Hashes> hashes);
+
+    @Insert
+    List<Long> insertKeys(List<Keys> keys);
 
     @Delete
     void delete(Identity identity);
