@@ -33,7 +33,19 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
     private BluetoothLERadioModule mRadioModule;
 
     public ScatterRoutingService() {
+        //TODO: temporary
+        mPacket = AdvertisePacket.newBuilder()
+                .setProvides(Collections.singletonList(ScatterProto.Advertise.Provides.BLE))
+                .build();
+        mRadioModule = new BluetoothLERadioModule();
+    }
 
+    public AdvertisePacket getPacket() {
+        return mPacket;
+    }
+
+    public void setPacket(AdvertisePacket packet) {
+        mPacket = packet;
     }
 
     public AdvertisePacket getPacket() {
