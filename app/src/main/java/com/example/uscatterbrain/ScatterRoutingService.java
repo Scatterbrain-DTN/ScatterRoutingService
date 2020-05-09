@@ -15,21 +15,37 @@ import com.example.uscatterbrain.API.HighLevelAPI;
 import com.example.uscatterbrain.API.OnRecieveCallback;
 import com.example.uscatterbrain.API.ScatterTransport;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
+import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
-import com.example.uscatterbrain.network.bluetoothLE.ScatterBluetoothLEManager;
+import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModule;
 
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 
 public class ScatterRoutingService extends LifecycleService implements HighLevelAPI {
     public final String TAG = "ScatterRoutingService";
     private boolean bound;
     private final IBinder mBinder = new ScatterBinder();
-    private ScatterBluetoothLEManager leManager;
     private DeviceProfile myprofile;
+    private AdvertisePacket mPacket;
+    private BluetoothLERadioModule mRadioModule;
 
     public ScatterRoutingService() {
+        //TODO: temporary
+        mPacket = AdvertisePacket.newBuilder()
+                .setProvides(Collections.singletonList(ScatterProto.Advertise.Provides.BLE))
+                .build();
+        mRadioModule = new BluetoothLERadioModule();
+    }
 
+    public AdvertisePacket getPacket() {
+        return mPacket;
+    }
+
+    public void setPacket(AdvertisePacket packet) {
+        mPacket = packet;
     }
 
     @Override
@@ -74,12 +90,12 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
     //peers
     @Override
     public void scanOn(ScatterTransport transport) {
-        leManager.startScan();
+
     }
 
     @Override
     public void scanOff(ScatterTransport transport) {
-        leManager.stopScan();
+
     }
 
     @Override
@@ -89,7 +105,7 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
 
     @Override
     public void advertiseOff() {
-        leManager.stopLEAdvertise();
+
     }
 
     @Override
@@ -153,6 +169,15 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
 
     @Override
     public void startService() {
+
+    }
+
+    @Override
+    public IBinder onBind(Intent i) {
+        super.onBind(i);
+        bound = true;
+        ScatterbrainDatastore.initialize(this);
+        mRadioModule.register(this);
         NotificationCompat.Builder not = new NotificationCompat.Builder(this)
                 .setSmallIcon(R.drawable.ic_toys_black_24dp)
                 .setContentTitle("Scatterbrain")
@@ -177,14 +202,6 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
         } catch(NullPointerException e) {
             Log.e(TAG, "NullPointerException while creating persistent notification");
         }
-        leManager = new ScatterBluetoothLEManager(getApplicationContext());
-
-    }
-
-    @Override
-    public IBinder onBind(Intent i) {
-        super.onBind(i);
-        bound = true;
         return mBinder;
     }
 
@@ -199,7 +216,6 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
-        ScatterbrainDatastore.initialize(this);
         return START_NOT_STICKY;
     }
 

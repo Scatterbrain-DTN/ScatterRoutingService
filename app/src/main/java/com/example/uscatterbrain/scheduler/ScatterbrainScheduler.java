@@ -1,11 +1,6 @@
 package com.example.uscatterbrain.scheduler;
 
-import com.example.uscatterbrain.eventbus.events.BlockDataTransactionEvent;
 import com.example.uscatterbrain.network.ScatterDataPacket;
-
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-import org.greenrobot.eventbus.ThreadMode;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -82,22 +77,7 @@ public class ScatterbrainScheduler {
     }
 
     public void sendBlockData(List<ScatterDataPacket> packets) {
-        BlockDataTransactionEvent event = new BlockDataTransactionEvent.BlockDataTransactionEventBuilder("")
-                .setContents(packets)
-                .setTransactionType(BlockDataTransactionEvent.TransactionType.BD_TRANSACTION_SEND)
-                .build();
 
-        EventBus.getDefault().post(event);
-    }
-
-    @Subscribe(threadMode = ThreadMode.BACKGROUND)
-    public void onReceiveBlockdata(BlockDataTransactionEvent event) {
-        if(event.getmTransactionType() == BlockDataTransactionEvent.TransactionType.BD_TRANSACTION_RECEIVE) {
-            this.mExecutor.execute(() -> {
-                //ScatterMessage message = new ScatterMessage();
-                //TODO: convert from blockdata/blocksequence to scattermessage
-            });
-        }
     }
 
     public static class InvalidStateChangeException extends Exception {
