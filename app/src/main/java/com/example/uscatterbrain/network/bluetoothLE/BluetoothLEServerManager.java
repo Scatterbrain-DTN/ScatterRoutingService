@@ -38,8 +38,7 @@ public class BluetoothLEServerManager extends BleServerManager {
                                 cccd(),
                                 reliableWrite(),
                                 description("Read advertise packet", false) // descriptors
-                        )),
-                service(SERVICE_UUID,
+                        ),
                         characteristic(UUID_READ_UPGRADE,
                                 BluetoothGattCharacteristic.PROPERTY_READ
                                         | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
@@ -48,8 +47,7 @@ public class BluetoothLEServerManager extends BleServerManager {
                                 cccd(),
                                 reliableWrite(),
                                 description("read upgrade packet", false)
-                        )),
-                service(SERVICE_UUID,
+                        ),
                         characteristic(UUID_WRITE_ADVERTISE,
                                 BluetoothGattCharacteristic.PROPERTY_WRITE
                                         | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
@@ -58,8 +56,7 @@ public class BluetoothLEServerManager extends BleServerManager {
                                 cccd(),
                                 reliableWrite(),
                                 description("write advertise packet", false)
-                        )),
-                service(SERVICE_UUID,
+                        ),
                         characteristic(UUID_WRITE_UPGRADE,
                                 BluetoothGattCharacteristic.PROPERTY_WRITE
                                         | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
@@ -67,7 +64,8 @@ public class BluetoothLEServerManager extends BleServerManager {
                                 (byte[]) null,
                                 cccd(),
                                 reliableWrite(),
-                                description("write upgrade packet", false)))
+                                description("write upgrade packet", false))
+                )
         );
     }
 

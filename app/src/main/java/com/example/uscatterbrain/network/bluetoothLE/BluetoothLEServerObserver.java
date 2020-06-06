@@ -91,19 +91,11 @@ public class BluetoothLEServerObserver implements ServerObserver, ConnectionObse
         Log.e(BluetoothLERadioModule.TAG, "onBondingFailed " + device.getAddress());
     }
 
-    private void connectToDevice(@NonNull final BluetoothDevice device) {
+    public boolean startServer() {
         mClientManager = new BluetoothLEManager<>(mContext);
         mClientManager.setConnectionObserver(this);
         mClientManager.setBondingObserver(this);
         mClientManager.useServer(mManager);
-        mClientManager.connect(device)
-                .done(handler -> Log.v(BluetoothLERadioModule.TAG,
-                        "client connected to GATT server"))
-                .enqueue();
-    }
-
-
-    public boolean startServer() {
         return mManager.open();
     }
 

@@ -1,18 +1,24 @@
 package com.example.uscatterbrain.network;
 
+import android.bluetooth.BluetoothDevice;
+
+import com.example.uscatterbrain.ScatterCallback;
+
 import java.util.List;
+import java.util.UUID;
 
 public interface ScatterPeerHandler extends ScatterRadioModule {
     void setAdvertisePacket(AdvertisePacket advertisePacket);
-    void setOnPeersChanged(PeersChangedCallback callback);
+    void setOnPeersChanged(ScatterCallback<List<UUID>, Void> callback);
     AdvertisePacket getAdvertisePacket();
     void startAdvertise() throws AdvertiseFailedException;
     void stopAdvertise() throws AdvertiseFailedException;
-    void startDiscover() throws AdvertiseFailedException;
-    void stopDiscover() throws AdvertiseFailedException;
+    void startDiscover(discoveryOptions opts);
+    void stopDiscover();
 
-    interface PeersChangedCallback {
-        void onPeersChanged(List<AdvertisePacket> peers);
+    enum discoveryOptions {
+        OPT_DISCOVER_ONCE,
+        OPT_DISCOVER_FOREVER
     }
 
     class AdvertiseFailedException extends Exception {

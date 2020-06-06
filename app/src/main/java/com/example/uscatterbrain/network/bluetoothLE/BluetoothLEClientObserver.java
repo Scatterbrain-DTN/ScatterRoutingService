@@ -6,13 +6,16 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import com.example.uscatterbrain.ScatterCallback;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.bluetoothLE.callback.BluetoothLEClientCallback;
+
+import java.io.Closeable;
 
 import no.nordicsemi.android.ble.observer.BondingObserver;
 import no.nordicsemi.android.ble.observer.ConnectionObserver;
 
-public class BluetoothLEClientObserver implements ConnectionObserver {
+public class BluetoothLEClientObserver implements ConnectionObserver, Closeable {
     private BluetoothLEManager<BluetoothLEClientCallback> mManager;
     private Context mContext;
     private AdvertisePacket mPacket;
@@ -54,26 +57,41 @@ public class BluetoothLEClientObserver implements ConnectionObserver {
         Log.v(BluetoothLERadioModule.TAG, "onDeviceDisconnected");
     }
 
-    public void connect(@NonNull final BluetoothDevice device) {
+    @Override
+    public void close() {
+        mManager.close();
+    }
+
+    public void connect(@NonNull final BluetoothDevice device, ScatterCallback<Boolean, Void> callback) {
         mManager = new BluetoothLEManager<>(mContext);
         mManager.setConnectionObserver(this);
         mManager.setCallback(new BluetoothLEClientCallback() {
             @Override
             public void onReceivedAdvertise(AdvertisePacket packet) {
-                //TODO:2
+                //TODO
             }
         });
         mManager.connect(device)
                 .timeout(100000)
                 .retry(3,100)
-                .done(log -> Log.v(BluetoothLERadioModule.TAG,
-                        "connected to device " + device.getAddress()))
+                .fail((a, b) -> {
+                    Log.e(BluetoothLERadioModule.TAG, "failed to connect to client: " + b);
+                    callback.call(false);
+                })
+                .done(log -> {
+                    Log.v(BluetoothLERadioModule.TAG,
+                            "connected to device " + device.getAddress() + " "
+                    + log.toString());
+                    initiateTransaction(callback);
+                })
                 .enqueue();
     }
 
-    private void initiateTransaction() {
+    private void initiateTransaction(ScatterCallback<Boolean, Void> callback) {
         if (mManager.isConnected()) {
-            mManager.initiateTransaction(mPacket);
+            mManager.initiateTransaction(mPacket, callback);
+        } else {
+            callback.call(false);
         }
     }
 

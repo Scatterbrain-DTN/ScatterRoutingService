@@ -223,6 +223,11 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
         return mBinder;
     }
 
+    //TODO: remove this in production
+    public BluetoothLERadioModule getRadioModule() {
+        return mRadioModule;
+    }
+
     @Override
     public boolean onUnbind(Intent i) {
         super.onUnbind(i);

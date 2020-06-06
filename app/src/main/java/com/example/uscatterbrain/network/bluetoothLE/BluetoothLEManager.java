@@ -9,6 +9,7 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import com.example.uscatterbrain.ScatterCallback;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.bluetoothLE.callback.BluetoothLEClientCallback;
 
@@ -61,7 +62,7 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
                     .getService(BluetoothLERadioModule.SERVICE_UUID)
                     .getCharacteristic(BluetoothLERadioModule.UUID_WRITE_ADVERTISE);
 
-            setWriteCallback(mServerAdvertiseReadCharacteristic)
+            setWriteCallback(mServerAdvertiseWriteCharacteristic)
                     .with((device, data) ->
                             Log.v(BluetoothLERadioModule.TAG, "received " + data));
         }
@@ -71,12 +72,14 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
             final BluetoothGattService service = gatt.getService(BluetoothLERadioModule.SERVICE_UUID);
 
             if (service != null) {
+                Log.e(BluetoothLERadioModule.TAG, "err: service is null");
                 mAdvertiseReadCharacteristc = service.getCharacteristic(BluetoothLERadioModule.UUID_READ_ADVERTISE);
                 mAdvertiseWriteCharacteristic = service.getCharacteristic(BluetoothLERadioModule.UUID_WRITE_ADVERTISE);
             }
             if (mAdvertiseReadCharacteristc != null) {
                 final int properties = mAdvertiseReadCharacteristc.getProperties();
                 if ((properties & PROPERTY_NOTIFY) == 0) {
+                    Log.e(BluetoothLERadioModule.TAG, "read characteristic does not support notify");
                     return false;
                 }
             }
@@ -84,6 +87,7 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
             if (mAdvertiseWriteCharacteristic != null) {
                 final int properties = mAdvertiseWriteCharacteristic.getProperties();
                 if ((properties & PROPERTY_NOTIFY) == 0) {
+                    Log.e(BluetoothLERadioModule.TAG, "read characteristic does not support notify");
                     return false;
                 }
             }
@@ -96,8 +100,6 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
             // [...]
             mAdvertiseReadCharacteristc = null;
             mAdvertiseWriteCharacteristic = null;
-            mServerAdvertiseWriteCharacteristic = null;
-            mServerAdvertiseReadCharacteristic = null;
         }
 
         @Override
@@ -106,11 +108,19 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
         }
     }
 
-    public void initiateTransaction(AdvertisePacket packet) {
+    public void initiateTransaction(AdvertisePacket packet, ScatterCallback<Boolean, Void> callback) {
         waitForNotification(mAdvertiseReadCharacteristc)
                 .trigger(
                         writeCharacteristic(mAdvertiseWriteCharacteristic, packet.getBytes())
-                        .done(device -> Log.v(BluetoothLERadioModule.TAG, "sent advertisepacket"))
+                                .split()
+                                .fail((device,b) -> {
+                                    Log.e(BluetoothLERadioModule.TAG,"failed write advertisepacket");
+                                    callback.call(false);
+                                })
+                        .done(device -> {
+                            Log.v(BluetoothLERadioModule.TAG, "sent advertisepacket");
+                            callback.call(true);
+                        })
                 )
                 .with(mDataCallback)
                 .enqueue();

@@ -1,6 +1,7 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.le.AdvertiseCallback;
@@ -15,6 +16,9 @@ import android.os.Build;
 import android.os.ParcelUuid;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
+import com.example.uscatterbrain.ScatterCallback;
 import com.example.uscatterbrain.ScatterRoutingService;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
@@ -24,7 +28,10 @@ import io.reactivex.Observable;
 import io.reactivex.disposables.Disposable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final String TAG = "BluetoothLE";
@@ -36,8 +43,9 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     private AdvertisePacket mAdvertise;
     private Context mContext;
     private UUID mModuleUUID;
-    private List<UUID> mPeers;
+    private Map<BluetoothDevice, UUID> mPeers;
     private AdvertisingSet mAdvertisingSet;
+    private AdvertisingSetCallback mAdvertisingSetCallback;
     private BluetoothLeAdvertiser mAdvertiser;
     private RxBleServer mServer;
 
@@ -45,19 +53,44 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
     public BluetoothLERadioModule() {
         mContext = null;
-        mPeers = new ArrayList<>();
+        mPeers = new HashMap<>();
         mAdvertise = null;
+        mCurrentResults = new HashMap<>();
     }
 
-    //TODO: implement
+    private void processPeers(ScatterCallback<Void, Void> callback) {
+        Log.v(TAG, "processing " + mCurrentResults.size() + " peers");
+        if (mCurrentResults.size() == 0) {
+            callback.call(null);
+            return;
+        }
+        mProcessedPeerCount = 0;
+        for (Map.Entry<String, ScanResult> result : mCurrentResults.entrySet()) {
+            BluetoothLEClientObserver observer = new BluetoothLEClientObserver(mContext, mAdvertise);
+            observer.connect(result.getValue().getDevice(), success -> {
+                if (success) {
+                    Log.v(TAG, "successfully sent blockdata packet");
+                } else {
+                    Log.e(TAG, "failed to send blockdata packet");
+                }
+                mProcessedPeerCount++;
+                if (mProcessedPeerCount >= mCurrentResults.size()) {
+                    callback.call(null);
+                }
+                return null;
+            });
+
+        }
+    }
+
     @Override
     public void setAdvertisePacket(AdvertisePacket advertisePacket) {
         mAdvertise = advertisePacket;
     }
 
     @Override
-    public void setOnPeersChanged(PeersChangedCallback callback) {
-
+    public void setOnPeersChanged(ScatterCallback<List<UUID>, Void> callback) {
+        mPeersChangedCallback = callback;
     }
 
     @Override
@@ -143,7 +176,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                     .setIncludeTxPowerLevel(false)
                     .addServiceUuid(new ParcelUuid(BluetoothLERadioModule.SERVICE_UUID))
                     .build();
-            AdvertisingSetCallback callback = new AdvertisingSetCallback() {
+            mAdvertisingSetCallback = new AdvertisingSetCallback() {
                 @Override
                 public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
                     super.onAdvertisingSetStarted(advertisingSet, txPower, status);
@@ -152,28 +185,121 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             };
 
             mAdvertiser.startAdvertisingSet(parameters, addata, null,
-                    null, null, callback);
+                    null, null, mAdvertisingSetCallback);
 
         } else {
-            Log.e(TAG, "err: could not start LE advertise due to wrong SDK version");
+            throw new AdvertiseFailedException("wrong sdk version");
         }
     }
 
-    public void stopLEAdvertise() {
+    @Override
+    public void stopAdvertise() throws AdvertiseFailedException {
         Log.v(TAG, "stopping LE advertise");
-        AdvertiseCallback callback = new AdvertiseCallback() {
+
+        if (mAdvertisingSetCallback == null) {
+            throw new AdvertiseFailedException("already stopped");
+        }
+
+        mAdvertiser.stopAdvertisingSet(mAdvertisingSetCallback);
+    }
+
+    @Override
+    public void startDiscover(discoveryOptions opts) {
+        if (mScanCallback != null) {
+            return;
+        }
+
+        if (opts != discoveryOptions.OPT_DISCOVER_ONCE && opts != discoveryOptions.OPT_DISCOVER_FOREVER) {
+            return; //TODO: handle this
+        }
+
+        mCurrentResults.clear();
+
+        mScanCallback = new ScanCallback() {
             @Override
-            public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-                super.onStartSuccess(settingsInEffect);
+            public void onBatchScanResults(@NonNull List<ScanResult> results) {
+                super.onBatchScanResults(results);
+
+                for( ScanResult result : results) {
+                    mCurrentResults.put(result.getDevice().getAddress(), result);
+                }
+
+                stopDiscover();
+                processPeers(key -> {
+                    Log.v(TAG, "finished processing peers");
+                    List<UUID> list = new ArrayList<>(); //TODO: remove placeholder
+                    for (int x=0;x<mProcessedPeerCount;x++) {
+                        list.add(UUID.randomUUID());
+                    }
+                    mPeersChangedCallback.call(list);
+                    if (opts == discoveryOptions.OPT_DISCOVER_FOREVER) {
+                        startDiscover(opts);
+                    }
+                    return null;
+                });
             }
 
             @Override
-            public void onStartFailure(int errorCode) {
-                super.onStartFailure(errorCode);
+            public void onScanFailed(int errorCode) {
+                super.onScanFailed(errorCode);
+                mPeersChangedCallback.call(null);
             }
         };
 
-        mAdvertiser.stopAdvertising(callback);
+        BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
+        ScanSettings settings = new ScanSettings.Builder()
+                .setLegacy(false)
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setReportDelay(1000) //TODO: make configurable
+                .setUseHardwareBatchingIfSupported(true)
+                .build();
+
+        List<ScanFilter> filters = new ArrayList<>();
+        filters.add(new ScanFilter.Builder().setServiceUuid(new ParcelUuid(SERVICE_UUID)).build());
+        scanner.startScan(filters, settings, mScanCallback);
     }
+
+    @Override
+    public void stopDiscover(){
+        if (mScanCallback == null) {
+            return;
+        }
+        BluetoothLeScannerCompat scanner = BluetoothLeScannerCompat.getScanner();
+        scanner.stopScan(mScanCallback);
+    }
+
+    @Override
+    public UUID register(ScatterRoutingService service) {
+        Log.v(BluetoothLERadioModule.TAG, "registered bluetooth LE radio module");
+        this.mContext = service;
+        mModuleUUID = UUID.randomUUID();
+        mAdvertiser = BluetoothAdapter.getDefaultAdapter().getBluetoothLeAdvertiser();
+        mServerObserver = new BluetoothLEServerObserver(mContext);
+        if (mServerObserver.startServer()) {
+            Log.v(TAG, "successfully started GATT server");
+        }
+        try {
+            startAdvertise();
+        } catch (AdvertiseFailedException e) {
+            Log.e(TAG, "failed to advertise");
+        }
+        return mModuleUUID;
+    }
+
+    @Override
+    public List<UUID> getPeers() {
+        return new ArrayList<UUID>(mPeers.values());
+    }
+
+    @Override
+    public UUID getModuleID() {
+        return mModuleUUID;
+    }
+
+    @Override
+    public boolean isRegistered() {
+        return mModuleUUID != null;
+    }
+
 
 }
