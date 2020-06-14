@@ -92,10 +92,6 @@ public class BluetoothLEServerObserver implements ServerObserver, ConnectionObse
     }
 
     public boolean startServer() {
-        mClientManager = new BluetoothLEManager<>(mContext);
-        mClientManager.setConnectionObserver(this);
-        mClientManager.setBondingObserver(this);
-        mClientManager.useServer(mManager);
         return mManager.open();
     }
 

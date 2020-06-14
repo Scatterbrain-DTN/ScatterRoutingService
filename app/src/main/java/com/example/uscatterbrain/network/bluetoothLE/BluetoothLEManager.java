@@ -14,6 +14,7 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.bluetoothLE.callback.BluetoothLEClientCallback;
 
 import no.nordicsemi.android.ble.BleManager;
+import no.nordicsemi.android.ble.PhyRequest;
 
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_NOTIFY;
 
@@ -36,6 +37,11 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
 
     public void setCallback(@NonNull T callback) {
         mDataCallback = callback;
+    }
+
+    @Override
+    public void log(int priority, @NonNull String message) {
+        Log.println(priority, BluetoothLERadioModule.TAG, message);
     }
 
     /* BleManager overrides */
@@ -67,8 +73,10 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
                             Log.v(BluetoothLERadioModule.TAG, "received " + data));
         }
 
+
         @Override
         protected boolean isRequiredServiceSupported(@NonNull BluetoothGatt gatt) {
+            Log.v(BluetoothLERadioModule.TAG, "isRequiredServiceSupported");
             final BluetoothGattService service = gatt.getService(BluetoothLERadioModule.SERVICE_UUID);
 
             if (service != null) {
@@ -91,12 +99,32 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
                     return false;
                 }
             }
+            if (mAdvertiseWriteCharacteristic== null || mAdvertiseReadCharacteristc == null){
+                Log.e(BluetoothLERadioModule.TAG, "error characteristics are null");
+                return false;
+            } else {
+                return true;
+            }
+        }
 
-            return mAdvertiseReadCharacteristc != null && mAdvertiseWriteCharacteristic != null;
+        @Override
+        protected boolean isOptionalServiceSupported(@NonNull BluetoothGatt gatt) {
+            return super.isOptionalServiceSupported(gatt);
+        }
+
+        @Override
+        protected void onDeviceReady() {
+            super.onDeviceReady();
+        }
+
+        @Override
+        protected void onManagerReady() {
+            super.onManagerReady();
         }
 
         @Override
         protected void onDeviceDisconnected() {
+            Log.v(BluetoothLERadioModule.TAG, "onDeviceDisconected");
             // [...]
             mAdvertiseReadCharacteristc = null;
             mAdvertiseWriteCharacteristic = null;
@@ -104,7 +132,18 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
 
         @Override
         protected void initialize() {
-            super.initialize();
+            Log.v(BluetoothLERadioModule.TAG, "client manager initialize()");
+            // You may enqueue multiple operations. A queue ensures that all operations are
+            // performed one after another, but it is not required.
+            beginAtomicRequestQueue()
+                    .add(setPreferredPhy(PhyRequest.PHY_LE_1M_MASK , PhyRequest.PHY_LE_1M_MASK, PhyRequest.PHY_OPTION_NO_PREFERRED)
+                            .fail((device, status) -> log(Log.WARN, "Requested PHY not supported: " + status)))
+                    .add(enableNotifications(mAdvertiseWriteCharacteristic))
+                    .add(enableNotifications(mAdvertiseReadCharacteristc))
+                    .add(enableNotifications(mServerAdvertiseReadCharacteristic))
+                    .add(enableNotifications(mServerAdvertiseWriteCharacteristic))
+                    .done(device -> log(Log.INFO, "Target initialized"))
+                    .enqueue();
         }
     }
 

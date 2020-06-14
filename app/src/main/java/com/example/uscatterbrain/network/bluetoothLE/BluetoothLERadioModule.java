@@ -2,8 +2,11 @@ package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
@@ -45,7 +48,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     private UUID mModuleUUID;
     private Map<BluetoothDevice, UUID> mPeers;
     private AdvertisingSet mAdvertisingSet;
-    private AdvertisingSetCallback mAdvertisingSetCallback;
+    private AdvertiseCallback mAdvertiseCallback;
     private BluetoothLeAdvertiser mAdvertiser;
     private RxBleServer mServer;
 
@@ -64,10 +67,11 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             callback.call(null);
             return;
         }
+        mServerObserver.stopServer();
         mProcessedPeerCount = 0;
         for (Map.Entry<String, ScanResult> result : mCurrentResults.entrySet()) {
-            BluetoothLEClientObserver observer = new BluetoothLEClientObserver(mContext, mAdvertise);
-            observer.connect(result.getValue().getDevice(), success -> {
+            Log.v(TAG, "processing result " + result.getKey());
+            mClientObserver.connect(result.getValue().getDevice(), success -> {
                 if (success) {
                     Log.v(TAG, "successfully sent blockdata packet");
                 } else {
@@ -77,6 +81,17 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                 if (mProcessedPeerCount >= mCurrentResults.size()) {
                     callback.call(null);
                 }
+                /*
+                if (!mServerObserver.startServer()){
+                    Log.e(TAG, "failed to start gatt server");
+                }
+                 */
+
+                final BluetoothManager bm = (BluetoothManager) mContext.getSystemService(Context.BLUETOOTH_SERVICE);
+
+                mServerObserver.startServer();
+
+
                 return null;
             });
 
@@ -162,13 +177,14 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                 BluetoothGattCharacteristic.PERMISSION_READ);
         service.addCharacteristic(ssidCharacteristic);
 
+        Log.v(TAG, "Starting LE advertise");
         if(Build.VERSION.SDK_INT >= 26) {
-            AdvertisingSetParameters parameters = (new AdvertisingSetParameters.Builder())
-                    .setLegacyMode(true) // True by default, but set here as a reminder.
+
+            AdvertiseSettings settings = new AdvertiseSettings.Builder()
+                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
                     .setConnectable(true)
-                    .setScannable(true)
-                    .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                    .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                    .setTimeout(0)
+                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_LOW)
                     .build();
 
             AdvertiseData addata = new AdvertiseData.Builder()
@@ -176,7 +192,17 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                     .setIncludeTxPowerLevel(false)
                     .addServiceUuid(new ParcelUuid(BluetoothLERadioModule.SERVICE_UUID))
                     .build();
-            mAdvertisingSetCallback = new AdvertisingSetCallback() {
+
+            mAdvertiseCallback = new AdvertiseCallback() {
+                @Override
+                public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+                    super.onStartSuccess(settingsInEffect);
+                    Log.v(TAG, "successfully started advertise");
+
+                    final BluetoothManager bm = (BluetoothManager) mContext.getSystemService(Context.BLUETOOTH_SERVICE);
+                    mServerObserver.startServer();
+                }
+
                 @Override
                 public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
                     super.onAdvertisingSetStarted(advertisingSet, txPower, status);
@@ -184,8 +210,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                 }
             };
 
-            mAdvertiser.startAdvertisingSet(parameters, addata, null,
-                    null, null, mAdvertisingSetCallback);
+            mAdvertiser.startAdvertising(settings, addata, mAdvertiseCallback);
 
         } else {
             throw new AdvertiseFailedException("wrong sdk version");
@@ -196,11 +221,14 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     public void stopAdvertise() throws AdvertiseFailedException {
         Log.v(TAG, "stopping LE advertise");
 
-        if (mAdvertisingSetCallback == null) {
+        if (null == null) {
+            return;
+        }
+        if (mAdvertiseCallback == null) {
             throw new AdvertiseFailedException("already stopped");
         }
 
-        mAdvertiser.stopAdvertisingSet(mAdvertisingSetCallback);
+        mAdvertiser.stopAdvertising(mAdvertiseCallback);
     }
 
     @Override
@@ -272,12 +300,12 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     public UUID register(ScatterRoutingService service) {
         Log.v(BluetoothLERadioModule.TAG, "registered bluetooth LE radio module");
         this.mContext = service;
+        mClientObserver = new BluetoothLEClientObserver(mContext, mAdvertise);
+
         mModuleUUID = UUID.randomUUID();
         mAdvertiser = BluetoothAdapter.getDefaultAdapter().getBluetoothLeAdvertiser();
         mServerObserver = new BluetoothLEServerObserver(mContext);
-        if (mServerObserver.startServer()) {
-            Log.v(TAG, "successfully started GATT server");
-        }
+        mServerObserver.startServer(); 
         try {
             startAdvertise();
         } catch (AdvertiseFailedException e) {

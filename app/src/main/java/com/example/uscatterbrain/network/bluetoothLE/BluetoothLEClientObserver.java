@@ -1,6 +1,8 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
 import android.content.Context;
 import android.util.Log;
 
@@ -12,6 +14,7 @@ import com.example.uscatterbrain.network.bluetoothLE.callback.BluetoothLEClientC
 
 import java.io.Closeable;
 
+import no.nordicsemi.android.ble.PhyRequest;
 import no.nordicsemi.android.ble.observer.BondingObserver;
 import no.nordicsemi.android.ble.observer.ConnectionObserver;
 
@@ -65,15 +68,18 @@ public class BluetoothLEClientObserver implements ConnectionObserver, Closeable 
     public void connect(@NonNull final BluetoothDevice device, ScatterCallback<Boolean, Void> callback) {
         mManager = new BluetoothLEManager<>(mContext);
         mManager.setConnectionObserver(this);
-        mManager.setCallback(new BluetoothLEClientCallback() {
+        device.connectGatt(mContext, true, new BluetoothGattCallback() {
             @Override
-            public void onReceivedAdvertise(AdvertisePacket packet) {
-                //TODO
+            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                super.onConnectionStateChange(gatt, status, newState);
+                Log.v("debug", "connection state changed: " + newState);
             }
         });
+        /*
         mManager.connect(device)
-                .timeout(100000)
-                .retry(3,100)
+                .usePreferredPhy(PhyRequest.PHY_LE_1M_MASK)
+                .retry(3,10000)
+                .useAutoConnect(true)
                 .fail((a, b) -> {
                     Log.e(BluetoothLERadioModule.TAG, "failed to connect to client: " + b);
                     callback.call(false);
@@ -85,6 +91,7 @@ public class BluetoothLEClientObserver implements ConnectionObserver, Closeable 
                     initiateTransaction(callback);
                 })
                 .enqueue();
+         */
     }
 
     private void initiateTransaction(ScatterCallback<Boolean, Void> callback) {
