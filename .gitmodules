@@ -1,0 +1,3 @@
+[submodule "Android-BLE-Library"]
+	path = Android-BLE-Library
+	url = git@github.com:gnu3ra/Android-BLE-Library.git
