@@ -68,18 +68,10 @@ public class BluetoothLEClientObserver implements ConnectionObserver, Closeable 
     public void connect(@NonNull final BluetoothDevice device, ScatterCallback<Boolean, Void> callback) {
         mManager = new BluetoothLEManager<>(mContext);
         mManager.setConnectionObserver(this);
-        device.connectGatt(mContext, true, new BluetoothGattCallback() {
-            @Override
-            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-                super.onConnectionStateChange(gatt, status, newState);
-                Log.v("debug", "connection state changed: " + newState);
-            }
-        });
-        /*
         mManager.connect(device)
-                .usePreferredPhy(PhyRequest.PHY_LE_1M_MASK)
-                .retry(3,10000)
-                .useAutoConnect(true)
+                .timeout(1000000)
+                .retry(3,300)
+                .useAutoConnect(false)
                 .fail((a, b) -> {
                     Log.e(BluetoothLERadioModule.TAG, "failed to connect to client: " + b);
                     callback.call(false);
@@ -91,7 +83,6 @@ public class BluetoothLEClientObserver implements ConnectionObserver, Closeable 
                     initiateTransaction(callback);
                 })
                 .enqueue();
-         */
     }
 
     private void initiateTransaction(ScatterCallback<Boolean, Void> callback) {

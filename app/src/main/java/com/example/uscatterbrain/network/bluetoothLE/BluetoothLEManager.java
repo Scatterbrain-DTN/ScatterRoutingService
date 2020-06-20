@@ -59,6 +59,7 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
 
         @Override
         protected void onServerReady(@NonNull final BluetoothGattServer server) {
+            super.onServerReady(server);
             Log.v(BluetoothLERadioModule.TAG, "client onServerReady");
             // Obtain your server attributes.
             mServerAdvertiseReadCharacteristic = server
@@ -108,21 +109,6 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
         }
 
         @Override
-        protected boolean isOptionalServiceSupported(@NonNull BluetoothGatt gatt) {
-            return super.isOptionalServiceSupported(gatt);
-        }
-
-        @Override
-        protected void onDeviceReady() {
-            super.onDeviceReady();
-        }
-
-        @Override
-        protected void onManagerReady() {
-            super.onManagerReady();
-        }
-
-        @Override
         protected void onDeviceDisconnected() {
             Log.v(BluetoothLERadioModule.TAG, "onDeviceDisconected");
             // [...]
@@ -132,6 +118,7 @@ public class BluetoothLEManager<T extends BluetoothLEClientCallback> extends Ble
 
         @Override
         protected void initialize() {
+            super.initialize();
             Log.v(BluetoothLERadioModule.TAG, "client manager initialize()");
             // You may enqueue multiple operations. A queue ensures that all operations are
             // performed one after another, but it is not required.

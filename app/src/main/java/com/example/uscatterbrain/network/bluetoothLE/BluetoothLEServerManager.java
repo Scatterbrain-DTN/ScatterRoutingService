@@ -9,6 +9,7 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import no.nordicsemi.android.ble.BleServerManager;
@@ -28,13 +29,12 @@ public class BluetoothLEServerManager extends BleServerManager {
     @NonNull
     @Override
     protected List<BluetoothGattService> initializeServer() {
-        return Arrays.asList(
+        return Collections.singletonList(
                 service(SERVICE_UUID,
                         characteristic(UUID_READ_ADVERTISE,
                                 BluetoothGattCharacteristic.PROPERTY_READ // properties
                                         | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                                 BluetoothGattCharacteristic.PERMISSION_READ, // permissions
-                                (byte[]) null, // initial data
                                 cccd(),
                                 reliableWrite(),
                                 description("Read advertise packet", false) // descriptors
@@ -43,7 +43,6 @@ public class BluetoothLEServerManager extends BleServerManager {
                                 BluetoothGattCharacteristic.PROPERTY_READ
                                         | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                                 BluetoothGattCharacteristic.PERMISSION_READ,
-                                (byte[]) null,
                                 cccd(),
                                 reliableWrite(),
                                 description("read upgrade packet", false)
@@ -52,7 +51,6 @@ public class BluetoothLEServerManager extends BleServerManager {
                                 BluetoothGattCharacteristic.PROPERTY_WRITE
                                         | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                                 BluetoothGattCharacteristic.PERMISSION_WRITE,
-                                (byte[]) null,
                                 cccd(),
                                 reliableWrite(),
                                 description("write advertise packet", false)
@@ -61,7 +59,6 @@ public class BluetoothLEServerManager extends BleServerManager {
                                 BluetoothGattCharacteristic.PROPERTY_WRITE
                                         | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
                                 BluetoothGattCharacteristic.PERMISSION_WRITE,
-                                (byte[]) null,
                                 cccd(),
                                 reliableWrite(),
                                 description("write upgrade packet", false))
