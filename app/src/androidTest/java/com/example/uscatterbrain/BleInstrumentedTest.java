@@ -6,10 +6,6 @@ import android.os.IBinder;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.rule.ServiceTestRule;
 
-import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEManager;
-import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEServerManager;
-import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEServerObserver;
-
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -36,7 +32,6 @@ public class BleInstrumentedTest {
     public void gattServerTest() throws TimeoutException {
         ScatterRoutingService service = getService();
         assertThat(service != null, is(true));
-        BluetoothLEServerObserver observer = new BluetoothLEServerObserver(service);
 
     }
 }

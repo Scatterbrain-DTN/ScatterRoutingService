@@ -18,14 +18,14 @@ import android.util.Log;
 import com.example.uscatterbrain.ScatterRoutingService;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
-import com.example.uscatterbrain.network.bluetoothLE.callback.BluetoothLEClientCallback;
+import com.polidea.rxandroidble2.RxBleServer;
+import com.polidea.rxandroidble2.ServerConfig;
+import io.reactivex.Observable;
+import io.reactivex.disposables.Disposable;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-
-import no.nordicsemi.android.ble.BleManager;
-
 public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final String TAG = "BluetoothLE";
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
@@ -39,8 +39,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     private List<UUID> mPeers;
     private AdvertisingSet mAdvertisingSet;
     private BluetoothLeAdvertiser mAdvertiser;
-    private BluetoothLEClientObserver mClientObserver;
-    private BluetoothLEServerObserver mServerObserver;
+    private RxBleServer mServer;
+
 
 
     public BluetoothLERadioModule() {
@@ -90,8 +90,12 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         this.mContext = service;
         mModuleUUID = UUID.randomUUID();
         mAdvertiser = BluetoothAdapter.getDefaultAdapter().getBluetoothLeAdvertiser();
-        mServerObserver = new BluetoothLEServerObserver(mContext);
-        mClientObserver = new BluetoothLEClientObserver(mContext,service.getPacket());
+        mServer = RxBleServer.create(mContext);
+        ServerConfig config = new ServerConfig();
+        config.addService(new BluetoothGattService(UUID.randomUUID(), BluetoothGattService.SERVICE_TYPE_PRIMARY));
+        Disposable flowDisplosable = mServer.openServer(config).subscribe(conection -> {
+            Log.v(TAG, "device connected " + conection.getDevice().getAddress());
+        });
         return mModuleUUID;
     }
 
