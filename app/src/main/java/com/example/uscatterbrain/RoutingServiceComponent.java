@@ -11,6 +11,8 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
 import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
+import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
+import com.example.uscatterbrain.scheduler.ScatterbrainSchedulerImpl;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -46,6 +48,9 @@ public interface RoutingServiceComponent {
             return Room.databaseBuilder(ctx, Datastore.class, ScatterbrainDatastore.DATABASE_NAME)
                     .build();
         }
+
+        @Binds
+        abstract ScatterbrainScheduler bindScatterbrainScheduler(ScatterbrainSchedulerImpl impl);
 
         @Binds
         abstract ScatterRoutingService bindScatterRoutingService(ScatterRoutingServiceImpl impl);
