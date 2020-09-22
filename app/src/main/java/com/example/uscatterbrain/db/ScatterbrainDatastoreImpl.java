@@ -5,7 +5,6 @@ import android.util.Log;
 
 import androidx.lifecycle.LiveData;
 
-import com.example.uscatterbrain.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.IdentityRelations;

@@ -1,4 +1,4 @@
-package com.example.uscatterbrain;
+package com.example.uscatterbrain.db;
 
 import androidx.lifecycle.LiveData;
 

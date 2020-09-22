@@ -7,6 +7,7 @@ import androidx.room.Room;
 
 import com.example.uscatterbrain.API.ScatterRoutingService;
 import com.example.uscatterbrain.db.Datastore;
+import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
 import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
