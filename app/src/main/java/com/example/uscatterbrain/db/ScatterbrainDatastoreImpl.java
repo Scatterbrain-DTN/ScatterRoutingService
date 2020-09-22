@@ -4,8 +4,8 @@ import android.content.Context;
 import android.util.Log;
 
 import androidx.lifecycle.LiveData;
-import androidx.room.Room;
 
+import com.example.uscatterbrain.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.IdentityRelations;
@@ -26,42 +26,29 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 
+import javax.inject.Inject;
+
 /**
  * Interface to the androidx room backed datastore
  * used for storing messages, identities, and other metadata.
  */
-public class ScatterbrainDatastore {
+public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     private Datastore mDatastore;
     private Executor executor;
     private Context ctx;
-    private static ScatterbrainDatastore singleton = null;
-    public static final String DATABASE_NAME = "scatterdb";
     /**
      * constructor
      * @param ctx  application or service context
      */
-    public ScatterbrainDatastore(Context ctx) {
-        mDatastore = Room.databaseBuilder(ctx, Datastore.class, DATABASE_NAME).build();
+    @Inject
+    public ScatterbrainDatastoreImpl(
+            Context ctx,
+            Datastore datastore
+    ) {
+        mDatastore = datastore;
         executor = Executors.newSingleThreadExecutor();
         this.ctx = ctx;
-    }
-
-    public static ScatterbrainDatastore getInstance() {
-        if(singleton == null)
-            return null;
-        else
-            return singleton;
-    }
-
-
-    /**
-     * initialize the singleton
-     * @param ctx application or service context
-     */
-    public static void initialize(Context ctx) {
-        if(singleton == null)
-            singleton = new ScatterbrainDatastore(ctx);
     }
 
     /**
@@ -69,6 +56,7 @@ public class ScatterbrainDatastore {
      * @param message room entity for message to insert
      * @return primary keys of message inserted
      */
+    @Override
     public Long insertMessagesSync(ScatterMessage message) {
         Long id = this.mDatastore.scatterMessageDao()._insertMessages(message);
 
@@ -129,6 +117,7 @@ public class ScatterbrainDatastore {
      * @throws DatastoreInsertException
      * @return future returning list of ids inserted
      */
+    @Override
     public FutureTask<List<Long>> insertMessages(List<ScatterMessage> messages) throws DatastoreInsertException {
         for(ScatterMessage message : messages) {
             if (message.getIdentity() == null || message.getHashes() == null) {
@@ -152,6 +141,7 @@ public class ScatterbrainDatastore {
      * @throws DatastoreInsertException thrown if inner classes are null
      * @return future returning id of row inserted
      */
+    @Override
     public FutureTask<Long> insertMessage(ScatterMessage message) throws DatastoreInsertException {
         if(message.getIdentity() == null || message.getHashes() == null) {
             throw new DatastoreInsertException();
@@ -170,6 +160,7 @@ public class ScatterbrainDatastore {
      * @param identities list of room entities to insert
      * @return future returning list of row ids inserted
      */
+    @Override
     public FutureTask<List<Long>> insertIdentity(Identity[] identities) {
         FutureTask<List<Long>> result = new FutureTask<>(() -> mDatastore.identityDao().insertAll(identities));
         executor.execute(result);
@@ -183,6 +174,7 @@ public class ScatterbrainDatastore {
      * @param identity room entity to insert
      * @return future returning row id inserted
      */
+    @Override
     public FutureTask<Long> insertIdentity(Identity identity) {
         FutureTask<Long> result = new FutureTask<>(() -> {
             List<Long> ids = mDatastore.identityDao().insertAll(identity);
@@ -199,6 +191,7 @@ public class ScatterbrainDatastore {
      * @param count how many messages to retrieve
      * @return livedata representation of list of messages
      */
+    @Override
     public LiveData<List<ScatterMessage>> getTopRandomMessages(int count) {
         return this.mDatastore.scatterMessageDao().getTopRandom(count);
     }
@@ -207,6 +200,7 @@ public class ScatterbrainDatastore {
      * gets a list of all the files in the datastore.
      * @return list of DiskFiles objects
      */
+    @Override
     public LiveData<List<String>> getAllFiles() {
         return this.mDatastore.scatterMessageDao().getAllFiles();
     }
@@ -217,10 +211,12 @@ public class ScatterbrainDatastore {
      * @param id room entity to search by
      * @return livedata representation of list of messages
      */
+    @Override
     public LiveData<List<ScatterMessage>> getMessagesByIdentity(Identity id) {
         return this.mDatastore.scatterMessageDao().getByIdentity(id.getIdentityID());
     }
 
+    @Override
     public List<FutureTask<ScatterDataPacketInsertResult<Long>>> insertDataPacket(List<ScatterDataPacket> packets) {
         List<FutureTask<ScatterDataPacketInsertResult<Long>>> finalResult = new ArrayList<>();
         for (ScatterDataPacket dataPacket : packets) {
@@ -229,6 +225,7 @@ public class ScatterbrainDatastore {
         return finalResult;
      }
 
+     @Override
      public FutureTask<ScatterDataPacketInsertResult<List<Long>>> insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity) {
         FutureTask<ScatterDataPacketInsertResult<List<Long>>> result = new FutureTask<>(() -> {
             List<Identity> idlist = new ArrayList<>();
@@ -265,6 +262,7 @@ public class ScatterbrainDatastore {
         return result;
      }
 
+     @Override
      public FutureTask<ScatterDataPacketInsertResult<Long>> insertDataPacket(ScatterDataPacket packet) {
         FutureTask<ScatterDataPacketInsertResult<Long>> result = new FutureTask<>(() -> {
             if(!packet.isHashValid()) {
@@ -340,6 +338,7 @@ public class ScatterbrainDatastore {
         return result;
      }
 
+     @Override
      public FutureTask<List<ScatterDataPacket>> getDataPacket(List<Long> id) {
         FutureTask<List<ScatterDataPacket>> result = new FutureTask<>(() -> {
             List<ScatterMessage> messages = mDatastore.scatterMessageDao().getByIDSync(id);
@@ -369,36 +368,8 @@ public class ScatterbrainDatastore {
     /**
      * Clears the datastore, dropping all tables
      */
+    @Override
     public void clear() {
         this.mDatastore.clearAllTables();
-    }
-
-    public enum DatastoreSuccessCode {
-        DATASTORE_SUCCESS_CODE_SUCCESS,
-        DATASTORE_SUCCESS_CODE_FAILURE
-    }
-
-    public static class ScatterDataPacketInsertResult<T> {
-        private T scatterMessageId;
-        private DatastoreSuccessCode successCode;
-
-        private ScatterDataPacketInsertResult(T messageid, DatastoreSuccessCode code) {
-            this.scatterMessageId = messageid;
-            this.successCode = code;
-        }
-
-        public T getScatterMessageId() {
-            return scatterMessageId;
-        }
-
-        public DatastoreSuccessCode getSuccessCode() {
-            return successCode;
-        }
-    }
-
-    public static class DatastoreInsertException extends Exception {
-        public DatastoreInsertException() {
-            super();
-        }
     }
 }

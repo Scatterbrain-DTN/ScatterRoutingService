@@ -11,7 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.rule.ServiceTestRule;
 
-import com.example.uscatterbrain.db.ScatterbrainDatastore;
+import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.db.file.FileStore;
@@ -59,10 +59,10 @@ public class DatastoreInstrumentedTest {
         }
     }
 
-    public ScatterRoutingService getService() throws TimeoutException {
-        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingService.class);
+    public ScatterRoutingServiceImpl getService() throws TimeoutException {
+        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingServiceImpl.class);
         IBinder binder = serviceRule.bindService(bindIntent);
-        return ((ScatterRoutingService.ScatterBinder)binder).getService();
+        return ((ScatterRoutingServiceImpl.ScatterBinder)binder).getService();
     }
 
     public ScatterMessage defaultMessage() {
@@ -85,7 +85,7 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void publicApiInsertsMessage() throws ExecutionException, InterruptedException {
-        ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
         datastore.clear();
         List<ScatterMessage> sms = defaultMessages(1);
 
@@ -100,29 +100,29 @@ public class DatastoreInstrumentedTest {
             blockForThread();
 
         }
-        catch(ScatterbrainDatastore.DatastoreInsertException e) {
+        catch(ScatterbrainDatastoreImpl.DatastoreInsertException e) {
             Assert.fail();
         }
     }
 
     @Test
     public void publicApiQueryMessageByIdentity() throws InterruptedException, ExecutionException {
-        ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
         datastore.clear();
         ScatterMessage sm = defaultMessage();
         try {
             Future<Long> result = datastore.insertMessage(sm);
             Long rowids = result.get();
             assertThat(rowids, not(0L));
-        } catch (ScatterbrainDatastore.DatastoreInsertException e) {
+        } catch (ScatterbrainDatastoreImpl.DatastoreInsertException e) {
             Assert.fail();
         }
     }
 
     @Test
     public void topRandomMessagesWork() throws TimeoutException, InterruptedException, ExecutionException {
-        ScatterRoutingService service = getService();
-        ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+        ScatterRoutingServiceImpl service = getService();
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
         datastore.clear();
         List<ScatterMessage> messages = defaultMessages(20);
         try {
@@ -138,15 +138,15 @@ public class DatastoreInstrumentedTest {
                 });
             });
             blockForThread();
-        } catch(ScatterbrainDatastore.DatastoreInsertException e) {
+        } catch(ScatterbrainDatastoreImpl.DatastoreInsertException e) {
             Assert.fail();
         }
     }
 
     @Test
     public void getAllFilesWorks() throws TimeoutException, ExecutionException, InterruptedException {
-        ScatterRoutingService service = getService();
-        ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+        ScatterRoutingServiceImpl service = getService();
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
         datastore.clear();
         List<ScatterMessage> messages = defaultMessages(30);
         try {
@@ -160,14 +160,14 @@ public class DatastoreInstrumentedTest {
                 });
             });
             blockForThread();
-        } catch (ScatterbrainDatastore.DatastoreInsertException e) {
+        } catch (ScatterbrainDatastoreImpl.DatastoreInsertException e) {
             Assert.fail();
         }
     }
 
     @Test
     public void fileStoreAddWorks() throws TimeoutException, InterruptedException , ExecutionException {
-        ScatterRoutingService service = getService();
+        ScatterRoutingServiceImpl service = getService();
         FileStore store = FileStore.getFileStore();
         byte[] data = new byte[100];
         Random r = new Random();
@@ -199,7 +199,7 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void hashingFromDiskWorks() throws TimeoutException, InterruptedException, ExecutionException {
-        ScatterRoutingService service = getService();
+        ScatterRoutingServiceImpl service = getService();
         FileStore store = FileStore.getFileStore();
         byte[] data = new byte[4096*10];
         Random r = new Random();
@@ -221,9 +221,9 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void scatterDataPacketInsertWorks() throws TimeoutException, InterruptedException, ExecutionException, NullPointerException {
-        ScatterRoutingService service = getService();
+        ScatterRoutingServiceImpl service = getService();
         FileStore store = FileStore.getFileStore();
-        ScatterbrainDatastore datastore = new ScatterbrainDatastore(ApplicationProvider.getApplicationContext());
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
 
         byte[] data = new byte[4096*10];
         Random r = new Random();
@@ -252,8 +252,8 @@ public class DatastoreInstrumentedTest {
         LibsodiumInterface.getSodium().crypto_sign_keypair(pubkey,secretkey);
         bd.getHeader().signEd25519(secretkey);
 
-        FutureTask<ScatterbrainDatastore.ScatterDataPacketInsertResult<Long>> res = datastore.insertDataPacket(bd);
-        assertThat(res.get().getSuccessCode(), is(ScatterbrainDatastore.DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS));
+        FutureTask<ScatterbrainDatastoreImpl.ScatterDataPacketInsertResult<Long>> res = datastore.insertDataPacket(bd);
+        assertThat(res.get().getSuccessCode(), is(ScatterbrainDatastoreImpl.DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS));
 
         List<Long> ids = new ArrayList<>();
         ids.add(res.get().getScatterMessageId());
@@ -280,8 +280,8 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void datastoreIdentityWorks() throws TimeoutException, ExecutionException, InterruptedException {
-        ScatterRoutingService service = getService();
-        ScatterbrainDatastore datastore = new ScatterbrainDatastore(service);
+        ScatterRoutingServiceImpl service = getService();
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(service);
         datastore.clear();
         com.example.uscatterbrain.identity.Identity id = com.example.uscatterbrain.identity.Identity.newBuilder(service)
                 .setName("Menhera Chan")
@@ -291,10 +291,10 @@ public class DatastoreInstrumentedTest {
         List<com.example.uscatterbrain.identity.Identity> identityList = new ArrayList<>();
         identityList.add(id);
 
-        FutureTask<ScatterbrainDatastore.ScatterDataPacketInsertResult<List<Long>>> res =
+        FutureTask<ScatterbrainDatastoreImpl.ScatterDataPacketInsertResult<List<Long>>> res =
                 datastore.insertIdentity(identityList);
 
-        assertThat(res.get().getSuccessCode(), is(ScatterbrainDatastore.DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS));
+        assertThat(res.get().getSuccessCode(), is(ScatterbrainDatastoreImpl.DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS));
         assertThat(res.get().getScatterMessageId().size(), is(1));
 
         FutureTask<List<com.example.uscatterbrain.identity.Identity>> newid =

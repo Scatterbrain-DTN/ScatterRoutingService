@@ -22,15 +22,15 @@ public class BleInstrumentedTest {
     @Rule
     public final ServiceTestRule serviceRule = new ServiceTestRule();
 
-    public ScatterRoutingService getService() throws TimeoutException {
-        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingService.class);
+    public ScatterRoutingServiceImpl getService() throws TimeoutException {
+        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingServiceImpl.class);
         IBinder binder = serviceRule.bindService(bindIntent);
-        return ((ScatterRoutingService.ScatterBinder)binder).getService();
+        return ((ScatterRoutingServiceImpl.ScatterBinder)binder).getService();
     }
 
     @Test
     public void gattServerTest() throws TimeoutException {
-        ScatterRoutingService service = getService();
+        ScatterRoutingServiceImpl service = getService();
         assertThat(service != null, is(true));
 
     }

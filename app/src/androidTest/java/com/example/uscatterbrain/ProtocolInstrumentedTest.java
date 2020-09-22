@@ -64,10 +64,10 @@ public class ProtocolInstrumentedTest {
         }
     }
 
-    public ScatterRoutingService getService() throws TimeoutException {
-        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingService.class);
+    public ScatterRoutingServiceImpl getService() throws TimeoutException {
+        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingServiceImpl.class);
         IBinder binder = serviceRule.bindService(bindIntent);
-        return ((ScatterRoutingService.ScatterBinder)binder).getService();
+        return ((ScatterRoutingServiceImpl.ScatterBinder)binder).getService();
     }
 
     public ScatterMessage defaultMessage() {
@@ -253,7 +253,7 @@ public class ProtocolInstrumentedTest {
         byte[] data = new byte[4096*20];
         Random r = new Random();
         r.nextBytes(data);
-        ScatterRoutingService service = getService();
+        ScatterRoutingServiceImpl service = getService();
         FileStore store = FileStore.getFileStore();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         List<ByteString> bl = new ArrayList<>();
@@ -339,7 +339,7 @@ public class ProtocolInstrumentedTest {
 
     @Test
     public void IdentityWrapperWorks() throws TimeoutException {
-        ScatterRoutingService service = getService();
+        ScatterRoutingServiceImpl service = getService();
         com.example.uscatterbrain.identity.Identity id = com.example.uscatterbrain.identity.Identity.newBuilder(service)
                 .setName("Menhera Chan")
                 .generateKeypair()

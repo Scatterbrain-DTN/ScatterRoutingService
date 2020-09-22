@@ -17,7 +17,7 @@
         tools:replace="android:allowBackup">
 
         <service
-            android:name=".ScatterRoutingService"
+            android:name=".ScatterRoutingServiceImpl"
             android:exported="false"/>
     </application>
 </manifest>

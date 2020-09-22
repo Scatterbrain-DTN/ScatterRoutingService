@@ -24,9 +24,10 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.example.uscatterbrain.ScatterCallback;
-import com.example.uscatterbrain.ScatterRoutingService;
+import com.example.uscatterbrain.ScatterRoutingServiceImpl;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
+import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.polidea.rxandroidble2.RxBleServer;
 import com.polidea.rxandroidble2.ServerConfig;
 import io.reactivex.Observable;
@@ -182,7 +183,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             AdvertiseData addata = new AdvertiseData.Builder()
                     .setIncludeDeviceName(false)
                     .setIncludeTxPowerLevel(false)
-                    .addServiceUuid(new ParcelUuid(BluetoothLERadioModule.SERVICE_UUID))
+                    .addServiceUuid(new ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
                     .build();
 
             mAdvertiseCallback = new AdvertiseCallback() {
@@ -291,8 +292,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
     @Override
-    public UUID register(ScatterRoutingService service) {
-        Log.v(BluetoothLERadioModule.TAG, "registered bluetooth LE radio module");
+    public UUID register(ScatterRoutingServiceImpl service) {
+        Log.v(BluetoothLERadioModuleImpl.TAG, "registered bluetooth LE radio module");
         this.mContext = service;
         mClientObserver = new BluetoothLEClientObserver(mContext, mAdvertise);
 

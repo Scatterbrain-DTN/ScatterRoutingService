@@ -5,7 +5,7 @@ import com.google.protobuf.GeneratedMessageLite;
 
 import java.io.OutputStream;
 
-public interface ScatterSerializable<T> {
+public interface ScatterSerializable {
     byte[] getBytes();
     ByteString getByteString();
     boolean writeToStream(OutputStream os);

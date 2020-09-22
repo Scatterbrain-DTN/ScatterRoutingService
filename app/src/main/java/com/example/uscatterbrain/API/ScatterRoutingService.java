@@ -13,7 +13,7 @@ import java.io.InputStream;
  * external applications
  */
 
-public interface HighLevelAPI {
+public interface ScatterRoutingService {
     int PROTOVERSION = 0;
 
     //system

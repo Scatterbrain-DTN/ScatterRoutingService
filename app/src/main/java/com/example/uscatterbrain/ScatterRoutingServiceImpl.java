@@ -6,38 +6,44 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Binder;
 import android.os.IBinder;
+import android.util.Log;
+
 import androidx.core.app.NotificationCompat;
 import androidx.lifecycle.LifecycleService;
 
-import android.util.Log;
-
-import com.example.uscatterbrain.API.HighLevelAPI;
+import com.example.uscatterbrain.API.ScatterRoutingService;
 import com.example.uscatterbrain.API.OnRecieveCallback;
 import com.example.uscatterbrain.API.ScatterTransport;
-import com.example.uscatterbrain.db.ScatterbrainDatastore;
+import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
-import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModule;
+import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
 
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 
-public class ScatterRoutingService extends LifecycleService implements HighLevelAPI {
+import javax.inject.Inject;
+import javax.inject.Singleton;
+
+@Singleton
+public class ScatterRoutingServiceImpl extends LifecycleService implements ScatterRoutingService {
     public final String TAG = "ScatterRoutingService";
     private boolean bound;
     private final IBinder mBinder = new ScatterBinder();
     private DeviceProfile myprofile;
     private AdvertisePacket mPacket;
-    private BluetoothLERadioModule mRadioModule;
+    private BluetoothLERadioModuleImpl mRadioModule;
 
-    public ScatterRoutingService() {
+    @Inject
+    public ScatterRoutingServiceImpl() {
         //TODO: temporary
         mPacket = AdvertisePacket.newBuilder()
                 .setProvides(Collections.singletonList(ScatterProto.Advertise.Provides.BLE))
                 .build();
-        mRadioModule = new BluetoothLERadioModule();
+
+
+
     }
 
     public AdvertisePacket getPacket() {
@@ -187,7 +193,6 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
         mPacket = AdvertisePacket.newBuilder()
                 .setProvides(Collections.singletonList(ScatterProto.Advertise.Provides.BLE))
                 .build();
-        mRadioModule = new BluetoothLERadioModule();
     }
 
     @Override
@@ -224,7 +229,7 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
     }
 
     //TODO: remove this in production
-    public BluetoothLERadioModule getRadioModule() {
+    public BluetoothLERadioModuleImpl getRadioModule() {
         return mRadioModule;
     }
 
@@ -248,8 +253,8 @@ public class ScatterRoutingService extends LifecycleService implements HighLevel
     }
 
     public class ScatterBinder extends Binder {
-        public ScatterRoutingService getService() {
-            return ScatterRoutingService.this;
+        public ScatterRoutingServiceImpl getService() {
+            return ScatterRoutingServiceImpl.this;
         }
     }
 }
