@@ -10,6 +10,10 @@ import com.example.uscatterbrain.network.ScatterDataPacket;
 import java.util.List;
 import java.util.concurrent.FutureTask;
 
+import io.reactivex.Completable;
+import io.reactivex.Maybe;
+import io.reactivex.Single;
+
 public interface ScatterbrainDatastore {
 
     String DATABASE_NAME = "scatterdb";
@@ -19,7 +23,7 @@ public interface ScatterbrainDatastore {
      * @param message room entity for message to insert
      * @return primary keys of message inserted
      */
-    Long insertMessagesSync(ScatterMessage message);
+    Completable insertMessagesSync(ScatterMessage message);
 
 
     /**
@@ -30,7 +34,7 @@ public interface ScatterbrainDatastore {
      * @throws ScatterbrainDatastoreImpl.DatastoreInsertException
      * @return future returning list of ids inserted
      */
-    FutureTask<List<Long>> insertMessages(List<ScatterMessage> messages) throws ScatterbrainDatastoreImpl.DatastoreInsertException;
+    Completable insertMessages(List<ScatterMessage> messages) throws ScatterbrainDatastoreImpl.DatastoreInsertException;
 
 
     /**
@@ -41,7 +45,7 @@ public interface ScatterbrainDatastore {
      * @throws ScatterbrainDatastoreImpl.DatastoreInsertException thrown if inner classes are null
      * @return future returning id of row inserted
      */
-    FutureTask<Long> insertMessage(ScatterMessage message) throws ScatterbrainDatastoreImpl.DatastoreInsertException;
+    Completable insertMessage(ScatterMessage message) throws ScatterbrainDatastoreImpl.DatastoreInsertException;
 
 
     /**
@@ -51,7 +55,7 @@ public interface ScatterbrainDatastore {
      * @param identities list of room entities to insert
      * @return future returning list of row ids inserted
      */
-    FutureTask<List<Long>> insertIdentity(Identity[] identities);
+    Completable insertIdentity(Identity[] identities);
 
     /**
      * Asynchronously inserts an identity into the datastore, allows tracking result
@@ -60,7 +64,7 @@ public interface ScatterbrainDatastore {
      * @param identity room entity to insert
      * @return future returning row id inserted
      */
-    FutureTask<Long> insertIdentity(Identity identity);
+    Completable insertIdentity(Identity identity);
 
 
 
@@ -71,14 +75,14 @@ public interface ScatterbrainDatastore {
      * @param count how many messages to retrieve
      * @return livedata representation of list of messages
      */
-    LiveData<List<ScatterMessage>> getTopRandomMessages(int count);
+    Maybe<List<ScatterMessage>> getTopRandomMessages(int count);
 
 
     /**
      * gets a list of all the files in the datastore.
      * @return list of DiskFiles objects
      */
-    LiveData<List<String>> getAllFiles();
+    Maybe<List<String>> getAllFiles();
 
     /**
      * Retrieves a message by an identity room entity
@@ -86,17 +90,17 @@ public interface ScatterbrainDatastore {
      * @param id room entity to search by
      * @return livedata representation of list of messages
      */
-    LiveData<List<ScatterMessage>> getMessagesByIdentity(Identity id);
+    Maybe<List<ScatterMessage>> getMessagesByIdentity(Identity id);
 
-    List<FutureTask<ScatterbrainDatastoreImpl.ScatterDataPacketInsertResult<Long>>> insertDataPacket(List<ScatterDataPacket> packets);
+    Completable insertDataPacket(List<ScatterDataPacket> packets);
 
-    FutureTask<ScatterbrainDatastoreImpl.ScatterDataPacketInsertResult<List<Long>>> insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity);
+    Completable insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity);
 
-    FutureTask<ScatterbrainDatastoreImpl.ScatterDataPacketInsertResult<Long>> insertDataPacket(ScatterDataPacket packet);
+    Completable insertDataPacket(ScatterDataPacket packet);
 
-    FutureTask<List<com.example.uscatterbrain.identity.Identity>> getIdentity(List<Long> ids);
+    Maybe<List<com.example.uscatterbrain.identity.Identity>> getIdentity(List<Long> ids);
 
-    FutureTask<List<ScatterDataPacket>> getDataPacket(List<Long> id);
+    Maybe<List<ScatterDataPacket>> getDataPacket(List<Long> id);
 
     void clear();
 

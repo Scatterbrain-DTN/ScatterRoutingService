@@ -6,15 +6,18 @@ import androidx.room.Insert;
 
 import java.util.List;
 
+import io.reactivex.Completable;
+import io.reactivex.Single;
+
 @Dao
 public interface BaseDao<T> {
 
     @Insert
-    List<Long> insertAll(List<T> entites);
+    Single<List<Long>> insertAll(List<T> entites);
 
     @Insert
-    List<Long> insertAll(T... entities);
+    Single<List<Long>> insertAll(T... entities);
 
     @Delete
-    void delete(T entities);
+    Completable delete(T entities);
 }
