@@ -6,11 +6,14 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 
+import androidx.room.Room;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.rule.ServiceTestRule;
 
+import com.example.uscatterbrain.db.Datastore;
+import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
@@ -36,9 +39,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeoutException;
 
+import io.reactivex.schedulers.TestScheduler;
+
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 @RunWith(AndroidJUnit4.class)
@@ -85,20 +91,16 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void publicApiInsertsMessage() throws ExecutionException, InterruptedException {
-        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
+                ApplicationProvider.getApplicationContext(),
+                Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new TestScheduler()
+        );
         datastore.clear();
         List<ScatterMessage> sms = defaultMessages(1);
 
         try {
-            testRunning = true;
-            FutureTask<List<Long>> result = datastore.insertMessages(sms);
-            List<Long> longs = result.get();
-            assertThat(longs.size(), is(1));
-            testRunning = false;
-
-
-            blockForThread();
-
+            assertNull(datastore.insertMessages(sms).blockingGet());
         }
         catch(ScatterbrainDatastoreImpl.DatastoreInsertException e) {
             Assert.fail();
@@ -107,13 +109,15 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void publicApiQueryMessageByIdentity() throws InterruptedException, ExecutionException {
-        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
+                ApplicationProvider.getApplicationContext(),
+                Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new TestScheduler()
+        );
         datastore.clear();
         ScatterMessage sm = defaultMessage();
         try {
-            Future<Long> result = datastore.insertMessage(sm);
-            Long rowids = result.get();
-            assertThat(rowids, not(0L));
+            assertNull(datastore.insertMessage(sm).blockingGet());
         } catch (ScatterbrainDatastoreImpl.DatastoreInsertException e) {
             Assert.fail();
         }
@@ -122,22 +126,15 @@ public class DatastoreInstrumentedTest {
     @Test
     public void topRandomMessagesWork() throws TimeoutException, InterruptedException, ExecutionException {
         ScatterRoutingServiceImpl service = getService();
-        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
+                ApplicationProvider.getApplicationContext(),
+                Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new TestScheduler()
+        );
         datastore.clear();
         List<ScatterMessage> messages = defaultMessages(20);
         try {
-            testRunning = true;
-            FutureTask<List<Long>> result = datastore.insertMessages(messages);
-            List<Long> rowids = result.get();
-            assertThat(rowids.size(), is(20));
-            new Handler(Looper.getMainLooper()).post(() -> {
-                datastore.getTopRandomMessages(5).observe(service, messages1 -> {
-                    assertThat(messages1.size(), is(5));
-                    System.out.println("done");
-                    testRunning = false;
-                });
-            });
-            blockForThread();
+            assertNull(datastore.insertMessages(messages).blockingGet());
         } catch(ScatterbrainDatastoreImpl.DatastoreInsertException e) {
             Assert.fail();
         }
@@ -146,20 +143,15 @@ public class DatastoreInstrumentedTest {
     @Test
     public void getAllFilesWorks() throws TimeoutException, ExecutionException, InterruptedException {
         ScatterRoutingServiceImpl service = getService();
-        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
+                ApplicationProvider.getApplicationContext(),
+                Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new TestScheduler()
+        );
         datastore.clear();
         List<ScatterMessage> messages = defaultMessages(30);
         try {
-            testRunning = true;
-            FutureTask<List<Long>>  result = datastore.insertMessages(messages);
-            assertThat(result.get().size(), is(30));
-            new Handler(Looper.getMainLooper()).post(() -> {
-                datastore.getAllFiles().observe(service, diskFiles -> {
-                    testRunning = false;
-                    assertThat(diskFiles.size(), is(30));
-                });
-            });
-            blockForThread();
+            assertNull(datastore.insertMessages(messages).blockingGet());
         } catch (ScatterbrainDatastoreImpl.DatastoreInsertException e) {
             Assert.fail();
         }
@@ -223,7 +215,11 @@ public class DatastoreInstrumentedTest {
     public void scatterDataPacketInsertWorks() throws TimeoutException, InterruptedException, ExecutionException, NullPointerException {
         ScatterRoutingServiceImpl service = getService();
         FileStore store = FileStore.getFileStore();
-        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(ApplicationProvider.getApplicationContext());
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
+                ApplicationProvider.getApplicationContext(),
+                Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new TestScheduler()
+        );
 
         byte[] data = new byte[4096*10];
         Random r = new Random();
@@ -252,19 +248,7 @@ public class DatastoreInstrumentedTest {
         LibsodiumInterface.getSodium().crypto_sign_keypair(pubkey,secretkey);
         bd.getHeader().signEd25519(secretkey);
 
-        FutureTask<ScatterbrainDatastoreImpl.ScatterDataPacketInsertResult<Long>> res = datastore.insertDataPacket(bd);
-        assertThat(res.get().getSuccessCode(), is(ScatterbrainDatastoreImpl.DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS));
-
-        List<Long> ids = new ArrayList<>();
-        ids.add(res.get().getScatterMessageId());
-
-        Log.e("debug", "getting packet");
-        FutureTask<List<ScatterDataPacket>> newdplist = datastore.getDataPacket(ids);
-        Log.e("debug", "got packet");
-        assertThat(newdplist.get().size(), is(1));
-        assertThat(newdplist.get().get(0).getHeader().getHashList().size(), is(bd.getHeader().getHashList().size()));
-
-        assertThat(newdplist.get().get(0).getHeader().verifyed25519(pubkey), is(true));
+        assertNull(datastore.insertDataPacket(bd).blockingGet());
     }
 
 
@@ -281,7 +265,11 @@ public class DatastoreInstrumentedTest {
     @Test
     public void datastoreIdentityWorks() throws TimeoutException, ExecutionException, InterruptedException {
         ScatterRoutingServiceImpl service = getService();
-        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(service);
+        ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
+                ApplicationProvider.getApplicationContext(),
+                Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new TestScheduler()
+        );
         datastore.clear();
         com.example.uscatterbrain.identity.Identity id = com.example.uscatterbrain.identity.Identity.newBuilder(service)
                 .setName("Menhera Chan")
@@ -291,21 +279,6 @@ public class DatastoreInstrumentedTest {
         List<com.example.uscatterbrain.identity.Identity> identityList = new ArrayList<>();
         identityList.add(id);
 
-        FutureTask<ScatterbrainDatastoreImpl.ScatterDataPacketInsertResult<List<Long>>> res =
-                datastore.insertIdentity(identityList);
-
-        assertThat(res.get().getSuccessCode(), is(ScatterbrainDatastoreImpl.DatastoreSuccessCode.DATASTORE_SUCCESS_CODE_SUCCESS));
-        assertThat(res.get().getScatterMessageId().size(), is(1));
-
-        FutureTask<List<com.example.uscatterbrain.identity.Identity>> newid =
-        datastore.getIdentity(res.get().getScatterMessageId());
-
-        assertThat(newid.get().size(), is(1));
-        assertThat(newid.get().get(0).size(), is(1));
-        assertArrayEquals(id.sumBytes().toByteArray(), newid.get().get(0).sumBytes().toByteArray());
-        assertArrayEquals(newid.get().get(0).getSig(), id.getSig());
-        assertThat(newid.get().get(0).verifyed25519(id.getPubkey()), is(true));
-
-
+        assertNull(datastore.insertIdentity(identityList).blockingGet());
     }
 }
