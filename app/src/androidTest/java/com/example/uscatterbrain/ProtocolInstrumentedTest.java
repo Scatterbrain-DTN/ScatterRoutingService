@@ -169,7 +169,7 @@ public class ProtocolInstrumentedTest {
 
         try {
             ByteArrayInputStream is = new ByteArrayInputStream(bytelist);
-            BlockHeaderPacket newbd = BlockHeaderPacket.parseFrom(is);
+            BlockHeaderPacket newbd = BlockHeaderPacket.parseFrom(is).blockingGet();
             assertThat(Objects.requireNonNull(newbd).getApplication(), is("test".getBytes()));
         } catch (Exception e) {
             e.printStackTrace();
@@ -193,7 +193,7 @@ public class ProtocolInstrumentedTest {
 
         try {
             ByteArrayInputStream is = new ByteArrayInputStream(bytelist);
-            BlockHeaderPacket newbd = BlockHeaderPacket.parseFrom(is);
+            BlockHeaderPacket newbd = BlockHeaderPacket.parseFrom(is).blockingGet();
             assertThat(Objects.requireNonNull(newbd).getApplication(), is("test".getBytes()));
             assertThat(newbd.getSig() != null, is(true));
             assertEquals(bd.getSig().size(), newbd.getSig().size());
@@ -215,7 +215,7 @@ public class ProtocolInstrumentedTest {
 
         try {
             ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
-            BlockHeaderPacket blockHeaderPacket = BlockHeaderPacket.parseFrom(is);
+            BlockHeaderPacket blockHeaderPacket = BlockHeaderPacket.parseFrom(is).blockingGet();
             assertThat(blockHeaderPacket != null, is(true));
             assertThat(Objects.requireNonNull(blockHeaderPacket).getHashList().size(), is(size));
         } catch (Exception e) {
@@ -232,7 +232,7 @@ public class ProtocolInstrumentedTest {
         byte[] data = bs.getBytes();
 
         ByteArrayInputStream is = new ByteArrayInputStream(data);
-        BlockSequencePacket newbs = BlockSequencePacket.parseFrom(is);
+        BlockSequencePacket newbs = BlockSequencePacket.parseFrom(is).blockingGet();
         assertArrayEquals(Objects.requireNonNull(newbs).calculateHash(), firsthash);
     }
 
@@ -244,7 +244,7 @@ public class ProtocolInstrumentedTest {
 
 
         ByteArrayInputStream is = new ByteArrayInputStream(data);
-        BlockSequencePacket newbs = BlockSequencePacket.parseFrom(is);
+        BlockSequencePacket newbs = BlockSequencePacket.parseFrom(is).blockingGet();
         assertThat(Objects.requireNonNull(newbs).getmData() != null, is(true));
     }
 
@@ -294,7 +294,7 @@ public class ProtocolInstrumentedTest {
             ByteArrayInputStream bis = new ByteArrayInputStream(os.toByteArray());
             File newfile = new File(service.getFilesDir(), "newfile");
             FileStore.getFileStore().deleteFile(newfile.toPath().toAbsolutePath()).get();
-            BlockDataObservableSource newdp = BlockDataObservableSource.parseFrom(bis, newfile);
+            BlockDataObservableSource newdp = BlockDataObservableSource.parseFrom(bis, newfile).blockingGet();
             assertThat(newdp != null, is(true));
             assertThat(Objects.requireNonNull(newdp).isHashValid(), is(true));
         } catch (Exception e) {
@@ -319,7 +319,7 @@ public class ProtocolInstrumentedTest {
 
         byte[] data = up.getBytes();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
-        UpgradePacket nu = UpgradePacket.parseFrom(is);
+        UpgradePacket nu = UpgradePacket.parseFrom(is).blockingGet();
         assertThat(Objects.requireNonNull(nu).getProvides(), is(ScatterProto.Advertise.Provides.ULTRASOUND));
     }
 
@@ -333,7 +333,7 @@ public class ProtocolInstrumentedTest {
         byte[] data = id.getBytes();
 
         ByteArrayInputStream is = new ByteArrayInputStream(data);
-        IdentityPacket idnew = IdentityPacket.parseFrom(is);
+        IdentityPacket idnew = IdentityPacket.parseFrom(is).blockingGet();
         assertThat(Objects.requireNonNull(idnew).getKeys().get("scatterbrain"), is(ByteString.copyFromUtf8("fmeef")));
         assertThat(idnew.verifyed25519(pubkey), is(true));
     }

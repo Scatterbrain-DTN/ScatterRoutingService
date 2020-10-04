@@ -136,7 +136,7 @@ public class FileStore {
 
         for (int i=0;i<count;i++) {
             Log.e("debug", "writing file "+ i);
-            BlockSequencePacket blockSequencePacket = BlockSequencePacket.parseFrom(inputStream);
+            BlockSequencePacket blockSequencePacket = BlockSequencePacket.parseFrom(inputStream).blockingGet();
             if (blockSequencePacket == null) {
                 await =  new FutureTask<>(() -> FileCallbackResult.ERR_FAILED);
                 Log.e("debug", "blocksequence was null");

@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import io.reactivex.Completable;
+import io.reactivex.Single;
 
 /**
  * Wrapper class for protocol buffer upgrade message
@@ -41,12 +42,8 @@ public class UpgradePacket implements ScatterSerializable {
      * @param is the is
      * @return the upgrade packet
      */
-    public static UpgradePacket parseFrom(InputStream is) {
-        try {
-            return new UpgradePacket(is);
-        } catch (IOException e) {
-            return null;
-        }
+    public static Single<UpgradePacket> parseFrom(InputStream is) {
+        return Single.fromCallable(() -> new UpgradePacket(is));
     }
 
     @Override

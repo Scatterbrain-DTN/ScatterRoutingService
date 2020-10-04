@@ -16,6 +16,7 @@ import java.util.concurrent.FutureTask;
 
 import io.reactivex.Observable;
 import io.reactivex.Observer;
+import io.reactivex.Single;
 
 /**
  * High level interface to a scatterbrain blockdata stream,
@@ -83,7 +84,7 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
         }
 
         this.mFile = file;
-        this.mHeader = BlockHeaderPacket.parseFrom(is);
+        this.mHeader = BlockHeaderPacket.parseFrom(is).blockingGet();
         if (mHeader == null) {
             throw new ParseException("failed to parse header", 0);
         }
@@ -236,13 +237,8 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
         }
     }
 
-    public static BlockDataObservableSource parseFrom(InputStream inputStream, File file) {
-        try {
-            return new BlockDataObservableSource(inputStream, file);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
+    public static Single<BlockDataObservableSource> parseFrom(InputStream inputStream, File file) {
+        return Single.fromCallable(() -> new BlockDataObservableSource(inputStream, file));
     }
 
     /**

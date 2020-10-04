@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.Map;
 
 import io.reactivex.Completable;
+import io.reactivex.Single;
 
 /**
  * Wrapper class for protocol buffer upgrade message
@@ -51,12 +52,8 @@ public class IdentityPacket implements ScatterSerializable {
      * @param is the is
      * @return the identity packet
      */
-    public static IdentityPacket parseFrom(InputStream is) {
-        try {
-            return new IdentityPacket(is);
-        } catch (IOException e) {
-            return null;
-        }
+    public static Single<IdentityPacket> parseFrom(InputStream is) {
+        return Single.fromCallable(() -> new IdentityPacket(is));
     }
 
     private ByteString sumBytes() {

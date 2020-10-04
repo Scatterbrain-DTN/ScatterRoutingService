@@ -18,6 +18,7 @@ import java.nio.ByteOrder;
 import java.util.List;
 
 import io.reactivex.Completable;
+import io.reactivex.Single;
 
 /**
  * Wrapper class for protocol buffer blockdata message
@@ -145,12 +146,8 @@ public class BlockHeaderPacket implements ScatterSerializable {
      * @param is the is
      * @return the block header packet
      */
-    public static BlockHeaderPacket parseFrom(InputStream is) {
-        try {
-            return new BlockHeaderPacket(is);
-        } catch (IOException e) {
-            return null;
-        }
+    public static Single<BlockHeaderPacket> parseFrom(InputStream is) {
+        return Single.fromCallable(() -> new BlockHeaderPacket(is));
     }
 
     @Override

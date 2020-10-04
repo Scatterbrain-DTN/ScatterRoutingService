@@ -14,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import io.reactivex.Completable;
+import io.reactivex.Single;
 
 /**
  * Wrapper class for protocol buffer BlockSequence message
@@ -106,12 +107,8 @@ public class BlockSequencePacket implements ScatterSerializable {
      * @param is the is
      * @return the block sequence packet
      */
-    public static BlockSequencePacket parseFrom(InputStream is) {
-        try {
-            return new BlockSequencePacket(is);
-        } catch (IOException e) {
-            return null;
-        }
+    public static Single<BlockSequencePacket> parseFrom(InputStream is) {
+        return Single.fromCallable(() -> new BlockSequencePacket(is));
      }
 
     private BlockSequencePacket(Builder builder) {
