@@ -10,7 +10,7 @@ import com.example.uscatterbrain.db.entities.IdentityRelations;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.network.ScatterDataPacket;
+import com.example.uscatterbrain.network.BlockDataObservableSource;
 import com.google.protobuf.ByteString;
 
 import java.io.File;
@@ -186,7 +186,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public Completable insertDataPacket(List<ScatterDataPacket> packets) {
+    public Completable insertDataPacket(List<BlockDataObservableSource> packets) {
         List<FutureTask<ScatterDataPacketInsertResult<Long>>> finalResult = new ArrayList<>();
         return Observable.fromIterable(packets)
                 .flatMap(packet -> insertDataPacket(packet).toObservable())
@@ -229,7 +229,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      }
 
      @Override
-     public Completable insertDataPacket(ScatterDataPacket packet) {
+     public Completable insertDataPacket(BlockDataObservableSource packet) {
          if(!packet.isHashValid()) {
             return Completable.error(new IllegalStateException("inserted a packet with invalid hash"));
          }
@@ -283,13 +283,13 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
 
      @Override
-     public Maybe<List<ScatterDataPacket>> getDataPacket(List<Long> id) {
+     public Maybe<List<BlockDataObservableSource>> getDataPacket(List<Long> id) {
             return mDatastore.scatterMessageDao().getByID(id)
                     .map(messages -> {
-                        List<ScatterDataPacket> bdlist = new ArrayList<>();
+                        List<BlockDataObservableSource> bdlist = new ArrayList<>();
                         for (ScatterMessage message : messages) {
                             File f = Paths.get(message.getFilePath()).toAbsolutePath().toFile();
-                            ScatterDataPacket dataPacket = ScatterDataPacket.newBuilder()
+                            BlockDataObservableSource dataPacket = BlockDataObservableSource.newBuilder()
                                     .setApplication(ByteString.copyFrom(message.getApplication()).toStringUtf8())
                                     .setFromAddress(ByteString.copyFrom(message.getFrom()))
                                     .setToAddress(ByteString.copyFrom(message.getTo()))

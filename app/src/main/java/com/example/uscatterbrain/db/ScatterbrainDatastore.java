@@ -1,18 +1,13 @@
 package com.example.uscatterbrain.db;
 
-import androidx.lifecycle.LiveData;
-
-import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.network.ScatterDataPacket;
+import com.example.uscatterbrain.network.BlockDataObservableSource;
 
 import java.util.List;
-import java.util.concurrent.FutureTask;
 
 import io.reactivex.Completable;
 import io.reactivex.Maybe;
-import io.reactivex.Single;
 
 public interface ScatterbrainDatastore {
 
@@ -92,15 +87,15 @@ public interface ScatterbrainDatastore {
      */
     Maybe<List<ScatterMessage>> getMessagesByIdentity(Identity id);
 
-    Completable insertDataPacket(List<ScatterDataPacket> packets);
+    Completable insertDataPacket(List<BlockDataObservableSource> packets);
 
     Completable insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity);
 
-    Completable insertDataPacket(ScatterDataPacket packet);
+    Completable insertDataPacket(BlockDataObservableSource packet);
 
     Maybe<List<com.example.uscatterbrain.identity.Identity>> getIdentity(List<Long> ids);
 
-    Maybe<List<ScatterDataPacket>> getDataPacket(List<Long> id);
+    Maybe<List<BlockDataObservableSource>> getDataPacket(List<Long> id);
 
     void clear();
 

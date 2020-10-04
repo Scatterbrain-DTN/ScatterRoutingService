@@ -1,7 +1,5 @@
 package com.example.uscatterbrain.network;
 
-import androidx.annotation.NonNull;
-
 import com.example.uscatterbrain.db.file.FileStore;
 import com.google.protobuf.ByteString;
 
@@ -11,24 +9,19 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.Executor;
 import java.util.concurrent.FutureTask;
-import java.util.function.Consumer;
 
 import io.reactivex.Observable;
-import io.reactivex.ObservableSource;
 import io.reactivex.Observer;
 
 /**
  * High level interface to a scatterbrain blockdata stream,
  * including blockheader and blocksequence packets.
  */
-public class ScatterDataPacket extends Observable<ScatterSerializable> {
+public class BlockDataObservableSource extends Observable<ScatterSerializable> {
     private BlockHeaderPacket mHeader;
     private int mBlockSize;
     private int mIndex;
@@ -59,11 +52,11 @@ public class ScatterDataPacket extends Observable<ScatterSerializable> {
     public static final long MAX_SIZE_NONFILE = 512*1024;
 
 
-    protected ScatterDataPacket() {
+    protected BlockDataObservableSource() {
         super();
     }
 
-    private ScatterDataPacket(Builder builder) {
+    private BlockDataObservableSource(Builder builder) {
         try {
             this.mFragmentStream = new FileInputStream(builder.getFragmentFile());
         } catch(FileNotFoundException e) {
@@ -83,7 +76,7 @@ public class ScatterDataPacket extends Observable<ScatterSerializable> {
         mIndex = 0;
     }
 
-    private ScatterDataPacket(InputStream is, File file) throws ParseException {
+    private BlockDataObservableSource(InputStream is, File file) throws ParseException {
         this.mDirection = Direction.RECEIVE;
         if (file.exists()) {
             throw new ParseException("file exists", 0);
@@ -243,9 +236,9 @@ public class ScatterDataPacket extends Observable<ScatterSerializable> {
         }
     }
 
-    public static ScatterDataPacket parseFrom(InputStream inputStream, File file) {
+    public static BlockDataObservableSource parseFrom(InputStream inputStream, File file) {
         try {
-            return new ScatterDataPacket(inputStream, file);
+            return new BlockDataObservableSource(inputStream, file);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -424,7 +417,7 @@ public class ScatterDataPacket extends Observable<ScatterSerializable> {
          *
          * @return the scatter data packet
          */
-        public ScatterDataPacket build() {
+        public BlockDataObservableSource build() {
             if (this.mToDisk && this.mFile != null)
                 this.mSize = mFile.length();
 
@@ -442,7 +435,7 @@ public class ScatterDataPacket extends Observable<ScatterSerializable> {
 
             mHashlist = FileStore.getFileStore().hashFile(mFile.toPath().toAbsolutePath(), mBlockSize);
 
-            return new ScatterDataPacket(this);
+            return new BlockDataObservableSource(this);
 
         }
     }

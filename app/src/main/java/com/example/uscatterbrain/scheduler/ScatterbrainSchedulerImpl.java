@@ -1,6 +1,6 @@
 package com.example.uscatterbrain.scheduler;
 
-import com.example.uscatterbrain.network.ScatterDataPacket;
+import com.example.uscatterbrain.network.BlockDataObservableSource;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -76,7 +76,7 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler{
     }
 
     @Override
-    public void sendBlockData(List<ScatterDataPacket> packets) {
+    public void sendBlockData(List<BlockDataObservableSource> packets) {
 
     }
 }

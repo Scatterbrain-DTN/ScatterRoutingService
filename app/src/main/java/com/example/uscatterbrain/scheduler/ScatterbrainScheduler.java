@@ -1,6 +1,6 @@
 package com.example.uscatterbrain.scheduler;
 
-import com.example.uscatterbrain.network.ScatterDataPacket;
+import com.example.uscatterbrain.network.BlockDataObservableSource;
 
 import java.util.List;
 
@@ -106,5 +106,5 @@ public interface ScatterbrainScheduler {
 
     boolean stop();
 
-    void sendBlockData(List<ScatterDataPacket> packetList);
+    void sendBlockData(List<BlockDataObservableSource> packetList);
 }

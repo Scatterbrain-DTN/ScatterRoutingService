@@ -1,9 +1,7 @@
 package com.example.uscatterbrain;
 
 import android.content.Intent;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.util.Log;
 
 import androidx.room.Room;
@@ -19,7 +17,7 @@ import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.db.file.FileStore;
 import com.example.uscatterbrain.network.LibsodiumInterface;
-import com.example.uscatterbrain.network.ScatterDataPacket;
+import com.example.uscatterbrain.network.BlockDataObservableSource;
 import com.google.protobuf.ByteString;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 
@@ -36,7 +34,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -235,7 +232,7 @@ public class DatastoreInstrumentedTest {
         Future<FileStore.FileCallbackResult> result = store.insertFile(is, f.toPath().toAbsolutePath());
         assertThat(result.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
 
-        ScatterDataPacket bd = new ScatterDataPacket.Builder()
+        BlockDataObservableSource bd = new BlockDataObservableSource.Builder()
                 .setBlockSize(1024)
                 .setFragmentFile(f)
                 .setFromAddress(ByteString.copyFrom(new byte[32]))

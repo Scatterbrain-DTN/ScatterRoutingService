@@ -16,7 +16,7 @@ import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
-import com.example.uscatterbrain.network.ScatterDataPacket;
+import com.example.uscatterbrain.network.BlockDataObservableSource;
 import com.example.uscatterbrain.network.ScatterSerializable;
 import com.example.uscatterbrain.network.UpgradePacket;
 import com.google.protobuf.ByteString;
@@ -266,7 +266,7 @@ public class ProtocolInstrumentedTest {
         resultFuture.get();
         resultFuture =  store.insertFile(is, file.toPath().toAbsolutePath());
         assertThat(resultFuture.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
-        ScatterDataPacket bd = new ScatterDataPacket.Builder()
+        BlockDataObservableSource bd = new BlockDataObservableSource.Builder()
                     .setBlockSize(1024)
                     .setFragmentFile(file)
                     .setFromAddress(ByteString.copyFrom(new byte[32]))
@@ -294,7 +294,7 @@ public class ProtocolInstrumentedTest {
             ByteArrayInputStream bis = new ByteArrayInputStream(os.toByteArray());
             File newfile = new File(service.getFilesDir(), "newfile");
             FileStore.getFileStore().deleteFile(newfile.toPath().toAbsolutePath()).get();
-            ScatterDataPacket newdp = ScatterDataPacket.parseFrom(bis, newfile);
+            BlockDataObservableSource newdp = BlockDataObservableSource.parseFrom(bis, newfile);
             assertThat(newdp != null, is(true));
             assertThat(Objects.requireNonNull(newdp).isHashValid(), is(true));
         } catch (Exception e) {
