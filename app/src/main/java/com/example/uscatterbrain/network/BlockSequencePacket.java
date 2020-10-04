@@ -13,6 +13,8 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import io.reactivex.Completable;
+
 /**
  * Wrapper class for protocol buffer BlockSequence message
  */
@@ -88,14 +90,8 @@ public class BlockSequencePacket implements ScatterSerializable {
     }
 
     @Override
-    public boolean writeToStream(OutputStream os) {
-        try {
-            mBlockSequence.writeDelimitedTo(os);
-        } catch (IOException e) {
-            return false;
-        }
-
-        return true;
+    public Completable writeToStream(OutputStream os) {
+        return Completable.fromAction(() -> mBlockSequence.writeDelimitedTo(os));
     }
 
     private BlockSequencePacket(InputStream is) throws IOException {

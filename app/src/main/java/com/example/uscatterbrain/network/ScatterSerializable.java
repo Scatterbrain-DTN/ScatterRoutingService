@@ -5,9 +5,11 @@ import com.google.protobuf.GeneratedMessageLite;
 
 import java.io.OutputStream;
 
+import io.reactivex.Completable;
+
 public interface ScatterSerializable {
     byte[] getBytes();
     ByteString getByteString();
-    boolean writeToStream(OutputStream os);
+    Completable writeToStream(OutputStream os);
     GeneratedMessageLite getMessage();
 }

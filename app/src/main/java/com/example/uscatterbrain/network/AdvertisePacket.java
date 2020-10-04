@@ -9,6 +9,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
+import java.util.concurrent.Callable;
+
+import io.reactivex.Completable;
+import io.reactivex.Single;
 
 /**
  * Wrapper class for advertisepacket protocol buffer message.
@@ -35,12 +39,8 @@ public class AdvertisePacket implements ScatterSerializable {
      * @param is the is
      * @return the advertise packet
      */
-    public static AdvertisePacket parseFrom(InputStream is) {
-        try {
-            return new AdvertisePacket(is);
-        } catch (IOException e) {
-            return null;
-        }
+    public static Single<AdvertisePacket> parseFrom(InputStream is) {
+        return Single.fromCallable(() -> new AdvertisePacket(is));
     }
 
     /**
@@ -69,13 +69,8 @@ public class AdvertisePacket implements ScatterSerializable {
     }
 
     @Override
-    public boolean writeToStream(OutputStream os) {
-        try {
-            mAdvertise.writeDelimitedTo(os);
-        } catch (IOException e) {
-            return false;
-        }
-        return true;
+    public Completable writeToStream(OutputStream os) {
+        return Completable.fromAction(() -> mAdvertise.writeDelimitedTo(os));
     }
 
     @Override

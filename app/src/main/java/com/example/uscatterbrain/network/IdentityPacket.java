@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Map;
 
+import io.reactivex.Completable;
+
 /**
  * Wrapper class for protocol buffer upgrade message
  */
@@ -102,14 +104,8 @@ public class IdentityPacket implements ScatterSerializable {
     }
 
     @Override
-    public boolean writeToStream(OutputStream os) {
-        try {
-            mIdentity.writeDelimitedTo(os);
-        } catch (IOException e) {
-            return false;
-        }
-
-        return true;
+    public Completable writeToStream(OutputStream os) {
+        return Completable.fromAction(() -> mIdentity.writeDelimitedTo(os));
     }
 
     @Override

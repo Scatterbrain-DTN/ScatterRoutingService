@@ -17,6 +17,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 
+import io.reactivex.Completable;
+
 /**
  * Wrapper class for protocol buffer blockdata message
  */
@@ -168,14 +170,8 @@ public class BlockHeaderPacket implements ScatterSerializable {
     }
 
     @Override
-    public boolean writeToStream(OutputStream os) {
-        try {
-            blockdata.writeDelimitedTo(os);
-        } catch (IOException e) {
-            return false;
-        }
-
-        return true;
+    public Completable writeToStream(OutputStream os) {
+        return Completable.fromAction(() -> blockdata.writeDelimitedTo(os));
     }
 
     @Override

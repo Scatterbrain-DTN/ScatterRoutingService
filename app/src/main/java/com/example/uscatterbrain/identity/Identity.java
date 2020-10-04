@@ -2,7 +2,6 @@ package com.example.uscatterbrain.identity;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -14,7 +13,6 @@ import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.ScatterSerializable;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
@@ -31,6 +29,8 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+
+import io.reactivex.Completable;
 
 public class Identity implements Map<String, ByteString>, ScatterSerializable {
     private Map<String, ByteString>  mPubKeymap = new TreeMap<>();
@@ -193,14 +193,8 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     }
 
     @Override
-    public boolean writeToStream(OutputStream os) {
-        try {
-            mIdentity.writeDelimitedTo(os);
-        } catch (IOException e) {
-            return false;
-        }
-
-        return true;
+    public Completable writeToStream(OutputStream os) {
+        return Completable.fromAction(() -> mIdentity.writeDelimitedTo(os));
     }
 
     @Override

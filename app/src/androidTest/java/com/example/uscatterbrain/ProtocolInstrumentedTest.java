@@ -211,7 +211,7 @@ public class ProtocolInstrumentedTest {
         BlockHeaderPacket bd = getHeaderPacket();
         int size = bd.getHashList().size();
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        bd.writeToStream(os);
+        bd.writeToStream(os).subscribe();
 
         try {
             ByteArrayInputStream is = new ByteArrayInputStream(os.toByteArray());
@@ -285,7 +285,7 @@ public class ProtocolInstrumentedTest {
                 if (i == 0) {
                     assertThat(((BlockHeaderPacket)bs).getHashList().size(), is(80));
                 }
-                bs.writeToStream(os);
+                bs.writeToStream(os).subscribe();
                 i++;
             }
 
@@ -309,7 +309,7 @@ public class ProtocolInstrumentedTest {
 
         byte[] data = ad.getBytes();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
-        AdvertisePacket n = AdvertisePacket.parseFrom(is);
+        AdvertisePacket n = AdvertisePacket.parseFrom(is).blockingGet();
         assertThat(Objects.requireNonNull(n).getProvides().get(0), is(ScatterProto.Advertise.Provides.BLE));
     }
 

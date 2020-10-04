@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import io.reactivex.Completable;
+
 /**
  * Wrapper class for protocol buffer upgrade message
  */
@@ -64,13 +66,8 @@ public class UpgradePacket implements ScatterSerializable {
     }
 
     @Override
-    public boolean writeToStream(OutputStream os) {
-        try {
-            this.mUpgrade.writeDelimitedTo(os);
-        } catch (IOException e) {
-            return false;
-        }
-        return true;
+    public Completable writeToStream(OutputStream os) {
+        return Completable.fromAction(() -> mUpgrade.writeDelimitedTo(os));
     }
 
     @Override
