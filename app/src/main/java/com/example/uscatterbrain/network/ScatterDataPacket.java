@@ -20,11 +20,15 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.FutureTask;
 import java.util.function.Consumer;
 
+import io.reactivex.Observable;
+import io.reactivex.ObservableSource;
+import io.reactivex.Observer;
+
 /**
  * High level interface to a scatterbrain blockdata stream,
  * including blockheader and blocksequence packets.
  */
-public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterator<ScatterSerializable> {
+public class ScatterDataPacket extends Observable<ScatterSerializable> {
     private BlockHeaderPacket mHeader;
     private int mBlockSize;
     private int mIndex;
@@ -54,6 +58,10 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
      */
     public static final long MAX_SIZE_NONFILE = 512*1024;
 
+
+    protected ScatterDataPacket() {
+        super();
+    }
 
     private ScatterDataPacket(Builder builder) {
         try {
@@ -186,36 +194,26 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
         }
     }
 
-
-    /* implementation of Iterable<BlockSequencePacket> */
-
-    @NonNull
-    @Override
-    public Iterator<ScatterSerializable> iterator() {
-        return this;
-    }
+    /* implementation of Observable<ScatterSerializable> */
 
     @Override
-    public void forEach(@NonNull Consumer<? super ScatterSerializable> action) {
-        Objects.requireNonNull(action);
-        for (ScatterSerializable packet : this) {
-            action.accept(packet);
+    protected void subscribeActual(Observer<? super ScatterSerializable> observer) {
+        while (hasNext()) {
+            ScatterSerializable serializable = next();
+            if (serializable != null) {
+                observer.onNext(serializable);
+            } else {
+                //TODO: more descriptive errors
+                observer.onError(new IllegalStateException("onNext returned null"));
+            }
         }
+        observer.onComplete();
     }
 
-    @NonNull
-    @Override
-    public Spliterator<ScatterSerializable> spliterator() {
-        return Spliterators.spliterator(iterator(), Objects.requireNonNull(asyncGetHeader()).getHashList().size() ,Spliterator.ORDERED
-                | Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.SIZED);
-    }
-
-    @Override
     public boolean hasNext() {
         return mIndex < Objects.requireNonNull(asyncGetHeader()).getHashList().size()+1;
     }
 
-    @Override
     public ScatterSerializable next() {
         try {
             ScatterSerializable result;
@@ -251,19 +249,6 @@ public class ScatterDataPacket implements Iterable<ScatterSerializable>, Iterato
         } catch (Exception e) {
             e.printStackTrace();
             return null;
-        }
-    }
-
-    @Override
-    public void remove() {
-        //does nothing, removing individual fragments is never a good idea
-    }
-
-    @Override
-    public void forEachRemaining(@NonNull Consumer<? super ScatterSerializable> action) {
-        Objects.requireNonNull(action);
-        for (ScatterSerializable packet : this) {
-            action.accept(packet);
         }
     }
 
