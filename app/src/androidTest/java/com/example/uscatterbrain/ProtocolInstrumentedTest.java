@@ -262,10 +262,9 @@ public class ProtocolInstrumentedTest {
 
 
         File file = new File(service.getFilesDir(), "test2");
-        Future<FileStore.FileCallbackResult> resultFuture = store.deleteFile(file.toPath().toAbsolutePath());
-        resultFuture.get();
-        resultFuture =  store.insertFile(is, file.toPath().toAbsolutePath());
-        assertThat(resultFuture.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
+        store.deleteFile(file.toPath().toAbsolutePath()).blockingGet();
+        FileStore.FileCallbackResult resultFuture =  store.insertFile(is, file.toPath().toAbsolutePath()).blockingGet();
+        assertThat(resultFuture, is(FileStore.FileCallbackResult.ERR_SUCCESS));
         BlockDataObservableSource bd = new BlockDataObservableSource.Builder()
                     .setBlockSize(1024)
                     .setFragmentFile(file)
@@ -293,10 +292,10 @@ public class ProtocolInstrumentedTest {
 
             ByteArrayInputStream bis = new ByteArrayInputStream(os.toByteArray());
             File newfile = new File(service.getFilesDir(), "newfile");
-            FileStore.getFileStore().deleteFile(newfile.toPath().toAbsolutePath()).get();
+            FileStore.getFileStore().deleteFile(newfile.toPath().toAbsolutePath()).blockingGet();
             BlockDataObservableSource newdp = BlockDataObservableSource.parseFrom(bis, newfile).blockingGet();
             assertThat(newdp != null, is(true));
-            assertThat(Objects.requireNonNull(newdp).isHashValid(), is(true));
+            assertThat(Objects.requireNonNull(newdp).isHashValid().blockingGet(), is(true));
         } catch (Exception e) {
             e.printStackTrace();
             Assert.fail();

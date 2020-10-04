@@ -9,14 +9,21 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.FutureTask;
 
+import io.reactivex.Completable;
 import io.reactivex.Observable;
+import io.reactivex.ObservableSource;
 import io.reactivex.Observer;
 import io.reactivex.Single;
+import io.reactivex.SingleSource;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.BooleanSupplier;
+import io.reactivex.functions.Function;
 
 /**
  * High level interface to a scatterbrain blockdata stream,
@@ -30,12 +37,12 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
     private InputStream mFragmentStream;
     private ByteString mToFingerprint;
     private ByteString mFromFingerprint;
-    private FutureTask<List<ByteString>> mHashList;
+    private Single<List<ByteString>> mHashList;
     private ByteString mApplication;
     private int mSessionID;
     private File mFile;
     private ByteString mSig;
-    private FutureTask<FileStore.FileCallbackResult> mFileResult;
+    private Single<FileStore.FileCallbackResult> mFileResult;
     private Direction mDirection;
     private DirectExecutor mExecutor = new DirectExecutor();
     public enum Direction {
@@ -77,67 +84,51 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
         mIndex = 0;
     }
 
-    private BlockDataObservableSource(InputStream is, File file) throws ParseException {
+    private BlockDataObservableSource(BlockHeaderPacket headerPacket, InputStream is, File file) throws ParseException {
         this.mDirection = Direction.RECEIVE;
         if (file.exists()) {
             throw new ParseException("file exists", 0);
         }
 
         this.mFile = file;
-        this.mHeader = BlockHeaderPacket.parseFrom(is).blockingGet();
+        this.mHeader = headerPacket;
+
         if (mHeader == null) {
             throw new ParseException("failed to parse header", 0);
         }
 
         this.mBlockSize = mHeader.getBlockSize();
-        this.mHashList = new FutureTask<>(() -> mHeader.getHashList());
-
-        mExecutor.execute(mHashList);
-
-
         this.mFromFingerprint = mHeader.getFromFingerprint();
         this.mToFingerprint = mHeader.getToFingerprint();
         this.mToDisk = mHeader.getToDisk();
         this.mApplication = ByteString.copyFrom(mHeader.getApplication());
         this.mSessionID = mHeader.getSessionID();
-        try {
-            mFileResult = FileStore.getFileStore().insertFile(mHeader,
-                            is,
-                            mHashList.get().size(),
-                            file.toPath().toAbsolutePath());
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            //this should never happen
-        }
     }
 
-    public void onDataInsert(FileStore.FileStoreCallback<FileStore.FileCallbackResult> result, Executor e) {
-        e.execute(mFileResult);
-    }
-
-    public boolean isHashValid() {
+    public Single<Boolean> isHashValid() {
         //hashes should already be correct
         if (mFileResult != null && mDirection == Direction.RECEIVE) {
-            try {
-                if (mFileResult.get() == FileStore.FileCallbackResult.ERR_SUCCESS) {
-                    return true;
-                }
-            } catch (Exception e) {
-                return false;
-            }
-        } else return mDirection == Direction.SEND;
-        return false;
+            return mFileResult
+                    .map(fileCallbackResult -> {
+                        if (fileCallbackResult == FileStore.FileCallbackResult.ERR_SUCCESS) {
+                            return true;
+                        } else {
+                            return mDirection == Direction.SEND;
+                        }
+                    });
+
+        } else {
+            return Single.just(false);
+        }
     }
 
-    private BlockHeaderPacket asyncGetHeader() {
+    private Single<BlockHeaderPacket> asyncGetHeader() {
 
         if (this.mHeader != null) {
-            return this.mHeader;
+            return Single.just(mHeader);
         }
 
-        try {
-            List<ByteString> hashlist = this.mHashList.get();
+        return this.mHashList.map(hashlist -> {
             mHeader  = BlockHeaderPacket.newBuilder()
                     .setToDisk(mToDisk)
                     .setToFingerprint(mToFingerprint)
@@ -150,11 +141,7 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
                     .setSig(mSig)
                     .build();
             return mHeader;
-        } catch (Exception e) {
-            e.printStackTrace();
-            this.mHeader = null;
-            return null;
-        }
+        });
     }
 
     public File getFile() {
@@ -168,77 +155,75 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
      * @param seqlist the seqlist
      * @return the boolean
      */
-    public boolean verifySequence(List<BlockSequencePacket> seqlist) {
-        for (BlockSequencePacket s : seqlist) {
-            if (!s.verifyHash(Objects.requireNonNull(asyncGetHeader())))
-                return false;
-        }
-        return true;
+    public Completable verifySequence(List<BlockSequencePacket> seqlist) {
+        return asyncGetHeader()
+                .flatMap(headerPacket -> {
+                    for (BlockSequencePacket s : seqlist) {
+                        if (!s.verifyHash(headerPacket))
+                            return Single.just(true);
+                    }
+                    return Single.error(new IllegalStateException("failed to verify hashes"));
+                })
+                .ignoreElement();
+
     }
 
-    public BlockHeaderPacket getHeader() {
+    public Single<BlockHeaderPacket> getHeader() {
         return asyncGetHeader();
     }
 
-    public List<ByteString> getHashes() {
-        try {
-            return mHashList.get();
-        } catch (Exception e) {
-            return null;
-        }
+    public Single<List<ByteString>> getHashes() {
+        return mHashList;
     }
 
     /* implementation of Observable<ScatterSerializable> */
 
     @Override
     protected void subscribeActual(Observer<? super ScatterSerializable> observer) {
-        while (hasNext()) {
-            ScatterSerializable serializable = next();
-            if (serializable != null) {
-                observer.onNext(serializable);
-            } else {
-                //TODO: more descriptive errors
-                observer.onError(new IllegalStateException("onNext returned null"));
-            }
-        }
-        observer.onComplete();
+       asyncGetHeader()
+               .toObservable()
+               .concatMap((Function<BlockHeaderPacket, ObservableSource<ScatterSerializable>>) headerPacket -> next()
+                       .repeatUntil(() -> mIndex > headerPacket.getHashList().size())
+                       .toObservable())
+               .subscribe(observer);
     }
 
-    public boolean hasNext() {
-        return mIndex < Objects.requireNonNull(asyncGetHeader()).getHashList().size()+1;
-    }
+    public Single<ScatterSerializable> next() {
+           return asyncGetHeader()
+                    .map(headerPacket -> {
+                        ScatterSerializable result;
+                        if (mIndex == 0) {
+                            result = headerPacket;
+                        } else {
+                            // super hacky limited/capped inputstream. Only lets us read up to mBlocksize
+                            InputStream is = new CappedInputStream(mFragmentStream, mBlockSize);
+                            ByteString data = ByteString.readFrom(is);
+                            BlockSequencePacket bs = new BlockSequencePacket.Builder()
+                                    .setData(data)
+                                    .setSequenceNumber(mIndex-1)
+                                    .build();
 
-    public ScatterSerializable next() {
-        try {
-            ScatterSerializable result;
-            if (mIndex == 0) {
-                result = asyncGetHeader();
-            } else {
-                // super hacky limited/capped inputstream. Only lets us read up to mBlocksize
-                InputStream is = new CappedInputStream(mFragmentStream, mBlockSize);
-                ByteString data = ByteString.readFrom(is);
-                BlockSequencePacket bs = new BlockSequencePacket.Builder()
-                        .setData(data)
-                        .setSequenceNumber(mIndex-1)
-                        .build();
+                            if (!bs.verifyHash(headerPacket)) {
+                                throw new IllegalStateException("failed to verify hash");
+                            }
 
-                if (!bs.verifyHash(Objects.requireNonNull(asyncGetHeader()))) {
-                    return null;
-                }
+                            result = bs;
+                        }
 
-                result = bs;
-            }
-
-            mIndex++;
-            return result;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
+                        mIndex++;
+                        return result;
+                    });
     }
 
     public static Single<BlockDataObservableSource> parseFrom(InputStream inputStream, File file) {
-        return Single.fromCallable(() -> new BlockDataObservableSource(inputStream, file));
+        return  BlockHeaderPacket
+                .parseFrom(inputStream)
+                .flatMap(new Function<BlockHeaderPacket, SingleSource<BlockDataObservableSource>>() {
+                    @Override
+                    public SingleSource<BlockDataObservableSource> apply(BlockHeaderPacket blockHeaderPacket) throws Exception {
+                        return Single.fromCallable(() -> new BlockDataObservableSource(blockHeaderPacket, inputStream, file));
+                    }
+                });
     }
 
     /**
@@ -263,7 +248,7 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
         private int mSessionID;
         private File mFile;
         private ByteString mSig;
-        private FutureTask<List<ByteString>> mHashlist;
+        private Single<List<ByteString>> mHashlist;
 
         /**
          * Instantiates a new Builder.
@@ -363,7 +348,7 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
             return this;
         }
 
-        public FutureTask<List<ByteString>> getHashList() {
+        public Single<List<ByteString>> getHashList() {
             return mHashlist;
         }
 

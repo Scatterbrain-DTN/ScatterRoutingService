@@ -230,7 +230,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
      @Override
      public Completable insertDataPacket(BlockDataObservableSource packet) {
-         if(!packet.isHashValid()) {
+         if(!packet.isHashValid().blockingGet()) {
             return Completable.error(new IllegalStateException("inserted a packet with invalid hash"));
          }
 
@@ -238,17 +238,17 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
              ScatterMessage message = new ScatterMessage();
              message.setFilePath(packet.getFile().getAbsolutePath());
              message.setBody(new byte[0]); //TODO: implement body
-             message.setFrom(packet.getHeader().getFromFingerprint().toByteArray());
-             message.setTo(packet.getHeader().getToFingerprint().toByteArray());
-             message.setSig(packet.getHeader().getSig().toByteArray());
-             message.setApplication(packet.getHeader().getApplication());
-             message.setSessionid(packet.getHeader().getSessionID());
+             message.setFrom(packet.getHeader().blockingGet().getFromFingerprint().toByteArray());
+             message.setTo(packet.getHeader().blockingGet().getToFingerprint().toByteArray());
+             message.setSig(packet.getHeader().blockingGet().getSig().toByteArray());
+             message.setApplication(packet.getHeader().blockingGet().getApplication());
+             message.setSessionid(packet.getHeader().blockingGet().getSessionID());
              message.setIdentity(null); //TODO: update identity later
-             Log.e("debug", "header blocksize " + packet.getHeader().getBlockSize());
-             message.setBlocksize(packet.getHeader().getBlockSize());
+             Log.e("debug", "header blocksize " + packet.getHeader().blockingGet().getBlockSize());
+             message.setBlocksize(packet.getHeader().blockingGet().getBlockSize());
 
              List<Hashes> hashlist = new ArrayList<>();
-             for (ByteString hash : packet.getHashes()) {
+             for (ByteString hash : packet.getHashes().blockingGet()) {
                  Hashes hashes = new Hashes();
                  hashes.setHash(hash.toByteArray());
                  hashlist.add(hashes);

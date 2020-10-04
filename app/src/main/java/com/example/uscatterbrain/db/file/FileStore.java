@@ -20,18 +20,20 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 
+import io.reactivex.Observable;
+import io.reactivex.Single;
+
 public class FileStore {
     private static FileStore mFileStoreInstance = null;
-    private Executor mWriteExecutor;
     private Map<Path, OpenFile> mOpenFiles;
 
     private FileStore() {
-        mWriteExecutor = Executors.newSingleThreadExecutor();
-        mOpenFiles = new HashMap<>();
+        mOpenFiles = new ConcurrentHashMap<>();
     }
 
     public static FileStore getFileStore() {
@@ -41,8 +43,8 @@ public class FileStore {
         return mFileStoreInstance;
     }
 
-    public FutureTask<FileCallbackResult> deleteFile(Path path) {
-        FutureTask<FileCallbackResult> result = new FutureTask<>(() -> {
+    public Single<FileCallbackResult> deleteFile(Path path) {
+        return Single.fromCallable(() -> {
             if (!path.toFile().exists()) {
                 return FileCallbackResult.ERR_FILE_NO_EXISTS;
             }
@@ -57,9 +59,6 @@ public class FileStore {
                 return FileCallbackResult.ERR_FAILED;
             }
         });
-
-        mWriteExecutor.execute(result);
-        return result;
     }
 
     public boolean isOpen(Path path) {
@@ -93,8 +92,8 @@ public class FileStore {
         return true;
     }
 
-    public FutureTask<FileCallbackResult> insertFile(InputStream is, Path path) {
-        FutureTask<FileCallbackResult> result = new FutureTask<>(() -> {
+    public Single<FileCallbackResult> insertFile(InputStream is, Path path) {
+        return Single.fromCallable(() -> {
             if (path.toFile().exists()) {
                 return FileCallbackResult.ERR_FILE_EXISTS;
             }
@@ -122,55 +121,23 @@ public class FileStore {
             }
             return FileCallbackResult.ERR_SUCCESS;
         });
-
-        mWriteExecutor.execute(result);
-        return result;
     }
 
-    public FutureTask<FileCallbackResult> insertFile(ByteString data, Path path, WriteMode mode) {
-        return insertFile(data, path, mode, null);
-    }
+    public Observable<FileCallbackResult> insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path) {
 
-    public FutureTask<FileCallbackResult> insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path) {
-        FutureTask<FileCallbackResult> await = null;
-
-        for (int i=0;i<count;i++) {
-            Log.e("debug", "writing file "+ i);
-            BlockSequencePacket blockSequencePacket = BlockSequencePacket.parseFrom(inputStream).blockingGet();
-            if (blockSequencePacket == null) {
-                await =  new FutureTask<>(() -> FileCallbackResult.ERR_FAILED);
-                Log.e("debug", "blocksequence was null");
-                mWriteExecutor.execute(await);
-                return await;
-            }
-
-            if (!blockSequencePacket.verifyHash(header)) {
-                await = new FutureTask<>(() -> FileCallbackResult.ERR_FAILED);
-                Log.e("debug", "failed to verify blocksequence hash");
-                mWriteExecutor.execute(await);
-                return await;
-            }
-
-            await = insertFile(blockSequencePacket.getmData(), path, WriteMode.APPEND, await);
-        }
-        if (await == null) {
-            await = new FutureTask<>(() -> FileCallbackResult.ERR_FAILED);
-
-            Log.e("debug", "await was null");
-            mWriteExecutor.execute(await);
-            return await;
-        } else {
-            return await;
-        }
+        return BlockSequencePacket.parseFrom(inputStream)
+                .repeat(count)
+                .toObservable()
+                .concatMap(blockSequencePacket -> {
+                    if (!blockSequencePacket.verifyHash(header)) {
+                        return Observable.error(new IllegalStateException("failed to verify hash"));
+                    }
+                    return insertFile(blockSequencePacket.getmData(), path, WriteMode.APPEND).toObservable();
+                });
      }
 
-    public FutureTask<FileCallbackResult> insertFile(ByteString data, Path path, WriteMode mode, FutureTask<FileCallbackResult> await) {
-        FutureTask<FileCallbackResult> result = new FutureTask<>(() -> {
-            if (await != null) {
-                if (await.get() != FileCallbackResult.ERR_SUCCESS) {
-                    return FileCallbackResult.ERR_FAILED;
-                }
-            }
+    public Single<FileCallbackResult> insertFile(ByteString data, Path path, WriteMode mode) {
+        return Single.fromCallable(() -> {
             if (!open(path)) {
                 return FileCallbackResult.ERR_IO_EXCEPTION;
             }
@@ -200,13 +167,10 @@ public class FileStore {
             }
             return FileCallbackResult.ERR_SUCCESS;
         });
-
-        mWriteExecutor.execute(result);
-        return result;
     }
 
-    public FutureTask<FileCallbackResult> getFile(OutputStream os, Path path) {
-        FutureTask<FileCallbackResult> result = new FutureTask<>(() -> {
+    public Single<FileCallbackResult> getFile(OutputStream os, Path path) {
+        return Single.fromCallable(() -> {
             try {
                 if (!path.toFile().exists()) {
                     return FileCallbackResult.ERR_FILE_NO_EXISTS;
@@ -227,13 +191,10 @@ public class FileStore {
             }
             return FileCallbackResult.ERR_SUCCESS;
         });
-
-        mWriteExecutor.execute(result);
-        return result;
     }
 
-    public FutureTask<List<ByteString>> hashFile(Path path, int blocksize) {
-        FutureTask<List<ByteString>> result = new FutureTask<>(() -> {
+    public Single<List<ByteString>> hashFile(Path path, int blocksize) {
+        return Single.fromCallable(() -> {
             List<ByteString> r = new ArrayList<>();
             if (!path.toFile().exists()) {
                 return null;
@@ -255,8 +216,6 @@ public class FileStore {
             }
             return r;
         });
-        mWriteExecutor.execute(result);
-        return result;
     }
 
     public enum FileCallbackResult {

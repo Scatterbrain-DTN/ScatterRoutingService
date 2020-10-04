@@ -37,11 +37,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import io.reactivex.observers.TestObserver;
 import io.reactivex.schedulers.TestScheduler;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
@@ -166,16 +168,15 @@ public class DatastoreInstrumentedTest {
 
         File f = new File(service.getFilesDir(), "fmef");
 
-        Future<FileStore.FileCallbackResult> deleteResult = store.deleteFile(f.toPath().toAbsolutePath());
-        deleteResult.get();
-        Future<FileStore.FileCallbackResult> result = store.insertFile(is, f.toPath().toAbsolutePath());
-        assertThat(result.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
+        FileStore.FileCallbackResult deleteResult = store.deleteFile(f.toPath().toAbsolutePath()).blockingGet();
+        FileStore.FileCallbackResult result = store.insertFile(is, f.toPath().toAbsolutePath()).blockingGet();
+        assertThat(result, is(FileStore.FileCallbackResult.ERR_SUCCESS));
 
         File verify = new File(service.getFilesDir(), "fmef");
         System.out.println("verify full path " + verify.getAbsolutePath());
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            Future<FileStore.FileCallbackResult> readresult = store.getFile(bos, verify.toPath().toAbsolutePath());
-            assertThat(readresult.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
+            FileStore.FileCallbackResult readresult = store.getFile(bos, verify.toPath().toAbsolutePath()).blockingGet();
+            assertThat(readresult, is(FileStore.FileCallbackResult.ERR_SUCCESS));
         for (byte datum : data) {
             System.out.print(datum);
         }
@@ -199,14 +200,13 @@ public class DatastoreInstrumentedTest {
 
         File f = new File(service.getFilesDir(), "fmef");
 
-        Future<FileStore.FileCallbackResult> deleteResult = store.deleteFile(f.toPath().toAbsolutePath());
-        deleteResult.get();
-        Future<FileStore.FileCallbackResult> result = store.insertFile(is, f.toPath().toAbsolutePath());
-        assertThat(result.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
+        FileStore.FileCallbackResult vdeleteResult = store.deleteFile(f.toPath().toAbsolutePath()).blockingGet();
+        FileStore.FileCallbackResult result = store.insertFile(is, f.toPath().toAbsolutePath()).blockingGet();
+        assertThat(result, is(FileStore.FileCallbackResult.ERR_SUCCESS));
 
-        Future<List<ByteString>> hashlist = store.hashFile(f.toPath().toAbsolutePath(), 4096);
-        assertThat(hashlist.get() == null, is(false));
-        assertThat(hashlist.get().size(), is(10));
+        List<ByteString> hashlist = store.hashFile(f.toPath().toAbsolutePath(), 4096).blockingGet();
+        assertThat(hashlist == null, is(false));
+        assertThat(hashlist.size(), is(10));
     }
 
     @Test
@@ -227,10 +227,9 @@ public class DatastoreInstrumentedTest {
 
         File f = new File(service.getFilesDir(), "fmef");
 
-        Future<FileStore.FileCallbackResult> deleteResult = store.deleteFile(f.toPath().toAbsolutePath());
-        deleteResult.get();
-        Future<FileStore.FileCallbackResult> result = store.insertFile(is, f.toPath().toAbsolutePath());
-        assertThat(result.get(), is(FileStore.FileCallbackResult.ERR_SUCCESS));
+        FileStore.FileCallbackResult deleteResult = store.deleteFile(f.toPath().toAbsolutePath()).blockingGet();
+        FileStore.FileCallbackResult result = store.insertFile(is, f.toPath().toAbsolutePath()).blockingGet();
+        assertThat(result, is(FileStore.FileCallbackResult.ERR_SUCCESS));
 
         BlockDataObservableSource bd = new BlockDataObservableSource.Builder()
                 .setBlockSize(1024)
@@ -244,9 +243,9 @@ public class DatastoreInstrumentedTest {
         byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
         byte[] secretkey = new byte[Sign.SECRETKEYBYTES];
         LibsodiumInterface.getSodium().crypto_sign_keypair(pubkey,secretkey);
-        bd.getHeader().signEd25519(secretkey);
+        bd.getHeader().blockingGet().signEd25519(secretkey);
 
-        assertNull(datastore.insertDataPacket(bd).blockingGet());
+        assertEquals(datastore.insertDataPacket(bd).blockingGet().getMessage(), "inserted a packet with invalid hash");
     }
 
 
