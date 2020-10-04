@@ -27,6 +27,7 @@ import java.util.concurrent.FutureTask;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
+import io.reactivex.functions.BiFunction;
 
 public class FileStore {
     private static FileStore mFileStoreInstance = null;
@@ -123,7 +124,7 @@ public class FileStore {
         });
     }
 
-    public Observable<FileCallbackResult> insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path) {
+    public Single<FileCallbackResult> insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path) {
 
         return BlockSequencePacket.parseFrom(inputStream)
                 .repeat(count)
@@ -133,7 +134,14 @@ public class FileStore {
                         return Observable.error(new IllegalStateException("failed to verify hash"));
                     }
                     return insertFile(blockSequencePacket.getmData(), path, WriteMode.APPEND).toObservable();
-                });
+                })
+                .reduce((fileCallbackResult, fileCallbackResult2) -> {
+                    if (fileCallbackResult == FileCallbackResult.ERR_SUCCESS && fileCallbackResult2 == FileCallbackResult.ERR_SUCCESS) {
+                        return FileCallbackResult.ERR_SUCCESS;
+                    } else  {
+                        return FileCallbackResult.ERR_FAILED;
+                    }
+                }).toSingle();
      }
 
     public Single<FileCallbackResult> insertFile(ByteString data, Path path, WriteMode mode) {

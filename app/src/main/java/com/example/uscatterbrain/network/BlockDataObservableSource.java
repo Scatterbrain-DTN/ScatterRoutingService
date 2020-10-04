@@ -84,7 +84,12 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
         mIndex = 0;
     }
 
-    private BlockDataObservableSource(BlockHeaderPacket headerPacket, InputStream is, File file) throws ParseException {
+    private BlockDataObservableSource(
+            BlockHeaderPacket headerPacket,
+            InputStream is,
+            File file,
+            Single<FileStore.FileCallbackResult> fileResult
+    ) throws ParseException {
         this.mDirection = Direction.RECEIVE;
         if (file.exists()) {
             throw new ParseException("file exists", 0);
@@ -103,6 +108,7 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
         this.mToDisk = mHeader.getToDisk();
         this.mApplication = ByteString.copyFrom(mHeader.getApplication());
         this.mSessionID = mHeader.getSessionID();
+        this.mFileResult = fileResult;
     }
 
     public Single<Boolean> isHashValid() {
@@ -218,11 +224,19 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
     public static Single<BlockDataObservableSource> parseFrom(InputStream inputStream, File file) {
         return  BlockHeaderPacket
                 .parseFrom(inputStream)
-                .flatMap(new Function<BlockHeaderPacket, SingleSource<BlockDataObservableSource>>() {
-                    @Override
-                    public SingleSource<BlockDataObservableSource> apply(BlockHeaderPacket blockHeaderPacket) throws Exception {
-                        return Single.fromCallable(() -> new BlockDataObservableSource(blockHeaderPacket, inputStream, file));
-                    }
+                .flatMap(blockHeaderPacket -> {
+                    Single<FileStore.FileCallbackResult> r = FileStore.getFileStore().insertFile(
+                            blockHeaderPacket,
+                            inputStream,
+                            blockHeaderPacket.getHashList().size(),
+                            file.toPath().toAbsolutePath()
+                    );
+                    return Single.fromCallable(() -> new BlockDataObservableSource(
+                            blockHeaderPacket,
+                            inputStream,
+                            file,
+                            r
+                    ));
                 });
     }
 
