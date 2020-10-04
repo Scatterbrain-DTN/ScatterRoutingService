@@ -15,12 +15,13 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class BleInstrumentedTest {
 
     @Rule
-    public final ServiceTestRule serviceRule = new ServiceTestRule();
+    public final ServiceTestRule serviceRule = ServiceTestRule.withTimeout(60L, TimeUnit.SECONDS);
 
     public ScatterRoutingServiceImpl getService() throws TimeoutException {
         Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingServiceImpl.class);

@@ -37,6 +37,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import io.reactivex.schedulers.TestScheduler;
@@ -52,7 +53,7 @@ import static org.junit.Assert.assertThat;
 public class DatastoreInstrumentedTest {
 
     @Rule
-    public final ServiceTestRule serviceRule = new ServiceTestRule();
+    public final ServiceTestRule serviceRule = ServiceTestRule.withTimeout(60L, TimeUnit.SECONDS);
 
 
     public void blockForThread() {

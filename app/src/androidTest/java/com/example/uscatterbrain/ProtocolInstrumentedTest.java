@@ -39,6 +39,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -51,7 +52,7 @@ import static org.junit.Assert.assertThat;
 public class ProtocolInstrumentedTest {
 
     @Rule
-    public final ServiceTestRule serviceRule = new ServiceTestRule();
+    public final ServiceTestRule serviceRule = ServiceTestRule.withTimeout(60L, TimeUnit.SECONDS);
 
 
     public void blockForThread() {
@@ -280,7 +281,7 @@ public class ProtocolInstrumentedTest {
 
         int i = 0;
         try {
-            for (ScatterSerializable bs : Objects.requireNonNull(bd)) {
+            for (ScatterSerializable bs : bd.blockingIterable()) {
                 if (i == 0) {
                     assertThat(((BlockHeaderPacket)bs).getHashList().size(), is(80));
                 }
