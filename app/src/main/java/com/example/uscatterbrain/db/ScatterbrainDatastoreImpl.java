@@ -195,7 +195,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     @Override
     public Completable insertDataPacket(List<BlockDataObservableSource> packets) {
-        List<FutureTask<ScatterDataPacketInsertResult<Long>>> finalResult = new ArrayList<>();
         return Observable.fromIterable(packets)
                 .flatMap(packet -> insertDataPacket(packet).toObservable())
                 .ignoreElements();

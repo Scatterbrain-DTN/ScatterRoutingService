@@ -99,32 +99,9 @@ public interface ScatterbrainDatastore {
 
     void clear();
 
-    class ScatterDataPacketInsertResult<T> {
-        private T scatterMessageId;
-        private ScatterbrainDatastoreImpl.DatastoreSuccessCode successCode;
-
-        public ScatterDataPacketInsertResult(T messageid, ScatterbrainDatastoreImpl.DatastoreSuccessCode code) {
-            this.scatterMessageId = messageid;
-            this.successCode = code;
-        }
-
-        public T getScatterMessageId() {
-            return scatterMessageId;
-        }
-
-        public ScatterbrainDatastoreImpl.DatastoreSuccessCode getSuccessCode() {
-            return successCode;
-        }
-    }
-
     class DatastoreInsertException extends Exception {
         public DatastoreInsertException() {
             super();
         }
-    }
-
-    enum DatastoreSuccessCode {
-        DATASTORE_SUCCESS_CODE_SUCCESS,
-        DATASTORE_SUCCESS_CODE_FAILURE
     }
 }
