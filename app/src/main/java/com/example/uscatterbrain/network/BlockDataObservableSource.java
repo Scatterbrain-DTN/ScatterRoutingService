@@ -23,6 +23,7 @@ import io.reactivex.Single;
 import io.reactivex.SingleSource;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.BooleanSupplier;
+import io.reactivex.functions.Consumer;
 import io.reactivex.functions.Function;
 
 /**
@@ -109,6 +110,7 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
         this.mApplication = ByteString.copyFrom(mHeader.getApplication());
         this.mSessionID = mHeader.getSessionID();
         this.mFileResult = fileResult;
+        this.mHashList = Single.just(headerPacket.getHashList());
     }
 
     public Single<Boolean> isHashValid() {
