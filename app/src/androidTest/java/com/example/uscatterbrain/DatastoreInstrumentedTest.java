@@ -15,7 +15,9 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.db.file.FileStore;
+import com.example.uscatterbrain.db.file.FileStoreImpl;
+import com.example.uscatterbrain.network.BlockDataSourceFactory;
+import com.example.uscatterbrain.network.BlockDataSourceFactoryImpl;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.BlockDataObservableSource;
 import com.google.protobuf.ByteString;
@@ -33,11 +35,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import io.reactivex.observers.TestObserver;
 import io.reactivex.schedulers.TestScheduler;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -94,6 +94,7 @@ public class DatastoreInstrumentedTest {
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
                 Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new BlockDataSourceFactoryImpl(new FileStoreImpl()),
                 new TestScheduler()
         );
         datastore.clear();
@@ -112,6 +113,7 @@ public class DatastoreInstrumentedTest {
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
                 Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new BlockDataSourceFactoryImpl(new FileStoreImpl()),
                 new TestScheduler()
         );
         datastore.clear();
@@ -129,6 +131,7 @@ public class DatastoreInstrumentedTest {
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
                 Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new BlockDataSourceFactoryImpl(new FileStoreImpl()),
                 new TestScheduler()
         );
         datastore.clear();
@@ -146,6 +149,7 @@ public class DatastoreInstrumentedTest {
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
                 Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new BlockDataSourceFactoryImpl(new FileStoreImpl()),
                 new TestScheduler()
         );
         datastore.clear();
@@ -160,7 +164,7 @@ public class DatastoreInstrumentedTest {
     @Test
     public void fileStoreAddWorks() throws TimeoutException, InterruptedException , ExecutionException {
         ScatterRoutingServiceImpl service = getService();
-        FileStore store = FileStore.getFileStore();
+        FileStoreImpl store = new FileStoreImpl();
         byte[] data = new byte[100];
         Random r = new Random();
         r.nextBytes(data);
@@ -168,15 +172,15 @@ public class DatastoreInstrumentedTest {
 
         File f = new File(service.getFilesDir(), "fmef");
 
-        FileStore.FileCallbackResult deleteResult = store.deleteFile(f.toPath().toAbsolutePath()).blockingGet();
-        FileStore.FileCallbackResult result = store.insertFile(is, f.toPath().toAbsolutePath()).blockingGet();
-        assertThat(result, is(FileStore.FileCallbackResult.ERR_SUCCESS));
+        FileStoreImpl.FileCallbackResult deleteResult = store.deleteFile(f.toPath().toAbsolutePath()).blockingGet();
+        FileStoreImpl.FileCallbackResult result = store.insertFile(is, f.toPath().toAbsolutePath()).blockingGet();
+        assertThat(result, is(FileStoreImpl.FileCallbackResult.ERR_SUCCESS));
 
         File verify = new File(service.getFilesDir(), "fmef");
         System.out.println("verify full path " + verify.getAbsolutePath());
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            FileStore.FileCallbackResult readresult = store.getFile(bos, verify.toPath().toAbsolutePath()).blockingGet();
-            assertThat(readresult, is(FileStore.FileCallbackResult.ERR_SUCCESS));
+            FileStoreImpl.FileCallbackResult readresult = store.getFile(bos, verify.toPath().toAbsolutePath()).blockingGet();
+            assertThat(readresult, is(FileStoreImpl.FileCallbackResult.ERR_SUCCESS));
         for (byte datum : data) {
             System.out.print(datum);
         }
@@ -191,7 +195,7 @@ public class DatastoreInstrumentedTest {
     @Test
     public void hashingFromDiskWorks() throws TimeoutException, InterruptedException, ExecutionException {
         ScatterRoutingServiceImpl service = getService();
-        FileStore store = FileStore.getFileStore();
+        FileStoreImpl store = new FileStoreImpl();
         byte[] data = new byte[4096*10];
         Random r = new Random();
         r.nextBytes(data);
@@ -200,9 +204,9 @@ public class DatastoreInstrumentedTest {
 
         File f = new File(service.getFilesDir(), "fmef");
 
-        FileStore.FileCallbackResult vdeleteResult = store.deleteFile(f.toPath().toAbsolutePath()).blockingGet();
-        FileStore.FileCallbackResult result = store.insertFile(is, f.toPath().toAbsolutePath()).blockingGet();
-        assertThat(result, is(FileStore.FileCallbackResult.ERR_SUCCESS));
+        FileStoreImpl.FileCallbackResult vdeleteResult = store.deleteFile(f.toPath().toAbsolutePath()).blockingGet();
+        FileStoreImpl.FileCallbackResult result = store.insertFile(is, f.toPath().toAbsolutePath()).blockingGet();
+        assertThat(result, is(FileStoreImpl.FileCallbackResult.ERR_SUCCESS));
 
         List<ByteString> hashlist = store.hashFile(f.toPath().toAbsolutePath(), 4096).blockingGet();
         assertThat(hashlist == null, is(false));
@@ -212,10 +216,11 @@ public class DatastoreInstrumentedTest {
     @Test
     public void scatterDataPacketInsertWorks() throws TimeoutException, InterruptedException, ExecutionException, NullPointerException {
         ScatterRoutingServiceImpl service = getService();
-        FileStore store = FileStore.getFileStore();
+        FileStoreImpl store = new FileStoreImpl();
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
                 Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new BlockDataSourceFactoryImpl(new FileStoreImpl()),
                 new TestScheduler()
         );
 
@@ -227,11 +232,12 @@ public class DatastoreInstrumentedTest {
 
         File f = new File(service.getFilesDir(), "fmef");
 
-        FileStore.FileCallbackResult deleteResult = store.deleteFile(f.toPath().toAbsolutePath()).blockingGet();
-        FileStore.FileCallbackResult result = store.insertFile(is, f.toPath().toAbsolutePath()).blockingGet();
-        assertThat(result, is(FileStore.FileCallbackResult.ERR_SUCCESS));
+        FileStoreImpl.FileCallbackResult deleteResult = store.deleteFile(f.toPath().toAbsolutePath()).blockingGet();
+        FileStoreImpl.FileCallbackResult result = store.insertFile(is, f.toPath().toAbsolutePath()).blockingGet();
+        assertThat(result, is(FileStoreImpl.FileCallbackResult.ERR_SUCCESS));
 
-        BlockDataObservableSource bd = new BlockDataObservableSource.Builder()
+        BlockDataSourceFactory factory = new BlockDataSourceFactoryImpl(new FileStoreImpl());
+                BlockDataSourceFactory.BuildOptions options = new BlockDataSourceFactory.BuildOptions.Builder()
                 .setBlockSize(1024)
                 .setFragmentFile(f)
                 .setFromAddress(ByteString.copyFrom(new byte[32]))
@@ -239,6 +245,8 @@ public class DatastoreInstrumentedTest {
                 .setSessionID(0)
                 .setApplication("test")
                 .build();
+
+                BlockDataObservableSource bd = factory.buildSource(options).blockingGet();
 
         byte[] pubkey = new byte[Sign.PUBLICKEYBYTES];
         byte[] secretkey = new byte[Sign.SECRETKEYBYTES];
@@ -265,6 +273,7 @@ public class DatastoreInstrumentedTest {
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
                 Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
+                new BlockDataSourceFactoryImpl(new FileStoreImpl()),
                 new TestScheduler()
         );
         datastore.clear();

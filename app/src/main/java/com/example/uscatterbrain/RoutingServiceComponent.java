@@ -9,6 +9,10 @@ import com.example.uscatterbrain.API.ScatterRoutingService;
 import com.example.uscatterbrain.db.Datastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
+import com.example.uscatterbrain.db.file.FileStore;
+import com.example.uscatterbrain.db.file.FileStoreImpl;
+import com.example.uscatterbrain.network.BlockDataSourceFactory;
+import com.example.uscatterbrain.network.BlockDataSourceFactoryImpl;
 import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
@@ -75,6 +79,12 @@ public interface RoutingServiceComponent {
 
         @Binds
         abstract ScatterbrainDatastore bindDatastore(ScatterbrainDatastoreImpl impl);
+
+        @Binds
+        abstract BlockDataSourceFactory bindBlockDataSourceFactory(BlockDataSourceFactoryImpl impl);
+
+        @Binds
+        abstract FileStore bindFileStore(FileStoreImpl impl);
 
         @Binds
         @Named(NamedRadioModules.BLUETOOTH_LE)

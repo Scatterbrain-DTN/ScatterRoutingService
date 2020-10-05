@@ -11,6 +11,7 @@ import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockDataObservableSource;
+import com.example.uscatterbrain.network.BlockDataSourceFactory;
 import com.google.protobuf.ByteString;
 
 import java.io.File;
@@ -39,6 +40,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     private final Datastore mDatastore;
     private final Context ctx;
     private final Scheduler databaseScheduler;
+    private final BlockDataSourceFactory blockDataSourceFactory;
     /**
      * constructor
      * @param ctx  application or service context
@@ -47,11 +49,13 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public ScatterbrainDatastoreImpl(
             Context ctx,
             Datastore datastore,
+            BlockDataSourceFactory blockDataSourceFactory,
             @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) Scheduler databaseScheduler
     ) {
         mDatastore = datastore;
         this.ctx = ctx;
         this.databaseScheduler = databaseScheduler;
+        this.blockDataSourceFactory = blockDataSourceFactory;
     }
 
     /**
@@ -289,7 +293,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         List<BlockDataObservableSource> bdlist = new ArrayList<>();
                         for (ScatterMessage message : messages) {
                             File f = Paths.get(message.getFilePath()).toAbsolutePath().toFile();
-                            BlockDataObservableSource dataPacket = BlockDataObservableSource.newBuilder()
+                            BlockDataSourceFactory.BuildOptions options = new BlockDataSourceFactory.BuildOptions.Builder()
                                     .setApplication(ByteString.copyFrom(message.getApplication()).toStringUtf8())
                                     .setFromAddress(ByteString.copyFrom(message.getFrom()))
                                     .setToAddress(ByteString.copyFrom(message.getTo()))
@@ -298,6 +302,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     .setFragmentFile(f)
                                     .setSig(ByteString.copyFrom(message.getSig()))
                                     .build();
+
+                            //TODO: this is ugly. fix
+                            BlockDataObservableSource dataPacket = blockDataSourceFactory.buildSource(options).blockingGet();
 
                             bdlist.add(dataPacket);
                         }

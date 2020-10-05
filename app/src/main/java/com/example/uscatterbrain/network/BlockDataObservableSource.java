@@ -1,30 +1,22 @@
 package com.example.uscatterbrain.network;
 
-import com.example.uscatterbrain.db.file.FileStore;
+import com.example.uscatterbrain.db.file.FileStoreImpl;
 import com.google.protobuf.ByteString;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.Executor;
-import java.util.concurrent.FutureTask;
 
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.ObservableSource;
 import io.reactivex.Observer;
 import io.reactivex.Single;
-import io.reactivex.SingleSource;
-import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.BooleanSupplier;
-import io.reactivex.functions.Consumer;
 import io.reactivex.functions.Function;
+import com.example.uscatterbrain.network.BlockDataSourceFactory.Direction;
 
 /**
  * High level interface to a scatterbrain blockdata stream,
@@ -43,53 +35,40 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
     private int mSessionID;
     private File mFile;
     private ByteString mSig;
-    private Single<FileStore.FileCallbackResult> mFileResult;
-    private Direction mDirection;
-    private DirectExecutor mExecutor = new DirectExecutor();
-    public enum Direction {
-        SEND,
-        RECEIVE
-    }
+    private Single<FileStoreImpl.FileCallbackResult> mFileResult;
+    private BlockDataSourceFactory.Direction mDirection;
 
-    /**
-     * default size of blocksequence packet
-     */
-    public static final int DEFAULT_BLOCK_SIZE = 1024*1024*1024;
-    /**
-     * max data size for packets stored in datastore without files
-     */
-    public static final long MAX_SIZE_NONFILE = 512*1024;
 
 
     protected BlockDataObservableSource() {
         super();
     }
 
-    private BlockDataObservableSource(Builder builder) {
+    public BlockDataObservableSource(BlockDataSourceFactory.BuildOptions builder, Single<List<ByteString>> hashList) {
         try {
-            this.mFragmentStream = new FileInputStream(builder.getFragmentFile());
+            this.mFragmentStream = new FileInputStream(builder.source_file);
         } catch(FileNotFoundException e) {
             e.printStackTrace();
             this.mFragmentStream = null;
         }
-        this.mBlockSize = builder.getBlockSize();
-        this.mHashList = builder.getHashList();
-        this.mFromFingerprint = builder.getFrom();
-        this.mToFingerprint = builder.getTo();
-        this.mApplication = builder.getApplication();
-        this.mSessionID = builder.getSessionID();
-        this.mFile = builder.getFragmentFile();
+        this.mBlockSize = builder.block_size;
+        this.mHashList = hashList;
+        this.mFromFingerprint = builder.from_address;
+        this.mToFingerprint = builder.to_address;
+        this.mApplication = builder.application;
+        this.mSessionID = builder.session_id;
+        this.mFile = builder.source_file;
         this.mDirection = Direction.SEND;
-        this.mToDisk = builder.getToDisk();
-        this.mSig = builder.getSig();
+        this.mToDisk = builder.to_disk;
+        this.mSig = builder.sig;
         mIndex = 0;
     }
 
-    private BlockDataObservableSource(
+    public BlockDataObservableSource(
             BlockHeaderPacket headerPacket,
             InputStream is,
             File file,
-            Single<FileStore.FileCallbackResult> fileResult
+            Single<FileStoreImpl.FileCallbackResult> fileResult
     ) throws ParseException {
         this.mDirection = Direction.RECEIVE;
         if (file.exists()) {
@@ -118,7 +97,7 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
         if (mFileResult != null && mDirection == Direction.RECEIVE) {
             return mFileResult
                     .map(fileCallbackResult -> {
-                        if (fileCallbackResult == FileStore.FileCallbackResult.ERR_SUCCESS) {
+                        if (fileCallbackResult == FileStoreImpl.FileCallbackResult.ERR_SUCCESS) {
                             return true;
                         } else {
                             return mDirection == Direction.SEND;
@@ -221,225 +200,5 @@ public class BlockDataObservableSource extends Observable<ScatterSerializable> {
                         mIndex++;
                         return result;
                     });
-    }
-
-    public static Single<BlockDataObservableSource> parseFrom(InputStream inputStream, File file) {
-        return  BlockHeaderPacket
-                .parseFrom(inputStream)
-                .flatMap(blockHeaderPacket -> {
-                    Single<FileStore.FileCallbackResult> r = FileStore.getFileStore().insertFile(
-                            blockHeaderPacket,
-                            inputStream,
-                            blockHeaderPacket.getHashList().size(),
-                            file.toPath().toAbsolutePath()
-                    );
-                    return Single.fromCallable(() -> new BlockDataObservableSource(
-                            blockHeaderPacket,
-                            inputStream,
-                            file,
-                            r
-                    ));
-                });
-    }
-
-    /**
-     * creates a builder for ScatterDataPacket class
-     *
-     * @return the builder
-     */
-    public static Builder newBuilder() {
-        return new Builder();
-    }
-
-    /**
-     * Builder for ScatterDataPacket class
-     */
-    public static class Builder {
-        private int mBlockSize;
-        private long mSize;
-        private boolean mToDisk;
-        private ByteString to;
-        private ByteString from;
-        private ByteString application;
-        private int mSessionID;
-        private File mFile;
-        private ByteString mSig;
-        private Single<List<ByteString>> mHashlist;
-
-        /**
-         * Instantiates a new Builder.
-         */
-        public Builder() {
-            this.mBlockSize = DEFAULT_BLOCK_SIZE;
-            this.mToDisk = false;
-            this.mSessionID = 0;
-            this.mToDisk = true;
-        }
-
-        /**
-         * Sets recipient key fingerprint (optional)
-         *
-         * @param to the to
-         * @return the to address
-         */
-        public Builder setToAddress(ByteString to) {
-            this.to = to;
-            return this;
-        }
-
-        /**
-         * Sets sender key fingerprint (optional)
-         *
-         * @param from the from
-         * @return the from address
-         */
-        public Builder setFromAddress(ByteString from) {
-            this.from = from;
-            return this;
-        }
-
-        /**
-         * Sets session id.
-         *
-         * @param sessionID the session id used for bootstrapping to a new transport
-         * @return the session id
-         */
-        public Builder setSessionID(int sessionID) {
-            this.mSessionID = sessionID;
-            return this;
-        }
-
-        /**
-         * Sets application name
-         *
-         * @param application the application
-         * @return the application
-         */
-        public Builder setApplication(String application) {
-            this.application = ByteString.copyFromUtf8(application);
-            return this;
-        }
-
-        /**
-         * Sets file to retrieve BlockSequence packets from
-         *
-         * @param file the file
-         * @return the fragment file
-         */
-        public Builder setFragmentFile(File file) {
-            this.mFile = file;
-            this.mToDisk = true;
-            return this;
-        }
-
-        /**
-         * Sets fragment count manually
-         *
-         * @param count the count
-         * @return the fragment count
-         */
-        public Builder setFragmentCount(int count) {
-            this.mSize = count;
-            return this;
-        }
-
-        public Builder setToDisk(boolean toDisk) {
-            this.mToDisk = toDisk;
-            return this;
-        }
-
-        public Builder setSig(ByteString sig) {
-            this.mSig = sig;
-            return this;
-        }
-
-        /**
-         * Sets block size manually
-         *
-         * @param bs the bs
-         * @return the block size
-         */
-        public Builder setBlockSize(int bs) {
-            this.mBlockSize = bs;
-            return this;
-        }
-
-        public Single<List<ByteString>> getHashList() {
-            return mHashlist;
-        }
-
-        /**
-         * Gets block size.
-         *
-         * @return the block size
-         */
-        public int getBlockSize() {
-            return mBlockSize;
-        }
-
-        private long getCount() {
-            return mSize;
-        }
-
-        /**
-         * get the fragment file
-         * @return reference to fragment file
-         */
-        public File getFragmentFile() {
-            return mFile;
-        }
-
-        public ByteString getTo() {
-            return to;
-        }
-
-        public ByteString getFrom() {
-            return from;
-        }
-
-        public ByteString getApplication() {
-            return application;
-        }
-
-        public int getSessionID() {
-            return mSessionID;
-        }
-
-        public boolean getToDisk() { return mToDisk; }
-
-        public ByteString getSig() { return mSig; }
-
-        /**
-         * Builds data packet.
-         *
-         * @return the scatter data packet
-         */
-        public BlockDataObservableSource build() {
-            if (this.mToDisk && this.mFile != null)
-                this.mSize = mFile.length();
-
-            if (mFile== null) {
-                return null;
-            }
-
-            if (!mFile.exists()) {
-                return null;
-            }
-
-            if (mBlockSize <= 0) {
-                return null;
-            }
-
-            mHashlist = FileStore.getFileStore().hashFile(mFile.toPath().toAbsolutePath(), mBlockSize);
-
-            return new BlockDataObservableSource(this);
-
-        }
-    }
-
-    static class DirectExecutor implements Executor {
-        public void execute(Runnable r) {
-            r.run();
-        }
     }
 }

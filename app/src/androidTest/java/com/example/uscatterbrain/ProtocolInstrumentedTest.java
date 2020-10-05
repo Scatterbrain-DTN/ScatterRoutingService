@@ -11,7 +11,10 @@ import androidx.test.rule.ServiceTestRule;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.db.file.FileStore;
+import com.example.uscatterbrain.db.file.FileStoreImpl;
 import com.example.uscatterbrain.network.AdvertisePacket;
+import com.example.uscatterbrain.network.BlockDataSourceFactory;
+import com.example.uscatterbrain.network.BlockDataSourceFactoryImpl;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.IdentityPacket;
@@ -38,7 +41,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -255,7 +257,7 @@ public class ProtocolInstrumentedTest {
         Random r = new Random();
         r.nextBytes(data);
         ScatterRoutingServiceImpl service = getService();
-        FileStore store = FileStore.getFileStore();
+        FileStoreImpl store = new FileStoreImpl();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         List<ByteString> bl = new ArrayList<>();
         bl.add(ByteString.EMPTY);
@@ -263,9 +265,9 @@ public class ProtocolInstrumentedTest {
 
         File file = new File(service.getFilesDir(), "test2");
         store.deleteFile(file.toPath().toAbsolutePath()).blockingGet();
-        FileStore.FileCallbackResult resultFuture =  store.insertFile(is, file.toPath().toAbsolutePath()).blockingGet();
-        assertThat(resultFuture, is(FileStore.FileCallbackResult.ERR_SUCCESS));
-        BlockDataObservableSource bd = new BlockDataObservableSource.Builder()
+        FileStoreImpl.FileCallbackResult resultFuture =  store.insertFile(is, file.toPath().toAbsolutePath()).blockingGet();
+        assertThat(resultFuture, is(FileStoreImpl.FileCallbackResult.ERR_SUCCESS));
+        BlockDataSourceFactory.BuildOptions options = new BlockDataSourceFactory.BuildOptions.Builder()
                     .setBlockSize(1024)
                     .setFragmentFile(file)
                     .setFromAddress(ByteString.copyFrom(new byte[32]))
@@ -273,6 +275,10 @@ public class ProtocolInstrumentedTest {
                     .setSessionID(0)
                     .setApplication("test")
                     .build();
+
+        BlockDataSourceFactoryImpl factory = new BlockDataSourceFactoryImpl(store);
+
+        BlockDataObservableSource bd = factory.buildSource(options).blockingGet();
 
         assertThat(bd != null, is(true));
 
@@ -292,8 +298,8 @@ public class ProtocolInstrumentedTest {
 
             ByteArrayInputStream bis = new ByteArrayInputStream(os.toByteArray());
             File newfile = new File(service.getFilesDir(), "newfile");
-            FileStore.getFileStore().deleteFile(newfile.toPath().toAbsolutePath()).blockingGet();
-            BlockDataObservableSource newdp = BlockDataObservableSource.parseFrom(bis, newfile).blockingGet();
+            store.deleteFile(newfile.toPath().toAbsolutePath()).blockingGet();
+            BlockDataObservableSource newdp = factory.buildSource(bis, newfile).blockingGet();
             assertThat(newdp != null, is(true));
             assertThat(Objects.requireNonNull(newdp).isHashValid().blockingGet(), is(true));
         } catch (Exception e) {
