@@ -6,7 +6,6 @@ import android.util.Log;
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.Identity;
-import com.example.uscatterbrain.db.entities.IdentityRelations;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
@@ -26,7 +25,6 @@ import javax.inject.Inject;
 import javax.inject.Named;
 
 import io.reactivex.Completable;
-import io.reactivex.Maybe;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
@@ -165,8 +163,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      * @return livedata representation of list of messages
      */
     @Override
-    public Maybe<List<ScatterMessage>> getTopRandomMessages(int count) {
-        return this.mDatastore.scatterMessageDao().getTopRandom(count);
+    public Observable<ScatterMessage> getTopRandomMessages(int count) {
+        return this.mDatastore.scatterMessageDao().getTopRandom(count)
+                .toObservable()
+                .flatMap(Observable::fromIterable);
     }
 
     /**
@@ -174,8 +174,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      * @return list of DiskFiles objects
      */
     @Override
-    public Maybe<List<String>> getAllFiles() {
-        return this.mDatastore.scatterMessageDao().getAllFiles();
+    public Observable<String> getAllFiles() {
+        return this.mDatastore.scatterMessageDao().getAllFiles()
+                .toObservable()
+                .flatMap(Observable::fromIterable);
     }
 
     /**
@@ -185,8 +187,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      * @return livedata representation of list of messages
      */
     @Override
-    public Maybe<List<ScatterMessage>> getMessagesByIdentity(Identity id) {
-        return this.mDatastore.scatterMessageDao().getByIdentity(id.getIdentityID());
+    public Observable<ScatterMessage> getMessagesByIdentity(Identity id) {
+        return this.mDatastore.scatterMessageDao().getByIdentity(id.getIdentityID())
+                .toObservable()
+                .flatMap(Observable::fromIterable);
     }
 
     @Override
@@ -263,53 +267,50 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
          });
      }
 
-     public Maybe<List<com.example.uscatterbrain.identity.Identity>> getIdentity(List<Long> ids) {
+     public Observable<com.example.uscatterbrain.identity.Identity> getIdentity(List<Long> ids) {
             return mDatastore.identityDao().getIdentitiesWithRelations(ids)
-                        .map(idlist -> {
-                            List<com.example.uscatterbrain.identity.Identity> r = new ArrayList<>();
-                            for (IdentityRelations relation : idlist) {
-                                Map<String, ByteString> keylist = new HashMap<>(relation.keys.size());
-                                for (Keys keys : relation.keys) {
-                                    keylist.put(keys.getKey(), ByteString.copyFrom(keys.getValue()));
-                                }
-                                com.example.uscatterbrain.identity.Identity identity = com.example.uscatterbrain.identity.Identity.newBuilder(ctx)
-                                        .setName(relation.identity.getGivenName())
-                                        .setScatterbrainPubkey(ByteString.copyFrom(relation.identity.getPublicKey()))
-                                        .setSig(relation.identity.getSignature())
-                                        .build();
+                    .toObservable()
+                        .flatMap(idlist -> {
+                            return Observable.fromIterable(idlist)
+                                    .map(relation -> {
+                                        Map<String, ByteString> keylist = new HashMap<>(relation.keys.size());
+                                        for (Keys keys : relation.keys) {
+                                            keylist.put(keys.getKey(), ByteString.copyFrom(keys.getValue()));
+                                        }
+                                        com.example.uscatterbrain.identity.Identity identity = com.example.uscatterbrain.identity.Identity.newBuilder(ctx)
+                                                .setName(relation.identity.getGivenName())
+                                                .setScatterbrainPubkey(ByteString.copyFrom(relation.identity.getPublicKey()))
+                                                .setSig(relation.identity.getSignature())
+                                                .build();
 
-                                identity.putAll(keylist);
-                                r.add(identity);
-                            }
-                            return r;
+                                        identity.putAll(keylist);
+                                        return identity;
+                                    });
                         });
     }
 
 
      @Override
-     public Maybe<List<BlockDataObservableSource>> getDataPacket(List<Long> id) {
+     public Observable<BlockDataObservableSource> getDataPacket(List<Long> id) {
             return mDatastore.scatterMessageDao().getByID(id)
-                    .map(messages -> {
-                        List<BlockDataObservableSource> bdlist = new ArrayList<>();
-                        for (ScatterMessage message : messages) {
-                            File f = Paths.get(message.getFilePath()).toAbsolutePath().toFile();
-                            BlockDataSourceFactory.BuildOptions options = new BlockDataSourceFactory.BuildOptions.Builder()
-                                    .setApplication(ByteString.copyFrom(message.getApplication()).toStringUtf8())
-                                    .setFromAddress(ByteString.copyFrom(message.getFrom()))
-                                    .setToAddress(ByteString.copyFrom(message.getTo()))
-                                    .setSessionID(message.getSessionid())
-                                    .setBlockSize(message.getBlocksize())
-                                    .setFragmentFile(f)
-                                    .setSig(ByteString.copyFrom(message.getSig()))
-                                    .build();
+                    .toObservable()
+                    .flatMap(messages -> {
+                        return Observable.fromIterable(messages)
+                                .flatMap(message -> {
+                                    File f = Paths.get(message.getFilePath()).toAbsolutePath().toFile();
+                                    BlockDataSourceFactory.BuildOptions options = new BlockDataSourceFactory.BuildOptions.Builder()
+                                            .setApplication(ByteString.copyFrom(message.getApplication()).toStringUtf8())
+                                            .setFromAddress(ByteString.copyFrom(message.getFrom()))
+                                            .setToAddress(ByteString.copyFrom(message.getTo()))
+                                            .setSessionID(message.getSessionid())
+                                            .setBlockSize(message.getBlocksize())
+                                            .setFragmentFile(f)
+                                            .setSig(ByteString.copyFrom(message.getSig()))
+                                            .build();
 
-                            //TODO: this is ugly. fix
-                            BlockDataObservableSource dataPacket = blockDataSourceFactory.buildSource(options).blockingGet();
+                                    return blockDataSourceFactory.buildSource(options).toObservable();
 
-                            bdlist.add(dataPacket);
-                        }
-
-                        return bdlist;
+                                });
                     });
      }
 

@@ -7,7 +7,7 @@ import com.example.uscatterbrain.network.BlockDataObservableSource;
 import java.util.List;
 
 import io.reactivex.Completable;
-import io.reactivex.Maybe;
+import io.reactivex.Observable;
 
 public interface ScatterbrainDatastore {
 
@@ -70,14 +70,14 @@ public interface ScatterbrainDatastore {
      * @param count how many messages to retrieve
      * @return livedata representation of list of messages
      */
-    Maybe<List<ScatterMessage>> getTopRandomMessages(int count);
+    Observable<ScatterMessage> getTopRandomMessages(int count);
 
 
     /**
      * gets a list of all the files in the datastore.
      * @return list of DiskFiles objects
      */
-    Maybe<List<String>> getAllFiles();
+    Observable<String> getAllFiles();
 
     /**
      * Retrieves a message by an identity room entity
@@ -85,7 +85,7 @@ public interface ScatterbrainDatastore {
      * @param id room entity to search by
      * @return livedata representation of list of messages
      */
-    Maybe<List<ScatterMessage>> getMessagesByIdentity(Identity id);
+    Observable<ScatterMessage> getMessagesByIdentity(Identity id);
 
     Completable insertDataPacket(List<BlockDataObservableSource> packets);
 
@@ -93,9 +93,9 @@ public interface ScatterbrainDatastore {
 
     Completable insertDataPacket(BlockDataObservableSource packet);
 
-    Maybe<List<com.example.uscatterbrain.identity.Identity>> getIdentity(List<Long> ids);
+    Observable<com.example.uscatterbrain.identity.Identity> getIdentity(List<Long> ids);
 
-    Maybe<List<BlockDataObservableSource>> getDataPacket(List<Long> id);
+    Observable<BlockDataObservableSource> getDataPacket(List<Long> id);
 
     void clear();
 
