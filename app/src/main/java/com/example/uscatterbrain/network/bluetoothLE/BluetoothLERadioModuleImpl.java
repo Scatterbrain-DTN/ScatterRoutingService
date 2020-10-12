@@ -1,6 +1,5 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
@@ -29,6 +28,7 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.polidea.rxandroidble2.RxBleServer;
+import com.polidea.rxandroidble2.RxBleServerConnection;
 import com.polidea.rxandroidble2.ServerConfig;
 import io.reactivex.Observable;
 import io.reactivex.disposables.Disposable;
@@ -42,18 +42,48 @@ import java.util.UUID;
 public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final String TAG = "BluetoothLE";
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_READ_ADVERTISE = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_WRITE_ADVERTISE = UUID.fromString("9a23e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_READ_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_WRITE_UPGRADE = UUID.fromString("9a25e79f-4a6d-4e28-95c6-257f5e47fd90");
-    private AdvertisePacket mAdvertise;
-    private Context mContext;
-    private UUID mModuleUUID;
-    private Map<BluetoothDevice, UUID> mPeers;
-    private AdvertisingSet mAdvertisingSet;
-    private AdvertiseCallback mAdvertiseCallback;
+    public static final UUID UUID_ADVERTISE = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
+    public static final UUID UUID_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
+    private final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
+    private final BluetoothGattCharacteristic mAdvertiseCharacteristic = new BluetoothGattCharacteristic(
+            UUID_ADVERTISE,
+            BluetoothGattCharacteristic.PROPERTY_READ |
+                    BluetoothGattCharacteristic.PROPERTY_WRITE |
+                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+            BluetoothGattCharacteristic.PERMISSION_WRITE |
+                    BluetoothGattCharacteristic.PERMISSION_READ
+    );
+
+    private final BluetoothGattCharacteristic mUpgradeCharacteristic = new BluetoothGattCharacteristic(
+            UUID_UPGRADE,
+            BluetoothGattCharacteristic.PROPERTY_READ |
+                    BluetoothGattCharacteristic.PROPERTY_WRITE |
+                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+            BluetoothGattCharacteristic.PERMISSION_WRITE |
+                    BluetoothGattCharacteristic.PERMISSION_READ
+    );
+    private final CompositeDisposable mGattServerDisposable = new CompositeDisposable();
+    private final Context mContext;
+    private final Map<BluetoothDevice, RxBleServerConnection> mPeers = new ConcurrentHashMap<>();
+    private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
+        @Override
+        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+            super.onStartSuccess(settingsInEffect);
+            Log.v(TAG, "successfully started advertise");
+
+            final BluetoothManager bm = (BluetoothManager) mContext.getSystemService(Context.BLUETOOTH_SERVICE);
+        }
+
+        @Override
+        public void onStartFailure(int errorCode) {
+            super.onStartFailure(errorCode);
+            Log.e(TAG, "failed to start advertise");
+        }
+    };;
     private BluetoothLeAdvertiser mAdvertiser;
     private RxBleServer mServer;
+    private AdvertisePacket mAdvertise;
+    private UUID mModuleUUID;
 
 
 
@@ -91,13 +121,13 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
     @Override
-    public void setAdvertisePacket(AdvertisePacket advertisePacket) {
-        mAdvertise = advertisePacket;
+    public Observable<UUID> getOnPeersChanged() {
+        return null;
     }
 
     @Override
-    public void setOnPeersChanged(ScatterCallback<List<UUID>, Void> callback) {
-        mPeersChangedCallback = callback;
+    public void setAdvertisePacket(AdvertisePacket advertisePacket) {
+        mAdvertise = advertisePacket;
     }
 
     @Override
@@ -211,13 +241,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
     @Override
-    public void stopAdvertise() throws AdvertiseFailedException {
+    public void stopAdvertise() {
         Log.v(TAG, "stopping LE advertise");
-
-        if (mAdvertiseCallback == null) {
-            throw new AdvertiseFailedException("already stopped");
-        }
-
         mAdvertiser.stopAdvertising(mAdvertiseCallback);
     }
 
@@ -291,6 +316,49 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         scanner.stopScan(mScanCallback);
     }
 
+    private void onConnected(RxBleServerConnection connection) {
+        Disposable notificationDisposable = connection.setupNotifications(mAdvertiseCharacteristic, Observable.fromArray(mAdvertise.getBytes()))
+                .subscribe(
+                        oncomplete -> {
+
+                            },
+                        onerror -> {
+                            Log.e(TAG, "failed to setup advertise characteristic notifications");
+                        });
+        mGattServerDisposable.add(notificationDisposable);
+    }
+
+    private boolean startServer() {
+        if (mServer == null) {
+            return false;
+        }
+
+        Disposable d = mServer.openServer()
+                .subscribe(
+                        connection -> {
+                            mPeers.put(connection.getDevice(), connection);
+                            Disposable disconnect = connection.observeDisconnect()
+                                    .subscribe(dc -> mPeers.remove(connection.getDevice()), error -> {
+                                        mPeers.remove(connection.getDevice());
+                                        Log.e(TAG, "error when disconnecting device " + connection.getDevice());
+                                    });
+                            onConnected(connection);
+                            mGattServerDisposable.add(disconnect);
+                        },
+                        error -> {
+                            Log.e(TAG, "error starting server " + error.getMessage());
+                        }
+                );
+
+        mGattServerDisposable.add(d);
+        return true;
+    }
+
+    private void stopServer() {
+        mGattServerDisposable.dispose();
+        mServer.closeServer();
+    }
+
     @Override
     public UUID register(ScatterRoutingServiceImpl service) {
         Log.v(BluetoothLERadioModuleImpl.TAG, "registered bluetooth LE radio module");
@@ -310,7 +378,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
     @Override
     public List<UUID> getPeers() {
-        return new ArrayList<UUID>(mPeers.values());
+        return null;
     }
 
     @Override
@@ -324,4 +392,15 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
 
+    private static class PeerHandle {
+        private final PipedOutputStream outputStream = new PipedOutputStream();
+
+        public void onNext(byte[] bytes) {
+            try {
+                outputStream.write(bytes);
+            } catch (IOException ignored) {
+
+            }
+        }
+    }
 }

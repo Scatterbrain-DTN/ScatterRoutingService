@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public interface ScatterPeerHandler extends ScatterRadioModule {
     void setAdvertisePacket(AdvertisePacket advertisePacket);
-    void setOnPeersChanged(ScatterCallback<List<UUID>, Void> callback);
+    Observable<UUID> getOnPeersChanged();
     AdvertisePacket getAdvertisePacket();
     void startAdvertise() throws AdvertiseFailedException;
     void stopAdvertise() throws AdvertiseFailedException;

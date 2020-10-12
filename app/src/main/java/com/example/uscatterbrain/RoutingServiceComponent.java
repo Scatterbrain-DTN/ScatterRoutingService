@@ -1,6 +1,8 @@
 package com.example.uscatterbrain;
 
 
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 
 import androidx.room.Room;
@@ -69,6 +71,11 @@ public interface RoutingServiceComponent {
         @Named(NamedSchedulers.DATABASE)
         static Scheduler provideDatabaseScheduler() {
             return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+        }
+
+        @Provides
+        static BluetoothLeAdvertiser provideLeAdvertiser() {
+            return BluetoothAdapter.getDefaultAdapter().getBluetoothLeAdvertiser();
         }
 
         @Binds
