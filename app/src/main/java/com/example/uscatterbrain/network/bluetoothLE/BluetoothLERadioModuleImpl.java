@@ -28,6 +28,8 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
+import com.polidea.rxandroidble2.RxBleClient;
+import com.polidea.rxandroidble2.RxBleConnection;
 import com.polidea.rxandroidble2.RxBleServer;
 import com.polidea.rxandroidble2.RxBleServerConnection;
 import com.polidea.rxandroidble2.ServerConfig;
@@ -42,6 +44,7 @@ import java.util.Map;
 import java.util.UUID;
 public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final String TAG = "BluetoothLE";
+    public static final int CLIENT_CONNECT_TIMEOUT = 10;
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_ADVERTISE = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
@@ -65,7 +68,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     );
     private final CompositeDisposable mGattServerDisposable = new CompositeDisposable();
     private final Context mContext;
-    private final Map<BluetoothDevice, ServerPeerHandle> mPeers = new ConcurrentHashMap<>();
+    private final Map<BluetoothDevice, ServerPeerHandle> mServerPeers = new ConcurrentHashMap<>();
+    private final Map<BluetoothDevice,ClientPeerHandle> mClientPeers = new ConcurrentHashMap<>();
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -83,6 +87,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     };;
     private BluetoothLeAdvertiser mAdvertiser;
     private RxBleServer mServer;
+    private RxBleClient mClient;
     private AdvertisePacket mAdvertise;
     private UUID mModuleUUID;
 
@@ -93,6 +98,14 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         mPeers = new HashMap<>();
         mAdvertise = null;
         mCurrentResults = new HashMap<>();
+    }
+
+    private boolean isConnectedServer(BluetoothDevice device) {
+        return mServerPeers.containsKey(device);
+    }
+
+    private boolean isConnectedClient(BluetoothDevice device) {
+        return mClientPeers.containsKey(device);
     }
 
     private void processPeers(ScatterCallback<Void, Void> callback) {
@@ -325,15 +338,20 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         Disposable d = mServer.openServer()
                 .subscribe(
                         connection -> {
+                            // we shouldn't maintain duplicate connections
+                            if (isConnectedClient(connection.getDevice())) {
+                                connection.disconnect();
+                                return;
+                            }
                             ServerPeerHandle handle = new ServerPeerHandle(connection, mAdvertise);
                             Disposable disconnect = connection.observeDisconnect()
-                                    .subscribe(dc -> mPeers.remove(connection.getDevice()), error -> {
-                                        mPeers.remove(connection.getDevice());
+                                    .subscribe(dc -> mServerPeers.remove(connection.getDevice()), error -> {
+                                        mServerPeers.remove(connection.getDevice());
                                         Log.e(TAG, "error when disconnecting device " + connection.getDevice());
                                     });
                             mGattServerDisposable.add(disconnect);
                             handle.onConnected();
-                            mPeers.put(connection.getDevice(), handle);
+                            mServerPeers.put(connection.getDevice(), handle);
                         },
                         error -> {
                             Log.e(TAG, "error starting server " + error.getMessage());
@@ -378,7 +396,9 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
     @Override
     public boolean isRegistered() {
-        return mModuleUUID != null;
+        return mModuleUUID != null &&
+                mServer != null &&
+                mClient != null;
     }
 
 
@@ -429,6 +449,28 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             } catch (IOException ignored) {
 
             }
+        }
+    }
+
+    private static class ClientPeerHandle {
+        private final RxBleConnection connection;
+        private final AdvertisePacket advertisePacket;
+        private final CompositeDisposable disposable = new CompositeDisposable();
+        public ClientPeerHandle(
+                RxBleConnection connection,
+                AdvertisePacket advertisePacket
+        ) {
+            this.connection = connection;
+            this.advertisePacket = advertisePacket;
+        }
+
+        public void onConnected() {
+            Disposable d = connection.setupNotification(UUID_ADVERTISE)
+                    .subscribe(success -> {
+
+                    }, err -> {
+
+                    });
         }
     }
 }
