@@ -1,12 +1,11 @@
 package com.example.uscatterbrain.network
 
 import io.reactivex.Observable
-import io.reactivex.observers.TestObserver
 import spock.lang.Specification
 
 class InputStreamObserverTest extends Specification {
     static def BUF_CAPACITY = 524288;
-    InputStreamObserver inputStreamObserver
+    InputStreamCallback inputStreamObserver
 
     def getBytes(val) {
         1..val

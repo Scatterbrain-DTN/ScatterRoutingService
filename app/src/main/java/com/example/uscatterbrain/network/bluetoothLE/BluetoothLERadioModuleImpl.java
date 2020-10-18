@@ -25,6 +25,7 @@ import androidx.annotation.NonNull;
 import com.example.uscatterbrain.ScatterCallback;
 import com.example.uscatterbrain.ScatterRoutingServiceImpl;
 import com.example.uscatterbrain.network.AdvertisePacket;
+import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.polidea.rxandroidble2.RxBleServer;
@@ -44,6 +45,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_ADVERTISE = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
+    private final InputStreamObserver inputStreamObserver = new InputStreamObserver();
     private final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
     private final BluetoothGattCharacteristic mAdvertiseCharacteristic = new BluetoothGattCharacteristic(
             UUID_ADVERTISE,
@@ -326,6 +328,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                             Log.e(TAG, "failed to setup advertise characteristic notifications");
                         });
         mGattServerDisposable.add(notificationDisposable);
+
+        connection.getOnCharacteristicWriteRequest(mAdvertiseCharacteristic)
+            .map(ServerResponseTransaction::getValue)
+            .subscribe(inputStreamObserver);
     }
 
     private boolean startServer() {
