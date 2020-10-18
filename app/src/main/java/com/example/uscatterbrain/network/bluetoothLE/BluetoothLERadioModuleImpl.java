@@ -65,7 +65,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     );
     private final CompositeDisposable mGattServerDisposable = new CompositeDisposable();
     private final Context mContext;
-    private final Map<BluetoothDevice, PeerHandle> mPeers = new ConcurrentHashMap<>();
+    private final Map<BluetoothDevice, ServerPeerHandle> mPeers = new ConcurrentHashMap<>();
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -317,7 +317,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         scanner.stopScan(mScanCallback);
     }
 
-    private void onConnected(PeerHandle handle) {
+    private void onConnected(ServerPeerHandle handle) {
         Disposable notificationDisposable = handle.getConnection().setupNotifications(mAdvertiseCharacteristic, Observable.fromArray(mAdvertise.getBytes()))
                 .subscribe(
                         oncomplete -> {
@@ -341,7 +341,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         Disposable d = mServer.openServer()
                 .subscribe(
                         connection -> {
-                            PeerHandle handle = new PeerHandle(connection);
+                            ServerPeerHandle handle = new ServerPeerHandle(connection);
                             mPeers.put(connection.getDevice(), handle);
                             Disposable disconnect = connection.observeDisconnect()
                                     .subscribe(dc -> mPeers.remove(connection.getDevice()), error -> {
@@ -398,10 +398,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
 
-    private static class PeerHandle {
+    private static class ServerPeerHandle {
         private final InputStreamObserver inputStreamObserver = new InputStreamObserver();
         private final RxBleServerConnection connection;
-        public PeerHandle(RxBleServerConnection connection) {
+        public ServerPeerHandle(RxBleServerConnection connection) {
             this.connection = connection;
         }
 
