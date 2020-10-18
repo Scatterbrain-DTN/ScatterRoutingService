@@ -45,7 +45,6 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_ADVERTISE = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
-    private final InputStreamObserver inputStreamObserver = new InputStreamObserver();
     private final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
     private final BluetoothGattCharacteristic mAdvertiseCharacteristic = new BluetoothGattCharacteristic(
             UUID_ADVERTISE,
@@ -66,7 +65,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     );
     private final CompositeDisposable mGattServerDisposable = new CompositeDisposable();
     private final Context mContext;
-    private final Map<BluetoothDevice, RxBleServerConnection> mPeers = new ConcurrentHashMap<>();
+    private final Map<BluetoothDevice, PeerHandle> mPeers = new ConcurrentHashMap<>();
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -318,8 +317,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         scanner.stopScan(mScanCallback);
     }
 
-    private void onConnected(RxBleServerConnection connection) {
-        Disposable notificationDisposable = connection.setupNotifications(mAdvertiseCharacteristic, Observable.fromArray(mAdvertise.getBytes()))
+    private void onConnected(PeerHandle handle) {
+        Disposable notificationDisposable = handle.getConnection().setupNotifications(mAdvertiseCharacteristic, Observable.fromArray(mAdvertise.getBytes()))
                 .subscribe(
                         oncomplete -> {
 
@@ -329,9 +328,9 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         });
         mGattServerDisposable.add(notificationDisposable);
 
-        connection.getOnCharacteristicWriteRequest(mAdvertiseCharacteristic)
+        handle.getConnection().getOnCharacteristicWriteRequest(mAdvertiseCharacteristic)
             .map(ServerResponseTransaction::getValue)
-            .subscribe(inputStreamObserver);
+            .subscribe(handle.getInputStreamObserver());
     }
 
     private boolean startServer() {
@@ -342,13 +341,14 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         Disposable d = mServer.openServer()
                 .subscribe(
                         connection -> {
-                            mPeers.put(connection.getDevice(), connection);
+                            PeerHandle handle = new PeerHandle(connection);
+                            mPeers.put(connection.getDevice(), handle);
                             Disposable disconnect = connection.observeDisconnect()
                                     .subscribe(dc -> mPeers.remove(connection.getDevice()), error -> {
                                         mPeers.remove(connection.getDevice());
                                         Log.e(TAG, "error when disconnecting device " + connection.getDevice());
                                     });
-                            onConnected(connection);
+                            onConnected(handle);
                             mGattServerDisposable.add(disconnect);
                         },
                         error -> {
@@ -399,14 +399,18 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
 
     private static class PeerHandle {
-        private final PipedOutputStream outputStream = new PipedOutputStream();
+        private final InputStreamObserver inputStreamObserver = new InputStreamObserver();
+        private final RxBleServerConnection connection;
+        public PeerHandle(RxBleServerConnection connection) {
+            this.connection = connection;
+        }
 
-        public void onNext(byte[] bytes) {
-            try {
-                outputStream.write(bytes);
-            } catch (IOException ignored) {
+        public InputStreamObserver getInputStreamObserver() {
+            return inputStreamObserver;
+        }
 
-            }
+        public RxBleServerConnection getConnection() {
+            return connection;
         }
     }
 }
