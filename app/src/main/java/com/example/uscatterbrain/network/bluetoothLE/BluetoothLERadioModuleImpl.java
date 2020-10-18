@@ -46,7 +46,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final UUID UUID_ADVERTISE = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
     private final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
-    private final BluetoothGattCharacteristic mAdvertiseCharacteristic = new BluetoothGattCharacteristic(
+    public static final BluetoothGattCharacteristic ADVERTISE_CHARACTERISTIC = new BluetoothGattCharacteristic(
             UUID_ADVERTISE,
             BluetoothGattCharacteristic.PROPERTY_READ |
                     BluetoothGattCharacteristic.PROPERTY_WRITE |
@@ -55,7 +55,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                     BluetoothGattCharacteristic.PERMISSION_READ
     );
 
-    private final BluetoothGattCharacteristic mUpgradeCharacteristic = new BluetoothGattCharacteristic(
+    public static final BluetoothGattCharacteristic UPGRADE_CHARACTERISTIC = new BluetoothGattCharacteristic(
             UUID_UPGRADE,
             BluetoothGattCharacteristic.PROPERTY_READ |
                     BluetoothGattCharacteristic.PROPERTY_WRITE |
@@ -317,22 +317,6 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         scanner.stopScan(mScanCallback);
     }
 
-    private void onConnected(ServerPeerHandle handle) {
-        Disposable notificationDisposable = handle.getConnection().setupNotifications(mAdvertiseCharacteristic, Observable.fromArray(mAdvertise.getBytes()))
-                .subscribe(
-                        oncomplete -> {
-
-                            },
-                        onerror -> {
-                            Log.e(TAG, "failed to setup advertise characteristic notifications");
-                        });
-        mGattServerDisposable.add(notificationDisposable);
-
-        handle.getConnection().getOnCharacteristicWriteRequest(mAdvertiseCharacteristic)
-            .map(ServerResponseTransaction::getValue)
-            .subscribe(handle.getInputStreamObserver());
-    }
-
     private boolean startServer() {
         if (mServer == null) {
             return false;
@@ -341,15 +325,15 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         Disposable d = mServer.openServer()
                 .subscribe(
                         connection -> {
-                            ServerPeerHandle handle = new ServerPeerHandle(connection);
-                            mPeers.put(connection.getDevice(), handle);
+                            ServerPeerHandle handle = new ServerPeerHandle(connection, mAdvertise);
                             Disposable disconnect = connection.observeDisconnect()
                                     .subscribe(dc -> mPeers.remove(connection.getDevice()), error -> {
                                         mPeers.remove(connection.getDevice());
                                         Log.e(TAG, "error when disconnecting device " + connection.getDevice());
                                     });
-                            onConnected(handle);
                             mGattServerDisposable.add(disconnect);
+                            handle.onConnected();
+                            mPeers.put(connection.getDevice(), handle);
                         },
                         error -> {
                             Log.e(TAG, "error starting server " + error.getMessage());
@@ -401,8 +385,14 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     private static class ServerPeerHandle {
         private final InputStreamObserver inputStreamObserver = new InputStreamObserver();
         private final RxBleServerConnection connection;
-        public ServerPeerHandle(RxBleServerConnection connection) {
+        private final CompositeDisposable peerHandleDisposable = new CompositeDisposable();
+        private final AdvertisePacket advertisePacket;
+        public ServerPeerHandle(
+                RxBleServerConnection connection,
+                AdvertisePacket advertisePacket
+        ) {
             this.connection = connection;
+            this.advertisePacket = advertisePacket;
         }
 
         public InputStreamObserver getInputStreamObserver() {
@@ -411,6 +401,34 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
         public RxBleServerConnection getConnection() {
             return connection;
+        }
+
+        public Observable<Integer> notifyAdvertise() {
+            return connection.setupNotifications(
+                    ADVERTISE_CHARACTERISTIC,
+                    Observable.fromArray(advertisePacket.getBytes())
+            );
+        }
+
+        public Single<AdvertisePacket> handshake() {
+            return notifyAdvertise()
+                    .firstOrError()
+                    .flatMap(object -> AdvertisePacket.parseFrom(inputStreamObserver));
+        }
+
+        public void onConnected() {
+            connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
+                    .map(ServerResponseTransaction::getValue)
+                    .subscribe(inputStreamObserver);
+        }
+
+        public void close() {
+            peerHandleDisposable.dispose();
+            try {
+                inputStreamObserver.close();
+            } catch (IOException ignored) {
+
+            }
         }
     }
 }
