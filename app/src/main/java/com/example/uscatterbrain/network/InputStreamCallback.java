@@ -54,6 +54,14 @@ public abstract class InputStreamCallback extends InputStream {
         }
     }
 
+    public int size() {
+        if (observableByteBuffers.size() == 0) {
+            return 0;
+        } else {
+            return BUF_CAPACITY * (observableByteBuffers.size() - 1) + observableByteBuffers.peek().position();
+        }
+    }
+
     private int get(byte[] result, int offset, int len) throws IOException{
         if (throwable != null) {
             throw new IOException(throwable.getMessage());
