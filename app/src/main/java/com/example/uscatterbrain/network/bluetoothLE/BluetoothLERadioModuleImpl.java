@@ -25,6 +25,7 @@ import androidx.annotation.NonNull;
 import com.example.uscatterbrain.ScatterCallback;
 import com.example.uscatterbrain.ScatterRoutingServiceImpl;
 import com.example.uscatterbrain.network.AdvertisePacket;
+import com.example.uscatterbrain.network.InputStreamConsumer;
 import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
@@ -350,7 +351,6 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                                         Log.e(TAG, "error when disconnecting device " + connection.getDevice());
                                     });
                             mGattServerDisposable.add(disconnect);
-                            handle.onConnected();
                             mServerPeers.put(connection.getDevice(), handle);
                         },
                         error -> {
@@ -403,7 +403,6 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
 
     private static class ServerPeerHandle {
-        private final InputStreamObserver inputStreamObserver = new InputStreamObserver();
         private final RxBleServerConnection connection;
         private final CompositeDisposable peerHandleDisposable = new CompositeDisposable();
         private final AdvertisePacket advertisePacket;
@@ -413,10 +412,6 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         ) {
             this.connection = connection;
             this.advertisePacket = advertisePacket;
-        }
-
-        public InputStreamObserver getInputStreamObserver() {
-            return inputStreamObserver;
         }
 
         public RxBleServerConnection getConnection() {
@@ -431,24 +426,19 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         }
 
         public Single<AdvertisePacket> handshake() {
-            return notifyAdvertise()
-                    .firstOrError()
-                    .flatMap(object -> AdvertisePacket.parseFrom(inputStreamObserver));
-        }
-
-        public void onConnected() {
-            connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
+            return Single.just(
+                    connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
                     .map(ServerResponseTransaction::getValue)
-                    .subscribe(inputStreamObserver);
+            )
+                    .flatMap(object -> {
+                        InputStreamObserver inputStreamObserver = new InputStreamObserver();
+                        object.subscribe(inputStreamObserver);
+                        return AdvertisePacket.parseFrom(inputStreamObserver);
+                    });
         }
 
         public void close() {
             peerHandleDisposable.dispose();
-            try {
-                inputStreamObserver.close();
-            } catch (IOException ignored) {
-
-            }
         }
     }
 
@@ -464,13 +454,20 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             this.advertisePacket = advertisePacket;
         }
 
-        public void onConnected() {
-            Disposable d = connection.setupNotification(UUID_ADVERTISE)
-                    .subscribe(success -> {
+        public Single<AdvertisePacket> handshake() {
+            return connection.setupNotification(UUID_ADVERTISE)
+                    .doOnNext(notificationSetup -> {
+                        Log.v(TAG, "client successfully set up notifications");
+                    })
+                    .flatMap(observable -> {
+                        InputStreamObserver inputStreamObserver = new InputStreamObserver();
+                        observable.subscribe(inputStreamObserver);
+                        return AdvertisePacket.parseFrom(inputStreamObserver).toObservable();
+                    }).firstOrError();
+        }
 
-                    }, err -> {
-
-                    });
+        public void close() {
+            disposable.dispose();
         }
     }
 }
