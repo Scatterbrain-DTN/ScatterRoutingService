@@ -523,7 +523,15 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         InputStreamObserver inputStreamObserver = new InputStreamObserver();
                         observable.subscribe(inputStreamObserver);
                         return AdvertisePacket.parseFrom(inputStreamObserver).toObservable();
-                    }).firstOrError();
+                    }).firstOrError()
+                    .doOnSuccess(packet -> {
+                        connection.createNewLongWriteBuilder()
+                                .setBytes(advertisePacket.getBytes())
+                                .setCharacteristic(ADVERTISE_CHARACTERISTIC)
+                                .build()
+                        .subscribe();
+                        //TODO: do this in a less hacky way
+                    });
         }
 
         public void close() {
