@@ -70,6 +70,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     private final Context mContext;
     private final Map<BluetoothDevice, ServerPeerHandle> mServerPeers = new ConcurrentHashMap<>();
     private final Map<BluetoothDevice,ClientPeerHandle> mClientPeers = new ConcurrentHashMap<>();
+    private final Scheduler bleScheduler;
     private int discoverDelay = 30;
     private boolean discovering = true;
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
@@ -291,6 +292,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
                     mGattDisposable.add(disposable);
                 })
+                .subscribeOn(bleScheduler)
                 .ignoreElements();
     }
 
@@ -386,6 +388,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         }
 
         Disposable d = mServer.openServer()
+                .subscribeOn(bleScheduler)
                 .subscribe(
                         connection -> {
                             // we shouldn't maintain duplicate connections

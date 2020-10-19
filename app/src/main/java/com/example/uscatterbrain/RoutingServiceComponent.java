@@ -40,6 +40,7 @@ public interface RoutingServiceComponent {
 
     class NamedSchedulers {
         public static final String DATABASE = "executor_database";
+        public static final String BLE = "scheduler-ble";
         private NamedSchedulers() {
 
         }
@@ -70,6 +71,13 @@ public interface RoutingServiceComponent {
         @Provides
         @Named(NamedSchedulers.DATABASE)
         static Scheduler provideDatabaseScheduler() {
+            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+        }
+
+
+        @Provides
+        @Named(NamedSchedulers.BLE)
+        static Scheduler provideBleScheduler() {
             return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
         }
 
