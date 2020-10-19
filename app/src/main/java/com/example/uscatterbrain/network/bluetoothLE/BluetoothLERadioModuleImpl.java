@@ -454,7 +454,14 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
 
-    private static class ServerPeerHandle {
+    private interface PeerHandle extends Closeable {
+        Single<AdvertisePacket> handshake();
+
+        @Override
+        void close();
+    }
+
+    private static class ServerPeerHandle implements PeerHandle{
         private final RxBleServerConnection connection;
         private final CompositeDisposable peerHandleDisposable = new CompositeDisposable();
         private final AdvertisePacket advertisePacket;
@@ -470,23 +477,24 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             return connection;
         }
 
-        public Observable<Integer> notifyAdvertise() {
+        public Completable notifyAdvertise() {
             return connection.setupNotifications(
                     ADVERTISE_CHARACTERISTIC,
                     Observable.fromArray(advertisePacket.getBytes())
-            );
+            ).ignoreElements();
         }
 
         public Single<AdvertisePacket> handshake() {
-            return Single.just(
+            return notifyAdvertise()
+                .andThen(Single.just(
                     connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
                     .map(ServerResponseTransaction::getValue)
-            )
+                )
                     .flatMap(object -> {
                         InputStreamObserver inputStreamObserver = new InputStreamObserver();
                         object.subscribe(inputStreamObserver);
                         return AdvertisePacket.parseFrom(inputStreamObserver);
-                    });
+                    }));
         }
 
         public void close() {
