@@ -25,7 +25,6 @@ import androidx.annotation.NonNull;
 import com.example.uscatterbrain.ScatterCallback;
 import com.example.uscatterbrain.ScatterRoutingServiceImpl;
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.InputStreamConsumer;
 import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
@@ -67,10 +66,12 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             BluetoothGattCharacteristic.PERMISSION_WRITE |
                     BluetoothGattCharacteristic.PERMISSION_READ
     );
-    private final CompositeDisposable mGattServerDisposable = new CompositeDisposable();
+    private final CompositeDisposable mGattDisposable = new CompositeDisposable();
     private final Context mContext;
     private final Map<BluetoothDevice, ServerPeerHandle> mServerPeers = new ConcurrentHashMap<>();
     private final Map<BluetoothDevice,ClientPeerHandle> mClientPeers = new ConcurrentHashMap<>();
+    private int discoverDelay = 30;
+    private boolean discovering = true;
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -261,14 +262,62 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         mAdvertiser.stopAdvertising(mAdvertiseCallback);
     }
 
+
+    private Completable discoverOnce() {
+        return mClient.scanBleDevices(
+                new ScanSettings.Builder()
+                        .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                        .setShouldCheckLocationServicesState(true)
+                        .build(),
+                new ScanFilter.Builder()
+                        .setServiceUuid(new ParcelUuid(SERVICE_UUID))
+                        .build())
+                .doOnNext(scanResult -> {
+                    if (isConnectedServer(scanResult.getBleDevice().getBluetoothDevice())) {
+                        Log.e(TAG, "device " + scanResult.getBleDevice().getMacAddress() + " already connected to server");
+                        return;
+                    }
+                    Disposable disposable = scanResult.getBleDevice().establishConnection(
+                            false,
+                            new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS)
+                    ).subscribe(connection -> {
+                        ClientPeerHandle handle = new ClientPeerHandle(connection, mAdvertise);
+                        mClientPeers.put(scanResult.getBleDevice().getBluetoothDevice(), handle);
+                    }, err -> {
+                        Log.e(TAG, "failed to connect to device " + scanResult.getBleDevice().getMacAddress()+
+                                ": " + err);
+                    });
+
+                    mGattDisposable.add(disposable);
+                })
+                .ignoreElements();
+    }
+
     @Override
     public void startDiscover(discoveryOptions opts) {
         if (mScanCallback != null) {
             return;
         }
+        Disposable d;
 
-        if (opts != discoveryOptions.OPT_DISCOVER_ONCE && opts != discoveryOptions.OPT_DISCOVER_FOREVER) {
-            return; //TODO: handle this
+        if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
+            d = discoverOnce()
+                    .subscribe(
+                            () -> Log.v(TAG, "LE scan completed"),
+                            err -> Log.e(TAG, "LE scan failed: " + err)
+                    );
+            mGattDisposable.add(d);
+        } else if (opts == discoveryOptions.OPT_DISCOVER_FOREVER) {
+            d = Observable.interval(discoverDelay, TimeUnit.SECONDS)
+                    .takeWhile(predicate -> discovering)
+                    .concatMap(count ->discoverOnce().toObservable())
+                    .ignoreElements()
+                    .subscribe(
+                            () -> Log.v(TAG, "repeat LE scan completed"),
+                            err -> Log.e(TAG, "repeat LE scan failed: " + err)
+                    );
+            mGattDisposable.add(d);
         }
 
         mCurrentResults.clear();
@@ -350,7 +399,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                                         mServerPeers.remove(connection.getDevice());
                                         Log.e(TAG, "error when disconnecting device " + connection.getDevice());
                                     });
-                            mGattServerDisposable.add(disconnect);
+                            mGattDisposable.add(disconnect);
                             mServerPeers.put(connection.getDevice(), handle);
                         },
                         error -> {
@@ -358,12 +407,12 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         }
                 );
 
-        mGattServerDisposable.add(d);
+        mGattDisposable.add(d);
         return true;
     }
 
     private void stopServer() {
-        mGattServerDisposable.dispose();
+        mGattDisposable.dispose();
         mServer.closeServer();
     }
 
