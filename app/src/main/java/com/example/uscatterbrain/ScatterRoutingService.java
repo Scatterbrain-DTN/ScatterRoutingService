@@ -25,14 +25,10 @@ public class ScatterRoutingService extends LifecycleService {
     private boolean bound;
     private final IBinder mBinder = new ScatterBinder();
     private DeviceProfile myprofile;
-    private final RoutingServiceBackend mBackend;
+    private RoutingServiceBackend mBackend;
 
     public ScatterRoutingService() {
-        //TODO: temporary
-        mBackend = DaggerRoutingServiceComponent.builder()
-                .applicationContext(this)
-                .build()
-                .scatterRoutingService();
+
     }
 
     public AdvertisePacket getPacket() {
