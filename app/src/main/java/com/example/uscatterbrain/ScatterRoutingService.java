@@ -15,7 +15,7 @@ import com.example.uscatterbrain.API.OnRecieveCallback;
 import com.example.uscatterbrain.API.ScatterTransport;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
-import com.example.uscatterbrain.network.ScatterRadioModule;
+import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
 
 import java.io.InputStream;
 import java.util.Objects;
@@ -213,7 +213,7 @@ public class ScatterRoutingService extends LifecycleService {
     }
 
     //TODO: remove this in production
-    public ScatterRadioModule getRadioModule() {
+    public BluetoothLEModuleInternal getRadioModule() {
         return mBackend.getRadioModule();
     }
 

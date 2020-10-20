@@ -2,17 +2,15 @@ package com.example.uscatterbrain;
 
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.ScatterRadioModule;
-import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
+import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
 
 import java.util.Collections;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 
 public class RoutingServiceBackendImpl implements RoutingServiceBackend {
-    private final ScatterRadioModule bluetoothLeRadioModule;
+    private final BluetoothLEModuleInternal bluetoothLeRadioModule;
     private final ScatterbrainDatastore datastore;
     private final ScatterbrainScheduler scheduler;
     private final AdvertisePacket mPacket;
@@ -21,7 +19,7 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
     @Inject
     public RoutingServiceBackendImpl(
             ScatterbrainDatastore datastore,
-            @Named(RoutingServiceComponent.NamedRadioModules.BLUETOOTH_LE) ScatterRadioModule bluetoothLeRadioModule,
+            BluetoothLEModuleInternal bluetoothLeRadioModule,
             ScatterbrainScheduler scheduler
             ) {
         this.bluetoothLeRadioModule = bluetoothLeRadioModule;
@@ -38,7 +36,7 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
     }
 
     @Override
-    public ScatterRadioModule getRadioModule() {
+    public BluetoothLEModuleInternal getRadioModule() {
         return bluetoothLeRadioModule;
     }
 }

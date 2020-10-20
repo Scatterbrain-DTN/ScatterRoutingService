@@ -28,6 +28,7 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
+import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
 import com.polidea.rxandroidble2.RxBleClient;
 import com.polidea.rxandroidble2.RxBleConnection;
 import com.polidea.rxandroidble2.RxBleServer;
@@ -263,7 +264,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         mAdvertiser.stopAdvertising(mAdvertiseCallback);
     }
 
-    private Observable<RxBleConnection> discoverOnce() {
+    @Override
+    public Observable<RxBleConnection> discoverOnce() {
         return mClient.scanBleDevices(
                 new ScanSettings.Builder()
                         .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
@@ -373,7 +375,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         scanner.stopScan(mScanCallback);
     }
 
-    private boolean startServer() {
+    @Override
+    public boolean startServer() {
         if (mServer == null) {
             return false;
         }
@@ -405,7 +408,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         return true;
     }
 
-    private void stopServer() {
+    public void stopServer() {
         mGattDisposable.dispose();
         mServer.closeServer();
     }
