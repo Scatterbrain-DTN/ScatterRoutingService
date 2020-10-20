@@ -16,20 +16,18 @@ import com.example.uscatterbrain.API.ScatterTransport;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.ScatterRadioModule;
-import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
 
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.Objects;
 
-public class ScatterRoutingServiceImpl extends LifecycleService {
+public class ScatterRoutingService extends LifecycleService {
     public final String TAG = "ScatterRoutingService";
     private boolean bound;
     private final IBinder mBinder = new ScatterBinder();
     private DeviceProfile myprofile;
     private final RoutingServiceBackend mBackend;
 
-    public ScatterRoutingServiceImpl() {
+    public ScatterRoutingService() {
         //TODO: temporary
         mBackend = DaggerRoutingServiceComponent.builder()
                 .applicationContext(this)
@@ -239,8 +237,8 @@ public class ScatterRoutingServiceImpl extends LifecycleService {
     }
 
     public class ScatterBinder extends Binder {
-        public ScatterRoutingServiceImpl getService() {
-            return ScatterRoutingServiceImpl.this;
+        public ScatterRoutingService getService() {
+            return ScatterRoutingService.this;
         }
     }
 

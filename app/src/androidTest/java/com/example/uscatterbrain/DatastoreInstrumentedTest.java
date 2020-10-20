@@ -65,10 +65,10 @@ public class DatastoreInstrumentedTest {
         }
     }
 
-    public ScatterRoutingServiceImpl getService() throws TimeoutException {
-        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingServiceImpl.class);
+    public ScatterRoutingService getService() throws TimeoutException {
+        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingService.class);
         IBinder binder = serviceRule.bindService(bindIntent);
-        return ((ScatterRoutingServiceImpl.ScatterBinder)binder).getService();
+        return ((ScatterRoutingService.ScatterBinder)binder).getService();
     }
 
     public ScatterMessage defaultMessage() {
@@ -127,7 +127,7 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void topRandomMessagesWork() throws TimeoutException, InterruptedException, ExecutionException {
-        ScatterRoutingServiceImpl service = getService();
+        ScatterRoutingService service = getService();
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
                 Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
@@ -145,7 +145,7 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void getAllFilesWorks() throws TimeoutException, ExecutionException, InterruptedException {
-        ScatterRoutingServiceImpl service = getService();
+        ScatterRoutingService service = getService();
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
                 Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),
@@ -163,7 +163,7 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void fileStoreAddWorks() throws TimeoutException, InterruptedException , ExecutionException {
-        ScatterRoutingServiceImpl service = getService();
+        ScatterRoutingService service = getService();
         FileStoreImpl store = new FileStoreImpl();
         byte[] data = new byte[100];
         Random r = new Random();
@@ -194,7 +194,7 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void hashingFromDiskWorks() throws TimeoutException, InterruptedException, ExecutionException {
-        ScatterRoutingServiceImpl service = getService();
+        ScatterRoutingService service = getService();
         FileStoreImpl store = new FileStoreImpl();
         byte[] data = new byte[4096*10];
         Random r = new Random();
@@ -215,7 +215,7 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void scatterDataPacketInsertWorks() throws TimeoutException, InterruptedException, ExecutionException, NullPointerException {
-        ScatterRoutingServiceImpl service = getService();
+        ScatterRoutingService service = getService();
         FileStoreImpl store = new FileStoreImpl();
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
@@ -269,7 +269,7 @@ public class DatastoreInstrumentedTest {
 
     @Test
     public void datastoreIdentityWorks() throws TimeoutException, ExecutionException, InterruptedException {
-        ScatterRoutingServiceImpl service = getService();
+        ScatterRoutingService service = getService();
         ScatterbrainDatastoreImpl datastore = new ScatterbrainDatastoreImpl(
                 ApplicationProvider.getApplicationContext(),
                 Room.databaseBuilder(ApplicationProvider.getApplicationContext(), Datastore.class, ScatterbrainDatastore.DATABASE_NAME).build(),

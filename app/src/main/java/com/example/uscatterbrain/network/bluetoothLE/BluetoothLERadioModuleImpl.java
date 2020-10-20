@@ -23,7 +23,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.example.uscatterbrain.ScatterCallback;
-import com.example.uscatterbrain.ScatterRoutingServiceImpl;
+import com.example.uscatterbrain.ScatterRoutingService;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
@@ -411,7 +411,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
     @Override
-    public UUID register(ScatterRoutingServiceImpl service) {
+    public UUID register(ScatterRoutingService service) {
         Log.v(BluetoothLERadioModuleImpl.TAG, "registered bluetooth LE radio module");
         this.mContext = service;
         mClientObserver = new BluetoothLEClientObserver(mContext, mAdvertise);

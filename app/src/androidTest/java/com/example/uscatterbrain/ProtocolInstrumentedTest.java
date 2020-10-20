@@ -10,7 +10,6 @@ import androidx.test.rule.ServiceTestRule;
 
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.db.file.FileStore;
 import com.example.uscatterbrain.db.file.FileStoreImpl;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockDataSourceFactory;
@@ -67,10 +66,10 @@ public class ProtocolInstrumentedTest {
         }
     }
 
-    public ScatterRoutingServiceImpl getService() throws TimeoutException {
-        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingServiceImpl.class);
+    public ScatterRoutingService getService() throws TimeoutException {
+        Intent bindIntent = new Intent(ApplicationProvider.getApplicationContext(), ScatterRoutingService.class);
         IBinder binder = serviceRule.bindService(bindIntent);
-        return ((ScatterRoutingServiceImpl.ScatterBinder)binder).getService();
+        return ((ScatterRoutingService.ScatterBinder)binder).getService();
     }
 
     public ScatterMessage defaultMessage() {
@@ -256,7 +255,7 @@ public class ProtocolInstrumentedTest {
         byte[] data = new byte[4096*20];
         Random r = new Random();
         r.nextBytes(data);
-        ScatterRoutingServiceImpl service = getService();
+        ScatterRoutingService service = getService();
         FileStoreImpl store = new FileStoreImpl();
         ByteArrayInputStream is = new ByteArrayInputStream(data);
         List<ByteString> bl = new ArrayList<>();
@@ -345,7 +344,7 @@ public class ProtocolInstrumentedTest {
 
     @Test
     public void IdentityWrapperWorks() throws TimeoutException {
-        ScatterRoutingServiceImpl service = getService();
+        ScatterRoutingService service = getService();
         com.example.uscatterbrain.identity.Identity id = com.example.uscatterbrain.identity.Identity.newBuilder(service)
                 .setName("Menhera Chan")
                 .generateKeypair()
