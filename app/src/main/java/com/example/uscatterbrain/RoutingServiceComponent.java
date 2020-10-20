@@ -7,7 +7,6 @@ import android.content.Context;
 
 import androidx.room.Room;
 
-import com.example.uscatterbrain.API.ScatterRoutingService;
 import com.example.uscatterbrain.db.Datastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
@@ -19,9 +18,6 @@ import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
 import com.example.uscatterbrain.scheduler.ScatterbrainSchedulerImpl;
-import com.polidea.rxandroidble2.ServerComponent;
-
-import java.util.concurrent.ThreadFactory;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -87,10 +83,11 @@ public interface RoutingServiceComponent {
         }
 
         @Binds
-        abstract ScatterbrainScheduler bindScatterbrainScheduler(ScatterbrainSchedulerImpl impl);
+        @Singleton
+        abstract RoutingServiceBackend bindsRoutingServiceBackend(RoutingServiceBackendImpl impl);
 
         @Binds
-        abstract ScatterRoutingService bindScatterRoutingService(ScatterRoutingServiceImpl impl);
+        abstract ScatterbrainScheduler bindScatterbrainScheduler(ScatterbrainSchedulerImpl impl);
 
         @Binds
         abstract ScatterbrainDatastore bindDatastore(ScatterbrainDatastoreImpl impl);
@@ -106,5 +103,5 @@ public interface RoutingServiceComponent {
         abstract ScatterRadioModule bindRadioModule(BluetoothLERadioModuleImpl impl);
     }
 
-    ScatterRoutingServiceImpl scatterRoutingService();
+    RoutingServiceBackend scatterRoutingService();
 }
