@@ -263,8 +263,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         mAdvertiser.stopAdvertising(mAdvertiseCallback);
     }
 
-
-    private Completable discoverOnce() {
+    private Observable<RxBleConnection> discoverOnce() {
         return mClient.scanBleDevices(
                 new ScanSettings.Builder()
                         .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
@@ -274,26 +273,16 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                 new ScanFilter.Builder()
                         .setServiceUuid(new ParcelUuid(SERVICE_UUID))
                         .build())
-                .doOnNext(scanResult -> {
+                .flatMap(scanResult -> {
                     if (isConnectedServer(scanResult.getBleDevice().getBluetoothDevice())) {
                         Log.e(TAG, "device " + scanResult.getBleDevice().getMacAddress() + " already connected to server");
-                        return;
+                        return Observable.empty();
                     }
-                    Disposable disposable = scanResult.getBleDevice().establishConnection(
+                    return scanResult.getBleDevice().establishConnection(
                             false,
                             new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS)
-                    ).subscribe(connection -> {
-                        ClientPeerHandle handle = new ClientPeerHandle(connection, mAdvertise);
-                        mClientPeers.put(scanResult.getBleDevice().getBluetoothDevice(), handle);
-                    }, err -> {
-                        Log.e(TAG, "failed to connect to device " + scanResult.getBleDevice().getMacAddress()+
-                                ": " + err);
-                    });
-
-                    mGattDisposable.add(disposable);
-                })
-                .subscribeOn(bleScheduler)
-                .ignoreElements();
+                    );
+                });
     }
 
     @Override
@@ -305,18 +294,20 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
         if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
             d = discoverOnce()
+                    .map(connection -> new ClientPeerHandle(connection, mAdvertise))
+                    .flatMapSingle(ClientPeerHandle::handshake)
                     .subscribe(
-                            () -> Log.v(TAG, "LE scan completed"),
+                            packet -> Log.v(TAG, "LE scan completed"),
                             err -> Log.e(TAG, "LE scan failed: " + err)
                     );
             mGattDisposable.add(d);
         } else if (opts == discoveryOptions.OPT_DISCOVER_FOREVER) {
-            d = Observable.interval(discoverDelay, TimeUnit.SECONDS)
-                    .takeWhile(predicate -> discovering)
-                    .concatMap(count ->discoverOnce().toObservable())
-                    .ignoreElements()
+            d = discoverOnce()
+                    .repeatWhen(func -> func.delay(discoverDelay, TimeUnit.SECONDS).skipWhile(p -> !discovering))
+                    .map(connection -> new ClientPeerHandle(connection, mAdvertise))
+                    .flatMapSingle(ClientPeerHandle::handshake)
                     .subscribe(
-                            () -> Log.v(TAG, "repeat LE scan completed"),
+                            packet -> Log.v(TAG, "repeat LE scan completed"),
                             err -> Log.e(TAG, "repeat LE scan failed: " + err)
                     );
             mGattDisposable.add(d);
