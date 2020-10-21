@@ -96,8 +96,6 @@ dependencies {
     // dependency to appear on your APK's compile classpath or the test APK
     // classpath.
     androidTestImplementation 'androidx.test.espresso:espresso-idling-resource:3.3.0'
-    implementation 'org.codehaus.groovy:groovy-all:2.5.13'
-
     //robolectric and spock
     testImplementation  'org.codehaus.groovy:groovy:2.4.7:grooid'
     testImplementation 'com.github.hkhc:electricspock:0.9'
