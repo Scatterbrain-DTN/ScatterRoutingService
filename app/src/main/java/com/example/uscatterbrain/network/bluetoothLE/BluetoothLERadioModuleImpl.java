@@ -264,6 +264,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
     @Override
     public Observable<RxBleConnection> discoverOnce() {
+        Log.d(TAG, "discover once called");
         return mClient.scanBleDevices(
                 new ScanSettings.Builder()
                         .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
@@ -274,6 +275,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         .setServiceUuid(new ParcelUuid(SERVICE_UUID))
                         .build())
                 .flatMap(scanResult -> {
+                    Log.d(TAG, "scan result: " + scanResult.getBleDevice().getMacAddress());
                     if (isConnectedServer(scanResult.getBleDevice().getBluetoothDevice())) {
                         Log.e(TAG, "device " + scanResult.getBleDevice().getMacAddress() + " already connected to server");
                         return Observable.empty();
@@ -297,8 +299,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                     .map(connection -> new ClientPeerHandle(connection, mAdvertise))
                     .flatMapSingle(ClientPeerHandle::handshake)
                     .subscribe(
-                            packet -> Log.v(TAG, "LE scan completed"),
-                            err -> Log.e(TAG, "LE scan failed: " + err)
+                            packet -> Log.v(TAG, "handshake completed"),
+                            err -> Log.e(TAG, "handshake failed: " + err)
                     );
             mGattDisposable.add(d);
         } else if (opts == discoveryOptions.OPT_DISCOVER_FOREVER) {
@@ -307,8 +309,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                     .map(connection -> new ClientPeerHandle(connection, mAdvertise))
                     .flatMapSingle(ClientPeerHandle::handshake)
                     .subscribe(
-                            packet -> Log.v(TAG, "repeat LE scan completed"),
-                            err -> Log.e(TAG, "repeat LE scan failed: " + err)
+                            packet -> Log.v(TAG, "repeat handshake completed"),
+                            err -> Log.e(TAG, "repeat handshake failed: " + err)
                     );
             mGattDisposable.add(d);
         }
@@ -386,8 +388,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                 .subscribeOn(bleScheduler)
                 .subscribe(
                         connection -> {
+                            Log.d(TAG, "gatt server connection from " + connection.getDevice().getAddress());
                             // we shouldn't maintain duplicate connections
                             if (isConnectedClient(connection.getDevice())) {
+                                Log.d(TAG, "gatt server dropping duplicat connection: " + connection.getDevice().getAddress());
                                 connection.disconnect();
                                 return;
                             }
@@ -473,12 +477,14 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         }
 
         public Single<AdvertisePacket> handshake() {
+            Log.d(TAG, "called handshake");
             return notifyAdvertise()
                 .andThen(Single.just(
                     connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
                     .map(ServerResponseTransaction::getValue)
                 )
                     .flatMap(object -> {
+                        Log.d(TAG, "handshake onCharacteristicWrite");
                         InputStreamObserver inputStreamObserver = new InputStreamObserver();
                         object.subscribe(inputStreamObserver);
                         return AdvertisePacket.parseFrom(inputStreamObserver);
