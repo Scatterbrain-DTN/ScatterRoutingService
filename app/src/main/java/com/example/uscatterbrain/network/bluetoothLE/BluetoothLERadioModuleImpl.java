@@ -23,12 +23,11 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.example.uscatterbrain.ScatterCallback;
-import com.example.uscatterbrain.ScatterRoutingService;
 import com.example.uscatterbrain.network.AdvertisePacket;
+import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
 import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
-import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
 import com.polidea.rxandroidble2.RxBleClient;
 import com.polidea.rxandroidble2.RxBleConnection;
 import com.polidea.rxandroidble2.RxBleServer;
@@ -93,7 +92,6 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     private RxBleServer mServer;
     private RxBleClient mClient;
     private AdvertisePacket mAdvertise;
-    private UUID mModuleUUID;
 
 
 
@@ -381,7 +379,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             return false;
         }
 
-        Disposable d = mServer.openServer()
+        ServerConfig config = ServerConfig.newInstance(new Timeout(5, TimeUnit.SECONDS))
+                .addService(mService);
+
+        Disposable d = mServer.openServer(config)
                 .subscribeOn(bleScheduler)
                 .subscribe(
                         connection -> {
@@ -427,26 +428,19 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         } catch (AdvertiseFailedException e) {
             Log.e(TAG, "failed to advertise");
         }
-        return mModuleUUID;
+
+        return true;
+    }
+
+    public void stopServer() {
+        mGattDisposable.dispose();
+        mServer.closeServer();
     }
 
     @Override
     public List<UUID> getPeers() {
         return null;
     }
-
-    @Override
-    public UUID getModuleID() {
-        return mModuleUUID;
-    }
-
-    @Override
-    public boolean isRegistered() {
-        return mModuleUUID != null &&
-                mServer != null &&
-                mClient != null;
-    }
-
 
     private interface PeerHandle extends Closeable {
         Single<AdvertisePacket> handshake();
@@ -475,7 +469,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             return connection.setupNotifications(
                     ADVERTISE_CHARACTERISTIC,
                     Observable.fromArray(advertisePacket.getBytes())
-            ).ignoreElements();
+            );
         }
 
         public Single<AdvertisePacket> handshake() {

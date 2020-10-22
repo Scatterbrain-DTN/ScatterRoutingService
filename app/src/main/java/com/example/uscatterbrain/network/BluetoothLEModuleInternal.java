@@ -19,9 +19,5 @@ public interface BluetoothLEModuleInternal {
     void stopDiscover();
     boolean startServer();
     void stopServer();
-    UUID register(ScatterRoutingService service);
     List<UUID> getPeers();
-    UUID getModuleID();
-    boolean isRegistered();
-
 }

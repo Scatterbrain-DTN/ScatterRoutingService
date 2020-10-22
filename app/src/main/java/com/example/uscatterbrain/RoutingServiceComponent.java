@@ -19,6 +19,9 @@ import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
 import com.example.uscatterbrain.scheduler.ScatterbrainSchedulerImpl;
+import com.polidea.rxandroidble2.RxBleClient;
+import com.polidea.rxandroidble2.RxBleServer;
+import com.polidea.rxandroidble2.ServerConfig;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -52,6 +55,9 @@ public interface RoutingServiceComponent {
         @BindsInstance
         Builder applicationContext(Context context);
 
+        @BindsInstance
+        Builder serverConfig(ServerConfig serverConfig);
+
         RoutingServiceComponent build();
     }
 
@@ -71,6 +77,15 @@ public interface RoutingServiceComponent {
             return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
         }
 
+        @Provides
+        static RxBleClient provideRxBleClient(Context ctx) {
+            return RxBleClient.create(ctx);
+        }
+
+        @Provides
+        static RxBleServer providesRxBleServer(Context context) {
+            return RxBleServer.create(context);
+        }
 
         @Provides
         @Named(NamedSchedulers.BLE)
