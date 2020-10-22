@@ -21,7 +21,6 @@ import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
 import com.example.uscatterbrain.scheduler.ScatterbrainSchedulerImpl;
 import com.polidea.rxandroidble2.RxBleClient;
 import com.polidea.rxandroidble2.RxBleServer;
-import com.polidea.rxandroidble2.ServerConfig;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -54,9 +53,6 @@ public interface RoutingServiceComponent {
     interface Builder {
         @BindsInstance
         Builder applicationContext(Context context);
-
-        @BindsInstance
-        Builder serverConfig(ServerConfig serverConfig);
 
         RoutingServiceComponent build();
     }
