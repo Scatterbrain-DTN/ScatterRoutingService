@@ -298,6 +298,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             d = discoverOnce()
                     .map(connection -> new ClientPeerHandle(connection, mAdvertise))
                     .flatMapSingle(ClientPeerHandle::handshake)
+                    .subscribeOn(bleScheduler)
                     .subscribe(
                             packet -> Log.v(TAG, "handshake completed"),
                             err -> Log.e(TAG, "handshake failed: " + err)
@@ -308,6 +309,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                     .repeatWhen(func -> func.delay(discoverDelay, TimeUnit.SECONDS).skipWhile(p -> !discovering))
                     .map(connection -> new ClientPeerHandle(connection, mAdvertise))
                     .flatMapSingle(ClientPeerHandle::handshake)
+                    .subscribeOn(bleScheduler)
                     .subscribe(
                             packet -> Log.v(TAG, "repeat handshake completed"),
                             err -> Log.e(TAG, "repeat handshake failed: " + err)
