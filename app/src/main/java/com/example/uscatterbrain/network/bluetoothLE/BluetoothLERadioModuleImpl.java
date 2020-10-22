@@ -68,8 +68,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     );
     private final CompositeDisposable mGattDisposable = new CompositeDisposable();
     private final Context mContext;
-    private final Map<BluetoothDevice, ServerPeerHandle> mServerPeers = new ConcurrentHashMap<>();
-    private final Map<BluetoothDevice,ClientPeerHandle> mClientPeers = new ConcurrentHashMap<>();
+    private final Map<String, ServerPeerHandle> mServerPeers = new ConcurrentHashMap<>();
+    private final Map<String,ClientPeerHandle> mClientPeers = new ConcurrentHashMap<>();
     private final Scheduler bleScheduler;
     private int discoverDelay = 30;
     private boolean discovering = true;
@@ -267,16 +267,16 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             Timeout timeout,
             ScanResult result
     ) {
-        if (mClientPeers.containsKey(result.getBleDevice().getBluetoothDevice())) {
+        if (mClientPeers.containsKey(result.getBleDevice().getBluetoothDevice().getAddress())) {
             return Observable.just(
-                    mClientPeers.get(result.getBleDevice().getBluetoothDevice()).connection
+                    mClientPeers.get(result.getBleDevice().getBluetoothDevice().getAddress()).connection
             );
         }
 
         return result.getBleDevice().establishConnection(autoconnect, timeout)
                 .map(connection -> {
                     ClientPeerHandle peerHandle = new ClientPeerHandle(connection, mAdvertise);
-                    mClientPeers.put(result.getBleDevice().getBluetoothDevice(), peerHandle);
+                    mClientPeers.put(result.getBleDevice().getBluetoothDevice().getAddress(), peerHandle);
                     return connection;
                 });
     }
@@ -419,12 +419,12 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                             }
                             ServerPeerHandle handle = new ServerPeerHandle(connection, mAdvertise);
                             Disposable disconnect = connection.observeDisconnect()
-                                    .subscribe(dc -> mServerPeers.remove(connection.getDevice()), error -> {
-                                        mServerPeers.remove(connection.getDevice());
+                                    .subscribe(dc -> mServerPeers.remove(connection.getDevice().getAddress()), error -> {
+                                        mServerPeers.remove(connection.getDevice().getAddress());
                                         Log.e(TAG, "error when disconnecting device " + connection.getDevice());
                                     });
                             mGattDisposable.add(disconnect);
-                            mServerPeers.put(connection.getDevice(), handle);
+                            mServerPeers.put(connection.getDevice().getAddress(), handle);
                         },
                         error -> {
                             Log.e(TAG, "error starting server " + error.getMessage());
