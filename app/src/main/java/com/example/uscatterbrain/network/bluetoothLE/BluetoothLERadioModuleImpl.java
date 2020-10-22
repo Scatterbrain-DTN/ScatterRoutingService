@@ -262,6 +262,25 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         mAdvertiser.stopAdvertising(mAdvertiseCallback);
     }
 
+    private Observable<RxBleConnection> getOrEstablishConnection(
+            boolean autoconnect,
+            Timeout timeout,
+            ScanResult result
+    ) {
+        if (mClientPeers.containsKey(result.getBleDevice().getBluetoothDevice())) {
+            return Observable.just(
+                    mClientPeers.get(result.getBleDevice().getBluetoothDevice()).connection
+            );
+        }
+
+        return result.getBleDevice().establishConnection(autoconnect, timeout)
+                .map(connection -> {
+                    ClientPeerHandle peerHandle = new ClientPeerHandle(connection, mAdvertise);
+                    mClientPeers.put(result.getBleDevice().getBluetoothDevice(), peerHandle);
+                    return connection;
+                });
+    }
+
     @Override
     public Observable<RxBleConnection> discoverOnce() {
         Log.d(TAG, "discover once called");
@@ -280,9 +299,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         Log.e(TAG, "device " + scanResult.getBleDevice().getMacAddress() + " already connected to server");
                         return Observable.empty();
                     }
-                    return scanResult.getBleDevice().establishConnection(
+                    return getOrEstablishConnection(
                             false,
-                            new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS)
+                            new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS),
+                            scanResult
                     );
                 });
     }
