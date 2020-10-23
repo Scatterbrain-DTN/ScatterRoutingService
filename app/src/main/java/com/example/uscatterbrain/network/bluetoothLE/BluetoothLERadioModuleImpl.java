@@ -71,7 +71,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     private final Map<String, ServerPeerHandle> mServerPeers = new ConcurrentHashMap<>();
     private final Map<String,ClientPeerHandle> mClientPeers = new ConcurrentHashMap<>();
     private final Scheduler bleScheduler;
-    private int discoverDelay = 30;
+    private int discoverDelay = 45;
     private boolean discovering = true;
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
@@ -273,8 +273,14 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             );
         }
 
+        if (result.getBleDevice().getConnectionState() == RxBleConnection.RxBleConnectionState.CONNECTING ||
+                result.getBleDevice().getConnectionState() == RxBleConnection.RxBleConnectionState.CONNECTED) {
+            return Observable.empty();
+        }
+
         return result.getBleDevice().establishConnection(autoconnect, timeout)
                 .map(connection -> {
+                    Log.v(TAG, "LE connection successfully established.");
                     ClientPeerHandle peerHandle = new ClientPeerHandle(connection, mAdvertise);
                     mClientPeers.put(result.getBleDevice().getBluetoothDevice().getAddress(), peerHandle);
                     return connection;
@@ -300,7 +306,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         return Observable.empty();
                     }
                     return getOrEstablishConnection(
-                            false,
+                            true,
                             new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS),
                             scanResult
                     );
