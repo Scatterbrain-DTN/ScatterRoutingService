@@ -306,7 +306,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         return Observable.empty();
                     }
                     return getOrEstablishConnection(
-                            true,
+                            false,
                             new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS),
                             scanResult
                     );
