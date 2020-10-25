@@ -28,6 +28,8 @@ import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
 import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
+import com.polidea.rxandroidble2.LogConstants;
+import com.polidea.rxandroidble2.LogOptions;
 import com.polidea.rxandroidble2.RxBleClient;
 import com.polidea.rxandroidble2.RxBleConnection;
 import com.polidea.rxandroidble2.RxBleServer;
@@ -414,28 +416,27 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
         Disposable d = mServer.openServer(config)
                 .subscribeOn(bleScheduler)
-                .subscribe(
-                        connection -> {
-                            Log.d(TAG, "gatt server connection from " + connection.getDevice().getAddress());
-                            // we shouldn't maintain duplicate connections
-                            if (isConnectedClient(connection.getDevice())) {
-                                Log.d(TAG, "gatt server dropping duplicat connection: " + connection.getDevice().getAddress());
-                                connection.disconnect();
-                                return;
-                            }
-                            ServerPeerHandle handle = new ServerPeerHandle(connection, mAdvertise);
-                            Disposable disconnect = connection.observeDisconnect()
-                                    .subscribe(dc -> mServerPeers.remove(connection.getDevice().getAddress()), error -> {
-                                        mServerPeers.remove(connection.getDevice().getAddress());
-                                        Log.e(TAG, "error when disconnecting device " + connection.getDevice());
-                                    });
-                            mGattDisposable.add(disconnect);
-                            mServerPeers.put(connection.getDevice().getAddress(), handle);
-                        },
-                        error -> {
-                            Log.e(TAG, "error starting server " + error.getMessage());
-                        }
-                );
+                .flatMap(connection -> {
+                    Log.d(TAG, "gatt server connection from " + connection.getDevice().getAddress());
+                    // we shouldn't maintain duplicate connections
+                    if (isConnectedClient(connection.getDevice())) {
+                        Log.d(TAG, "gatt server dropping duplicate connection: " + connection.getDevice().getAddress());
+                        connection.disconnect();
+                        return Observable.empty();
+                    }
+                    ServerPeerHandle handle = new ServerPeerHandle(connection, mAdvertise);
+                    Disposable disconnect = connection.observeDisconnect()
+                            .subscribe(dc -> mServerPeers.remove(connection.getDevice().getAddress()), error -> {
+                                mServerPeers.remove(connection.getDevice().getAddress());
+                                Log.e(TAG, "error when disconnecting device " + connection.getDevice());
+                            });
+                    mGattDisposable.add(disconnect);
+                    mServerPeers.put(connection.getDevice().getAddress(), handle);
+                    return handle.handshake().toObservable();
+                })
+                .subscribe(packet -> {
+                    Log.v(TAG, "gatt server successfully received packet");
+                }, err -> Log.e(TAG, "error in gatt server handshake: " + err));
 
         mGattDisposable.add(d);
         return true;
@@ -509,7 +510,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             return notifyAdvertise()
                 .andThen(Single.just(
                     connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
-                    .map(ServerResponseTransaction::getValue)
+                    .map(connection -> {
+                        connection.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null);
+                        return connection.getValue();
+                    })
                 )
                     .flatMap(object -> {
                         Log.d(TAG, "handshake onCharacteristicWrite");
@@ -541,18 +545,24 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                     .doOnNext(notificationSetup -> {
                         Log.v(TAG, "client successfully set up notifications");
                     })
-                    .flatMap(observable -> {
+                    .flatMapSingle(observable -> {
                         InputStreamObserver inputStreamObserver = new InputStreamObserver();
                         observable.subscribe(inputStreamObserver);
-                        return AdvertisePacket.parseFrom(inputStreamObserver).toObservable();
+                        return AdvertisePacket.parseFrom(inputStreamObserver);
                     }).firstOrError()
-                    .doOnSuccess(packet -> {
-                        connection.createNewLongWriteBuilder()
+                    .flatMap(packet -> {
+                        byte[] b = packet.getBytes();
+                        if (b == null) {
+                            Log.e(TAG, "getBytes returned null");
+                            return Single.error(new IllegalStateException("advertise packet corrupt"));
+                        }
+                        Log.v(TAG, "client successfully retreived advertisepacket from notification");
+                        return connection.createNewLongWriteBuilder()
                                 .setBytes(advertisePacket.getBytes())
-                                .setCharacteristic(ADVERTISE_CHARACTERISTIC)
+                                .setCharacteristicUuid(ADVERTISE_CHARACTERISTIC.getUuid())
                                 .build()
-                        .subscribe();
-                        //TODO: do this in a less hacky way
+                                .ignoreElements()
+                                .toSingleDefault(packet);
                     });
         }
 
