@@ -482,16 +482,44 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         void close();
     }
 
+    private static byte[][] splitChunks(byte[] source)
+    {
+        final int CHUNK_SIZE = 10;
+        byte[][] ret = new byte[(int)Math.ceil(source.length / (double)CHUNK_SIZE)][];
+        int start = 0;
+        for(int i = 0; i < ret.length; i++) {
+            if(start + CHUNK_SIZE > source.length) {
+                ret[i] = new byte[source.length-start];
+                System.arraycopy(source, start, ret[i], 0, source.length - start);
+            }
+            else {
+                ret[i] = new byte[CHUNK_SIZE];
+                System.arraycopy(source, start, ret[i], 0, CHUNK_SIZE);
+            }
+            start += CHUNK_SIZE ;
+        }
+        return ret;
+    }
+
     private static class ServerPeerHandle implements PeerHandle{
         private final RxBleServerConnection connection;
         private final CompositeDisposable peerHandleDisposable = new CompositeDisposable();
         private final AdvertisePacket advertisePacket;
+        private final Observable<byte[]> characteristicWriteObservable;
+        private final Completable notifyAdvertise;
         public ServerPeerHandle(
                 RxBleServerConnection connection,
                 AdvertisePacket advertisePacket
         ) {
             this.connection = connection;
             this.advertisePacket = advertisePacket;
+            notifyAdvertise = notifyAdvertise();
+            characteristicWriteObservable = connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
+                    .map(conn -> {
+                        Log.v(TAG, "server characteristic write len " + conn.getValue().length);
+                        conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null);
+                        return conn.getValue();
+                    });
         }
 
         public RxBleServerConnection getConnection() {
@@ -507,20 +535,13 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
         public Single<AdvertisePacket> handshake() {
             Log.d(TAG, "called handshake");
-            return notifyAdvertise()
-                .andThen(Single.just(
-                    connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
-                    .map(connection -> {
-                        connection.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null);
-                        return connection.getValue();
-                    })
-                )
-                    .flatMap(object -> {
+            return notifyAdvertise
+                    .andThen((SingleSource<AdvertisePacket>) observer -> {
                         Log.d(TAG, "handshake onCharacteristicWrite");
                         InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                        object.subscribe(inputStreamObserver);
-                        return AdvertisePacket.parseFrom(inputStreamObserver);
-                    }));
+                        characteristicWriteObservable.subscribe(inputStreamObserver);
+                        AdvertisePacket.parseFrom(inputStreamObserver).subscribe(observer);
+                    });
         }
 
         public void close() {
