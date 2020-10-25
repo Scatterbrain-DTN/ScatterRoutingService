@@ -301,7 +301,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                 new ScanFilter.Builder()
                         .setServiceUuid(new ParcelUuid(SERVICE_UUID))
                         .build())
-                .flatMap(scanResult -> {
+                .concatMap(scanResult -> {
                     Log.d(TAG, "scan result: " + scanResult.getBleDevice().getMacAddress());
                     if (isConnectedServer(scanResult.getBleDevice().getBluetoothDevice())) {
                         Log.e(TAG, "device " + scanResult.getBleDevice().getMacAddress() + " already connected to server");
@@ -516,10 +516,14 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             notifyAdvertise = notifyAdvertise();
             characteristicWriteObservable = connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
                     .map(conn -> {
-                        Log.v(TAG, "server characteristic write len " + conn.getValue().length);
                         conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null);
                         return conn.getValue();
                     });
+            Disposable d = characteristicWriteObservable.subscribe(
+                    write ->  Log.v(TAG, "server characteristic write len " + write.length),
+                    err -> Log.e(TAG, "server characteristic write error")
+            );
+            peerHandleDisposable.add(d);
         }
 
         public RxBleServerConnection getConnection() {
