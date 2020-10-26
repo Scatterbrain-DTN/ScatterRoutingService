@@ -515,13 +515,11 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             this.advertisePacket = advertisePacket;
             notifyAdvertise = notifyAdvertise();
             characteristicWriteObservable = connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
-                    .map(conn -> {
-                        conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null);
-                        return conn.getValue();
-                    });
+                    .flatMapSingle(conn -> conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, conn.getValue())
+                            .toSingleDefault(conn.getValue()));
             Disposable d = characteristicWriteObservable.subscribe(
                     write ->  Log.v(TAG, "server characteristic write len " + write.length),
-                    err -> Log.e(TAG, "server characteristic write error")
+                    Throwable::printStackTrace
             );
             peerHandleDisposable.add(d);
         }
