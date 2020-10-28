@@ -640,7 +640,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                                 .toSingleDefault(connection);
                     })
                     .flatMapSingle(connection -> {
-                        int seqnum = new Random().nextInt();
+                        int seqnum = Math.abs(new Random().nextInt());
                         UpgradePacket upgradePacket = UpgradePacket.newBuilder()
                                 .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
                                 .setSessionID(seqnum)
