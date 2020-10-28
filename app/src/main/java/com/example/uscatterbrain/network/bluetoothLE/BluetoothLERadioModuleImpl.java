@@ -23,11 +23,14 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.example.uscatterbrain.ScatterCallback;
+import com.example.uscatterbrain.ScatterProto;
+import com.example.uscatterbrain.network.AckPacket;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
 import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
+import com.example.uscatterbrain.network.UpgradePacket;
 import com.polidea.rxandroidble2.LogConstants;
 import com.polidea.rxandroidble2.LogOptions;
 import com.polidea.rxandroidble2.RxBleClient;
@@ -43,6 +46,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final String TAG = "BluetoothLE";
@@ -476,7 +480,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
     private interface PeerHandle extends Closeable {
-        Single<AdvertisePacket> handshake();
+        Single<UpgradePacket> handshake();
 
         @Override
         void close();
@@ -505,7 +509,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         private final RxBleServerConnection connection;
         private final CompositeDisposable peerHandleDisposable = new CompositeDisposable();
         private final AdvertisePacket advertisePacket;
-        private final Observable<byte[]> characteristicWriteObservable;
+        private final Observable<byte[]> advertiseWriteObservable;
+        private final Observable<byte[]> upgradeWriteObservable;
         private final Completable notifyAdvertise;
         public ServerPeerHandle(
                 RxBleServerConnection connection,
@@ -514,14 +519,25 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             this.connection = connection;
             this.advertisePacket = advertisePacket;
             notifyAdvertise = notifyAdvertise();
-            characteristicWriteObservable = connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
+            advertiseWriteObservable = connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
                     .flatMapSingle(conn -> conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, conn.getValue())
                             .toSingleDefault(conn.getValue()));
-            Disposable d = characteristicWriteObservable.subscribe(
-                    write ->  Log.v(TAG, "server characteristic write len " + write.length),
-                    Throwable::printStackTrace
+
+            upgradeWriteObservable = connection.getOnCharacteristicWriteRequest(UPGRADE_CHARACTERISTIC)
+                    .flatMapSingle(conn -> conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, conn.getValue())
+                            .toSingleDefault(conn.getValue()));
+
+            Disposable d1 = upgradeWriteObservable.subscribe(
+                    write -> Log.v(TAG, "server upgrade packet characteristic write len " + write.length),
+                    err -> Log.v(TAG, "server upgrade packet characteristic write failed: " + err)
             );
-            peerHandleDisposable.add(d);
+
+            Disposable d2 = advertiseWriteObservable.subscribe(
+                    write ->  Log.v(TAG, "server characteristic write len " + write.length),
+                    err -> Log.e(TAG, "error in characteristicWrite: " + err)
+            );
+            peerHandleDisposable.add(d1);
+            peerHandleDisposable.add(d2);
         }
 
         public RxBleServerConnection getConnection() {
@@ -535,15 +551,39 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             );
         }
 
-        public Single<AdvertisePacket> handshake() {
+        public Single<UpgradePacket> getUpgrade() {
+            InputStreamObserver observer = new InputStreamObserver();
+            upgradeWriteObservable.subscribe(observer);
+            return UpgradePacket.parseFrom(observer);
+
+        }
+
+        public Completable notifyUpgradeAck() {
+            AckPacket packet = AckPacket.newBuilder()
+                    .setStatus(AckPacket.Status.OK)
+                    .build();
+            return connection.setupNotifications(
+                    UPGRADE_CHARACTERISTIC,
+                    Observable.fromArray(packet.getBytes())
+            );
+        }
+
+        public Single<UpgradePacket> handshake() {
             Log.d(TAG, "called handshake");
             return notifyAdvertise
                     .andThen((SingleSource<AdvertisePacket>) observer -> {
                         Log.d(TAG, "handshake onCharacteristicWrite");
                         InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                        characteristicWriteObservable.subscribe(inputStreamObserver);
+                        advertiseWriteObservable.subscribe(inputStreamObserver);
                         AdvertisePacket.parseFrom(inputStreamObserver).subscribe(observer);
-                    });
+                    })
+                    .flatMap(advertise -> {
+                        Log.v(TAG, "server handshake received advertise");
+                        InputStreamObserver inputStreamObserver = new InputStreamObserver();
+                        upgradeWriteObservable.subscribe(inputStreamObserver);
+                        return UpgradePacket.parseFrom(inputStreamObserver);
+                    })
+                    .flatMap(upgradePacket -> notifyUpgradeAck().toSingleDefault(upgradePacket));
         }
 
         public void close() {
@@ -563,7 +603,19 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             this.advertisePacket = advertisePacket;
         }
 
-        public Single<AdvertisePacket> handshake() {
+        public Completable sendUpgrade(int sessionid) {
+            UpgradePacket packet = UpgradePacket.newBuilder()
+                    .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
+                    .setSessionID(sessionid)
+                    .build();
+            return connection.createNewLongWriteBuilder()
+                    .setCharacteristicUuid(UPGRADE_CHARACTERISTIC.getUuid())
+                    .setBytes(packet.getBytes())
+                    .build()
+                    .ignoreElements();
+        }
+
+        public Single<UpgradePacket> handshake() {
             return connection.setupNotification(UUID_ADVERTISE)
                     .doOnNext(notificationSetup -> {
                         Log.v(TAG, "client successfully set up notifications");
@@ -572,8 +624,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         InputStreamObserver inputStreamObserver = new InputStreamObserver();
                         observable.subscribe(inputStreamObserver);
                         return AdvertisePacket.parseFrom(inputStreamObserver);
-                    }).firstOrError()
-                    .flatMap(packet -> {
+                    })
+                    .flatMapSingle(packet -> {
                         byte[] b = packet.getBytes();
                         if (b == null) {
                             Log.e(TAG, "getBytes returned null");
@@ -585,8 +637,24 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                                 .setCharacteristicUuid(ADVERTISE_CHARACTERISTIC.getUuid())
                                 .build()
                                 .ignoreElements()
-                                .toSingleDefault(packet);
-                    });
+                                .toSingleDefault(connection);
+                    })
+                    .flatMapSingle(connection -> {
+                        int seqnum = new Random().nextInt();
+                        UpgradePacket upgradePacket = UpgradePacket.newBuilder()
+                                .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
+                                .setSessionID(seqnum)
+                                .build();
+
+                        return connection.writeCharacteristic(
+                                UPGRADE_CHARACTERISTIC.getUuid(),
+                                upgradePacket.getBytes()
+                                )
+                                .ignoreElement()
+                                .toSingleDefault(upgradePacket);
+                    })
+                    .firstOrError();
+
         }
 
         public void close() {

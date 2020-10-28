@@ -93,6 +93,10 @@ public class AckPacket implements ScatterSerializable {
         return proto2status(mAck.getStatus());
     }
 
+    public static Builder newBuilder() {
+        return new Builder();
+    }
+
     public static class Builder {
         private String message;
         private Status status;
