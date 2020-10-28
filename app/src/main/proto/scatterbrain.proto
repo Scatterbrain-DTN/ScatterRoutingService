@@ -51,6 +51,7 @@ message Ack {
 message Upgrade {
     Advertise.Provides provides = 1;
     uint32 sessionid = 2;
+    map<string, string> metadata = 3;
 }
 
 

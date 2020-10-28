@@ -8,6 +8,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 import io.reactivex.Completable;
 import io.reactivex.Single;
@@ -19,14 +21,17 @@ public class UpgradePacket implements ScatterSerializable {
 
     private ScatterProto.Upgrade mUpgrade;
     private int mSessionID;
+    private Map<String,String> mMetadata;
     private ScatterProto.Advertise.Provides mProvides;
 
     private UpgradePacket(Builder builder) {
         this.mProvides = builder.getProvides();
         this.mSessionID = builder.getSessionID();
+        this.mMetadata = builder.metadata;
         this.mUpgrade = ScatterProto.Upgrade.newBuilder()
                 .setProvides(mProvides)
                 .setSessionid(mSessionID)
+                .putAllMetadata(mMetadata)
                 .build();
     }
 
@@ -34,6 +39,7 @@ public class UpgradePacket implements ScatterSerializable {
         this.mUpgrade = ScatterProto.Upgrade.parseDelimitedFrom(is);
         this.mSessionID = this.mUpgrade.getSessionid();
         this.mProvides = this.mUpgrade.getProvides();
+        this.mMetadata = this.mUpgrade.getMetadataMap();
     }
 
     /**
@@ -81,6 +87,14 @@ public class UpgradePacket implements ScatterSerializable {
         return this.mSessionID;
     }
 
+
+    /**
+     * gets the metadata map
+     */
+    public Map<String, String> getMetadata() {
+        return mMetadata;
+    }
+
     /**
      * Gets provides.
      *
@@ -105,6 +119,7 @@ public class UpgradePacket implements ScatterSerializable {
     public static class Builder {
         private int mSessionid;
         private ScatterProto.Advertise.Provides mProvides;
+        private Map<String, String> metadata;
 
         /**
          * Sets session id.
@@ -125,6 +140,12 @@ public class UpgradePacket implements ScatterSerializable {
          */
         public Builder setProvides(ScatterProto.Advertise.Provides provides) {
             this.mProvides = provides;
+            return this;
+        }
+
+
+        public Builder setMetadata(Map<String, String> metadata) {
+            this.metadata = metadata;
             return this;
         }
 
@@ -155,6 +176,9 @@ public class UpgradePacket implements ScatterSerializable {
             if (mProvides == null || mSessionid <= 0)
                 return null;
 
+            if (metadata == null) {
+                metadata = new HashMap<>();
+            }
             return new UpgradePacket(this);
         }
     }
