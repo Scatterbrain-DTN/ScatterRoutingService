@@ -68,7 +68,7 @@ public class AckPacket implements ScatterSerializable {
 
     @Override
     public ByteString getByteString() {
-        return null;
+        return ByteString.copyFrom(getBytes());
     }
 
     @Override
