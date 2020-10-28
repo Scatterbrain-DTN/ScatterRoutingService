@@ -34,6 +34,19 @@ message BlockSequence {
 }
 
 
+message Ack {
+    enum Status {
+        OK = 0;
+        ERR = 1;
+    }
+    Status status = 1;
+    oneof message {
+        bool message_null = 2;
+        string message_val = 3;
+    }
+}
+
+
 // used to request switching to a different physical transport
 message Upgrade {
     Advertise.Provides provides = 1;
