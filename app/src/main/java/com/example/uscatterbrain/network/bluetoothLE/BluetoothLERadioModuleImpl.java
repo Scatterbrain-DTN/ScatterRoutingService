@@ -1,7 +1,6 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattServerCallback;
 import android.bluetooth.BluetoothGattService;
@@ -23,20 +22,15 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.example.uscatterbrain.ScatterCallback;
-import com.example.uscatterbrain.ScatterProto;
-import com.example.uscatterbrain.network.AckPacket;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
-import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
-import com.example.uscatterbrain.network.UpgradePacket;
 import com.polidea.rxandroidble2.LogConstants;
 import com.polidea.rxandroidble2.LogOptions;
 import com.polidea.rxandroidble2.RxBleClient;
 import com.polidea.rxandroidble2.RxBleConnection;
 import com.polidea.rxandroidble2.RxBleServer;
-import com.polidea.rxandroidble2.RxBleServerConnection;
 import com.polidea.rxandroidble2.ServerConfig;
 import io.reactivex.Observable;
 import io.reactivex.disposables.Disposable;
@@ -46,7 +40,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
 public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final String TAG = "BluetoothLE";
@@ -275,7 +268,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     ) {
         if (mClientPeers.containsKey(result.getBleDevice().getBluetoothDevice().getAddress())) {
             return Observable.just(
-                    mClientPeers.get(result.getBleDevice().getBluetoothDevice().getAddress()).connection
+                    mClientPeers.get(result.getBleDevice().getBluetoothDevice().getAddress()).getConnection()
             );
         }
 
@@ -479,13 +472,6 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         return null;
     }
 
-    private interface PeerHandle extends Closeable {
-        Completable handshake();
-
-        @Override
-        void close();
-    }
-
     private static byte[][] splitChunks(byte[] source)
     {
         final int CHUNK_SIZE = 10;
@@ -503,178 +489,5 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             start += CHUNK_SIZE ;
         }
         return ret;
-    }
-
-    private static class ServerPeerHandle implements PeerHandle{
-        private final RxBleServerConnection connection;
-        private final CompositeDisposable peerHandleDisposable = new CompositeDisposable();
-        private final AdvertisePacket advertisePacket;
-        private final Observable<byte[]> advertiseWriteObservable;
-        private final Observable<byte[]> upgradeWriteObservable;
-        private final Completable notifyAdvertise;
-        public ServerPeerHandle(
-                RxBleServerConnection connection,
-                AdvertisePacket advertisePacket
-        ) {
-            this.connection = connection;
-            this.advertisePacket = advertisePacket;
-            notifyAdvertise = notifyAdvertise();
-            advertiseWriteObservable = connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
-                    .flatMapSingle(conn -> conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, conn.getValue())
-                            .toSingleDefault(conn.getValue()));
-
-            upgradeWriteObservable = connection.getOnCharacteristicWriteRequest(UPGRADE_CHARACTERISTIC)
-                    .flatMapSingle(conn -> conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, conn.getValue())
-                            .toSingleDefault(conn.getValue()));
-
-            Disposable d1 = upgradeWriteObservable.subscribe(
-                    write -> Log.v(TAG, "server upgrade packet characteristic write len " + write.length),
-                    err -> Log.v(TAG, "server upgrade packet characteristic write failed: " + err)
-            );
-
-            Disposable d2 = advertiseWriteObservable.subscribe(
-                    write ->  Log.v(TAG, "server characteristic write len " + write.length),
-                    err -> Log.e(TAG, "error in characteristicWrite: " + err)
-            );
-            peerHandleDisposable.add(d1);
-            peerHandleDisposable.add(d2);
-        }
-
-        public RxBleServerConnection getConnection() {
-            return connection;
-        }
-
-        public Completable notifyAdvertise() {
-            return connection.setupNotifications(
-                    ADVERTISE_CHARACTERISTIC,
-                    Observable.fromArray(advertisePacket.getBytes())
-            );
-        }
-
-        public Single<UpgradePacket> getUpgrade() {
-            InputStreamObserver observer = new InputStreamObserver();
-            upgradeWriteObservable.subscribe(observer);
-            return UpgradePacket.parseFrom(observer);
-
-        }
-
-        public Completable notifyUpgradeAck() {
-            AckPacket packet = AckPacket.newBuilder()
-                    .setStatus(AckPacket.Status.OK)
-                    .build();
-            return connection.setupNotifications(
-                    UPGRADE_CHARACTERISTIC,
-                    Observable.fromArray(packet.getBytes())
-            );
-        }
-
-        @Override
-        public Completable handshake() {
-            Log.d(TAG, "called handshake");
-            return notifyAdvertise
-                    .andThen((SingleSource<AdvertisePacket>) observer -> {
-                        Log.d(TAG, "handshake onCharacteristicWrite");
-                        InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                        advertiseWriteObservable.subscribe(inputStreamObserver);
-                        AdvertisePacket.parseFrom(inputStreamObserver).subscribe(observer);
-                    })
-                    .flatMap(advertise -> {
-                        Log.v(TAG, "server handshake received advertise");
-                        InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                        upgradeWriteObservable.subscribe(inputStreamObserver);
-                        return UpgradePacket.parseFrom(inputStreamObserver);
-                    })
-                    .flatMapCompletable(upgradePacket -> notifyUpgradeAck());
-        }
-
-        public void close() {
-            peerHandleDisposable.dispose();
-        }
-    }
-
-    private static class ClientPeerHandle implements PeerHandle {
-        private final RxBleConnection connection;
-        private final AdvertisePacket advertisePacket;
-        private final CompositeDisposable disposable = new CompositeDisposable();
-        public ClientPeerHandle(
-                RxBleConnection connection,
-                AdvertisePacket advertisePacket
-        ) {
-            this.connection = connection;
-            this.advertisePacket = advertisePacket;
-        }
-
-        public Completable sendUpgrade(int sessionid) {
-            UpgradePacket packet = UpgradePacket.newBuilder()
-                    .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
-                    .setSessionID(sessionid)
-                    .build();
-            return connection.createNewLongWriteBuilder()
-                    .setCharacteristicUuid(UPGRADE_CHARACTERISTIC.getUuid())
-                    .setBytes(packet.getBytes())
-                    .build()
-                    .ignoreElements();
-        }
-
-        private UpgradePacket getUpgradePacket() {
-            int seqnum = Math.abs(new Random().nextInt());
-            UpgradePacket upgradePacket = UpgradePacket.newBuilder()
-                    .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
-                    .setSessionID(seqnum)
-                    .build();
-            return upgradePacket;
-        }
-
-        @Override
-        public Completable handshake() {
-            return connection.setupNotification(UUID_ADVERTISE)
-                    .doOnNext(notificationSetup -> {
-                        Log.v(TAG, "client successfully set up notifications");
-                    })
-                    .flatMapSingle(observable -> {
-                        InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                        observable.subscribe(inputStreamObserver);
-                        return AdvertisePacket.parseFrom(inputStreamObserver);
-                    })
-                    .flatMapSingle(packet -> {
-                        byte[] b = packet.getBytes();
-                        if (b == null) {
-                            Log.e(TAG, "getBytes returned null");
-                            return Single.error(new IllegalStateException("advertise packet corrupt"));
-                        }
-                        Log.v(TAG, "client successfully retreived advertisepacket from notification");
-                        return connection.createNewLongWriteBuilder()
-                                .setBytes(advertisePacket.getBytes())
-                                .setCharacteristicUuid(ADVERTISE_CHARACTERISTIC.getUuid())
-                                .build()
-                                .ignoreElements()
-                                .toSingleDefault(connection);
-                    })
-                    .flatMapSingle(connection -> {
-                        UpgradePacket upgradePacket = getUpgradePacket();
-                        return connection.writeCharacteristic(
-                                UPGRADE_CHARACTERISTIC.getUuid(),
-                                upgradePacket.getBytes()
-                                )
-                                .ignoreElement()
-                                .toSingleDefault(connection);
-                    })
-                    .flatMapCompletable(connection -> connection.setupNotification(UPGRADE_CHARACTERISTIC.getUuid())
-                            .flatMapSingle(byteobservable -> {
-                                InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                                byteobservable.subscribe(inputStreamObserver);
-                                return AckPacket.parseFrom(inputStreamObserver);
-                            }).flatMapCompletable(ackPacket -> {
-                                if (ackPacket.getStatus() == AckPacket.Status.OK) {
-                                    return Completable.complete();
-                                }
-                                return Completable.error(new IllegalStateException("ack packet ERR"));
-                            }));
-
-        }
-
-        public void close() {
-            disposable.dispose();
-        }
     }
 }
