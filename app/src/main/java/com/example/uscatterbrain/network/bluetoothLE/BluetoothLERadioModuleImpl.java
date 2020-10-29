@@ -329,10 +329,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
             d = discoverOnce()
                     .map(connection -> new ClientPeerHandle(connection, mAdvertise))
-                    .flatMapSingle(ClientPeerHandle::handshake)
+                    .flatMapCompletable(ClientPeerHandle::handshake)
                     .subscribeOn(bleScheduler)
                     .subscribe(
-                            packet -> Log.v(TAG, "handshake completed"),
+                            () -> Log.v(TAG, "handshake completed"),
                             err -> Log.e(TAG, "handshake failed: " + err)
                     );
             mGattDisposable.add(d);
@@ -340,10 +340,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             d = discoverOnce()
                     .repeatWhen(func -> func.delay(discoverDelay, TimeUnit.SECONDS).skipWhile(p -> !discovering))
                     .map(connection -> new ClientPeerHandle(connection, mAdvertise))
-                    .flatMapSingle(ClientPeerHandle::handshake)
+                    .flatMapCompletable(ClientPeerHandle::handshake)
                     .subscribeOn(bleScheduler)
                     .subscribe(
-                            packet -> Log.v(TAG, "repeat handshake completed"),
+                            () -> Log.v(TAG, "repeat handshake completed"),
                             err -> Log.e(TAG, "repeat handshake failed: " + err)
                     );
             mGattDisposable.add(d);
@@ -480,7 +480,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
     private interface PeerHandle extends Closeable {
-        Single<UpgradePacket> handshake();
+        Completable handshake();
 
         @Override
         void close();
@@ -568,7 +568,8 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             );
         }
 
-        public Single<UpgradePacket> handshake() {
+        @Override
+        public Completable handshake() {
             Log.d(TAG, "called handshake");
             return notifyAdvertise
                     .andThen((SingleSource<AdvertisePacket>) observer -> {
@@ -583,7 +584,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         upgradeWriteObservable.subscribe(inputStreamObserver);
                         return UpgradePacket.parseFrom(inputStreamObserver);
                     })
-                    .flatMap(upgradePacket -> notifyUpgradeAck().toSingleDefault(upgradePacket));
+                    .flatMapCompletable(upgradePacket -> notifyUpgradeAck());
         }
 
         public void close() {
@@ -591,7 +592,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         }
     }
 
-    private static class ClientPeerHandle {
+    private static class ClientPeerHandle implements PeerHandle {
         private final RxBleConnection connection;
         private final AdvertisePacket advertisePacket;
         private final CompositeDisposable disposable = new CompositeDisposable();
@@ -615,7 +616,17 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                     .ignoreElements();
         }
 
-        public Single<UpgradePacket> handshake() {
+        private UpgradePacket getUpgradePacket() {
+            int seqnum = Math.abs(new Random().nextInt());
+            UpgradePacket upgradePacket = UpgradePacket.newBuilder()
+                    .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
+                    .setSessionID(seqnum)
+                    .build();
+            return upgradePacket;
+        }
+
+        @Override
+        public Completable handshake() {
             return connection.setupNotification(UUID_ADVERTISE)
                     .doOnNext(notificationSetup -> {
                         Log.v(TAG, "client successfully set up notifications");
@@ -640,20 +651,25 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                                 .toSingleDefault(connection);
                     })
                     .flatMapSingle(connection -> {
-                        int seqnum = Math.abs(new Random().nextInt());
-                        UpgradePacket upgradePacket = UpgradePacket.newBuilder()
-                                .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
-                                .setSessionID(seqnum)
-                                .build();
-
+                        UpgradePacket upgradePacket = getUpgradePacket();
                         return connection.writeCharacteristic(
                                 UPGRADE_CHARACTERISTIC.getUuid(),
                                 upgradePacket.getBytes()
                                 )
                                 .ignoreElement()
-                                .toSingleDefault(upgradePacket);
+                                .toSingleDefault(connection);
                     })
-                    .firstOrError();
+                    .flatMapCompletable(connection -> connection.setupNotification(UPGRADE_CHARACTERISTIC.getUuid())
+                            .flatMapSingle(byteobservable -> {
+                                InputStreamObserver inputStreamObserver = new InputStreamObserver();
+                                byteobservable.subscribe(inputStreamObserver);
+                                return AckPacket.parseFrom(inputStreamObserver);
+                            }).flatMapCompletable(ackPacket -> {
+                                if (ackPacket.getStatus() == AckPacket.Status.OK) {
+                                    return Completable.complete();
+                                }
+                                return Completable.error(new IllegalStateException("ack packet ERR"));
+                            }));
 
         }
 
