@@ -4,6 +4,8 @@ package com.example.uscatterbrain;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
+import android.content.IntentFilter;
+import android.net.wifi.p2p.WifiP2pManager;
 
 import androidx.room.Room;
 
@@ -17,6 +19,11 @@ import com.example.uscatterbrain.network.BlockDataSourceFactoryImpl;
 import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
 import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModuleDebug;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectUnregisteredReceiver;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiverImpl;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
 import com.example.uscatterbrain.scheduler.ScatterbrainSchedulerImpl;
 import com.polidea.rxandroidble2.RxBleClient;
@@ -68,6 +75,36 @@ public interface RoutingServiceComponent {
         }
 
         @Provides
+        @Singleton
+        static WifiDirectBroadcastReceiver providesWifiP2pIntentFilter(Context ctx, WifiDirectUnregisteredReceiver receiver) {
+            IntentFilter intentFilter = new IntentFilter();
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
+
+            // Indicates a change in the list of available peers.
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
+
+            // Indicates the state of Wi-Fi P2P connectivity has changed.
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+
+            // Indicates this device's details have changed.
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
+
+            ctx.registerReceiver(receiver.asReceiver(), intentFilter);
+
+            return receiver.asPublic();
+        }
+
+        @Provides
+        static WifiP2pManager providesWifiP2pManager(Context ctx) {
+            return (WifiP2pManager) ctx.getSystemService(Context.WIFI_P2P_SERVICE);
+        }
+
+        @Provides
+        static WifiP2pManager.Channel providesWifiP2pChannel(WifiP2pManager manager, Context ctx) {
+            return manager.initialize(ctx, ctx.getMainLooper(), null);
+        }
+
+        @Provides
         @Named(NamedSchedulers.DATABASE)
         static Scheduler provideDatabaseScheduler() {
             return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
@@ -106,6 +143,13 @@ public interface RoutingServiceComponent {
 
         @Binds
         abstract BlockDataSourceFactory bindBlockDataSourceFactory(BlockDataSourceFactoryImpl impl);
+
+        @Binds
+        abstract WifiDirectRadioModuleDebug bindWifiDirectRadioModule(WifiDirectRadioModuleImpl impl);
+
+        @Binds
+        @Singleton
+        abstract WifiDirectUnregisteredReceiver bindWifiDirectBroadcastReceiver(WifiDirectBroadcastReceiverImpl impl);
 
         @Binds
         abstract FileStore bindFileStore(FileStoreImpl impl);
