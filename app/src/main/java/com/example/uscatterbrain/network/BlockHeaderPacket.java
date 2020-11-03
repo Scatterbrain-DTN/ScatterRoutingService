@@ -3,12 +3,14 @@ package com.example.uscatterbrain.network;
 import android.util.Log;
 
 import com.example.uscatterbrain.ScatterProto;
+import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,6 +20,8 @@ import java.nio.ByteOrder;
 import java.util.List;
 
 import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
 import io.reactivex.Single;
 
 /**
@@ -150,6 +154,12 @@ public class BlockHeaderPacket implements ScatterSerializable {
         return Single.fromCallable(() -> new BlockHeaderPacket(is));
     }
 
+    public static Single<BlockHeaderPacket> parseFrom(Observable<byte[]> flowable) {
+        InputStreamObserver observer = new InputStreamObserver();
+        flowable.subscribe(observer);
+        return BlockHeaderPacket.parseFrom(observer).doFinally(observer::close);
+    }
+
     @Override
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -169,6 +179,11 @@ public class BlockHeaderPacket implements ScatterSerializable {
     @Override
     public Completable writeToStream(OutputStream os) {
         return Completable.fromAction(() -> blockdata.writeDelimitedTo(os));
+    }
+
+    @Override
+    public Flowable<byte[]> writeToStream() {
+        return Bytes.from(new ByteArrayInputStream(getBytes()));
     }
 
     @Override

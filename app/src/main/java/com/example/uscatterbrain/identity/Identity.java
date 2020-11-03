@@ -9,14 +9,17 @@ import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKeys;
 
 import com.example.uscatterbrain.ScatterProto;
+import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.ScatterSerializable;
+import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,6 +34,9 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
+import io.reactivex.Single;
 
 public class Identity implements Map<String, ByteString>, ScatterSerializable {
     private Map<String, ByteString>  mPubKeymap = new TreeMap<>();
@@ -105,13 +111,14 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     }
 
 
-    public static Identity parseFrom(InputStream is, Context ctx) {
-        try {
-            return new Identity(is, ctx);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
+    public static Single<Identity> parseFrom(InputStream is, Context ctx) {
+        return Single.fromCallable(() -> new Identity(is, ctx));
+    }
+
+    public static Single<Identity> parseFrom(Observable<byte[]> flowable, Context ctx) {
+        InputStreamObserver observer = new InputStreamObserver();
+        flowable.subscribe(observer);
+        return Identity.parseFrom(observer, ctx).doFinally(observer::close);
     }
 
     public ByteString sumBytes() {
@@ -195,6 +202,11 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     @Override
     public Completable writeToStream(OutputStream os) {
         return Completable.fromAction(() -> mIdentity.writeDelimitedTo(os));
+    }
+
+    @Override
+    public Flowable<byte[]> writeToStream() {
+        return Bytes.from(new ByteArrayInputStream(getBytes()));
     }
 
     @Override

@@ -1,15 +1,19 @@
 package com.example.uscatterbrain.network;
 
 import com.example.uscatterbrain.ScatterProto;
+import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
 import io.reactivex.Single;
 
 public class AckPacket implements ScatterSerializable {
@@ -40,6 +44,13 @@ public class AckPacket implements ScatterSerializable {
     public static Single<AckPacket> parseFrom(InputStream inputStream) {
         return Single.fromCallable(() -> new AckPacket(inputStream));
     }
+
+    public static Single<AckPacket> parseFrom(Observable<byte[]> flowable) {
+        InputStreamObserver observer = new InputStreamObserver();
+        flowable.subscribe(observer);
+        return AckPacket.parseFrom(observer).doFinally(observer::close);
+    }
+
 
     private static Status proto2status(ScatterProto.Ack.Status status) {
         if (status == ScatterProto.Ack.Status.OK) {
@@ -74,6 +85,11 @@ public class AckPacket implements ScatterSerializable {
     @Override
     public Completable writeToStream(OutputStream os) {
         return Completable.fromAction(() -> mAck.writeDelimitedTo(os));
+    }
+
+    @Override
+    public Flowable<byte[]> writeToStream() {
+        return Bytes.from(new ByteArrayInputStream(getBytes()));
     }
 
     @Override

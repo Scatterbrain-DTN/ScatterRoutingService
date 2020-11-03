@@ -1,9 +1,11 @@
 package com.example.uscatterbrain.network;
 
 import com.example.uscatterbrain.ScatterProto;
+import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,6 +14,8 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
 import io.reactivex.Single;
 
 /**
@@ -43,6 +47,12 @@ public class AdvertisePacket implements ScatterSerializable {
         return Single.fromCallable(() -> new AdvertisePacket(is));
     }
 
+    public static Single<AdvertisePacket> parseFrom(Observable<byte[]> flowable) {
+        InputStreamObserver observer = new InputStreamObserver();
+        flowable.subscribe(observer);
+        return AdvertisePacket.parseFrom(observer).doFinally(observer::close);
+    }
+
     /**
      * Gets provides.
      *
@@ -71,6 +81,11 @@ public class AdvertisePacket implements ScatterSerializable {
     @Override
     public Completable writeToStream(OutputStream os) {
         return Completable.fromAction(() -> mAdvertise.writeDelimitedTo(os));
+    }
+
+    @Override
+    public Flowable<byte[]> writeToStream() {
+        return Bytes.from(new ByteArrayInputStream(getBytes()));
     }
 
     @Override

@@ -1,12 +1,14 @@
 package com.example.uscatterbrain.network;
 
 import com.example.uscatterbrain.ScatterProto;
+import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,6 +18,8 @@ import java.util.Comparator;
 import java.util.Map;
 
 import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
 import io.reactivex.Single;
 
 /**
@@ -54,6 +58,12 @@ public class IdentityPacket implements ScatterSerializable {
      */
     public static Single<IdentityPacket> parseFrom(InputStream is) {
         return Single.fromCallable(() -> new IdentityPacket(is));
+    }
+
+    public static Single<IdentityPacket> parseFrom(Observable<byte[]> flowable) {
+        InputStreamObserver observer = new InputStreamObserver();
+        flowable.subscribe(observer);
+        return IdentityPacket.parseFrom(observer).doFinally(observer::close);
     }
 
     private ByteString sumBytes() {
@@ -103,6 +113,11 @@ public class IdentityPacket implements ScatterSerializable {
     @Override
     public Completable writeToStream(OutputStream os) {
         return Completable.fromAction(() -> mIdentity.writeDelimitedTo(os));
+    }
+
+    @Override
+    public Flowable<byte[]> writeToStream() {
+        return Bytes.from(new ByteArrayInputStream(getBytes()));
     }
 
     @Override

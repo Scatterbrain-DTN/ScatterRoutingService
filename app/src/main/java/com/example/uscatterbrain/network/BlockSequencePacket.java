@@ -1,10 +1,12 @@
 package com.example.uscatterbrain.network;
 
 import com.example.uscatterbrain.ScatterProto;
+import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -14,6 +16,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
 import io.reactivex.Single;
 
 /**
@@ -108,6 +112,11 @@ public class BlockSequencePacket implements ScatterSerializable {
         return Completable.fromAction(() -> mBlockSequence.writeDelimitedTo(os));
     }
 
+    @Override
+    public Flowable<byte[]> writeToStream() {
+        return Bytes.from(new ByteArrayInputStream(getBytes()));
+    }
+
     private BlockSequencePacket(InputStream is) throws IOException {
         this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
         if (mBlockSequence.getDataCase() == ScatterProto.BlockSequence.DataCase.DATA_CONTENTS) {
@@ -128,6 +137,12 @@ public class BlockSequencePacket implements ScatterSerializable {
      */
     public static Single<BlockSequencePacket> parseFrom(InputStream is) {
         return Single.fromCallable(() -> new BlockSequencePacket(is));
+     }
+
+     public static Single<BlockSequencePacket> parseFrom(Observable<byte[]> flowable) {
+        InputStreamObserver observer = new InputStreamObserver();
+        flowable.subscribe(observer);
+        return BlockSequencePacket.parseFrom(observer).doFinally(observer::close);
      }
 
     private BlockSequencePacket(Builder builder) {
