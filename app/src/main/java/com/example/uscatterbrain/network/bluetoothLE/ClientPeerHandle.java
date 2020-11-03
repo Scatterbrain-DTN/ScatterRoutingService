@@ -6,7 +6,6 @@ import android.util.Log;
 import com.example.uscatterbrain.ScatterProto;
 import com.example.uscatterbrain.network.AckPacket;
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.UpgradePacket;
 import com.polidea.rxandroidble2.RxBleConnection;
 
@@ -60,11 +59,7 @@ public class ClientPeerHandle implements PeerHandle {
                 .doOnNext(notificationSetup -> {
                     Log.v(TAG, "client successfully set up notifications");
                 })
-                .flatMapSingle(observable -> {
-                    InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                    observable.subscribe(inputStreamObserver);
-                    return AdvertisePacket.parseFrom(inputStreamObserver);
-                })
+                .flatMapSingle(AdvertisePacket::parseFrom)
                 .flatMapSingle(packet -> {
                     byte[] b = packet.getBytes();
                     if (b == null) {
@@ -89,11 +84,7 @@ public class ClientPeerHandle implements PeerHandle {
                             .toSingleDefault(connection);
                 })
                 .flatMapCompletable(connection -> connection.setupNotification(UPGRADE_CHARACTERISTIC.getUuid())
-                        .flatMapSingle(byteobservable -> {
-                            InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                            byteobservable.subscribe(inputStreamObserver);
-                            return AckPacket.parseFrom(inputStreamObserver);
-                        }).flatMapCompletable(ackPacket -> {
+                        .flatMapSingle(AckPacket::parseFrom).flatMapCompletable(ackPacket -> {
                             if (ackPacket.getStatus() == AckPacket.Status.OK) {
                                 return Completable.complete();
                             }

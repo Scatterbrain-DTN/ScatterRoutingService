@@ -5,7 +5,6 @@ import android.util.Log;
 
 import com.example.uscatterbrain.network.AckPacket;
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.UpgradePacket;
 import com.polidea.rxandroidble2.RxBleServerConnection;
 
@@ -67,9 +66,7 @@ public class ServerPeerHandle implements PeerHandle {
     }
 
     public Single<UpgradePacket> getUpgrade() {
-        InputStreamObserver observer = new InputStreamObserver();
-        upgradeWriteObservable.subscribe(observer);
-        return UpgradePacket.parseFrom(observer);
+        return UpgradePacket.parseFrom(upgradeWriteObservable);
 
     }
 
@@ -89,15 +86,11 @@ public class ServerPeerHandle implements PeerHandle {
         return notifyAdvertise
                 .andThen((SingleSource<AdvertisePacket>) observer -> {
                     Log.d(TAG, "handshake onCharacteristicWrite");
-                    InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                    advertiseWriteObservable.subscribe(inputStreamObserver);
-                    AdvertisePacket.parseFrom(inputStreamObserver).subscribe(observer);
+                    AdvertisePacket.parseFrom(advertiseWriteObservable).subscribe(observer);
                 })
                 .flatMap(advertise -> {
                     Log.v(TAG, "server handshake received advertise");
-                    InputStreamObserver inputStreamObserver = new InputStreamObserver();
-                    upgradeWriteObservable.subscribe(inputStreamObserver);
-                    return UpgradePacket.parseFrom(inputStreamObserver);
+                    return UpgradePacket.parseFrom(upgradeWriteObservable);
                 })
                 .flatMapCompletable(upgradePacket -> notifyUpgradeAck());
     }
