@@ -30,7 +30,10 @@ message BlockData {
 // body of file, message, or data stream.
 message BlockSequence {
     uint32 seqnum = 1;
-    bytes data = 2;
+    oneof data {
+        bytes data_contents = 2;
+        bool data_native = 3;
+    }
 }
 
 

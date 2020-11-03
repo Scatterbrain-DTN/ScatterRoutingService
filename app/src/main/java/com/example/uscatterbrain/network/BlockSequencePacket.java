@@ -25,6 +25,7 @@ public class BlockSequencePacket implements ScatterSerializable {
     private ByteString mData;
     private File mDataOnDisk;
     private ScatterProto.BlockSequence mBlockSequence;
+    private boolean dataNative;
 
     /**
      * Verify the hash of this message against its header
@@ -34,7 +35,15 @@ public class BlockSequencePacket implements ScatterSerializable {
      */
     public boolean verifyHash(BlockHeaderPacket bd) {
         byte[] seqnum = ByteBuffer.allocate(4).putInt(this.mSequenceNumber).order(ByteOrder.BIG_ENDIAN).array();
-        byte[] data = this.mBlockSequence.getData().toByteArray();
+
+        byte[] data = null;
+        if (this.mBlockSequence.getDataCase() == ScatterProto.BlockSequence.DataCase.DATA_CONTENTS ) {
+            data = this.mBlockSequence.getDataContents().toByteArray();
+            this.dataNative = false;
+        } else {
+            this.dataNative = true;
+            data = new byte[0];
+        }
         byte[] testhash = new byte[GenericHash.BYTES];
         byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
         LibsodiumInterface.getSodium().crypto_generichash_init(state,null, 0, testhash.length);
@@ -58,6 +67,10 @@ public class BlockSequencePacket implements ScatterSerializable {
         LibsodiumInterface.getSodium().crypto_generichash_update(state, mData.toByteArray(), mData.size());
         LibsodiumInterface.getSodium().crypto_generichash_final(state, hashbytes, hashbytes.length);
         return hashbytes;
+    }
+
+    public boolean isNative() {
+        return dataNative;
     }
 
     /**
@@ -97,7 +110,13 @@ public class BlockSequencePacket implements ScatterSerializable {
 
     private BlockSequencePacket(InputStream is) throws IOException {
         this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
-        this.mData = mBlockSequence.getData();
+        if (mBlockSequence.getDataCase() == ScatterProto.BlockSequence.DataCase.DATA_CONTENTS) {
+            this.mData = mBlockSequence.getDataContents();
+            this.dataNative = false;
+        } else {
+            this.mData = ByteString.EMPTY;
+            this.dataNative = true;
+        }
         this.mSequenceNumber = mBlockSequence.getSeqnum();
     }
 
@@ -113,12 +132,21 @@ public class BlockSequencePacket implements ScatterSerializable {
 
     private BlockSequencePacket(Builder builder) {
         this.mSequenceNumber = builder.getmSequenceNumber();
-        this.mData = builder.getmData();
+        ByteString d = builder.getmData();
         this.mDataOnDisk = builder.getmDataOnDisk();
-        this.mBlockSequence = ScatterProto.BlockSequence.newBuilder()
-                .setData(this.mData)
-                .setSeqnum(this.mSequenceNumber)
+        ScatterProto.BlockSequence.Builder tmpbuilder = ScatterProto.BlockSequence.newBuilder();
+        if (d != null) {
+            tmpbuilder.setDataContents(d);
+            this.mData = d;
+            this.dataNative = false;
+        } else {
+            this.dataNative = true;
+            this.mData = ByteString.EMPTY;
+        }
+        this.mBlockSequence = tmpbuilder.setSeqnum(this.mSequenceNumber)
                 .build();
+
+
     }
 
     /**
