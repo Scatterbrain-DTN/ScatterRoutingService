@@ -51,6 +51,11 @@ public class AckPacket implements ScatterSerializable {
         return AckPacket.parseFrom(observer).doFinally(observer::close);
     }
 
+    public static Single<AckPacket> parseFrom(Flowable<byte[]> flowable) {
+        InputStreamFlowableSubscriber observer = new InputStreamFlowableSubscriber();
+        flowable.subscribe(observer);
+        return AckPacket.parseFrom(observer).doFinally(observer::close);
+    }
 
     private static Status proto2status(ScatterProto.Ack.Status status) {
         if (status == ScatterProto.Ack.Status.OK) {

@@ -62,6 +62,12 @@ public class UpgradePacket implements ScatterSerializable {
         return UpgradePacket.parseFrom(observer).doFinally(observer::close);
     }
 
+    public static Single<UpgradePacket> parseFrom(Flowable<byte[]> flowable) {
+        InputStreamFlowableSubscriber observer = new InputStreamFlowableSubscriber();
+        flowable.subscribe(observer);
+        return UpgradePacket.parseFrom(observer).doFinally(observer::close);
+    }
+
     @Override
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();

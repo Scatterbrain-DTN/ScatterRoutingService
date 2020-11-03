@@ -66,6 +66,12 @@ public class IdentityPacket implements ScatterSerializable {
         return IdentityPacket.parseFrom(observer).doFinally(observer::close);
     }
 
+    public static Single<IdentityPacket> parseFrom(Flowable<byte[]> flowable) {
+        InputStreamFlowableSubscriber observer = new InputStreamFlowableSubscriber();
+        flowable.subscribe(observer);
+        return IdentityPacket.parseFrom(observer).doFinally(observer::close);
+    }
+
     private ByteString sumBytes() {
         ByteString result = ByteString.EMPTY;
         ArrayList<String> strings = new ArrayList<>(mKeys.keySet());

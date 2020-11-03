@@ -145,6 +145,12 @@ public class BlockSequencePacket implements ScatterSerializable {
         return BlockSequencePacket.parseFrom(observer).doFinally(observer::close);
      }
 
+    public static Single<BlockSequencePacket> parseFrom(Flowable<byte[]> flowable) {
+        InputStreamFlowableSubscriber observer = new InputStreamFlowableSubscriber();
+        flowable.subscribe(observer);
+        return BlockSequencePacket.parseFrom(observer).doFinally(observer::close);
+    }
+
     private BlockSequencePacket(Builder builder) {
         this.mSequenceNumber = builder.getmSequenceNumber();
         ByteString d = builder.getmData();

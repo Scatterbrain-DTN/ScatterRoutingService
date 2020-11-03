@@ -160,6 +160,12 @@ public class BlockHeaderPacket implements ScatterSerializable {
         return BlockHeaderPacket.parseFrom(observer).doFinally(observer::close);
     }
 
+    public static Single<BlockHeaderPacket> parseFrom(Flowable<byte[]> flowable) {
+        InputStreamFlowableSubscriber observer = new InputStreamFlowableSubscriber();
+        flowable.subscribe(observer);
+        return BlockHeaderPacket.parseFrom(observer).doFinally(observer::close);
+    }
+
     @Override
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();

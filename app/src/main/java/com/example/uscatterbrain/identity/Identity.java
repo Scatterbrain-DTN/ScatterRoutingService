@@ -9,6 +9,7 @@ import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKeys;
 
 import com.example.uscatterbrain.ScatterProto;
+import com.example.uscatterbrain.network.InputStreamFlowableSubscriber;
 import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.ScatterSerializable;
@@ -117,6 +118,12 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
 
     public static Single<Identity> parseFrom(Observable<byte[]> flowable, Context ctx) {
         InputStreamObserver observer = new InputStreamObserver();
+        flowable.subscribe(observer);
+        return Identity.parseFrom(observer, ctx).doFinally(observer::close);
+    }
+
+    public static Single<Identity> parseFrom(Flowable<byte[]> flowable, Context ctx) {
+        InputStreamFlowableSubscriber observer = new InputStreamFlowableSubscriber();
         flowable.subscribe(observer);
         return Identity.parseFrom(observer, ctx).doFinally(observer::close);
     }

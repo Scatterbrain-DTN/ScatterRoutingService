@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
-import java.util.concurrent.Callable;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -49,6 +48,12 @@ public class AdvertisePacket implements ScatterSerializable {
 
     public static Single<AdvertisePacket> parseFrom(Observable<byte[]> flowable) {
         InputStreamObserver observer = new InputStreamObserver();
+        flowable.subscribe(observer);
+        return AdvertisePacket.parseFrom(observer).doFinally(observer::close);
+    }
+
+    public static Single<AdvertisePacket> parseFrom(Flowable<byte[]> flowable) {
+        InputStreamFlowableSubscriber observer = new InputStreamFlowableSubscriber();
         flowable.subscribe(observer);
         return AdvertisePacket.parseFrom(observer).doFinally(observer::close);
     }
