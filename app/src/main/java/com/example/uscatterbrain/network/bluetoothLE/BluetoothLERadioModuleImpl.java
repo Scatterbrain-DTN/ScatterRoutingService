@@ -72,6 +72,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     private final Scheduler bleScheduler;
     private int discoverDelay = 45;
     private boolean discovering = true;
+    private final AtomicReference<Disposable> discoveryDispoable = new AtomicReference<>();
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -320,11 +321,18 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         Disposable d;
 
         if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
-            Disposable timeoutDisp = Completable.fromAction(d::dispose)
+            Disposable timeoutDisp = Completable.fromAction(() -> {})
                     .delay(discoverDelay, TimeUnit.SECONDS)
                     .subscribeOn(bleScheduler)
                     .subscribe(
-                            () -> Log.v(TAG, "scan timed out"),
+                            () -> {
+                                Log.v(TAG, "scan timed out");
+                                    Disposable disposable = discoveryDispoable.get();
+                                    if (disposable != null) {
+                                        disposable.dispose();
+                                        discoveryDispoable.set(null);
+                                    }
+                            },
                             err -> Log.e(TAG, "error while timing out scan: " + err)
                     );
             mGattDisposable.add(d);
