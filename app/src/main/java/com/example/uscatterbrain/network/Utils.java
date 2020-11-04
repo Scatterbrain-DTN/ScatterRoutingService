@@ -1,7 +1,7 @@
 package com.example.uscatterbrain.network;
 
 public class Utils {
-    private static byte[][] splitChunks(byte[] source)
+    public static byte[][] splitChunks(byte[] source)
     {
         final int CHUNK_SIZE = 10;
         byte[][] ret = new byte[(int)Math.ceil(source.length / (double)CHUNK_SIZE)][];

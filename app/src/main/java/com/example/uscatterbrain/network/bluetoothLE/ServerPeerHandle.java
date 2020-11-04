@@ -6,6 +6,7 @@ import android.util.Log;
 import com.example.uscatterbrain.network.AckPacket;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.UpgradePacket;
+import com.example.uscatterbrain.network.Utils;
 import com.polidea.rxandroidble2.RxBleServerConnection;
 
 import io.reactivex.Completable;
@@ -61,7 +62,7 @@ public class ServerPeerHandle implements PeerHandle {
     public Completable notifyAdvertise() {
         return connection.setupNotifications(
                 ADVERTISE_CHARACTERISTIC,
-                Observable.fromArray(advertisePacket.getBytes())
+                Observable.fromArray(Utils.splitChunks(advertisePacket.getBytes()))
         );
     }
 
@@ -76,7 +77,7 @@ public class ServerPeerHandle implements PeerHandle {
                 .build();
         return connection.setupNotifications(
                 UPGRADE_CHARACTERISTIC,
-                Observable.fromArray(packet.getBytes())
+                Observable.fromArray(Utils.splitChunks(packet.getBytes()))
                 .doOnComplete(() -> Log.v(TAG, "server sent ack packet"))
         );
     }
