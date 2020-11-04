@@ -320,13 +320,12 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         Disposable d;
 
         if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
-            d = discoverOnce()
-                    .map(connection -> new ClientPeerHandle(connection, mAdvertise))
-                    .flatMap(ClientPeerHandle::handshake)
+            Disposable timeoutDisp = Completable.fromAction(d::dispose)
+                    .delay(discoverDelay, TimeUnit.SECONDS)
                     .subscribeOn(bleScheduler)
                     .subscribe(
-                            complete -> Log.v(TAG, "handshake completed"),
-                            err -> Log.e(TAG, "handshake failed: " + err)
+                            () -> Log.v(TAG, "scan timed out"),
+                            err -> Log.e(TAG, "error while timing out scan: " + err)
                     );
             mGattDisposable.add(d);
         } else if (opts == discoveryOptions.OPT_DISCOVER_FOREVER) {
