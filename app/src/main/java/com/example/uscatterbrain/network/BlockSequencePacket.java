@@ -117,6 +117,11 @@ public class BlockSequencePacket implements ScatterSerializable {
         return Bytes.from(new ByteArrayInputStream(getBytes()));
     }
 
+    @Override
+    public PacketType getType() {
+        return PacketType.TYPE_BLOCKSEQUENCE;
+    }
+
     private BlockSequencePacket(InputStream is) throws IOException {
         this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
         if (mBlockSequence.getDataCase() == ScatterProto.BlockSequence.DataCase.DATA_CONTENTS) {

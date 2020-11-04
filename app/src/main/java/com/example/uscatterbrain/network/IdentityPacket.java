@@ -131,6 +131,11 @@ public class IdentityPacket implements ScatterSerializable {
         return mIdentity;
     }
 
+    @Override
+    public PacketType getType() {
+        return PacketType.TYPE_IDENTITY;
+    }
+
     /**
      * Gets name.
      *

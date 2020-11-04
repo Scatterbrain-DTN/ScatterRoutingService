@@ -3,6 +3,8 @@ package com.example.uscatterbrain.network.wifidirect;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Network;
+import android.net.NetworkInfo;
 import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pDeviceList;
 import android.net.wifi.p2p.WifiP2pInfo;
@@ -51,8 +53,11 @@ public class WifiDirectBroadcastReceiverImpl extends BroadcastReceiver
             manager.requestPeers(channel, mListener);
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION.equals(action)) {
             // Connection state changed!
-            manager.requestConnectionInfo(channel, mConnectionInfoListener);
+            NetworkInfo networkInfo = (NetworkInfo) intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO);
 
+            if (networkInfo != null && networkInfo.isConnected()) {
+                manager.requestConnectionInfo(channel, mConnectionInfoListener);
+            }
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION.equals(action)) {
            WifiP2pDevice device =  intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);
            if (device == null) {
@@ -75,7 +80,7 @@ public class WifiDirectBroadcastReceiverImpl extends BroadcastReceiver
     }
 
     @Override
-    public Observable<WifiP2pInfo> observeConnectionState() {
+    public Observable<WifiP2pInfo> observeConnectionInfo() {
         return connectionSubject;
     }
 

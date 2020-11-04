@@ -8,15 +8,20 @@ import android.util.Log;
 import androidx.annotation.RequiresApi;
 
 import com.example.uscatterbrain.network.AdvertisePacket;
+import com.example.uscatterbrain.network.BlockHeaderPacket;
+import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.example.uscatterbrain.network.ScatterRadioModule;
+import com.github.davidmoten.rx2.IO;
 
 import java.util.List;
 import java.util.UUID;
 
 import javax.inject.Inject;
 
+import io.reactivex.Flowable;
 import io.reactivex.Observable;
+import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 
 @RequiresApi(api = Build.VERSION_CODES.Q)
@@ -25,12 +30,14 @@ public class WifiDirectRadioModuleImpl implements ScatterPeerHandler, ScatterRad
     private final WifiP2pManager mManager;
     private final WifiDirectBroadcastReceiver mBroadcastReceiver;
     private final WifiP2pManager.Channel mP2pChannel;
+    private static final int SCATTERBRAIN_PORT = 7575;
     private static final String GROUP_NAME = "DIRECT-scattertest";
     private static final String GROUP_PASSPHRASE = "youwillneverguessthis";
     private static final WifiP2pConfig config = new WifiP2pConfig.Builder()
             .setNetworkName(GROUP_NAME)
             .setPassphrase(GROUP_PASSPHRASE)
             .build();
+    private static final CompositeDisposable wifidirectDisposable = new CompositeDisposable();
 
     @Inject
     public WifiDirectRadioModuleImpl(
@@ -41,9 +48,22 @@ public class WifiDirectRadioModuleImpl implements ScatterPeerHandler, ScatterRad
         this.mManager = manager;
         this.mBroadcastReceiver = receiver;
         this.mP2pChannel = channel;
-        Disposable d = mBroadcastReceiver.observeConnectionState()
+        Disposable d = mBroadcastReceiver.observeConnectionInfo()
                 .subscribe(
-                        success -> Log.v(TAG, "connection state change: " + success.toString()),
+                        info -> {
+                            Log.v(TAG, "connection state change: " + info.toString());
+                            if (info.groupFormed && info.isGroupOwner) {
+                                Disposable tcpDisposable = startTcpServer(10000)
+                                        .subscribe(blockDataStream -> {
+                                            Log.v(TAG, "received blockdata stream");
+                                        }, err -> {
+                                            Log.v(TAG, "error while receiving blockdata stream");
+                                        });
+                                wifidirectDisposable.add(tcpDisposable);
+                            } else if (info.groupFormed) {
+
+                            }
+                        },
                         err -> Log.v(TAG, "error on state change: " + err)
                 );
 
@@ -64,6 +84,18 @@ public class WifiDirectRadioModuleImpl implements ScatterPeerHandler, ScatterRad
                         success -> Log.v(TAG, "this device changed: " + success.toString()),
                         err -> Log.e(TAG, "error during this device change: " + err)
                 );
+    }
+
+
+    private Flowable<BlockDataStream> startTcpServer(int timeout) {
+        return IO.serverSocket(SCATTERBRAIN_PORT)
+                .acceptTimeoutMs(timeout)
+                .create()
+                .flatMapSingle(connection -> BlockHeaderPacket.parseFrom(connection)
+                .map(headerPacket -> new BlockDataStream(
+                        headerPacket,
+                        BlockSequencePacket.parseFrom(connection)
+                        .repeat(headerPacket.getHashList().size()))));
     }
 
     @Override
@@ -134,5 +166,24 @@ public class WifiDirectRadioModuleImpl implements ScatterPeerHandler, ScatterRad
     @Override
     public List<UUID> getPeers() {
         return null;
+    }
+
+
+    private static class BlockDataStream {
+        private final Flowable<BlockSequencePacket> sequencePackets;
+        private final  BlockHeaderPacket headerPacket;
+
+        private BlockDataStream(BlockHeaderPacket headerPacket, Flowable<BlockSequencePacket> sequencePackets) {
+            this.sequencePackets = sequencePackets;
+            this.headerPacket = headerPacket;
+        }
+
+        public BlockHeaderPacket getHeaderPacket() {
+            return headerPacket;
+        }
+
+        public Flowable<BlockSequencePacket> getSequencePackets() {
+            return sequencePackets;
+        }
     }
 }

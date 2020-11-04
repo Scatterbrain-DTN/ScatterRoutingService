@@ -98,6 +98,11 @@ public class AdvertisePacket implements ScatterSerializable {
         return mAdvertise;
     }
 
+    @Override
+    public PacketType getType() {
+        return PacketType.TYPE_ADVERTISE;
+    }
+
     /**
      * New builder class
      *

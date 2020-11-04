@@ -14,6 +14,6 @@ public interface WifiDirectBroadcastReceiver {
 
     Observable<P2pState> observeP2pState();
     Observable<WifiP2pDevice> observeThisDevice();
-    Observable<WifiP2pInfo> observeConnectionState();
+    Observable<WifiP2pInfo> observeConnectionInfo();
     Observable<WifiP2pDeviceList> observePeers();
 }

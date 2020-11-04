@@ -160,6 +160,10 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
                 pubkey) == 0;
     }
 
+    @Override
+    public PacketType getType() {
+        return PacketType.TYPE_IDENTITY;
+    }
 
     /**
      * Sign ed 25519 boolean.

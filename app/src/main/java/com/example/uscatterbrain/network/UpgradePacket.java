@@ -99,6 +99,11 @@ public class UpgradePacket implements ScatterSerializable {
         return mUpgrade;
     }
 
+    @Override
+    public PacketType getType() {
+        return PacketType.TYPE_UPGRADE;
+    }
+
     /**
      * Gets session id.
      *

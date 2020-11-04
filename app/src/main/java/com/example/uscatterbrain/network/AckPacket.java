@@ -102,6 +102,11 @@ public class AckPacket implements ScatterSerializable {
         return mAck;
     }
 
+    @Override
+    public PacketType getType() {
+        return PacketType.TYPE_ACK;
+    }
+
     public String getReason() {
         if (mAck.getMessageNull()) {
             return "";

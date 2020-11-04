@@ -197,6 +197,11 @@ public class BlockHeaderPacket implements ScatterSerializable {
         return blockdata;
     }
 
+    @Override
+    public PacketType getType() {
+        return PacketType.TYPE_BLOCKHEADER;
+    }
+
     /**
      * Gets blockdata.
      *
