@@ -77,6 +77,7 @@ public class ServerPeerHandle implements PeerHandle {
         return connection.setupNotifications(
                 UPGRADE_CHARACTERISTIC,
                 Observable.fromArray(packet.getBytes())
+                .doOnComplete(() -> Log.v(TAG, "server sent ack packet"))
         );
     }
 

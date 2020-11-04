@@ -87,6 +87,8 @@ public class ClientPeerHandle implements PeerHandle {
                         .flatMapSingle(AckPacket::parseFrom).flatMapCompletable(ackPacket -> {
                             if (ackPacket.getStatus() == AckPacket.Status.OK) {
                                 return Completable.complete();
+                            } else {
+                                Log.e(TAG, "received ackpacket with invalid status");
                             }
                             return Completable.error(new IllegalStateException("ack packet ERR"));
                         }));
