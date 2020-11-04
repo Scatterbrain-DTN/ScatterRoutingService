@@ -71,7 +71,7 @@ public class ServerPeerHandle implements PeerHandle {
 
     }
 
-    public Completable notifyUpgradeAck() {
+    public Observable<Boolean> notifyUpgradeAck() {
         AckPacket packet = AckPacket.newBuilder()
                 .setStatus(AckPacket.Status.OK)
                 .build();
@@ -79,11 +79,13 @@ public class ServerPeerHandle implements PeerHandle {
                 UPGRADE_CHARACTERISTIC,
                 Observable.fromArray(Utils.splitChunks(packet.getBytes()))
                 .doOnComplete(() -> Log.v(TAG, "server sent ack packet"))
-        );
+        ).toSingleDefault(true)
+                .onErrorReturnItem(false)
+                .toObservable();
     }
 
     @Override
-    public Completable handshake() {
+    public Observable<Boolean> handshake() {
         Log.d(TAG, "called handshake");
         return notifyAdvertise
                 .andThen((SingleSource<AdvertisePacket>) observer -> {
@@ -94,7 +96,7 @@ public class ServerPeerHandle implements PeerHandle {
                     Log.v(TAG, "server handshake received advertise");
                     return UpgradePacket.parseFrom(upgradeWriteObservable);
                 })
-                .flatMapCompletable(upgradePacket -> notifyUpgradeAck());
+                .flatMapObservable(upgradePacket -> notifyUpgradeAck());
     }
 
     public void close() {

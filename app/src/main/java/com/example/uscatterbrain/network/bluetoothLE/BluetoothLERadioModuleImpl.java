@@ -322,10 +322,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
             d = discoverOnce()
                     .map(connection -> new ClientPeerHandle(connection, mAdvertise))
-                    .flatMapCompletable(ClientPeerHandle::handshake)
+                    .flatMap(ClientPeerHandle::handshake)
                     .subscribeOn(bleScheduler)
                     .subscribe(
-                            () -> Log.v(TAG, "handshake completed"),
+                            complete -> Log.v(TAG, "handshake completed"),
                             err -> Log.e(TAG, "handshake failed: " + err)
                     );
             mGattDisposable.add(d);
@@ -333,10 +333,10 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             d = discoverOnce()
                     .repeatWhen(func -> func.delay(discoverDelay, TimeUnit.SECONDS).skipWhile(p -> !discovering))
                     .map(connection -> new ClientPeerHandle(connection, mAdvertise))
-                    .flatMapCompletable(ClientPeerHandle::handshake)
+                    .flatMap(ClientPeerHandle::handshake)
                     .subscribeOn(bleScheduler)
                     .subscribe(
-                            () -> Log.v(TAG, "repeat handshake completed"),
+                            complete -> Log.v(TAG, "repeat handshake completed"),
                             err -> Log.e(TAG, "repeat handshake failed: " + err)
                     );
             mGattDisposable.add(d);
@@ -429,7 +429,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                             });
                     mGattDisposable.add(disconnect);
                     mServerPeers.put(connection.getDevice().getAddress(), handle);
-                    return handle.handshake().toObservable();
+                    return handle.handshake();
                 })
                 .subscribe(packet -> {
                     Log.v(TAG, "gatt server successfully received packet");

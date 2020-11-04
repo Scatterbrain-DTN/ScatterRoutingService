@@ -12,6 +12,7 @@ import com.polidea.rxandroidble2.RxBleConnection;
 import java.util.Random;
 
 import io.reactivex.Completable;
+import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 
@@ -54,7 +55,7 @@ public class ClientPeerHandle implements PeerHandle {
     }
 
     @Override
-    public Completable handshake() {
+    public Observable<Boolean> handshake() {
         return connection.setupNotification(UUID_ADVERTISE)
                 .doOnNext(notificationSetup -> {
                     Log.v(TAG, "client successfully set up notifications");
@@ -83,14 +84,14 @@ public class ClientPeerHandle implements PeerHandle {
                             .ignoreElement()
                             .toSingleDefault(connection);
                 })
-                .flatMapCompletable(connection -> connection.setupNotification(UPGRADE_CHARACTERISTIC.getUuid())
-                        .flatMapSingle(AckPacket::parseFrom).flatMapCompletable(ackPacket -> {
+                .flatMap(connection -> connection.setupNotification(UPGRADE_CHARACTERISTIC.getUuid())
+                        .flatMapSingle(AckPacket::parseFrom).flatMap(ackPacket -> {
                             if (ackPacket.getStatus() == AckPacket.Status.OK) {
-                                return Completable.complete();
+                                return Observable.just(true);
                             } else {
                                 Log.e(TAG, "received ackpacket with invalid status");
                             }
-                            return Completable.error(new IllegalStateException("ack packet ERR"));
+                            return Observable.error(new IllegalStateException("ack packet ERR"));
                         }));
 
     }
