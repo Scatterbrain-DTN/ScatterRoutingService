@@ -15,6 +15,7 @@ import io.reactivex.Single;
 import io.reactivex.SingleSource;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.subjects.BehaviorSubject;
 
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.ADVERTISE_CHARACTERISTIC;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UPGRADE_CHARACTERISTIC;
@@ -27,12 +28,15 @@ public class ServerPeerHandle implements PeerHandle {
     private final Observable<byte[]> advertiseWriteObservable;
     private final Observable<byte[]> upgradeWriteObservable;
     private final Completable notifyAdvertise;
+    private final BehaviorSubject<BluetoothLEModule.UpgradeRequest> upgradeSubject;
     public ServerPeerHandle(
             RxBleServerConnection connection,
-            AdvertisePacket advertisePacket
+            AdvertisePacket advertisePacket,
+            BehaviorSubject<BluetoothLEModule.UpgradeRequest> upgradeSubject
     ) {
         this.connection = connection;
         this.advertisePacket = advertisePacket;
+        this.upgradeSubject = upgradeSubject;
         notifyAdvertise = notifyAdvertise();
         advertiseWriteObservable = connection.getOnCharacteristicWriteRequest(ADVERTISE_CHARACTERISTIC)
                 .flatMapSingle(conn -> conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, conn.getValue())
@@ -96,6 +100,13 @@ public class ServerPeerHandle implements PeerHandle {
                     Log.v(TAG, "server handshake received advertise");
                     return UpgradePacket.parseFrom(upgradeWriteObservable);
                 })
+                .doOnSuccess(upgradePacket ->
+                        upgradeSubject.onNext(
+                                BluetoothLEModule.UpgradeRequest.create(
+                                        BluetoothLEModule.ConnectionRole.ROLE_SEME,
+                                        upgradePacket)
+                        ))
+                .doOnError(upgradeSubject::onError)
                 .flatMapObservable(upgradePacket -> notifyUpgradeAck());
     }
 

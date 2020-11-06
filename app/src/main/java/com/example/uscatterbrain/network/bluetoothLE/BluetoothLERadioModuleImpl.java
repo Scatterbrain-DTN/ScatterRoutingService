@@ -23,7 +23,6 @@ import androidx.annotation.NonNull;
 
 import com.example.uscatterbrain.ScatterCallback;
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.ScatterPeerHandler;
 import com.polidea.rxandroidble2.LogConstants;
 import com.polidea.rxandroidble2.LogOptions;
 import com.polidea.rxandroidble2.RxBleClient;
@@ -45,6 +44,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_ADVERTISE = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
+    private final BehaviorSubject<UpgradeRequest> upgradePacketSubject = BehaviorSubject.create();
     private final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
     public static final BluetoothGattCharacteristic ADVERTISE_CHARACTERISTIC = new BluetoothGattCharacteristic(
             UUID_ADVERTISE,
@@ -132,11 +132,6 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
             });
 
         }
-    }
-
-    @Override
-    public Observable<UUID> getOnPeersChanged() {
-        return null;
     }
 
     @Override
@@ -249,8 +244,6 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
 
             mAdvertiser.startAdvertising(settings, addata, mAdvertiseCallback);
 
-        } else {
-            throw new AdvertiseFailedException("wrong sdk version");
         }
     }
 
@@ -279,14 +272,13 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
         return result.getBleDevice().establishConnection(autoconnect, timeout)
                 .map(connection -> {
                     Log.v(TAG, "LE connection successfully established.");
-                    ClientPeerHandle peerHandle = new ClientPeerHandle(connection, mAdvertise);
+                    ClientPeerHandle peerHandle = new ClientPeerHandle(connection, mAdvertise, upgradePacketSubject);
                     mClientPeers.put(result.getBleDevice().getBluetoothDevice().getAddress(), peerHandle);
                     return connection;
                 });
     }
 
-    @Override
-    public Observable<RxBleConnection> discoverOnce() {
+    private Observable<RxBleConnection> discoverOnce() {
         Log.d(TAG, "discover once called");
         return mClient.scanBleDevices(
                 new ScanSettings.Builder()
@@ -408,6 +400,11 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
     }
 
     @Override
+    public Observable<UpgradeRequest> getOnUpgrade() {
+        return upgradePacketSubject;
+    }
+
+    @Override
     public boolean startServer() {
         if (mServer == null) {
             return false;
@@ -426,7 +423,7 @@ public class BluetoothLERadioModule implements ScatterPeerHandler {
                         connection.disconnect();
                         return Observable.empty();
                     }
-                    ServerPeerHandle handle = new ServerPeerHandle(connection, mAdvertise);
+                    ServerPeerHandle handle = new ServerPeerHandle(connection, mAdvertise, upgradePacketSubject);
                     Disposable disconnect = connection.observeDisconnect()
                             .subscribe(dc -> mServerPeers.remove(connection.getDevice().getAddress()), error -> {
                                 mServerPeers.remove(connection.getDevice().getAddress());

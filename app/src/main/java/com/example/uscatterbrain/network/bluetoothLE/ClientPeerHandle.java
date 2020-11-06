@@ -15,6 +15,7 @@ import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.subjects.BehaviorSubject;
 
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.ADVERTISE_CHARACTERISTIC;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UPGRADE_CHARACTERISTIC;
@@ -25,12 +26,15 @@ public class ClientPeerHandle implements PeerHandle {
     private final RxBleConnection connection;
     private final AdvertisePacket advertisePacket;
     private final CompositeDisposable disposable = new CompositeDisposable();
+    private final BehaviorSubject<BluetoothLEModule.UpgradeRequest> upgradeSubject;
     public ClientPeerHandle(
             RxBleConnection connection,
-            AdvertisePacket advertisePacket
+            AdvertisePacket advertisePacket,
+            BehaviorSubject<BluetoothLEModule.UpgradeRequest> upgradeSubject
     ) {
         this.connection = connection;
         this.advertisePacket = advertisePacket;
+        this.upgradeSubject = upgradeSubject;
     }
 
     public Completable sendUpgrade(int sessionid) {
@@ -51,6 +55,10 @@ public class ClientPeerHandle implements PeerHandle {
                 .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
                 .setSessionID(seqnum)
                 .build();
+        upgradeSubject.onNext(BluetoothLEModule.UpgradeRequest.create(
+                BluetoothLEModule.ConnectionRole.ROLE_UKE,
+                upgradePacket
+        ));
         return upgradePacket;
     }
 
