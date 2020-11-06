@@ -16,11 +16,11 @@ import com.example.uscatterbrain.db.file.FileStore;
 import com.example.uscatterbrain.db.file.FileStoreImpl;
 import com.example.uscatterbrain.network.BlockDataSourceFactory;
 import com.example.uscatterbrain.network.BlockDataSourceFactoryImpl;
-import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
+import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiverImpl;
-import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModuleDebug;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectUnregisteredReceiver;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
@@ -144,7 +144,7 @@ public interface RoutingServiceComponent {
         abstract BlockDataSourceFactory bindBlockDataSourceFactory(BlockDataSourceFactoryImpl impl);
 
         @Binds
-        abstract WifiDirectRadioModuleDebug bindWifiDirectRadioModule(WifiDirectRadioModuleImpl impl);
+        abstract WifiDirectRadioModule bindWifiDirectRadioModule(WifiDirectRadioModuleImpl impl);
 
         @Binds
         @Singleton
@@ -154,7 +154,7 @@ public interface RoutingServiceComponent {
         abstract FileStore bindFileStore(FileStoreImpl impl);
 
         @Binds
-        abstract BluetoothLEModuleInternal bindRadioModuleInternal(BluetoothLERadioModuleImpl impl);
+        abstract BluetoothLEModule bindRadioModuleInternal(BluetoothLERadioModuleImpl impl);
     }
 
     RoutingServiceBackend scatterRoutingService();

@@ -23,7 +23,7 @@ import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 
 @RequiresApi(api = Build.VERSION_CODES.Q)
-public class WifiDirectRadioModuleImpl implements ScatterPeerHandler, WifiDirectRadioModuleDebug {
+public class WifiDirectRadioModuleImpl implements ScatterPeerHandler, WifiDirectRadioModule {
     private static final String TAG = "WifiDirectRadioModule";
     private final WifiP2pManager mManager;
     private final WifiDirectBroadcastReceiver mBroadcastReceiver;

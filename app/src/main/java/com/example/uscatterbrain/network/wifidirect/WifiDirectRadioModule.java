@@ -1,6 +1,6 @@
 package com.example.uscatterbrain.network.wifidirect;
 
-public interface WifiDirectRadioModuleDebug {
+public interface WifiDirectRadioModule {
     void createGroup();
     void connectToGroup();
 }

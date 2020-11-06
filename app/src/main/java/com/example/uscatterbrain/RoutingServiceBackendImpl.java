@@ -2,8 +2,8 @@ package com.example.uscatterbrain;
 
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
-import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModuleDebug;
+import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
 
 import java.util.Collections;
@@ -11,19 +11,19 @@ import java.util.Collections;
 import javax.inject.Inject;
 
 public class RoutingServiceBackendImpl implements RoutingServiceBackend {
-    private final BluetoothLEModuleInternal bluetoothLeRadioModule;
+    private final BluetoothLEModule bluetoothLeRadioModule;
     private final ScatterbrainDatastore datastore;
     private final ScatterbrainScheduler scheduler;
-    private final WifiDirectRadioModuleDebug radioModuleDebug;
+    private final WifiDirectRadioModule radioModuleDebug;
     private final AdvertisePacket mPacket;
 
 
     @Inject
     public RoutingServiceBackendImpl(
             ScatterbrainDatastore datastore,
-            BluetoothLEModuleInternal bluetoothLeRadioModule,
+            BluetoothLEModule bluetoothLeRadioModule,
             ScatterbrainScheduler scheduler,
-            WifiDirectRadioModuleDebug radioModuleDebug
+            WifiDirectRadioModule radioModuleDebug
             ) {
         this.bluetoothLeRadioModule = bluetoothLeRadioModule;
         this.datastore = datastore;
@@ -41,12 +41,12 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
     }
 
     @Override
-    public BluetoothLEModuleInternal getRadioModule() {
+    public BluetoothLEModule getRadioModule() {
         return bluetoothLeRadioModule;
     }
 
     @Override
-    public WifiDirectRadioModuleDebug getWifiDirect() {
+    public WifiDirectRadioModule getWifiDirect() {
         return radioModuleDebug;
     }
 }

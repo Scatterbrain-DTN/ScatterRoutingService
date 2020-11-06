@@ -15,8 +15,8 @@ import com.example.uscatterbrain.API.OnRecieveCallback;
 import com.example.uscatterbrain.API.ScatterTransport;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
-import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
-import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModuleDebug;
+import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 
 import java.io.InputStream;
 import java.util.Objects;
@@ -210,12 +210,12 @@ public class ScatterRoutingService extends LifecycleService {
     }
 
     //TODO: remove this in production
-    public BluetoothLEModuleInternal getRadioModule() {
+    public BluetoothLEModule getRadioModule() {
         return mBackend.getRadioModule();
     }
 
     //TODO: remove this in production
-    public WifiDirectRadioModuleDebug getWifiDirect() {
+    public WifiDirectRadioModule getWifiDirect() {
         return mBackend.getWifiDirect();
     }
 
