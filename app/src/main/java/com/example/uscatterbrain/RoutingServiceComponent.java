@@ -17,13 +17,12 @@ import com.example.uscatterbrain.db.file.FileStoreImpl;
 import com.example.uscatterbrain.network.BlockDataSourceFactory;
 import com.example.uscatterbrain.network.BlockDataSourceFactoryImpl;
 import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
-import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiverImpl;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModuleDebug;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectUnregisteredReceiver;
-import com.example.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiverImpl;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
 import com.example.uscatterbrain.scheduler.ScatterbrainSchedulerImpl;
 import com.polidea.rxandroidble2.RxBleClient;
@@ -153,11 +152,6 @@ public interface RoutingServiceComponent {
 
         @Binds
         abstract FileStore bindFileStore(FileStoreImpl impl);
-
-        @Binds
-        @Singleton
-        @Named(NamedRadioModules.BLUETOOTH_LE)
-        abstract ScatterRadioModule bindRadioModule(BluetoothLERadioModuleImpl impl);
 
         @Binds
         abstract BluetoothLEModuleInternal bindRadioModuleInternal(BluetoothLERadioModuleImpl impl);

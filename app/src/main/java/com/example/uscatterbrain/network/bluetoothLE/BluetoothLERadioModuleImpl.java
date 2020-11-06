@@ -25,7 +25,6 @@ import com.example.uscatterbrain.ScatterCallback;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BluetoothLEModuleInternal;
 import com.example.uscatterbrain.network.ScatterPeerHandler;
-import com.example.uscatterbrain.network.ScatterRadioModule;
 import com.polidea.rxandroidble2.LogConstants;
 import com.polidea.rxandroidble2.LogOptions;
 import com.polidea.rxandroidble2.RxBleClient;

@@ -3,7 +3,7 @@ package com.example.uscatterbrain.network;
 import java.util.List;
 import java.util.UUID;
 
-public interface ScatterTransferHandler extends ScatterRadioModule {
+public interface ScatterTransferHandler {
     void setOnReceiveCallback(OnReceiveCallback callback);
     void transmit(UUID destinationPeer, BlockDataObservableSource data) throws TransferException;
     void transmit(UUID destinatinPeer, List<BlockDataObservableSource> data) throws TransferException;

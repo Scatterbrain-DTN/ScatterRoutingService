@@ -7,7 +7,7 @@ import com.example.uscatterbrain.ScatterCallback;
 import java.util.List;
 import java.util.UUID;
 
-public interface ScatterPeerHandler extends ScatterRadioModule {
+public interface ScatterPeerHandler {
     void setAdvertisePacket(AdvertisePacket advertisePacket);
     Observable<UUID> getOnPeersChanged();
     AdvertisePacket getAdvertisePacket();
