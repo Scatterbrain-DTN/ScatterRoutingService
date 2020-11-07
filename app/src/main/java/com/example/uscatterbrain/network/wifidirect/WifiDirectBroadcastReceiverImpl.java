@@ -58,7 +58,7 @@ public class WifiDirectBroadcastReceiverImpl extends BroadcastReceiver
             if (networkInfo != null && networkInfo.isConnected()) {
                 manager.requestConnectionInfo(channel, mConnectionInfoListener);
             } else if (networkInfo != null){
-                connectionSubject.onError(new WifiDirectDisconnectedException("wifi p2p disconnected"));
+                //TODO: handle disconnections
             }
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION.equals(action)) {
            WifiP2pDevice device =  intent.getParcelableExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE);

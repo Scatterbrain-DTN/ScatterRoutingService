@@ -17,6 +17,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 
 import javax.inject.Inject;
 
@@ -26,6 +28,9 @@ import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.subjects.BehaviorSubject;
+import io.reactivex.subjects.CompletableSubject;
+import io.reactivex.subjects.PublishSubject;
 
 @RequiresApi(api = Build.VERSION_CODES.Q)
 public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
@@ -34,6 +39,7 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
     private final WifiDirectBroadcastReceiver mBroadcastReceiver;
     private final WifiP2pManager.Channel mP2pChannel;
     private static final int SCATTERBRAIN_PORT = 7575;
+    private static final int CREATE_GROUP_RETRY = 10;
     private static final WifiP2pManager.ActionListener actionListener = new WifiP2pManager.ActionListener() {
         @Override
         public void onSuccess() {
@@ -98,6 +104,7 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
                         state -> {
                             Log.v(TAG, "p2p state change: " + state.toString());
                             if (state == WifiDirectBroadcastReceiver.P2pState.STATE_DISABLED) {
+                                Log.v(TAG, "adapter disabled, disposing tcp server");
                                 tcpServerDisposable.dispose();
                             }
                         },
@@ -135,10 +142,7 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
 
     @Override
     public Completable createGroup() {
-        mManager.createGroup(mP2pChannel, globalconfig, actionListener);
-        return mBroadcastReceiver.observeConnectionInfo()
-                .takeUntil(wifiP2pInfo -> wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner)
-                .ignoreElements();
+        return createGroup(GROUP_NAME, GROUP_PASSPHRASE);
     }
 
     public Completable createGroup(String name, String passphrase) {
@@ -146,14 +150,93 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
                 .setNetworkName(name)
                 .setPassphrase(passphrase)
                 .build();
+        final CompletableSubject subject = CompletableSubject.create();
+        final AtomicReference<Integer> retryCount = new AtomicReference<>();
+        retryCount.set(CREATE_GROUP_RETRY);
+        final WifiP2pManager.ActionListener listener = new WifiP2pManager.ActionListener() {
+            @Override
+            public void onSuccess() {
+                Log.v(TAG, "successfully created group!");
+                subject.onComplete();
+            }
+
+            @Override
+            public void onFailure(int reason) {
+                switch (reason) {
+                    case WifiP2pManager.BUSY:
+                    {
+                        Log.w(TAG, "failed to create group: busy: retry");
+                        if (retryCount.getAndUpdate(integer -> --integer) > 0) {
+                            mManager.createGroup(mP2pChannel, this);
+                        }
+                    }
+                    case WifiP2pManager.ERROR:
+                    {
+                        Log.e(TAG, "failed to create group: error");
+                        subject.onError(new IllegalStateException("failed to create group: error"));
+                        break;
+                    }
+                    case WifiP2pManager.P2P_UNSUPPORTED:
+                    {
+                        Log.e(TAG, "failed to create group: p2p unsupported");
+                        subject.onError(new IllegalStateException("failed to create group: p2p unsupported"));
+                        break;
+                    }
+                    default:
+                    {
+                        subject.onError(new IllegalStateException("invalid status code"));
+                        break;
+                    }
+                }
+            }
+        };
         mManager.requestGroupInfo(mP2pChannel, group -> {
             if (group == null) {
-                mManager.createGroup(mP2pChannel, config, actionListener);
+                mManager.createGroup(mP2pChannel, config, listener);
+            } else {
+                mManager.removeGroup(mP2pChannel, new WifiP2pManager.ActionListener() {
+                    @Override
+                    public void onSuccess() {
+                        mManager.createGroup(mP2pChannel, config, listener);
+                    }
+
+                    @Override
+                    public void onFailure(int reason) {
+                        switch (reason) {
+                            case WifiP2pManager.BUSY:
+                            {
+                                Log.w(TAG, "failed to remove old group: busy: retry");
+                                if (retryCount.getAndUpdate(integer -> --integer) > 0) {
+                                    mManager.removeGroup(mP2pChannel, this);
+                                }
+                            }
+                            case WifiP2pManager.ERROR:
+                            {
+                                Log.e(TAG, "failed to remove group: error");
+                                subject.onError(new IllegalStateException("failed to create group: error"));
+                                break;
+                            }
+                            case WifiP2pManager.P2P_UNSUPPORTED:
+                            {
+                                Log.e(TAG, "failed to remove group: p2p unsupported");
+                                subject.onError(new IllegalStateException("failed to create group: p2p unsupported"));
+                                break;
+                            }
+                            default:
+                            {
+                                subject.onError(new IllegalStateException("invalid status code"));
+                                break;
+                            }
+                        }
+                    }
+                });
             }
         });
-        return mBroadcastReceiver.observeConnectionInfo()
+        return Completable.mergeArray(
+                mBroadcastReceiver.observeConnectionInfo()
                 .takeUntil(wifiP2pInfo -> wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner)
-                .ignoreElements();
+                .ignoreElements(),
+                subject);
     }
 
     private static Single<Socket> getTcpSocket(InetAddress address) {
