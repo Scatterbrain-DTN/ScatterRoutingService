@@ -7,8 +7,11 @@ import com.example.uscatterbrain.ScatterProto;
 import com.example.uscatterbrain.network.AckPacket;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.UpgradePacket;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.polidea.rxandroidble2.RxBleConnection;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 import io.reactivex.Completable;
@@ -40,6 +43,7 @@ public class ClientPeerHandle implements PeerHandle {
     public Completable sendUpgrade(int sessionid) {
         UpgradePacket packet = UpgradePacket.newBuilder()
                 .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
+                .setMetadata(WifiDirectRadioModule.UPGRADE_METADATA)
                 .setSessionID(sessionid)
                 .build();
         return connection.createNewLongWriteBuilder()
@@ -51,10 +55,12 @@ public class ClientPeerHandle implements PeerHandle {
 
     private UpgradePacket getUpgradePacket() {
         int seqnum = Math.abs(new Random().nextInt());
+
         UpgradePacket upgradePacket = UpgradePacket.newBuilder()
                 .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
                 .setSessionID(seqnum)
                 .build();
+
         upgradeSubject.onNext(BluetoothLEModule.UpgradeRequest.create(
                 BluetoothLEModule.ConnectionRole.ROLE_UKE,
                 upgradePacket
