@@ -40,15 +40,7 @@ public class ScatterRoutingService extends LifecycleService {
         //TODO:
     }
 
-    public AdvertisePacket getPacket() {
-        return mPacket;
-    }
 
-    public void setPacket(AdvertisePacket packet) {
-        mPacket = packet;
-    }
-
-    @Override
     public void stopService() {
     }
 
@@ -176,37 +168,50 @@ public class ScatterRoutingService extends LifecycleService {
         super.onCreate();
     }
 
+
     @Override
     public IBinder onBind(Intent i) {
-        super.onBind(i);
-        bound = true;
-        ScatterbrainDatastore.initialize(this);
-        mRadioModule.register(this);
-        NotificationCompat.Builder not = new NotificationCompat.Builder(this)
-                .setSmallIcon(R.drawable.ic_toys_black_24dp)
-                .setContentTitle("Scatterbrain")
-                .setContentText("Discoverting Peers...");
-
-        Intent result = new Intent(this, ScatterRoutingService.class);
-
-        PendingIntent resultPendingIntent =
-                PendingIntent.getActivity(
-                        this,
-                        0,
-                        result,
-                        PendingIntent.FLAG_UPDATE_CURRENT
-                );
-
-        not.setContentIntent(resultPendingIntent);
-
-        int notificationId = 1;
-        NotificationManager man = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         try {
-            Objects.requireNonNull(man).notify(notificationId, not.build());
-        } catch(NullPointerException e) {
-            Log.e(TAG, "NullPointerException while creating persistent notification");
+            super.onBind(i);
+            //TODO: temporary
+            mBackend = DaggerRoutingServiceComponent.builder()
+                    .applicationContext(this)
+                    .build()
+                    .scatterRoutingService();
+            Log.v(TAG, "called onbind");
+            bound = true;
+            Log.v(TAG, "initialized datastore");
+           // mRadioModule.register(this);
+            NotificationCompat.Builder not = new NotificationCompat.Builder(this)
+                    .setSmallIcon(R.drawable.ic_toys_black_24dp)
+                    .setContentTitle("Scatterbrain")
+                    .setContentText("Discoverting Peers...");
+
+            Intent result = new Intent(this, ScatterRoutingService.class);
+
+            PendingIntent resultPendingIntent =
+                    PendingIntent.getActivity(
+                            this,
+                            0,
+                            result,
+                            PendingIntent.FLAG_UPDATE_CURRENT
+                    );
+
+            not.setContentIntent(resultPendingIntent);
+
+            int notificationId = 1;
+            NotificationManager man = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            try {
+                Objects.requireNonNull(man).notify(notificationId, not.build());
+            } catch (NullPointerException e) {
+                Log.e(TAG, "NullPointerException while creating persistent notification");
+            }
+            return mBinder;
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.v(TAG, "exception");
+            return null;
         }
-        return mBinder;
     }
 
     //TODO: remove this in production
