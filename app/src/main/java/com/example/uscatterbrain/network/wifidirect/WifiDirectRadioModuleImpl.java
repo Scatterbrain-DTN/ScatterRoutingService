@@ -168,12 +168,18 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
                         Log.w(TAG, "failed to create group: busy: retry");
                         if (retryCount.getAndUpdate(integer -> --integer) > 0) {
                             mManager.createGroup(mP2pChannel, this);
+                        } else {
+                            subject.onError(new IllegalStateException("failed to create group: busy retry exceeded"));
                         }
                     }
                     case WifiP2pManager.ERROR:
                     {
                         Log.e(TAG, "failed to create group: error");
-                        subject.onError(new IllegalStateException("failed to create group: error"));
+                        if (retryCount.getAndUpdate(integer -> --integer) > 0) {
+                            mManager.createGroup(mP2pChannel, this);
+                        } else {
+                            subject.onError(new IllegalStateException("failed to create group: error"));
+                        }
                         break;
                     }
                     case WifiP2pManager.P2P_UNSUPPORTED:
@@ -212,8 +218,12 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
                             }
                             case WifiP2pManager.ERROR:
                             {
-                                Log.e(TAG, "failed to remove group: error");
-                                subject.onError(new IllegalStateException("failed to create group: error"));
+                                Log.w(TAG, "failed to remove group probably nonexistent, retry");
+                                if (retryCount.getAndUpdate(integer -> --integer) > 0) {
+                                    mManager.removeGroup(mP2pChannel, this);
+                                } else {
+                                    subject.onError(new IllegalStateException("failed to remove group: error"));
+                                }
                                 break;
                             }
                             case WifiP2pManager.P2P_UNSUPPORTED:
@@ -232,7 +242,8 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
                 });
             }
         });
-        return Completable.mergeArray(
+        return Completable.mergeArrayDelayError(
+
                 mBroadcastReceiver.observeConnectionInfo()
                 .takeUntil(wifiP2pInfo -> wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner)
                 .ignoreElements(),
