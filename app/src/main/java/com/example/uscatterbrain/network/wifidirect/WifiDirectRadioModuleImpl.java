@@ -7,7 +7,6 @@ import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 
-import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
@@ -20,12 +19,10 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
-import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
@@ -36,8 +33,6 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
     private final WifiP2pManager mManager;
     private final WifiDirectBroadcastReceiver mBroadcastReceiver;
     private final WifiP2pManager.Channel mP2pChannel;
-    private final Scheduler readScheduler;
-    private final Scheduler writeScheduler;
     private static final int SCATTERBRAIN_PORT = 7575;
     private static final WifiP2pManager.ActionListener actionListener = new WifiP2pManager.ActionListener() {
         @Override
@@ -72,12 +67,8 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
     public WifiDirectRadioModuleImpl(
             WifiP2pManager manager,
             WifiDirectBroadcastReceiver receiver,
-            WifiP2pManager.Channel channel,
-            @Named(RoutingServiceComponent.NamedSchedulers.WIFIDIRECT_READ) Scheduler readScheduler,
-            @Named(RoutingServiceComponent.NamedSchedulers.WIFIDIRECT_WRITE) Scheduler writeScheduler
+            WifiP2pManager.Channel channel
     ) {
-        this.readScheduler = readScheduler;
-        this.writeScheduler = writeScheduler;
         this.mManager = manager;
         this.mBroadcastReceiver = receiver;
         this.mP2pChannel = channel;
