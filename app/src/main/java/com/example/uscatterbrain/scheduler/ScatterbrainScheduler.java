@@ -1,9 +1,5 @@
 package com.example.uscatterbrain.scheduler;
 
-import com.example.uscatterbrain.network.BlockDataObservableSource;
-
-import java.util.List;
-
 public interface ScatterbrainScheduler {
 
     enum RoutingServiceState {
@@ -105,6 +101,4 @@ public interface ScatterbrainScheduler {
     void start();
 
     boolean stop();
-
-    void sendBlockData(List<BlockDataObservableSource> packetList);
 }

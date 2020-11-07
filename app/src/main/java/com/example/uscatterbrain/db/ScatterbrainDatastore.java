@@ -2,7 +2,6 @@ package com.example.uscatterbrain.db;
 
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.network.BlockDataObservableSource;
 
 import java.util.List;
 
@@ -87,15 +86,9 @@ public interface ScatterbrainDatastore {
      */
     Observable<ScatterMessage> getMessagesByIdentity(Identity id);
 
-    Completable insertDataPacket(List<BlockDataObservableSource> packets);
-
     Completable insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity);
 
-    Completable insertDataPacket(BlockDataObservableSource packet);
-
     Observable<com.example.uscatterbrain.identity.Identity> getIdentity(List<Long> ids);
-
-    Observable<BlockDataObservableSource> getDataPacket(List<Long> id);
 
     void clear();
 

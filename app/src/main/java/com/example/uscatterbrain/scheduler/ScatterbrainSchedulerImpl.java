@@ -1,8 +1,5 @@
 package com.example.uscatterbrain.scheduler;
 
-import com.example.uscatterbrain.network.BlockDataObservableSource;
-
-import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -73,10 +70,5 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler{
             return mFuture.cancel(false);
         }
         return true;
-    }
-
-    @Override
-    public void sendBlockData(List<BlockDataObservableSource> packets) {
-
     }
 }

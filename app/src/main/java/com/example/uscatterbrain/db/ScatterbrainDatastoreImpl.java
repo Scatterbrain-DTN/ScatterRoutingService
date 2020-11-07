@@ -1,25 +1,18 @@
 package com.example.uscatterbrain.db;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
-import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.network.BlockDataObservableSource;
-import com.example.uscatterbrain.network.BlockDataSourceFactory;
 import com.google.protobuf.ByteString;
 
-import java.io.File;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.FutureTask;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -38,7 +31,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     private final Datastore mDatastore;
     private final Context ctx;
     private final Scheduler databaseScheduler;
-    private final BlockDataSourceFactory blockDataSourceFactory;
     /**
      * constructor
      * @param ctx  application or service context
@@ -47,13 +39,11 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public ScatterbrainDatastoreImpl(
             Context ctx,
             Datastore datastore,
-            BlockDataSourceFactory blockDataSourceFactory,
             @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) Scheduler databaseScheduler
     ) {
         mDatastore = datastore;
         this.ctx = ctx;
         this.databaseScheduler = databaseScheduler;
-        this.blockDataSourceFactory = blockDataSourceFactory;
     }
 
     /**
@@ -193,12 +183,15 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .flatMap(Observable::fromIterable);
     }
 
+    /*
     @Override
     public Completable insertDataPacket(List<BlockDataObservableSource> packets) {
         return Observable.fromIterable(packets)
                 .flatMap(packet -> insertDataPacket(packet).toObservable())
                 .ignoreElements();
      }
+
+     */
 
      @Override
      public Completable insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity) {
@@ -235,6 +228,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         }).ignoreElements();
      }
 
+     /*
      @Override
      public Completable insertDataPacket(BlockDataObservableSource packet) {
          if(!packet.isHashValid().blockingGet()) {
@@ -265,6 +259,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
              return insertMessagesSync(message);
          });
      }
+*/
 
      public Observable<com.example.uscatterbrain.identity.Identity> getIdentity(List<Long> ids) {
             return mDatastore.identityDao().getIdentitiesWithRelations(ids)
@@ -289,6 +284,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
 
+    /*
      @Override
      public Observable<BlockDataObservableSource> getDataPacket(List<Long> id) {
             return mDatastore.scatterMessageDao().getByID(id)
@@ -312,6 +308,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                 });
                     });
      }
+*/
 
     /**
      * Clears the datastore, dropping all tables
