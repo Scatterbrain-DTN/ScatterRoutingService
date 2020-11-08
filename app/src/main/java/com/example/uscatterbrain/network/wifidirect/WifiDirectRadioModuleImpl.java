@@ -12,11 +12,15 @@ import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.github.davidmoten.rx2.IO;
 
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 
@@ -40,6 +44,7 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
     private final WifiP2pManager.Channel mP2pChannel;
     private static final int SCATTERBRAIN_PORT = 7575;
     private static final int CREATE_GROUP_RETRY = 10;
+    private static final AtomicReference<Boolean> groupOperationInProgress = new AtomicReference<>();
     private static final WifiP2pManager.ActionListener actionListener = new WifiP2pManager.ActionListener() {
         @Override
         public void onSuccess() {
@@ -79,6 +84,28 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
         this.mBroadcastReceiver = receiver;
         this.mP2pChannel = channel;
         this.tcpServerOutput = startTcpServer();
+        tcpServerOutput.safeSubscribe(new Subscriber<BlockDataStream>() {
+            @Override
+            public void onSubscribe(Subscription s) {
+                Log.v(TAG, "tcp server initialized");
+            }
+
+            @Override
+            public void onNext(BlockDataStream blockDataStream) {
+                Log.v(TAG, "tcp server accepted headerpacket");
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                Log.e(TAG, "tcp server error: " + t);
+            }
+
+            @Override
+            public void onComplete() {
+                Log.w(TAG, "tcp server completed");
+            }
+        });
+        groupOperationInProgress.set(false);
         Disposable tcpDisposable = this.tcpServerOutput.subscribe(blockDataStream -> {
             Log.v(TAG, "received blockdata stream");
         }, err -> {
@@ -151,103 +178,110 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
                 .setPassphrase(passphrase)
                 .build();
         final CompletableSubject subject = CompletableSubject.create();
-        final AtomicReference<Integer> retryCount = new AtomicReference<>();
-        retryCount.set(CREATE_GROUP_RETRY);
-        final WifiP2pManager.ActionListener listener = new WifiP2pManager.ActionListener() {
-            @Override
-            public void onSuccess() {
-                Log.v(TAG, "successfully created group!");
-                subject.onComplete();
-            }
+        if ( ! groupOperationInProgress.getAndUpdate(val -> true)) {
+            final AtomicReference<Integer> retryCount = new AtomicReference<>();
+            retryCount.set(CREATE_GROUP_RETRY);
+            final WifiP2pManager.ActionListener listener = new WifiP2pManager.ActionListener() {
+                @Override
+                public void onSuccess() {
+                    Log.v(TAG, "successfully created group!");
+                    subject.onComplete();
+                    groupOperationInProgress.set(false);
+                }
 
-            @Override
-            public void onFailure(int reason) {
-                switch (reason) {
-                    case WifiP2pManager.BUSY:
-                    {
-                        Log.w(TAG, "failed to create group: busy: retry");
-                        if (retryCount.getAndUpdate(integer -> --integer) > 0) {
-                            mManager.createGroup(mP2pChannel, this);
-                        } else {
-                            subject.onError(new IllegalStateException("failed to create group: busy retry exceeded"));
+                @Override
+                public void onFailure(int reason) {
+                    switch (reason) {
+                        case WifiP2pManager.BUSY: {
+                            Log.w(TAG, "failed to create group: busy: retry");
+                            if (retryCount.getAndUpdate(integer -> --integer) > 0) {
+                                mManager.createGroup(mP2pChannel, this);
+                            } else {
+                                subject.onError(new IllegalStateException("failed to create group: busy retry exceeded"));
+                                groupOperationInProgress.set(false);
+                            }
+                            break;
                         }
-                    }
-                    case WifiP2pManager.ERROR:
-                    {
-                        Log.e(TAG, "failed to create group: error");
-                        if (retryCount.getAndUpdate(integer -> --integer) > 0) {
-                            mManager.createGroup(mP2pChannel, this);
-                        } else {
-                            subject.onError(new IllegalStateException("failed to create group: error"));
+                        case WifiP2pManager.ERROR: {
+                            Log.e(TAG, "failed to create group: error");
+                            if (retryCount.getAndUpdate(integer -> --integer) > 0) {
+                                mManager.createGroup(mP2pChannel, this);
+                            } else {
+                                subject.onError(new IllegalStateException("failed to create group: error"));                            groupOperationInProgress.set(false);
+                                groupOperationInProgress.set(false);
+                            }
+                            break;
                         }
-                        break;
-                    }
-                    case WifiP2pManager.P2P_UNSUPPORTED:
-                    {
-                        Log.e(TAG, "failed to create group: p2p unsupported");
-                        subject.onError(new IllegalStateException("failed to create group: p2p unsupported"));
-                        break;
-                    }
-                    default:
-                    {
-                        subject.onError(new IllegalStateException("invalid status code"));
-                        break;
+                        case WifiP2pManager.P2P_UNSUPPORTED: {
+                            Log.e(TAG, "failed to create group: p2p unsupported");
+                            subject.onError(new IllegalStateException("failed to create group: p2p unsupported"));
+                            groupOperationInProgress.set(false);
+                            break;
+                        }
+                        default: {
+                            subject.onError(new IllegalStateException("invalid status code"));
+                            groupOperationInProgress.set(false);
+                            break;
+                        }
                     }
                 }
-            }
-        };
-        mManager.requestGroupInfo(mP2pChannel, group -> {
-            if (group == null) {
-                mManager.createGroup(mP2pChannel, config, listener);
-            } else {
-                mManager.removeGroup(mP2pChannel, new WifiP2pManager.ActionListener() {
-                    @Override
-                    public void onSuccess() {
-                        mManager.createGroup(mP2pChannel, config, listener);
-                    }
+            };
+            mManager.requestGroupInfo(mP2pChannel, group -> {
+                if (group == null) {
+                    Log.v(TAG, "group is null, assuming not created");
+                    mManager.createGroup(mP2pChannel, config, listener);
+                } else {
+                    mManager.removeGroup(mP2pChannel, new WifiP2pManager.ActionListener() {
+                        @Override
+                        public void onSuccess() {
+                            mManager.createGroup(mP2pChannel, config, listener);
+                        }
 
-                    @Override
-                    public void onFailure(int reason) {
-                        switch (reason) {
-                            case WifiP2pManager.BUSY:
-                            {
-                                Log.w(TAG, "failed to remove old group: busy: retry");
-                                if (retryCount.getAndUpdate(integer -> --integer) > 0) {
-                                    mManager.removeGroup(mP2pChannel, this);
+                        @Override
+                        public void onFailure(int reason) {
+                            switch (reason) {
+                                case WifiP2pManager.BUSY: {
+                                    Log.w(TAG, "failed to remove old group: busy: retry");
+                                    if (retryCount.getAndUpdate(integer -> --integer) > 0) {
+                                        mManager.removeGroup(mP2pChannel, this);
+                                    } else {
+                                        groupOperationInProgress.set(false);
+                                    }
+                                    break;
                                 }
-                            }
-                            case WifiP2pManager.ERROR:
-                            {
-                                Log.w(TAG, "failed to remove group probably nonexistent, retry");
-                                if (retryCount.getAndUpdate(integer -> --integer) > 0) {
-                                    mManager.removeGroup(mP2pChannel, this);
-                                } else {
-                                    subject.onError(new IllegalStateException("failed to remove group: error"));
+                                case WifiP2pManager.ERROR: {
+                                    Log.w(TAG, "failed to remove group probably nonexistent, retry");
+                                    if (retryCount.getAndUpdate(integer -> --integer) > 0) {
+                                        mManager.removeGroup(mP2pChannel, this);
+                                    } else {
+                                        subject.onError(new IllegalStateException("failed to remove group: error"));
+                                        groupOperationInProgress.set(false);
+                                    }
+                                    break;
                                 }
-                                break;
-                            }
-                            case WifiP2pManager.P2P_UNSUPPORTED:
-                            {
-                                Log.e(TAG, "failed to remove group: p2p unsupported");
-                                subject.onError(new IllegalStateException("failed to create group: p2p unsupported"));
-                                break;
-                            }
-                            default:
-                            {
-                                subject.onError(new IllegalStateException("invalid status code"));
-                                break;
+                                case WifiP2pManager.P2P_UNSUPPORTED: {
+                                    Log.e(TAG, "failed to remove group: p2p unsupported");
+                                    subject.onError(new IllegalStateException("failed to create group: p2p unsupported"));
+                                    groupOperationInProgress.set(false);
+                                    break;
+                                }
+                                default: {
+                                    subject.onError(new IllegalStateException("invalid status code"));
+                                    groupOperationInProgress.set(false);
+                                    break;
+                                }
                             }
                         }
-                    }
-                });
-            }
-        });
-        return Completable.mergeArrayDelayError(
-
-                mBroadcastReceiver.observeConnectionInfo()
+                    });
+                }
+            });
+        } else {
+            subject.onComplete();
+        }
+        return subject.andThen(mBroadcastReceiver.observeConnectionInfo()
                 .takeUntil(wifiP2pInfo -> wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner)
-                .ignoreElements(),
-                subject);
+                .ignoreElements().timeout(10, TimeUnit.SECONDS))
+                .doFinally(() -> groupOperationInProgress.set(false));
     }
 
     private static Single<Socket> getTcpSocket(InetAddress address) {
