@@ -1,5 +1,7 @@
 package com.example.uscatterbrain.network.wifidirect;
 
+import android.net.wifi.p2p.WifiP2pInfo;
+
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
@@ -10,8 +12,10 @@ import java.util.Map;
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
+import io.reactivex.Single;
 
 public interface WifiDirectRadioModule {
+    String TAG = "WifiDirectRadioModule";
     String GROUP_NAME = "DIRECT-scattertest";
     String GROUP_PASSPHRASE = "youwillneverguessthis";
     String KEY_GROUP_NAME = "group-name";
@@ -21,7 +25,7 @@ public interface WifiDirectRadioModule {
         put(KEY_GROUP_PASSPHRASE, GROUP_PASSPHRASE);
     }};
     Completable createGroup();
-    void connectToGroup();
+    Single<WifiP2pInfo> connectToGroup(String name, String passphrase);
     Observable<BlockDataStream> bootstrapFromUpgrade(
             BluetoothLEModule.UpgradeRequest upgradeRequest,
             Observable<BlockDataStream> streamObservable

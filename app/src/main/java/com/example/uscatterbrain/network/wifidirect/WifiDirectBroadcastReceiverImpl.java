@@ -10,6 +10,8 @@ import android.net.wifi.p2p.WifiP2pDeviceList;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.net.wifi.p2p.WifiP2pManager;
 
+import java.util.concurrent.TimeUnit;
+
 import javax.inject.Inject;
 
 import io.reactivex.Observable;
@@ -73,22 +75,22 @@ public class WifiDirectBroadcastReceiverImpl extends BroadcastReceiver
 
     @Override
     public Observable<P2pState> observeP2pState() {
-        return p2pStateSubject;
+        return p2pStateSubject.delay(0, TimeUnit.SECONDS);
     }
 
     @Override
     public Observable<WifiP2pDevice> observeThisDevice() {
-        return thisDeviceChangedSubject;
+        return thisDeviceChangedSubject.delay(0, TimeUnit.SECONDS);
     }
 
     @Override
     public Observable<WifiP2pInfo> observeConnectionInfo() {
-        return connectionSubject;
+        return connectionSubject.delay(0, TimeUnit.SECONDS);
     }
 
     @Override
     public Observable<WifiP2pDeviceList> observePeers() {
-        return deviceListSubject;
+        return deviceListSubject.delay(0, TimeUnit.SECONDS);
     }
 
     @Override

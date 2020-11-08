@@ -36,6 +36,7 @@ import dagger.Module;
 import dagger.Provides;
 import io.reactivex.Scheduler;
 import io.reactivex.plugins.RxJavaPlugins;
+import io.reactivex.schedulers.Schedulers;
 
 @Singleton
 @Component(modules = RoutingServiceComponent.RoutingServiceModule.class)
@@ -44,6 +45,9 @@ public interface RoutingServiceComponent {
     class NamedSchedulers {
         public static final String DATABASE = "executor_database";
         public static final String BLE = "scheduler-ble";
+        public static final String WIFI_DIRECT_READ = "wifi-direct-read";
+        public static final String WIFI_DIRECT_WRITE = "wifi-direct-write";
+        public static final String WIFI_DIRECT_OPERATIONS = "wifi-direct-operations";
         private NamedSchedulers() {
 
         }
@@ -104,6 +108,24 @@ public interface RoutingServiceComponent {
         @Provides
         @Named(NamedSchedulers.DATABASE)
         static Scheduler provideDatabaseScheduler() {
+            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+        }
+
+        @Provides
+        @Named(NamedSchedulers.WIFI_DIRECT_READ)
+        static Scheduler provideWifiDirectReadScheduler() {
+            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+        }
+
+        @Provides
+        @Named(NamedSchedulers.WIFI_DIRECT_WRITE)
+        static Scheduler provideWifiDirectWriteScheduler() {
+            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+        }
+
+        @Provides
+        @Named(NamedSchedulers.WIFI_DIRECT_OPERATIONS)
+        static Scheduler provideWifiDirectOperationsScheduler() {
             return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
         }
 

@@ -142,7 +142,7 @@ public class BlockSequencePacket implements ScatterSerializable {
      */
     public static Single<BlockSequencePacket> parseFrom(InputStream is) {
         return Single.fromCallable(() -> new BlockSequencePacket(is));
-     }
+    }
 
      public static Single<BlockSequencePacket> parseFrom(Observable<byte[]> flowable) {
         InputStreamObserver observer = new InputStreamObserver();
