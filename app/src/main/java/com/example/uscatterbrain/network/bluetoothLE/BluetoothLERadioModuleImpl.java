@@ -212,13 +212,14 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             false,
                             new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS),
                             scanResult
-                    );
+                    ).onErrorResumeNext(Observable.empty());
                 });
     }
 
     @Override
     public void startDiscover(discoveryOptions opts) {
         Disposable d  = discoverOnce()
+                .onErrorResumeNext(discoverOnce())
                 .map(connection -> new ClientPeerHandle(connection, mAdvertise, upgradePacketSubject))
                 .flatMap(ClientPeerHandle::handshake)
                 .subscribeOn(bleScheduler)
@@ -270,6 +271,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 .addService(mService);
 
         Disposable d = mServer.openServer(config)
+                .onErrorResumeNext(mServer.openServer(config))
                 .subscribeOn(bleScheduler)
                 .flatMap(connection -> {
                     Log.d(TAG, "gatt server connection from " + connection.getDevice().getAddress());
@@ -281,6 +283,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     }
                     ServerPeerHandle handle = new ServerPeerHandle(connection, mAdvertise, upgradePacketSubject);
                     Disposable disconnect = connection.observeDisconnect()
+                            .onErrorResumeNext(Observable.empty())
                             .subscribe(dc -> mServerPeers.remove(connection.getDevice().getAddress()), error -> {
                                 mServerPeers.remove(connection.getDevice().getAddress());
                                 Log.e(TAG, "error when disconnecting device " + connection.getDevice());
@@ -289,8 +292,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     return handle.handshake().doFinally(() -> {
                         disconnect.dispose();
                         connection.disconnect();
+                        mServerPeers.remove(connection.getDevice().getAddress());
                     });
                 })
+                .onErrorReturnItem(false)
                 .subscribe(packet -> {
                     Log.v(TAG, "gatt server successfully received packet");
                 }, err -> Log.e(TAG, "error in gatt server handshake: " + err));
