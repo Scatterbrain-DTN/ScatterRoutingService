@@ -54,8 +54,9 @@ public class ClientPeerHandle implements PeerHandle {
     }
 
     @Override
-    public Observable<Boolean> handshake() {
-        return connection.setupNotification(UUID_ADVERTISE)
+    public Single<Boolean> handshake() {
+        return connection.
+                setupNotification(UUID_ADVERTISE)
                 .doOnNext(notificationSetup -> {
                     Log.v(TAG, "client successfully set up notifications");
                 })
@@ -83,15 +84,17 @@ public class ClientPeerHandle implements PeerHandle {
                             .ignoreElement()
                             .toSingleDefault(connection);
                 })
-                .flatMap(connection -> connection.setupNotification(UPGRADE_CHARACTERISTIC.getUuid())
-                        .flatMapSingle(AckPacket::parseFrom).flatMap(ackPacket -> {
+                .flatMapSingle(connection -> connection.setupNotification(UPGRADE_CHARACTERISTIC.getUuid())
+                        .flatMapSingle(AckPacket::parseFrom)
+                        .firstOrError()
+                        .flatMap(ackPacket -> {
                             if (ackPacket.getStatus() == AckPacket.Status.OK) {
-                                return Observable.just(true);
+                                return Single.just(true);
                             } else {
                                 Log.e(TAG, "received ackpacket with invalid status");
+                                return Single.just(false);
                             }
-                            return Observable.error(new IllegalStateException("ack packet ERR"));
-                        }));
+                        })).first(false);
 
     }
 

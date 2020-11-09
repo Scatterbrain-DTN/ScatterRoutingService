@@ -40,6 +40,7 @@ import javax.inject.Singleton;
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
+import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.BehaviorSubject;
@@ -221,7 +222,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         Disposable d  = discoverOnce()
                 .onErrorResumeNext(discoverOnce())
                 .map(connection -> new ClientPeerHandle(connection, mAdvertise, upgradePacketSubject))
-                .flatMap(ClientPeerHandle::handshake)
+                .flatMapSingle(ClientPeerHandle::handshake)
                 .subscribeOn(bleScheduler)
                 .subscribe(
                         complete -> Log.v(TAG, "handshake completed"),
@@ -273,13 +274,13 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         Disposable d = mServer.openServer(config)
                 .onErrorResumeNext(mServer.openServer(config))
                 .subscribeOn(bleScheduler)
-                .flatMap(connection -> {
+                .flatMapSingle(connection -> {
                     Log.d(TAG, "gatt server connection from " + connection.getDevice().getAddress());
                     // we shouldn't maintain duplicate connections
                     if (isConnectedClient(connection.getDevice())) {
                         Log.d(TAG, "gatt server dropping duplicate connection: " + connection.getDevice().getAddress());
                         connection.disconnect();
-                        return Observable.empty();
+                        return Single.never();
                     }
                     ServerPeerHandle handle = new ServerPeerHandle(connection, mAdvertise, upgradePacketSubject);
                     Disposable disconnect = connection.observeDisconnect()

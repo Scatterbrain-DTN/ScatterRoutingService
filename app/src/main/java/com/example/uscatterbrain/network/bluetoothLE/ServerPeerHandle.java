@@ -14,7 +14,6 @@ import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.SingleSource;
 import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.BehaviorSubject;
 
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.ADVERTISE_CHARACTERISTIC;
@@ -45,18 +44,6 @@ public class ServerPeerHandle implements PeerHandle {
         upgradeWriteObservable = connection.getOnCharacteristicWriteRequest(UPGRADE_CHARACTERISTIC)
                 .flatMapSingle(conn -> conn.sendReply(BluetoothGatt.GATT_SUCCESS, 0, conn.getValue())
                         .toSingleDefault(conn.getValue()));
-
-        Disposable d1 = upgradeWriteObservable.subscribe(
-                write -> Log.v(TAG, "server upgrade packet characteristic write len " + write.length),
-                err -> Log.v(TAG, "server upgrade packet characteristic write failed: " + err)
-        );
-
-        Disposable d2 = advertiseWriteObservable.subscribe(
-                write ->  Log.v(TAG, "server characteristic write len " + write.length),
-                err -> Log.e(TAG, "error in characteristicWrite: " + err)
-        );
-        peerHandleDisposable.add(d1);
-        peerHandleDisposable.add(d2);
     }
 
     public RxBleServerConnection getConnection() {
@@ -75,7 +62,7 @@ public class ServerPeerHandle implements PeerHandle {
 
     }
 
-    public Observable<Boolean> notifyUpgradeAck() {
+    public Single<Boolean> notifyUpgradeAck() {
         AckPacket packet = AckPacket.newBuilder()
                 .setStatus(AckPacket.Status.OK)
                 .build();
@@ -84,12 +71,11 @@ public class ServerPeerHandle implements PeerHandle {
                 Observable.fromArray(Utils.splitChunks(packet.getBytes()))
                 .doOnComplete(() -> Log.v(TAG, "server sent ack packet"))
         ).toSingleDefault(true)
-                .onErrorReturnItem(false)
-                .toObservable();
+                .onErrorReturnItem(false);
     }
 
     @Override
-    public Observable<Boolean> handshake() {
+    public Single<Boolean> handshake() {
         Log.d(TAG, "called handshake");
         return notifyAdvertise
                 .andThen((SingleSource<AdvertisePacket>) observer -> {
@@ -106,8 +92,7 @@ public class ServerPeerHandle implements PeerHandle {
                                         BluetoothLEModule.ConnectionRole.ROLE_SEME,
                                         upgradePacket)
                         ))
-                .doOnError(upgradeSubject::onError)
-                .flatMapObservable(upgradePacket -> notifyUpgradeAck());
+                .flatMap(upgradePacket -> notifyUpgradeAck());
     }
 
     public void close() {
