@@ -285,9 +285,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                 mServerPeers.remove(connection.getDevice().getAddress());
                                 Log.e(TAG, "error when disconnecting device " + connection.getDevice());
                             });
-                    mGattDisposable.add(disconnect);
                     mServerPeers.put(connection.getDevice().getAddress(), handle);
-                    return handle.handshake();
+                    return handle.handshake().doFinally(disconnect::dispose);
                 })
                 .subscribe(packet -> {
                     Log.v(TAG, "gatt server successfully received packet");
