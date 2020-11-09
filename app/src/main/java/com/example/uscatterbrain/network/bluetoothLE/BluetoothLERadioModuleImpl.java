@@ -26,8 +26,11 @@ import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanResult;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -75,6 +78,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final Context mContext;
     private final Map<String, ServerPeerHandle> mServerPeers = new ConcurrentHashMap<>();
     private final Map<String,ClientPeerHandle> mClientPeers = new ConcurrentHashMap<>();
+    private final Set<String> mClientSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Scheduler bleScheduler;
     private int discoverDelay = 45;
     private boolean discovering = true;
@@ -172,24 +176,14 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             Timeout timeout,
             ScanResult result
     ) {
-        if (mClientPeers.containsKey(result.getBleDevice().getBluetoothDevice().getAddress())) {
-            return Observable.just(
-                    mClientPeers.get(result.getBleDevice().getBluetoothDevice().getAddress()).getConnection()
-            );
-        }
-
-        if (result.getBleDevice().getConnectionState() == RxBleConnection.RxBleConnectionState.CONNECTING ||
-                result.getBleDevice().getConnectionState() == RxBleConnection.RxBleConnectionState.CONNECTED) {
-            return Observable.empty();
-        }
-
+        mClientSet.add(result.getBleDevice().getMacAddress());
         return result.getBleDevice().establishConnection(autoconnect, timeout)
                 .map(connection -> {
                     Log.v(TAG, "LE connection successfully established.");
                     ClientPeerHandle peerHandle = new ClientPeerHandle(connection, mAdvertise, upgradePacketSubject);
                     mClientPeers.put(result.getBleDevice().getBluetoothDevice().getAddress(), peerHandle);
                     return connection;
-                });
+                }).doFinally(() -> mClientSet.remove(result.getBleDevice().getMacAddress()));
     }
 
     private Observable<RxBleConnection> discoverOnce() {
@@ -220,13 +214,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     @Override
     public void startDiscover(discoveryOptions opts) {
         Disposable d  = discoverOnce()
-                .onErrorResumeNext(discoverOnce())
                 .map(connection -> new ClientPeerHandle(connection, mAdvertise, upgradePacketSubject))
                 .flatMapSingle(ClientPeerHandle::handshake)
                 .subscribeOn(bleScheduler)
                 .subscribe(
                         complete -> Log.v(TAG, "handshake completed"),
-                        err -> Log.e(TAG, "handshake failed: " + err)
+                        err -> Log.e(TAG, "handshake failed: " + err + '\n' + Arrays.toString(err.getStackTrace()))
                 );
         discoveryDispoable.set(d);
 
@@ -275,6 +268,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 .onErrorResumeNext(mServer.openServer(config))
                 .subscribeOn(bleScheduler)
                 .flatMapSingle(connection -> {
+                    if (mClientSet.contains(connection.getDevice().getAddress())) {
+                        Log.w(TAG, "attempt to accept gatt server connection while we are the initiator");
+                        return Single.never();
+                    }
                     Log.d(TAG, "gatt server connection from " + connection.getDevice().getAddress());
                     // we shouldn't maintain duplicate connections
                     if (isConnectedClient(connection.getDevice())) {
