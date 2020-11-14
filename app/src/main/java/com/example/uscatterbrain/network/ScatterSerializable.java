@@ -15,7 +15,9 @@ public interface ScatterSerializable {
         TYPE_BLOCKHEADER,
         TYPE_IDENTITY,
         TYPE_ADVERTISE,
-        TYPE_UPGRADE
+        TYPE_UPGRADE,
+        TYPE_ELECT_LEADER,
+        TYPE_LUID
     }
     byte[] getBytes();
     ByteString getByteString();

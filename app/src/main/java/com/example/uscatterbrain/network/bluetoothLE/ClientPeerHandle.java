@@ -3,104 +3,89 @@ package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.util.Log;
 
-import com.example.uscatterbrain.ScatterProto;
 import com.example.uscatterbrain.network.AckPacket;
 import com.example.uscatterbrain.network.AdvertisePacket;
+import com.example.uscatterbrain.network.BlockHeaderPacket;
+import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.ElectLeaderPacket;
+import com.example.uscatterbrain.network.LuidPacket;
 import com.example.uscatterbrain.network.UpgradePacket;
-import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.polidea.rxandroidble2.RxBleConnection;
 
-import java.util.Random;
-
-import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.subjects.BehaviorSubject;
 
-import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.ADVERTISE_CHARACTERISTIC;
-import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UPGRADE_CHARACTERISTIC;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_ADVERTISE;
+import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_UPGRADE;
 
-public class ClientPeerHandle implements PeerHandle {
+public abstract class ClientPeerHandle {
     public static final String TAG = "ClientPeerHandle";
-    private final RxBleConnection connection;
-    private final AdvertisePacket advertisePacket;
     private final CompositeDisposable disposable = new CompositeDisposable();
-    private final BehaviorSubject<BluetoothLEModule.UpgradeRequest> upgradeSubject;
-    public ClientPeerHandle(
-            RxBleConnection connection,
-            AdvertisePacket advertisePacket,
-            BehaviorSubject<BluetoothLEModule.UpgradeRequest> upgradeSubject
-    ) {
-        this.connection = connection;
-        this.advertisePacket = advertisePacket;
-        this.upgradeSubject = upgradeSubject;
+    public ClientPeerHandle() {
     }
 
-    private UpgradePacket getUpgradePacket() {
-        int seqnum = Math.abs(new Random().nextInt());
 
-        UpgradePacket upgradePacket = UpgradePacket.newBuilder()
-                .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
-                .setSessionID(seqnum)
-                .setMetadata(WifiDirectRadioModule.UPGRADE_METADATA)
-                .build();
-
-        upgradeSubject.onNext(BluetoothLEModule.UpgradeRequest.create(
-                BluetoothLEModule.ConnectionRole.ROLE_UKE,
-                upgradePacket
-        ));
-        return upgradePacket;
-    }
-
-    @Override
-    public Single<Boolean> handshake() {
+    public Single<AdvertisePacket> readAdvertise(RxBleConnection connection) {
         return connection.
                 setupNotification(UUID_ADVERTISE)
-                .doOnNext(notificationSetup -> {
-                    Log.v(TAG, "client successfully set up notifications");
-                })
+                .doOnNext(notificationSetup -> Log.v(TAG, "client successfully set up notifications for advertise"))
                 .flatMapSingle(AdvertisePacket::parseFrom)
-                .flatMapSingle(packet -> {
-                    byte[] b = packet.getBytes();
-                    if (b == null) {
-                        Log.e(TAG, "getBytes returned null");
-                        return Single.error(new IllegalStateException("advertise packet corrupt"));
-                    }
-                    Log.v(TAG, "client successfully retreived advertisepacket from notification");
-                    return connection.createNewLongWriteBuilder()
-                            .setBytes(advertisePacket.getBytes())
-                            .setCharacteristicUuid(ADVERTISE_CHARACTERISTIC.getUuid())
-                            .build()
-                            .ignoreElements()
-                            .toSingleDefault(connection);
-                })
-                .flatMapSingle(connection -> {
-                    UpgradePacket upgradePacket = getUpgradePacket();
-                    return connection.writeCharacteristic(
-                            UPGRADE_CHARACTERISTIC.getUuid(),
-                            upgradePacket.getBytes()
-                    )
-                            .ignoreElement()
-                            .toSingleDefault(connection);
-                })
-                .flatMapSingle(connection -> connection.setupNotification(UPGRADE_CHARACTERISTIC.getUuid())
-                        .flatMapSingle(AckPacket::parseFrom)
-                        .firstOrError()
-                        .flatMap(ackPacket -> {
-                            if (ackPacket.getStatus() == AckPacket.Status.OK) {
-                                return Single.just(true);
-                            } else {
-                                Log.e(TAG, "received ackpacket with invalid status");
-                                return Single.just(false);
-                            }
-                        })).first(false);
+                .firstOrError();
+    };
 
+    public Single<UpgradePacket> readUpgrade(RxBleConnection connection) {
+        return connection.
+                setupNotification(UUID_UPGRADE)
+                .doOnNext(notificationSetup -> Log.v(TAG, "client successfully setup notifications for upgrade"))
+                .flatMapSingle(UpgradePacket::parseFrom)
+                .firstOrError();
     }
 
-    public RxBleConnection getConnection() {
-        return connection;
+    public Single<AckPacket> readAck(RxBleConnection connection) {
+        return connection.
+                setupNotification(UUID_UPGRADE)
+                .doOnNext(notificationSetup -> Log.v(TAG, "client successfully setup notifications for ack"))
+                .flatMapSingle(AckPacket::parseFrom)
+                .firstOrError();
     }
+
+    public Single<BlockHeaderPacket> readBlockHeader(RxBleConnection connection) {
+        return connection.
+                setupNotification(UUID_UPGRADE)
+                .doOnNext(notificationSetup -> Log.v(TAG, "client successfully setup notifications for blockheader"))
+                .flatMapSingle(BlockHeaderPacket::parseFrom)
+                .firstOrError();
+    }
+
+    public Single<BlockSequencePacket> readBlockSequence(RxBleConnection connection) {
+        return connection.
+                setupNotification(UUID_UPGRADE)
+                .doOnNext(notificationSetup -> Log.v(TAG, "client successfully setup notifications for blocksequence"))
+                .flatMapSingle(BlockSequencePacket::parseFrom)
+                .firstOrError();
+    }
+
+    public Single<ElectLeaderPacket> readElectLeader(RxBleConnection connection) {
+        return connection.
+                setupNotification(UUID_UPGRADE)
+                .doOnNext(notificationSetup -> Log.v(TAG, "client successfully setup notifications for electleader"))
+                .flatMapSingle(ElectLeaderPacket::parseFrom)
+                .firstOrError();
+    }
+
+    public Single<LuidPacket> readLuid(RxBleConnection connection) {
+        return connection.
+                setupNotification(UUID_UPGRADE)
+                .doOnNext(notificationSetup -> Log.v(TAG, "client successfully setup notifications for luid"))
+                .flatMapSingle(LuidPacket::parseFrom)
+                .firstOrError();
+    }
+
+    private Single<BluetoothLEModule.UpgradeRequest> doElection() {
+        return null;
+    }
+
+    public abstract Single<Boolean> handshake(RxBleConnection connection);
 
     public void close() {
         disposable.dispose();

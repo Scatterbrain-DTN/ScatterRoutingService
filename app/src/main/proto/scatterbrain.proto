@@ -2,6 +2,12 @@ syntax = "proto3";
 option java_package = "com.example.uscatterbrain";
 option java_outer_classname = "ScatterProto";
 
+
+message UUID {
+    uint64 lower = 1;
+    uint64 upper = 2;
+}
+
 // used to advertise the presence of a scatterbrain device
 // and to request the exchange of identities and blockdata
 message Advertise {
@@ -13,7 +19,6 @@ message Advertise {
     }
     repeated Provides provides = 1;
 }
-
 
 // header + metadata for a file, message or data stream
 message BlockData {
@@ -36,6 +41,19 @@ message BlockSequence {
     }
 }
 
+message Luid {
+    oneof val {
+        UUID val_uuid = 1;
+        bytes val_hash = 2;
+    }
+}
+
+message ElectLeader {
+    oneof val {
+        uint64 val_int = 1;
+        bytes val_hash = 2;
+    }
+}
 
 message Ack {
     enum Status {
@@ -69,9 +87,8 @@ message Identity {
 // used for building more complex routing algorithms someday
 message RoutingMetadata {
     message RoutingPoint {
-        uint64 uuid_lower = 1;
-        uint64 uuid_upper = 2;
-        bytes data = 3;
+        UUID uuid = 1;
+        bytes data = 2;
     }
-    map<string, RoutingPoint> keyval = 4;
+    map<string, RoutingPoint> keyval = 3;
 }
