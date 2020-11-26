@@ -21,8 +21,8 @@ import io.reactivex.Single;
  * Wrapper class for advertisepacket protocol buffer message.
  */
 public class AdvertisePacket implements ScatterSerializable {
-    private ScatterProto.Advertise mAdvertise;
-    private List<ScatterProto.Advertise.Provides> mProvides;
+    private final ScatterProto.Advertise mAdvertise;
+    private final List<ScatterProto.Advertise.Provides> mProvides;
 
     private AdvertisePacket(Builder builder) {
         this.mProvides = builder.getProvides();
@@ -89,8 +89,8 @@ public class AdvertisePacket implements ScatterSerializable {
     }
 
     @Override
-    public Flowable<byte[]> writeToStream() {
-        return Bytes.from(new ByteArrayInputStream(getBytes()));
+    public Flowable<byte[]> writeToStream(int fragsize) {
+        return Bytes.from(new ByteArrayInputStream(getBytes()), fragsize);
     }
 
     @Override

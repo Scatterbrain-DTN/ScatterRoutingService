@@ -1,5 +1,9 @@
 package com.example.uscatterbrain.network;
 
+import android.util.Log;
+
+import java.io.IOException;
+
 import io.reactivex.Observer;
 import io.reactivex.disposables.Disposable;
 
@@ -12,6 +16,7 @@ public class InputStreamObserver extends InputStreamCallback implements Observer
 
     @Override
     public void onNext(byte[] bytes) {
+        Log.v("debug", "onNext "+ bytes.length);
         if (!closed) {
             acceptBytes(bytes);
         }
@@ -20,10 +25,15 @@ public class InputStreamObserver extends InputStreamCallback implements Observer
     @Override
     public void onError(Throwable e) {
         throwable = e;
+        try {
+            close();
+        } catch (IOException ignored) {
+
+        }
     }
 
     @Override
     public void onComplete() {
-
+        complete();
     }
 }

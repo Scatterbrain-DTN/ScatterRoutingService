@@ -10,16 +10,16 @@ import javax.inject.Inject;
 
 public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler{
     static final String TAG = "Scheduler";
-    private ScheduledExecutorService mExecutor;
+    private final ScheduledExecutorService mExecutor;
     private  AtomicReference<RoutingServiceState>  mState;
     private  AtomicReference<RoutingServiceState> mPrevState;
     private ScheduledFuture mFuture;
 
 
     //tunables for router behavior
-    private int mDiscoveryTimeout = 60;
-    private int mTransferTimeout = 60;
-    private long mUpdateDelay;
+    private final int mDiscoveryTimeout = 60;
+    private final int mTransferTimeout = 60;
+    private final long mUpdateDelay;
 
     @Inject
     public ScatterbrainSchedulerImpl() {

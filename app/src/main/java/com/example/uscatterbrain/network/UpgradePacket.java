@@ -23,10 +23,10 @@ import io.reactivex.Single;
  */
 public class UpgradePacket implements ScatterSerializable {
 
-    private ScatterProto.Upgrade mUpgrade;
-    private int mSessionID;
-    private Map<String,String> mMetadata;
-    private ScatterProto.Advertise.Provides mProvides;
+    private final ScatterProto.Upgrade mUpgrade;
+    private final int mSessionID;
+    private final Map<String,String> mMetadata;
+    private final ScatterProto.Advertise.Provides mProvides;
 
     private UpgradePacket(Builder builder) {
         this.mProvides = builder.getProvides();
@@ -90,8 +90,8 @@ public class UpgradePacket implements ScatterSerializable {
     }
 
     @Override
-    public Flowable<byte[]> writeToStream() {
-        return Bytes.from(new ByteArrayInputStream(getBytes()));
+    public Flowable<byte[]> writeToStream(int fragsize) {
+        return Bytes.from(new ByteArrayInputStream(getBytes()), fragsize);
     }
 
     @Override

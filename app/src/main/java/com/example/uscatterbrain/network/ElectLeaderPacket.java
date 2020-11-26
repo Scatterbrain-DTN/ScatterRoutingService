@@ -4,12 +4,16 @@ import com.example.uscatterbrain.ScatterProto;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.UUID;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -19,30 +23,122 @@ import io.reactivex.Single;
 public class ElectLeaderPacket implements ScatterSerializable {
     private final ScatterProto.ElectLeader mElectLeader;
     private final Phase mPhase;
+    private final byte[] salt;
     public enum Phase {
         PHASE_VAL,
         PHASE_HASH
     }
 
     private ElectLeaderPacket(Builder builder) {
+        salt = new byte[GenericHash.BYTES];
+        LibsodiumInterface.getSodium().randombytes_buf(salt, salt.length);
         ScatterProto.ElectLeader.Builder b = ScatterProto.ElectLeader.newBuilder();
-        if (builder.valset) {
+        if (!builder.enableHashing) {
             mPhase = Phase.PHASE_VAL;
-            b.setValInt(builder.val);
+            ScatterProto.ElectLeader.Body.Builder body = ScatterProto.ElectLeader.Body.newBuilder()
+                    .setProvides(builder.provides)
+                    .setSalt(ByteString.copyFrom(salt));
+
+            if (builder.tiebreaker == null) {
+                body.setTiebreakerGone(true);
+            } else {
+                body.setTiebreakerVal(ScatterProto.UUID.newBuilder()
+                        .setUpper(builder.tiebreaker.getMostSignificantBits())
+                        .setLower(builder.tiebreaker.getLeastSignificantBits())
+                        .build());
+            }
+
+            b.setValBody(body.build());
         } else {
             mPhase = Phase.PHASE_HASH;
-            b.setValHash(ByteString.copyFrom(builder.hash));
+            b.setValHash(ByteString.copyFrom(hashFromBuilder(builder)));
         }
 
         mElectLeader = b.build();
     }
 
+
+    private byte[] hashFromBuilder(Builder builder) {
+        byte[] hashbytes = new byte[GenericHash.BYTES];
+        ByteString bytes = ByteString.EMPTY;
+
+        bytes.concat(ByteString.copyFrom(salt));
+
+        if (builder.tiebreaker != null) {
+            ByteBuffer uuidBuffer = ByteBuffer.allocate(16);
+            uuidBuffer.putLong(builder.tiebreaker.getMostSignificantBits());
+            uuidBuffer.putLong(builder.tiebreaker.getLeastSignificantBits());
+            bytes = bytes.concat(ByteString.copyFrom(uuidBuffer.array()));
+        }
+
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.SIZE);
+
+        buffer.putInt(builder.provides.getNumber());
+        bytes.concat(ByteString.copyFrom(buffer.array()));
+
+        LibsodiumInterface.getSodium().crypto_generichash(
+                hashbytes,
+                hashbytes.length,
+                bytes.toByteArray(),
+                bytes.toByteArray().length,
+                null,
+                0
+        );
+
+        return hashbytes;
+    }
+
+    public byte[] hashFromPacket() {
+        byte[] hashbytes = new byte[GenericHash.BYTES];
+        ByteString bytes = ByteString.EMPTY;
+
+        bytes.concat(ByteString.copyFrom(salt));
+
+        if (mElectLeader.getValBody().getTiebreakerCase()
+                .compareTo(ScatterProto.ElectLeader.Body.TiebreakerCase.TIEBREAKER_VAL) == 0) {
+            ByteBuffer uuidBuffer = ByteBuffer.allocate(16);
+            uuidBuffer.putLong(mElectLeader.getValBody().getTiebreakerVal().getUpper());
+            uuidBuffer.putLong(mElectLeader.getValBody().getTiebreakerVal().getLower());
+            bytes = bytes.concat(ByteString.copyFrom(uuidBuffer.array()));
+        }
+
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.SIZE);
+
+        buffer.putInt(mElectLeader.getValBody().getProvides().getNumber());
+        bytes.concat(ByteString.copyFrom(buffer.array()));
+
+        LibsodiumInterface.getSodium().crypto_generichash(
+                hashbytes,
+                hashbytes.length,
+                bytes.toByteArray(),
+                bytes.toByteArray().length,
+                null,
+                0
+        );
+
+        return hashbytes;
+    }
+
+    public boolean verifyHash(ElectLeaderPacket packet) {
+        if (packet.isHashed() == this.isHashed()) {
+            return false;
+        } else if (this.mPhase == Phase.PHASE_HASH) {
+            byte[] hash =  packet.hashFromPacket();
+            return Arrays.equals(hash, getHash());
+        } else {
+            byte[] hash = hashFromPacket();
+            return Arrays.equals(hash, packet.getHash());
+        }
+    }
+
     private ElectLeaderPacket(InputStream inputStream) throws IOException {
         this.mElectLeader = ScatterProto.ElectLeader.parseDelimitedFrom(inputStream);
-        if (this.mElectLeader.getValCase().getNumber() == ScatterProto.ElectLeader.VAL_INT_FIELD_NUMBER) {
+        if (this.mElectLeader.getValCase().compareTo(ScatterProto.ElectLeader.ValCase.VAL_BODY) == 0) {
             this.mPhase = Phase.PHASE_VAL;
+            this.salt = mElectLeader.getValBody().getSalt().toByteArray();
         } else {
             this.mPhase = Phase.PHASE_HASH;
+            this.salt = new byte[0];
         }
     }
 
@@ -89,8 +185,8 @@ public class ElectLeaderPacket implements ScatterSerializable {
     }
 
     @Override
-    public Flowable<byte[]> writeToStream() {
-        return Bytes.from(new ByteArrayInputStream(getBytes()));
+    public Flowable<byte[]> writeToStream(int fragize) {
+        return Bytes.from(new ByteArrayInputStream(getBytes()), fragize);
     }
 
     @Override
@@ -103,8 +199,9 @@ public class ElectLeaderPacket implements ScatterSerializable {
         return mPhase;
     }
 
-    public long getVal() {
-        return mElectLeader.getValInt();
+
+    public boolean isHashed() {
+        return mElectLeader.getValBody() == null;
     }
 
     public byte[] getHash() {
@@ -116,28 +213,27 @@ public class ElectLeaderPacket implements ScatterSerializable {
     }
 
     public static class Builder {
-        private long val;
-        private byte[] hash;
-        private boolean valset;
+
+        private boolean enableHashing = false;
+        private ScatterProto.Advertise.Provides provides;
+        private UUID tiebreaker;
 
         private Builder() {
-            valset = false;
         }
 
-        public Builder setVal(long val) {
-            this.val = val;
-            valset = true;
+        public Builder enableHashing() {
+            this.enableHashing = true;
             return this;
         }
 
-        public Builder setHash(byte[] hash) {
-            this.hash = hash;
+        public Builder setProvides(ScatterProto.Advertise.Provides provides) {
+            this.provides = provides;
             return this;
         }
 
         public ElectLeaderPacket build() {
-            if ( hash != null && valset) {
-                throw new IllegalArgumentException("set only one of val or luid");
+            if ( provides == null) {
+                throw new IllegalArgumentException("set provides must be set");
             }
 
             return new ElectLeaderPacket(this);

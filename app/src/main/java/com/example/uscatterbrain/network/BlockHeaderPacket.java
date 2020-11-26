@@ -29,14 +29,14 @@ import io.reactivex.Single;
  */
 public class BlockHeaderPacket implements ScatterSerializable {
     private ScatterProto.BlockData blockdata;
-    private List<ByteString> mHashList;
-    private ByteString mFromFingerprint;
-    private ByteString mToFingerprint;
+    private final List<ByteString> mHashList;
+    private final ByteString mFromFingerprint;
+    private final ByteString mToFingerprint;
     private byte[] mSignature;
-    private byte[] mApplication;
-    private int mSessionID;
+    private final byte[] mApplication;
+    private final int mSessionID;
     private boolean mToDisk;
-    private int mBlocksize;
+    private final int mBlocksize;
 
     private BlockHeaderPacket(Builder builder) {
         this.mHashList = builder.getHashlist();
@@ -188,8 +188,8 @@ public class BlockHeaderPacket implements ScatterSerializable {
     }
 
     @Override
-    public Flowable<byte[]> writeToStream() {
-        return Bytes.from(new ByteArrayInputStream(getBytes()));
+    public Flowable<byte[]> writeToStream(int fragsize) {
+        return Bytes.from(new ByteArrayInputStream(getBytes()), fragsize);
     }
 
     @Override

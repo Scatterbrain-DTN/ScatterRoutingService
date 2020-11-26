@@ -23,6 +23,6 @@ public interface ScatterSerializable {
     ByteString getByteString();
     Completable writeToStream(OutputStream os);
     GeneratedMessageLite getMessage();
-    Flowable<byte[]> writeToStream();
+    Flowable<byte[]> writeToStream(int fragsize);
     PacketType getType();
 }

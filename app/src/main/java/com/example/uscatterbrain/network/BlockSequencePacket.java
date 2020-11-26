@@ -25,10 +25,10 @@ import io.reactivex.Single;
  */
 public class BlockSequencePacket implements ScatterSerializable {
 
-    private int mSequenceNumber;
-    private ByteString mData;
+    private final int mSequenceNumber;
+    private final ByteString mData;
     private File mDataOnDisk;
-    private ScatterProto.BlockSequence mBlockSequence;
+    private final ScatterProto.BlockSequence mBlockSequence;
     private boolean dataNative;
 
     /**
@@ -40,7 +40,7 @@ public class BlockSequencePacket implements ScatterSerializable {
     public boolean verifyHash(BlockHeaderPacket bd) {
         byte[] seqnum = ByteBuffer.allocate(4).putInt(this.mSequenceNumber).order(ByteOrder.BIG_ENDIAN).array();
 
-        byte[] data = null;
+        byte[] data;
         if (this.mBlockSequence.getDataCase() == ScatterProto.BlockSequence.DataCase.DATA_CONTENTS ) {
             data = this.mBlockSequence.getDataContents().toByteArray();
             this.dataNative = false;
@@ -113,8 +113,8 @@ public class BlockSequencePacket implements ScatterSerializable {
     }
 
     @Override
-    public Flowable<byte[]> writeToStream() {
-        return Bytes.from(new ByteArrayInputStream(getBytes()));
+    public Flowable<byte[]> writeToStream(int fragsize) {
+        return Bytes.from(new ByteArrayInputStream(getBytes()), fragsize);
     }
 
     @Override

@@ -1,8 +1,6 @@
 package com.example.uscatterbrain.db.entities;
 
-import androidx.annotation.NonNull;
 import androidx.room.ColumnInfo;
-import androidx.room.Embedded;
 import androidx.room.Entity;
 import androidx.room.ForeignKey;
 import androidx.room.Ignore;

@@ -51,10 +51,10 @@ public interface FileStore {
     }
 
     class OpenFile implements Closeable {
-        private FileInputStream mIs;
+        private final FileInputStream mIs;
         private FileOutputStream mOs;
-        private File mFile;
-        private WriteMode mMode;
+        private final File mFile;
+        private final WriteMode mMode;
         private boolean mLocked;
 
         public OpenFile(Path path, boolean append) throws IOException {

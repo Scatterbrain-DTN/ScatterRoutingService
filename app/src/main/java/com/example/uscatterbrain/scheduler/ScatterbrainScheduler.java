@@ -83,7 +83,7 @@ public interface ScatterbrainScheduler {
     }
 
     class InvalidStateChangeException extends Exception {
-        private String mState;
+        private final String mState;
 
         public InvalidStateChangeException(String state) {
             mState = state;

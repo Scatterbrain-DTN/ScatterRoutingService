@@ -3,9 +3,6 @@ package com.example.uscatterbrain.db.entities;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
-import androidx.room.Relation;
-
-import java.util.List;
 
 @Entity(tableName = "identities")
 public class Identity {

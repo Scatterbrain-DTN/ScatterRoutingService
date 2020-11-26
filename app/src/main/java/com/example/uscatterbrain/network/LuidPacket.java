@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.UUID;
 
 import io.reactivex.Completable;
@@ -39,11 +40,7 @@ public class LuidPacket implements ScatterSerializable {
 
     private LuidPacket(InputStream is) throws IOException {
         mLuid = ScatterProto.Luid.parseDelimitedFrom(is);
-        if (mLuid.getValCase().getNumber() == ScatterProto.Luid.VAL_HASH_FIELD_NUMBER) {
-            isHashed = true;
-        } else {
-            isHashed = false;
-        }
+        isHashed = mLuid.getValCase() == ScatterProto.Luid.ValCase.VAL_HASH;
     }
 
     private static ScatterProto.UUID protoUUIDfromUUID(UUID uuid) {
@@ -75,6 +72,26 @@ public class LuidPacket implements ScatterSerializable {
         return hashbytes;
     }
 
+    public byte[] getHash() {
+        if (isHashed) {
+            return mLuid.getValHash().toByteArray();
+        } else {
+            return new byte[0];
+        }
+    }
+
+    public boolean verifyHash(LuidPacket packet) {
+        if (packet.isHashed == this.isHashed) {
+            return false;
+        } else if (this.isHashed) {
+            byte[] hash = calculateHashFromUUID(packet.getLuid());
+            return Arrays.equals(hash, getHash());
+        } else {
+            byte[] hash = calculateHashFromUUID(this.getLuid());
+            return Arrays.equals(hash, packet.getHash());
+        }
+    }
+
     public static Single<LuidPacket> parseFrom(InputStream inputStream) {
         return Single.fromCallable(() -> new LuidPacket(inputStream));
     }
@@ -91,6 +108,9 @@ public class LuidPacket implements ScatterSerializable {
         return LuidPacket.parseFrom(observer).doFinally(observer::close);
     }
 
+    public ScatterProto.Luid.ValCase getValCase() {
+        return mLuid.getValCase();
+    }
 
     @Override
     public byte[] getBytes() {
@@ -119,8 +139,8 @@ public class LuidPacket implements ScatterSerializable {
     }
 
     @Override
-    public Flowable<byte[]> writeToStream() {
-        return Bytes.from(new ByteArrayInputStream(getBytes()));
+    public Flowable<byte[]> writeToStream(int fragsize) {
+        return Bytes.from(new ByteArrayInputStream(getBytes()), fragsize);
     }
 
     @Override
@@ -134,6 +154,10 @@ public class LuidPacket implements ScatterSerializable {
 
     public UUID getLuid() {
         return protoUUIDtoUUID(mLuid.getValUuid());
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
     }
 
     public static class Builder {

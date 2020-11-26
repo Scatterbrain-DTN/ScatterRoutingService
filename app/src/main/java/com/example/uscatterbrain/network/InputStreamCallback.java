@@ -4,9 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Stack;
 
 import io.reactivex.disposables.Disposable;
 
@@ -17,89 +14,72 @@ import io.reactivex.disposables.Disposable;
  */
 public abstract class InputStreamCallback extends InputStream {
 
-    private static final int BUF_CAPACITY = 524288;
-    private final Stack<ByteBuffer> observableByteBuffers = new Stack<>();
-    private final Deque<ByteBuffer> inputStreamBuffers = new ArrayDeque<>();
+    private final int BUF_CAPACITY;
     protected Throwable throwable;
     protected boolean closed = false;
     protected Disposable disposable;
+    private final CircularBuffer buf;
+    private boolean complete = false;
 
     public InputStreamCallback() {
-        super();
+        this(524288);
     }
 
-    private void allocateBuffer() {
-        ByteBuffer buf = ByteBuffer.allocate(BUF_CAPACITY);
-        observableByteBuffers.push(buf);
-        inputStreamBuffers.push(buf.duplicate());
-    }
-
-    private ByteBuffer getBuffer() {
-        if (observableByteBuffers.size() == 0) {
-            allocateBuffer();
-        }
-        return observableByteBuffers.peek();
+    public InputStreamCallback(int capacity) {
+        this.BUF_CAPACITY = capacity;
+        buf = new CircularBuffer(ByteBuffer.allocate(BUF_CAPACITY + 1));
     }
 
     protected void acceptBytes(byte[] val) {
-        synchronized (observableByteBuffers) {
-            int bufcount = val.length / BUF_CAPACITY;
-            getBuffer().put(val, 0, Math.min(val.length, BUF_CAPACITY));
-            for (int i = 0; i < bufcount; i++) {
-                allocateBuffer();
-                int offset = i * BUF_CAPACITY;
-                int len = Math.min(val.length, BUF_CAPACITY);
-                getBuffer().put(val, offset, len);
-            }
+        buf.put(val, 0, Math.min(val.length, buf.remaining()));
+        synchronized (buf) {
+            buf.notifyAll();
         }
     }
 
     public int size() {
-        if (observableByteBuffers.size() == 0) {
-            return 0;
-        } else {
-            return BUF_CAPACITY * (observableByteBuffers.size() - 1) + observableByteBuffers.peek().position();
+        return buf.size();
+    }
+
+    protected void complete() {
+        complete = true;
+        synchronized (buf) {
+            buf.notifyAll();
         }
     }
 
-    private int get(byte[] result, int offset, int len) throws IOException{
+    private int get(byte[] result, int offset, int len) throws IOException {
         if (throwable != null) {
-            throw new IOException(throwable.getMessage());
+            throwable.printStackTrace();
         }
 
         if (closed) {
             throw new IOException("closed");
         }
 
-
-        if (inputStreamBuffers.size() == 0) {
-            return 0;
+        if (complete && buf.size() == 0) {
+            return -1;
         }
 
-        synchronized (observableByteBuffers) {
+        synchronized (buf) {
             try {
-                int read = 0;
-                int l = Math.min(len, BUF_CAPACITY);
-                int bufcount = len / BUF_CAPACITY;
-                inputStreamBuffers.peekLast().get(result, offset, l);
-                read += l;
-                for (int i = 0; i < bufcount; i++) {
-                    inputStreamBuffers.removeLast();
-                    int offs = i * BUF_CAPACITY;
-                    l = Math.min(len, BUF_CAPACITY);
-                    inputStreamBuffers.peekLast().get(result, offset + offs, l);
-                    read += l;
+                while (buf.size() == 0) {
+                    buf.wait();
                 }
-                return read;
+                int l = Math.min(len, buf.size());
+                buf.get(result, offset, l);
+                return l;
             } catch (BufferUnderflowException ignored) {
                 throw new IOException("underflow");
+            } catch (InterruptedException ignored) {
+                return -1;
             }
         }
     }
 
     @Override
     public int read(byte[] b) throws IOException {
-        return get(b,0,b.length);
+        return get(b, 0, b.length);
     }
 
     @Override
@@ -109,36 +89,28 @@ public abstract class InputStreamCallback extends InputStream {
 
     @Override
     public long skip(long n) throws IOException {
-        synchronized (observableByteBuffers) {
+        synchronized (buf) {
             if (n >= Integer.MAX_VALUE || n <= Integer.MIN_VALUE) {
                 throw new IOException("index out of range");
             }
             long skip = 0;
-            int index = (int) n;
-            long bufcount = n / BUF_CAPACITY;
-            for (int i = 0; i < bufcount; i++) {
-                observableByteBuffers.pop();
-                skip += BUF_CAPACITY;
-            }
-            int newpos = getBuffer().position() + Math.min(index, getBuffer().remaining());
-            getBuffer().position(newpos);
-            skip += newpos;
-            return skip;
+            return buf.skip(n);
         }
     }
 
     @Override
     public int available() throws IOException {
-        return getBuffer().remaining() + BUF_CAPACITY * (observableByteBuffers.size()-1);
+        return buf.remaining();
     }
 
     @Override
     public void close() throws IOException {
         closed = true;
+        synchronized (buf) {
+            buf.notifyAll();
+        }
         if (disposable != null) {
-            synchronized (disposable) {
-                disposable.dispose();
-            }
+            disposable.dispose();
         }
     }
 
@@ -159,13 +131,21 @@ public abstract class InputStreamCallback extends InputStream {
 
     @Override
     public int read() throws IOException {
-        synchronized (observableByteBuffers) {
-            if (getBuffer().remaining() > 0) {
-                return getBuffer().get();
-            } else if (observableByteBuffers.size() > 1) {
-                observableByteBuffers.pop();
-                return getBuffer().get();
-            } else {
+        if (closed) {
+            throw new IOException("closed");
+        }
+
+        if (complete && buf.size() == 0) {
+            return -1;
+        }
+
+        synchronized (buf) {
+            try {
+                while (buf.size() == 0) {
+                     buf.wait();
+                }
+                return buf.get();
+            } catch (InterruptedException ignored) {
                 return -1;
             }
         }

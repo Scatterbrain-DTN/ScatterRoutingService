@@ -9,7 +9,7 @@ import java.io.InputStream;
  * trick it into not devouring the entire inputstream
  */
 public class CappedInputStream extends InputStream {
-    private InputStream mStream;
+    private final InputStream mStream;
     private int mRemaining;
     public CappedInputStream(InputStream stream, int cap) {
         super();

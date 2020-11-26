@@ -1,7 +1,6 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
@@ -13,7 +12,6 @@ import android.content.Context;
 import android.os.Build;
 import android.os.ParcelUuid;
 import android.util.Log;
-import android.util.Pair;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.ScatterProto;
@@ -23,22 +21,18 @@ import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.polidea.rxandroidble2.LogConstants;
 import com.polidea.rxandroidble2.LogOptions;
 import com.polidea.rxandroidble2.RxBleClient;
-import com.polidea.rxandroidble2.RxBleConnection;
 import com.polidea.rxandroidble2.RxBleDevice;
 import com.polidea.rxandroidble2.RxBleServer;
 import com.polidea.rxandroidble2.ServerConfig;
 import com.polidea.rxandroidble2.Timeout;
+import com.polidea.rxandroidble2.internal.RxBleLog;
 import com.polidea.rxandroidble2.scan.ScanFilter;
-import com.polidea.rxandroidble2.scan.ScanResult;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -65,54 +59,41 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public static final UUID UUID_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_LUID = UUID.fromString("9a25e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_ELECTIONLEADER = UUID.fromString("9a26e79f-4a6d-4e28-95c6-257f5e47fd90");
+    public static final UUID UUID_BLOCKDATA = UUID.fromString("9a27e79f-4a6d-4e28-95c6-257f5e47fd90");
+    public static final UUID UUID_BLOCKSEQUENCE = UUID.fromString("9a28e79f-4a6d-4e28-95c6-257f5e47fd90");
+
     private final BehaviorSubject<UpgradeRequest> upgradePacketSubject = BehaviorSubject.create();
-    private final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
-    public static final BluetoothGattCharacteristic ADVERTISE_CHARACTERISTIC = new BluetoothGattCharacteristic(
-            UUID_ADVERTISE,
-            BluetoothGattCharacteristic.PROPERTY_READ |
-                    BluetoothGattCharacteristic.PROPERTY_WRITE |
-                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-            BluetoothGattCharacteristic.PERMISSION_WRITE |
-                    BluetoothGattCharacteristic.PERMISSION_READ
-    );
+    public static final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
+    public static final BluetoothGattCharacteristic ADVERTISE_CHARACTERISTIC = makeCharacteristic(UUID_ADVERTISE);
+    public static final BluetoothGattCharacteristic UPGRADE_CHARACTERISTIC = makeCharacteristic(UUID_UPGRADE);
+    public static final BluetoothGattCharacteristic LUID_CHARACTERISTIC = makeCharacteristic(UUID_LUID);
+    public static final BluetoothGattCharacteristic ELECTION_CHARACTERISTIC = makeCharacteristic(UUID_ELECTIONLEADER);
+    public static final BluetoothGattCharacteristic BOCKDATA_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKDATA);
+    public static final BluetoothGattCharacteristic BLOCKSEQUENCE_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKSEQUENCE);
 
-    public static final BluetoothGattCharacteristic UPGRADE_CHARACTERISTIC = new BluetoothGattCharacteristic(
-            UUID_UPGRADE,
-            BluetoothGattCharacteristic.PROPERTY_READ |
-                    BluetoothGattCharacteristic.PROPERTY_WRITE |
-                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-            BluetoothGattCharacteristic.PERMISSION_WRITE |
-                    BluetoothGattCharacteristic.PERMISSION_READ
-    );
 
-    public static final BluetoothGattCharacteristic LUID_CHARACTERISTIC = new BluetoothGattCharacteristic(
-            UUID_LUID,
-            BluetoothGattCharacteristic.PROPERTY_READ |
-                    BluetoothGattCharacteristic.PROPERTY_WRITE |
-                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-            BluetoothGattCharacteristic.PERMISSION_WRITE |
-                    BluetoothGattCharacteristic.PERMISSION_READ
-    );
-
-    public static final BluetoothGattCharacteristic ELECTION_CHARACTERISTIC = new BluetoothGattCharacteristic(
-            UUID_ELECTIONLEADER,
-            BluetoothGattCharacteristic.PROPERTY_READ |
-                    BluetoothGattCharacteristic.PROPERTY_WRITE |
-                    BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-            BluetoothGattCharacteristic.PERMISSION_WRITE |
-                    BluetoothGattCharacteristic.PERMISSION_READ
-    );
-
+    public static BluetoothGattCharacteristic makeCharacteristic(UUID uuid) {
+        final BluetoothGattCharacteristic characteristic = new BluetoothGattCharacteristic(
+                uuid,
+                BluetoothGattCharacteristic.PROPERTY_READ |
+                        BluetoothGattCharacteristic.PROPERTY_WRITE |
+                        BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                BluetoothGattCharacteristic.PERMISSION_WRITE |
+                        BluetoothGattCharacteristic.PERMISSION_READ
+        );
+        mService.addCharacteristic(characteristic);
+        return characteristic;
+    }
 
 
     private final CompositeDisposable mGattDisposable = new CompositeDisposable();
-    private final ConcurrentHashMap<String, Queue<ClientPeerHandle>> protocolSpec = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, LeDeviceSession<TransactionResult>> protocolSpec = new ConcurrentHashMap<>();
     private final Context mContext;
-    private final Set<String> mClientSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Scheduler bleScheduler;
-    private int discoverDelay = 45;
-    private boolean discovering = true;
+    private final int discoverDelay = 45;
+    private final boolean discovering = true;
     private final AtomicReference<Disposable> discoveryDispoable = new AtomicReference<>();
+    private final ConcurrentHashMap<String, Observable<CachedLEConnection>> connectionCache = new ConcurrentHashMap<>();
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -128,9 +109,9 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             Log.e(TAG, "failed to start advertise");
         }
     };
-    private BluetoothLeAdvertiser mAdvertiser;
-    private RxBleServer mServer;
-    private RxBleClient mClient;
+    private final BluetoothLeAdvertiser mAdvertiser;
+    private final RxBleServer mServer;
+    private final RxBleClient mClient;
     private AdvertisePacket mAdvertise;
 
     @Inject
@@ -144,11 +125,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         mContext = context;
         mAdvertise = null;
         mAdvertiser = advertiser;
-        mService.addCharacteristic(ADVERTISE_CHARACTERISTIC);
-        mService.addCharacteristic(UPGRADE_CHARACTERISTIC);
         this.bleScheduler = bluetoothScheduler;
         this.mServer = rxBleServer;
         this.mClient = rxBleClient;
+        RxBleLog.updateLogOptions(new LogOptions.Builder().setLogLevel(LogConstants.DEBUG).build());
         RxBleClient.updateLogOptions(new LogOptions.Builder()
         .setLogLevel(LogConstants.DEBUG).build());
     }
@@ -195,38 +175,110 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
     private void initializeProtocol(BluetoothDevice device) {
         Log.v(TAG, "initialize protocol");
-        Queue<ClientPeerHandle> protocolQueue = new LinkedList<>();
-        protocolQueue.add(new ClientPeerHandle() {
-            @Override
-            public Single<Boolean> handshake(RxBleConnection conn) {
-                Log.v(TAG, "client handshake called");
-                return readAdvertise(conn)
-                        .ignoreElement()
-                        .doOnComplete(() -> Log.v(TAG, "client handshake received advertise packet"))
-                        .andThen(readUpgrade(conn))
-                        //.doOnSuccess(upgradePacket -> upgradeSubject.onNext(BluetoothLEModule.UpgradeRequest.create()))
-                        .ignoreElement()
-                        .doOnComplete(() -> Log.v(TAG, "client handshake received upgrade packet"))
-                        .toSingleDefault(true);
-            }
+        LeDeviceSession<TransactionResult> session = new LeDeviceSession<>(device, bleScheduler);
+
+        session.addStage(
+                LeDeviceSession.STAGE_LUID_HASHED,
+                serverConn -> {
+                    Log.v(TAG, "gatt server luid hashed stage");
+                    return session.getLuidStage().getSelfHashed()
+                            .flatMapCompletable(luidpacket -> serverConn.serverNotify(luidpacket, UUID_LUID));
+                }
+                , conn -> {
+                    Log.v(TAG, "gatt client luid hashed stage");
+                    return conn.readLuid()
+                            .doOnSuccess(luidPacket -> {
+                                Log.v(TAG, "client handshake received hashed luid packet: " + luidPacket.getValCase());
+                                session.getLuidStage().addPacket(luidPacket);
+                            })
+                            .doOnError(err -> Log.e(TAG, "error while receiving luid packet: " + err))
+                            .map(luidPacket -> new TransactionResult(LeDeviceSession.STAGE_LUID, device));
         });
 
-        protocolSpec.put(device.getAddress(), protocolQueue);
+
+        session.addStage(
+                LeDeviceSession.STAGE_LUID,
+                serverConn -> {
+                    Log.v(TAG, "gatt server luid stage");
+                    return session.getLuidStage().getSelf()
+                            .flatMapCompletable(luidpacket -> serverConn.serverNotify(luidpacket, UUID_LUID));
+                }
+                , conn -> {
+                    Log.v(TAG, "gatt client luid stage");
+                    return conn.readLuid()
+                            .doOnSuccess(luidPacket -> {
+                                Log.v(TAG, "client handshake received unhashed luid packet: " + luidPacket.getLuid());
+                                session.getLuidStage().addPacket(luidPacket);
+                            })
+                            .doOnError(err -> Log.e(TAG, "error while receiving luid packet: " + err))
+                            .flatMapCompletable(luidPacket -> session.getLuidStage().verifyPackets())
+                            .toSingleDefault(new TransactionResult(LeDeviceSession.STAGE_ADVERTISE, device))
+                            .doOnError(err -> Log.e(TAG, "luid hash verify failed: " + err))
+                            .onErrorReturnItem(new TransactionResult(LeDeviceSession.STAGE_EXIT, device));
+
+                });
+
+        session.addStage(
+                LeDeviceSession.STAGE_ADVERTISE,
+                serverConn -> {
+                    Log.v(TAG, "gatt server advertise stage");
+                    ArrayList<ScatterProto.Advertise.Provides> provides = new ArrayList<>();
+                    provides.add(ScatterProto.Advertise.Provides.BLE);
+                    provides.add(ScatterProto.Advertise.Provides.WIFIP2P);
+                    AdvertisePacket packet = AdvertisePacket.newBuilder()
+                            .setProvides(provides)
+                            .build();
+                    return serverConn.serverNotify(packet, UUID_ADVERTISE);
+                }
+                , conn -> {
+                    Log.v(TAG, "gatt client advertise stage");
+                    return conn.readAdvertise()
+                            .doOnSuccess(advertisePacket -> Log.v(TAG, "client handshake received advertise packet"))
+                            .doOnError(err -> Log.e(TAG, "error while receiving advertise packet: " + err))
+                            .map(advertisePacket -> new TransactionResult(LeDeviceSession.STAGE_EXIT, device));
+                });
+
+        session.addStage(
+                LeDeviceSession.STAGE_ELECTION,
+                serverConn -> {
+                    Log.v(TAG, "gatt server election stage");
+                    ArrayList<ScatterProto.Advertise.Provides> provides = new ArrayList<>();
+                    provides.add(ScatterProto.Advertise.Provides.BLE);
+                    provides.add(ScatterProto.Advertise.Provides.WIFIP2P);
+                    AdvertisePacket packet = AdvertisePacket.newBuilder()
+                            .setProvides(provides)
+                            .build();
+                    return serverConn.serverNotify(packet, UUID_ADVERTISE);
+                }
+                , conn -> {
+                    Log.v(TAG, "gatt client election stage");
+                    return conn.readAdvertise()
+                            .doOnSuccess(advertisePacket -> Log.v(TAG, "client handshake received election packet"))
+                            .doOnError(err -> Log.e(TAG, "error while receiving election packet: " + err))
+                            .map(advertisePacket -> new TransactionResult(LeDeviceSession.STAGE_EXIT, device));
+                });
+
+
+        session.setStage(LeDeviceSession.STAGE_LUID_HASHED);
+        protocolSpec.put(device.getAddress(), session);
     }
 
-    private Observable<RxBleConnection> establishConnection(RxBleDevice device, Timeout timeout) {
+    private Observable<CachedLEConnection> establishConnection(RxBleDevice device, Timeout timeout) {
+
+        Observable<CachedLEConnection> conn = connectionCache.get(device.getMacAddress());
+        if (conn != null) {
+            return conn;
+        }
+        BehaviorSubject<CachedLEConnection> subject = BehaviorSubject.create();
+        connectionCache.put(device.getMacAddress(), subject);
         return device.establishConnection(false, timeout)
-                .doOnNext(connection -> Log.v(TAG, "successfully established connection"));
-    }
-
-    private Observable<RxBleConnection> firstTimeOutgoingConnection(
-            Timeout timeout,
-            ScanResult result
-    ) {
-        initializeProtocol(result.getBleDevice().getBluetoothDevice());
-        mClientSet.add(result.getBleDevice().getMacAddress());
-        return establishConnection(result.getBleDevice(), timeout)
-                .doFinally(() -> mClientSet.remove(result.getBleDevice().getMacAddress()));
+                .doOnDispose(() -> connectionCache.remove(device.getMacAddress()))
+                .doOnError(err -> connectionCache.remove(device.getMacAddress()))
+                .map(CachedLEConnection::new)
+                .doOnNext(connection -> {
+                    Log.v(TAG, "successfully established connection");
+                    subject.onNext(connection);
+                });
     }
 
     private Observable<DeviceConnection> discoverOnce() {
@@ -242,31 +294,25 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                         .build())
                 .concatMap(scanResult -> {
                     Log.d(TAG, "scan result: " + scanResult.getBleDevice().getMacAddress());
-                    return firstTimeOutgoingConnection(
-                            new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS),
-                            scanResult
+                    return establishConnection(
+                            scanResult.getBleDevice(),
+                            new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS)
                     )
                             .map(connection -> new DeviceConnection(
                                     scanResult.getBleDevice().getBluetoothDevice(),
                                     connection
-                            ))
-                            .onErrorResumeNext(Observable.empty());
+                            ));
                 });
     }
 
     @Override
     public void startDiscover(discoveryOptions opts) {
         Disposable d  = discoverOnce()
-                .map(connection -> new Pair<ClientPeerHandle, RxBleConnection>(
-                        protocolSpec.get(connection.device.getAddress()).remove(),
-                        connection.connection
-                ))
                 .doOnError(err -> Log.e(TAG, "error with initial handshake: " + err))
-                .onErrorResumeNext(Observable.empty())
-                .flatMapSingle(connectionPair -> connectionPair.first.handshake(connectionPair.second))
-                .subscribeOn(bleScheduler)
                 .subscribe(
-                        complete -> Log.v(TAG, "handshake completed: " + complete),
+                        complete -> {
+                            Log.v(TAG, "handshake completed: " + complete);
+                        },
                         err -> Log.e(TAG, "handshake failed: " + err + '\n' + Arrays.toString(err.getStackTrace()))
                 );
         discoveryDispoable.set(d);
@@ -274,7 +320,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
             Disposable timeoutDisp = Completable.fromAction(() -> {})
                     .delay(discoverDelay, TimeUnit.SECONDS)
-                    .subscribeOn(bleScheduler)
                     .subscribe(
                             () -> {
                                 Log.v(TAG, "scan timed out");
@@ -287,7 +332,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             err -> Log.e(TAG, "error while timing out scan: " + err)
                     );
             mGattDisposable.add(timeoutDisp);
-        };
+        }
     }
 
     @Override
@@ -324,70 +369,73 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 .addService(mService);
 
         Disposable d = mServer.openServer(config)
+                .doOnError(err -> Log.e(TAG, "failed to open server"))
                 .onErrorResumeNext(mServer.openServer(config))
-                .subscribeOn(bleScheduler)
-                .flatMapCompletable(connection -> {
+                .flatMapCompletable(connectionRaw -> {
+                    final CachedLEServerConnection connection = new CachedLEServerConnection(connectionRaw);
                     final CompositeDisposable connectionDisposable = new CompositeDisposable();
 
-                    Disposable disconnect = connection.observeDisconnect()
-                            .subscribe(
-                                    dc -> Log.v(TAG, "disconnected server peer"),
-                                    error -> Log.e(TAG, "error when disconnecting device " + connection.getDevice()));
+                    RxBleDevice device = mClient.getBleDevice(connection.getConnection().getDevice().getAddress());
 
-                    connectionDisposable.add(disconnect);
-
-                    RxBleDevice device = mClient.getBleDevice(connection.getDevice().getAddress());
+                    //don't attempt to initiate a reverse connection when we already initiated the outgoing connection
+                    if (device == null) {
+                        Log.e(TAG, "device " + connection.getConnection().getDevice().getAddress() + " was null in client");
+                        return Completable.error(new IllegalStateException("device was null"));
+                    }
 
                     // only attempt to feed protocol to reverse connection if this is our first time
                     if (!protocolSpec.containsKey(device.getBluetoothDevice().getAddress())) {
                         initializeProtocol(device.getBluetoothDevice());
                     }
-                    //don't attempt to initiate a reverse connection when we already initiated the outgoing connection
-                    if (device == null) {
-                        Log.e(TAG, "device " + connection.getDevice().getAddress() + " was null in client");
-                        return Completable.error(new IllegalStateException("device was null"));
+
+                    final LeDeviceSession<TransactionResult> session = protocolSpec.get(device.getMacAddress());
+
+                    if (session == null) {
+                        Log.e(TAG, "gatt session was null. Somethig is wrong");
+                        return Completable.error(new IllegalStateException("session was null"));
                     }
 
-                    ServerPeerHandle handle = new ServerPeerHandle(connection);
-                    handle.serverNotify(getUpgradePacket(), UPGRADE_CHARACTERISTIC);
-                    handle.serverNotify(mAdvertise, ADVERTISE_CHARACTERISTIC);
-                    handle.setDefaultReply(ADVERTISE_CHARACTERISTIC, BluetoothGatt.GATT_SUCCESS);
-                    handle.setDefaultReply(UPGRADE_CHARACTERISTIC, BluetoothGatt.GATT_SUCCESS);
-                    handle.setDefaultReply(ELECTION_CHARACTERISTIC, BluetoothGatt.GATT_SUCCESS);
-                    handle.setDefaultReply(LUID_CHARACTERISTIC, BluetoothGatt.GATT_SUCCESS);
+                    Log.d(TAG, "gatt server connection from " + connection.getConnection().getDevice().getAddress());
+                    return establishConnection(device, new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS))
+                            .flatMap(clientConnection -> {
+                                return session.observeStage()
+                                        .doOnNext(stage -> Log.v(TAG, "handling stage: " + stage))
+                                        .flatMapSingle(stage -> {
+                                            return Single.zip(
+                                                    session.singleClient(),
+                                                    session.singleServer(),
+                                                    (client, server) -> {
+                                                        return client.handshake(clientConnection)
+                                                                .doOnSubscribe(disposable -> {
+                                                                    Log.v("debug", "client handshake subscribed");
+                                                                    connectionDisposable.add(disposable);
+                                                                    Disposable serverDisposable = server.handshake(connection)
+                                                                            .subscribe(
+                                                                                    () -> Log.v(TAG, "server handshake success"),
+                                                                                    err -> Log.e(TAG, "server handshake failure " + err)
+                                                                            );
 
+                                                                    connectionDisposable.add(disposable);
+                                                                    connectionDisposable.add(serverDisposable);
 
-                    if(
-                            protocolSpec.getOrDefault( device.getBluetoothDevice().getAddress(), new LinkedList<>()).size() == 0
-                    ) {
-                        Log.v(TAG, "protocol queue empty, terminating transaction");
-                        protocolSpec.remove(device.getBluetoothDevice().getAddress());
-                        return Completable.never();
-                    }
+                                                                });
+                                                    }
+                                            );
+                                        })
+                                        .flatMapSingle(result -> result)
+                                        .doOnNext(transactionResult -> session.setStage(transactionResult.nextStage));
 
-                    Log.d(TAG, "gatt server connection from " + connection.getDevice().getAddress());
-                    return establishConnection(device, new Timeout(30, TimeUnit.SECONDS))
-                            .map(conn ->
-                                    new Pair<>(protocolSpec.get(device.getBluetoothDevice().getAddress()).remove(), conn)
-                            )
-                            .doOnError(err -> Log.v(TAG, "error in reverse connection: " + err))
-                            .flatMapSingle(connectionPair -> connectionPair.first.handshake(connectionPair.second))
-                            .subscribeOn(bleScheduler)
-                            .takeWhile(aBoolean -> ! mClientSet.contains(connection.getDevice().getAddress()))
-                            .firstOrError()
-                            .ignoreElement()
-                            .doOnError(err -> Log.e(TAG, "failed reverse connection: " + err))
-                            .onErrorComplete()
-                            .doFinally(() -> {
-                                Log.v(TAG, "freeing resources");
-                                connection.disconnect();
-                                connectionDisposable.dispose();
-                                handle.close();
-                            });
+                            })
+                            .ignoreElements();
+
                 })
                 .subscribe(() -> {
                     Log.v(TAG, "gatt server shut down with success");
-                }, err -> Log.e(TAG, "gatt server shut down with error: " + err));
+                }, err -> {
+                    Log.e(TAG, "gatt server shut down with error: " + err);
+                    err.printStackTrace();
+                });
+
 
         mGattDisposable.add(d);
 
@@ -408,9 +456,9 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
 
     public static class DeviceConnection {
-        public final RxBleConnection connection;
+        public final CachedLEConnection connection;
         public final BluetoothDevice device;
-        public DeviceConnection(BluetoothDevice device, RxBleConnection connection) {
+        public DeviceConnection(BluetoothDevice device, CachedLEConnection connection) {
             this.device = device;
             this.connection = connection;
         }

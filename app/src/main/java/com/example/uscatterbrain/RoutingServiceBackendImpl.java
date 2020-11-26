@@ -1,5 +1,7 @@
 package com.example.uscatterbrain;
 
+import android.util.Log;
+
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
@@ -10,7 +12,10 @@ import java.util.Collections;
 
 import javax.inject.Inject;
 
+import io.reactivex.plugins.RxJavaPlugins;
+
 public class RoutingServiceBackendImpl implements RoutingServiceBackend {
+    public static final String TAG = "RoutingServiceBackend";
     private final BluetoothLEModule bluetoothLeRadioModule;
     private final ScatterbrainDatastore datastore;
     private final ScatterbrainScheduler scheduler;
@@ -25,6 +30,10 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
             ScatterbrainScheduler scheduler,
             WifiDirectRadioModule radioModuleDebug
             ) {
+        RxJavaPlugins.setErrorHandler(e -> {
+            Log.e(TAG, "received an unhandled exception: " + e);
+            e.printStackTrace();
+        });
         this.bluetoothLeRadioModule = bluetoothLeRadioModule;
         this.datastore = datastore;
         this.scheduler = scheduler;

@@ -49,8 +49,16 @@ message Luid {
 }
 
 message ElectLeader {
+    message Body {
+        bytes salt = 1;
+        Advertise.Provides provides = 2;
+        oneof tiebreaker {
+            UUID tiebreaker_val = 3;
+            bool tiebreaker_gone = 4;
+        }
+    }
     oneof val {
-        uint64 val_int = 1;
+        Body val_body = 1;
         bytes val_hash = 2;
     }
 }

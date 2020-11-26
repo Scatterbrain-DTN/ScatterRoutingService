@@ -27,10 +27,10 @@ import io.reactivex.Single;
  */
 public class IdentityPacket implements ScatterSerializable {
 
-    private ScatterProto.Identity mIdentity;
-    private String mGivenName;
-    private Map<String, ByteString> mKeys;
-    private ByteString mSig;
+    private final ScatterProto.Identity mIdentity;
+    private final String mGivenName;
+    private final Map<String, ByteString> mKeys;
+    private final ByteString mSig;
 
     private IdentityPacket(Builder builder) {
         this.mGivenName = builder.getName();
@@ -122,8 +122,8 @@ public class IdentityPacket implements ScatterSerializable {
     }
 
     @Override
-    public Flowable<byte[]> writeToStream() {
-        return Bytes.from(new ByteArrayInputStream(getBytes()));
+    public Flowable<byte[]> writeToStream(int fragsize) {
+        return Bytes.from(new ByteArrayInputStream(getBytes()), fragsize);
     }
 
     @Override

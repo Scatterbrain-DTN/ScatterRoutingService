@@ -15,7 +15,6 @@ import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 
 import java.net.InetAddress;
 import java.net.Socket;
-import java.net.SocketAddress;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,7 +28,6 @@ import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.CompletableSubject;
 
 @RequiresApi(api = Build.VERSION_CODES.Q)

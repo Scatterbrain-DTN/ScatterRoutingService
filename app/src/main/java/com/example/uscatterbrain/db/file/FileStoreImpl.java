@@ -6,8 +6,6 @@ import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.google.protobuf.ByteString;
 
-import java.io.Closeable;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -25,8 +23,8 @@ import io.reactivex.Observable;
 import io.reactivex.Single;
 
 public class FileStoreImpl implements FileStore{
-    private static FileStoreImpl mFileStoreInstance = null;
-    private Map<Path, OpenFile> mOpenFiles;
+    private static final FileStoreImpl mFileStoreInstance = null;
+    private final Map<Path, OpenFile> mOpenFiles;
 
     @Inject
     public FileStoreImpl() {

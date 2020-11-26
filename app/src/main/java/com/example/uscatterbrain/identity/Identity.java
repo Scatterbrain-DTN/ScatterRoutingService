@@ -44,8 +44,8 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     private byte[] mScatterbrainPubKey;
     private byte[] mSig;
     private SharedPreferences mKeystorePrefs;
-    private Context mCtx;
-    private String mGivenName;
+    private final Context mCtx;
+    private final String mGivenName;
     private ScatterProto.Identity mIdentity;
     private static final String PROTOBUF_PRIVKEY_KEY = "scatterbrain";
     private static final String KEYSTORE_ID = "scatterbrainkeystore";
@@ -216,8 +216,8 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     }
 
     @Override
-    public Flowable<byte[]> writeToStream() {
-        return Bytes.from(new ByteArrayInputStream(getBytes()));
+    public Flowable<byte[]> writeToStream(int fragsize) {
+        return Bytes.from(new ByteArrayInputStream(getBytes()), fragsize);
     }
 
     @Override
@@ -263,7 +263,7 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
 
     public static class Builder {
         private byte[] mScatterbrainPubkey;
-        private Context mCtx;
+        private final Context mCtx;
         private boolean mGenerateKeypair;
         private String mGivenName;
         private byte[] mSig;

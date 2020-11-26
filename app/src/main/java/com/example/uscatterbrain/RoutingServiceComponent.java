@@ -36,7 +36,6 @@ import dagger.Module;
 import dagger.Provides;
 import io.reactivex.Scheduler;
 import io.reactivex.plugins.RxJavaPlugins;
-import io.reactivex.schedulers.Schedulers;
 
 @Singleton
 @Component(modules = RoutingServiceComponent.RoutingServiceModule.class)
