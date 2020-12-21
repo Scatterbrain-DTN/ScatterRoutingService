@@ -29,7 +29,6 @@ import com.polidea.rxandroidble2.internal.RxBleLog;
 import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -211,7 +210,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                 session.getLuidStage().addPacket(luidPacket);
                             })
                             .doOnError(err -> Log.e(TAG, "error while receiving luid packet: " + err))
-                            .flatMapCompletable(luidPacket -> session.getLuidStage().verifyPackets())
+                            .flatMapCompletable(luidPacket ->
+                                    session.getLuidStage().verifyPackets()
+                                    .doOnComplete(() -> session.getLuidMap().put(device.getAddress(), luidPacket.getLuid()))
+                            )
                             .toSingleDefault(new TransactionResult(LeDeviceSession.STAGE_ADVERTISE, device))
                             .doOnError(err -> Log.e(TAG, "luid hash verify failed: " + err))
                             .onErrorReturnItem(new TransactionResult(LeDeviceSession.STAGE_EXIT, device));
@@ -222,40 +224,58 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 LeDeviceSession.STAGE_ADVERTISE,
                 serverConn -> {
                     Log.v(TAG, "gatt server advertise stage");
-                    ArrayList<ScatterProto.Advertise.Provides> provides = new ArrayList<>();
-                    provides.add(ScatterProto.Advertise.Provides.BLE);
-                    provides.add(ScatterProto.Advertise.Provides.WIFIP2P);
-                    AdvertisePacket packet = AdvertisePacket.newBuilder()
-                            .setProvides(provides)
-                            .build();
-                    return serverConn.serverNotify(packet, UUID_ADVERTISE);
+                    return serverConn.serverNotify(AdvertiseStage.getSelf(), UUID_ADVERTISE);
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client advertise stage");
                     return conn.readAdvertise()
                             .doOnSuccess(advertisePacket -> Log.v(TAG, "client handshake received advertise packet"))
                             .doOnError(err -> Log.e(TAG, "error while receiving advertise packet: " + err))
-                            .map(advertisePacket -> new TransactionResult(LeDeviceSession.STAGE_EXIT, device));
+                            .map(advertisePacket -> {
+                                session.getAdvertiseStage().addPacket(advertisePacket);
+                                return new TransactionResult(LeDeviceSession.STAGE_ELECTION_HASHED, device);
+                            });
+                });
+
+        session.addStage(
+                LeDeviceSession.STAGE_ELECTION_HASHED,
+                serverConn -> {
+                    Log.v(TAG, "gatt server election hashed stage");
+                    return serverConn.serverNotify(session.getVotingStage().getSelf(true), UUID_ELECTIONLEADER);
+                }
+                , conn -> {
+                    Log.v(TAG, "gatt client election hashed stage");
+                    return conn.readElectLeader()
+                            .doOnSuccess(electLeaderPacket -> Log.v(TAG, "client handshake received hashed election packet"))
+                            .doOnError(err -> Log.e(TAG, "error while receiving election packet: " + err))
+                            .map(electLeaderPacket -> {
+                                session.getVotingStage().addPacket(electLeaderPacket);
+                                return new TransactionResult(LeDeviceSession.STAGE_ELECTION, device);
+                            });
                 });
 
         session.addStage(
                 LeDeviceSession.STAGE_ELECTION,
                 serverConn -> {
                     Log.v(TAG, "gatt server election stage");
-                    ArrayList<ScatterProto.Advertise.Provides> provides = new ArrayList<>();
-                    provides.add(ScatterProto.Advertise.Provides.BLE);
-                    provides.add(ScatterProto.Advertise.Provides.WIFIP2P);
-                    AdvertisePacket packet = AdvertisePacket.newBuilder()
-                            .setProvides(provides)
-                            .build();
-                    return serverConn.serverNotify(packet, UUID_ADVERTISE);
+                    return serverConn.serverNotify(session.getVotingStage().getSelf(false), UUID_ELECTIONLEADER);
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client election stage");
-                    return conn.readAdvertise()
-                            .doOnSuccess(advertisePacket -> Log.v(TAG, "client handshake received election packet"))
-                            .doOnError(err -> Log.e(TAG, "error while receiving election packet: " + err))
-                            .map(advertisePacket -> new TransactionResult(LeDeviceSession.STAGE_EXIT, device));
+                    return conn.readElectLeader()
+                            .flatMapCompletable(electLeaderPacket -> {
+                                electLeaderPacket.tagLuid(session.getLuidMap().get(device.getAddress()));
+                                session.getVotingStage().addPacket(electLeaderPacket);
+                                return session.getVotingStage().verifyPackets();
+                            })
+                            .andThen(session.getVotingStage().determineUpgrade())
+                            .map(provides -> {
+                                Log.v(TAG, "election received provides: " + provides);
+                                return new TransactionResult(LeDeviceSession.STAGE_EXIT, device);
+                            })
+                            .doOnError(err -> Log.e(TAG, "error while receiving packet: " + err))
+                            .doOnSuccess(electLeaderPacket -> Log.v(TAG, "client handshake received election result"))
+                            .onErrorReturn(err -> new TransactionResult(LeDeviceSession.STAGE_EXIT, device));
                 });
 
 

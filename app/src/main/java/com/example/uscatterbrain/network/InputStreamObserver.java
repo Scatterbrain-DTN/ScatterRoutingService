@@ -16,7 +16,6 @@ public class InputStreamObserver extends InputStreamCallback implements Observer
 
     @Override
     public void onNext(byte[] bytes) {
-        Log.v("debug", "onNext "+ bytes.length);
         if (!closed) {
             acceptBytes(bytes);
         }

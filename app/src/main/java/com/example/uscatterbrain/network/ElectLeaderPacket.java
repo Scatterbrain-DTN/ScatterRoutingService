@@ -22,8 +22,8 @@ import io.reactivex.Single;
 
 public class ElectLeaderPacket implements ScatterSerializable {
     private final ScatterProto.ElectLeader mElectLeader;
-    private final Phase mPhase;
     private final byte[] salt;
+    private UUID luidtag;
     public enum Phase {
         PHASE_VAL,
         PHASE_HASH
@@ -34,23 +34,18 @@ public class ElectLeaderPacket implements ScatterSerializable {
         LibsodiumInterface.getSodium().randombytes_buf(salt, salt.length);
         ScatterProto.ElectLeader.Builder b = ScatterProto.ElectLeader.newBuilder();
         if (!builder.enableHashing) {
-            mPhase = Phase.PHASE_VAL;
             ScatterProto.ElectLeader.Body.Builder body = ScatterProto.ElectLeader.Body.newBuilder()
                     .setProvides(builder.provides)
                     .setSalt(ByteString.copyFrom(salt));
 
-            if (builder.tiebreaker == null) {
-                body.setTiebreakerGone(true);
-            } else {
-                body.setTiebreakerVal(ScatterProto.UUID.newBuilder()
-                        .setUpper(builder.tiebreaker.getMostSignificantBits())
-                        .setLower(builder.tiebreaker.getLeastSignificantBits())
-                        .build());
-            }
+            body.setTiebreakerVal(ScatterProto.UUID.newBuilder()
+                    .setUpper(builder.tiebreaker.getMostSignificantBits())
+                    .setLower(builder.tiebreaker.getLeastSignificantBits())
+                    .build());
+
 
             b.setValBody(body.build());
         } else {
-            mPhase = Phase.PHASE_HASH;
             b.setValHash(ByteString.copyFrom(hashFromBuilder(builder)));
         }
 
@@ -63,13 +58,8 @@ public class ElectLeaderPacket implements ScatterSerializable {
         ByteString bytes = ByteString.EMPTY;
 
         bytes.concat(ByteString.copyFrom(salt));
-
-        if (builder.tiebreaker != null) {
-            ByteBuffer uuidBuffer = ByteBuffer.allocate(16);
-            uuidBuffer.putLong(builder.tiebreaker.getMostSignificantBits());
-            uuidBuffer.putLong(builder.tiebreaker.getLeastSignificantBits());
-            bytes = bytes.concat(ByteString.copyFrom(uuidBuffer.array()));
-        }
+;
+        bytes = bytes.concat(ByteString.copyFrom(uuidToBytes(builder.tiebreaker)));
 
         ByteBuffer buffer = ByteBuffer.allocate(Integer.SIZE);
 
@@ -88,19 +78,20 @@ public class ElectLeaderPacket implements ScatterSerializable {
         return hashbytes;
     }
 
+    public static byte[] uuidToBytes(UUID uuid) {
+        ByteBuffer uuidBuffer = ByteBuffer.allocate(16);
+        uuidBuffer.putLong(uuid.getMostSignificantBits());
+        uuidBuffer.putLong(uuid.getLeastSignificantBits());
+        return uuidBuffer.array();
+    }
+
     public byte[] hashFromPacket() {
         byte[] hashbytes = new byte[GenericHash.BYTES];
         ByteString bytes = ByteString.EMPTY;
 
         bytes.concat(ByteString.copyFrom(salt));
 
-        if (mElectLeader.getValBody().getTiebreakerCase()
-                .compareTo(ScatterProto.ElectLeader.Body.TiebreakerCase.TIEBREAKER_VAL) == 0) {
-            ByteBuffer uuidBuffer = ByteBuffer.allocate(16);
-            uuidBuffer.putLong(mElectLeader.getValBody().getTiebreakerVal().getUpper());
-            uuidBuffer.putLong(mElectLeader.getValBody().getTiebreakerVal().getLower());
-            bytes = bytes.concat(ByteString.copyFrom(uuidBuffer.array()));
-        }
+        bytes = bytes.concat(ByteString.copyFrom(uuidToBytes(getTieBreak())));
 
         ByteBuffer buffer = ByteBuffer.allocate(Integer.SIZE);
 
@@ -122,7 +113,7 @@ public class ElectLeaderPacket implements ScatterSerializable {
     public boolean verifyHash(ElectLeaderPacket packet) {
         if (packet.isHashed() == this.isHashed()) {
             return false;
-        } else if (this.mPhase == Phase.PHASE_HASH) {
+        } else if (this.isHashed()) {
             byte[] hash =  packet.hashFromPacket();
             return Arrays.equals(hash, getHash());
         } else {
@@ -134,12 +125,31 @@ public class ElectLeaderPacket implements ScatterSerializable {
     private ElectLeaderPacket(InputStream inputStream) throws IOException {
         this.mElectLeader = ScatterProto.ElectLeader.parseDelimitedFrom(inputStream);
         if (this.mElectLeader.getValCase().compareTo(ScatterProto.ElectLeader.ValCase.VAL_BODY) == 0) {
-            this.mPhase = Phase.PHASE_VAL;
             this.salt = mElectLeader.getValBody().getSalt().toByteArray();
         } else {
-            this.mPhase = Phase.PHASE_HASH;
             this.salt = new byte[0];
         }
+    }
+
+    public UUID getTieBreak() {
+        return new UUID(
+                mElectLeader.getValBody().getTiebreakerVal().getUpper(),
+                mElectLeader.getValBody().getTiebreakerVal().getLower()
+        );
+    }
+
+    @Override
+    public void tagLuid(UUID luid) {
+        luidtag = luid;
+    }
+
+    @Override
+    public UUID getLuid() {
+        return luidtag;
+    }
+
+    public ScatterProto.Advertise.Provides getProvides() {
+        return mElectLeader.getValBody().getProvides();
     }
 
     public static Single<ElectLeaderPacket> parseFrom(InputStream inputStream) {
@@ -194,14 +204,8 @@ public class ElectLeaderPacket implements ScatterSerializable {
         return PacketType.TYPE_ELECT_LEADER;
     }
 
-
-    public Phase getPhase() {
-        return mPhase;
-    }
-
-
     public boolean isHashed() {
-        return mElectLeader.getValBody() == null;
+        return mElectLeader.getValCase() == ScatterProto.ElectLeader.ValCase.VAL_HASH;
     }
 
     public byte[] getHash() {
@@ -231,9 +235,15 @@ public class ElectLeaderPacket implements ScatterSerializable {
             return this;
         }
 
+
+        public Builder setTiebreaker(UUID tiebreaker) {
+            this.tiebreaker =tiebreaker;
+            return this;
+        }
+
         public ElectLeaderPacket build() {
-            if ( provides == null) {
-                throw new IllegalArgumentException("set provides must be set");
+            if ( provides == null || tiebreaker == null) {
+                throw new IllegalArgumentException("both tiebreaker and provides must be set");
             }
 
             return new ElectLeaderPacket(this);

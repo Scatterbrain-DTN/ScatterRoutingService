@@ -16,6 +16,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.UUID;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -31,6 +32,7 @@ public class IdentityPacket implements ScatterSerializable {
     private final String mGivenName;
     private final Map<String, ByteString> mKeys;
     private final ByteString mSig;
+    private UUID luidtag;
 
     private IdentityPacket(Builder builder) {
         this.mGivenName = builder.getName();
@@ -134,6 +136,16 @@ public class IdentityPacket implements ScatterSerializable {
     @Override
     public PacketType getType() {
         return PacketType.TYPE_IDENTITY;
+    }
+
+    @Override
+    public void tagLuid(UUID luid) {
+        luidtag = luid;
+    }
+
+    @Override
+    public UUID getLuid() {
+        return luidtag;
     }
 
     /**

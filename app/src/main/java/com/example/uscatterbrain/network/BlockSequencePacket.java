@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.UUID;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -30,6 +31,7 @@ public class BlockSequencePacket implements ScatterSerializable {
     private File mDataOnDisk;
     private final ScatterProto.BlockSequence mBlockSequence;
     private boolean dataNative;
+    private UUID luidtag;
 
     /**
      * Verify the hash of this message against its header
@@ -120,6 +122,16 @@ public class BlockSequencePacket implements ScatterSerializable {
     @Override
     public PacketType getType() {
         return PacketType.TYPE_BLOCKSEQUENCE;
+    }
+
+    @Override
+    public void tagLuid(UUID luid) {
+        luidtag = luid;
+    }
+
+    @Override
+    public UUID getLuid() {
+        return luidtag;
     }
 
     private BlockSequencePacket(InputStream is) throws IOException {

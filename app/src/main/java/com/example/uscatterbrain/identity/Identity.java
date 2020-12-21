@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.UUID;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -47,6 +48,7 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     private final Context mCtx;
     private final String mGivenName;
     private ScatterProto.Identity mIdentity;
+    private UUID luidtag;
     private static final String PROTOBUF_PRIVKEY_KEY = "scatterbrain";
     private static final String KEYSTORE_ID = "scatterbrainkeystore";
 
@@ -163,6 +165,16 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     @Override
     public PacketType getType() {
         return PacketType.TYPE_IDENTITY;
+    }
+
+    @Override
+    public void tagLuid(UUID luid) {
+        luidtag = luid;
+    }
+
+    @Override
+    public UUID getLuid() {
+        return luidtag;
     }
 
     /**

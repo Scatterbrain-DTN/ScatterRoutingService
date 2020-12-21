@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.UUID;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -37,6 +38,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
     private final int mSessionID;
     private boolean mToDisk;
     private final int mBlocksize;
+    private UUID luidtag;
 
     private BlockHeaderPacket(Builder builder) {
         this.mHashList = builder.getHashlist();
@@ -164,6 +166,16 @@ public class BlockHeaderPacket implements ScatterSerializable {
         InputStreamFlowableSubscriber observer = new InputStreamFlowableSubscriber();
         flowable.subscribe(observer);
         return BlockHeaderPacket.parseFrom(observer).doFinally(observer::close);
+    }
+
+    @Override
+    public void tagLuid(UUID luid) {
+        luidtag = luid;
+    }
+
+    @Override
+    public UUID getLuid() {
+        return luidtag;
     }
 
     @Override

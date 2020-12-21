@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -27,6 +28,7 @@ public class UpgradePacket implements ScatterSerializable {
     private final int mSessionID;
     private final Map<String,String> mMetadata;
     private final ScatterProto.Advertise.Provides mProvides;
+    private UUID luidtag;
 
     private UpgradePacket(Builder builder) {
         this.mProvides = builder.getProvides();
@@ -102,6 +104,16 @@ public class UpgradePacket implements ScatterSerializable {
     @Override
     public PacketType getType() {
         return PacketType.TYPE_UPGRADE;
+    }
+
+    @Override
+    public void tagLuid(UUID luid) {
+        luidtag = luid;
+    }
+
+    @Override
+    public UUID getLuid() {
+        return luidtag;
     }
 
     /**

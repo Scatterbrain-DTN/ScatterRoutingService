@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice;
 import android.util.Log;
 import android.util.Pair;
 
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -19,6 +20,7 @@ public class LeDeviceSession<T> {
     public static final String STAGE_LUID_HASHED = "luid-hashed";
     public static final String STAGE_LUID = "luid";
     public static final String STAGE_ADVERTISE = "advertise";
+    public static final String STAGE_ELECTION_HASHED = "election-hashed";
     public static final String STAGE_ELECTION = "election";
     public static final String STAGE_BLOCKDATA = "blockdata";
 
@@ -30,6 +32,7 @@ public class LeDeviceSession<T> {
     private final BluetoothDevice device;
     private final Scheduler scheduler;
     private final BehaviorSubject<String> stageChanges = BehaviorSubject.create();
+    private final ConcurrentHashMap<String, UUID> luidMap = new ConcurrentHashMap<>();
     private String stage = STAGE_START;
     public LeDeviceSession(BluetoothDevice device, Scheduler scheduler) {
         this.device = device;
@@ -71,6 +74,10 @@ public class LeDeviceSession<T> {
 
     public AdvertiseStage getAdvertiseStage() {
         return advertiseStage;
+    }
+
+    public ConcurrentHashMap<String, UUID> getLuidMap() {
+        return luidMap;
     }
 
     public GattServerConnectionConfig getServer() {

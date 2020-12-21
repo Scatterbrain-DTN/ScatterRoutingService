@@ -23,6 +23,7 @@ import io.reactivex.Single;
 public class LuidPacket implements ScatterSerializable {
     private final ScatterProto.Luid mLuid;
     private final boolean isHashed;
+    private UUID luidtag;
 
     private LuidPacket(Builder builder) {
         this.isHashed = builder.enablehash;
@@ -146,6 +147,11 @@ public class LuidPacket implements ScatterSerializable {
     @Override
     public PacketType getType() {
         return PacketType.TYPE_LUID;
+    }
+
+    @Override
+    public void tagLuid(UUID luid) {
+        luidtag = luid;
     }
 
     public boolean isHashed() {

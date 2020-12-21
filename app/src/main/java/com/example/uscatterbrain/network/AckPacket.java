@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.UUID;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -19,6 +20,7 @@ import io.reactivex.Single;
 public class AckPacket implements ScatterSerializable {
 
     private final ScatterProto.Ack mAck;
+    private UUID luidtag;
 
     public enum Status {
         OK,
@@ -105,6 +107,16 @@ public class AckPacket implements ScatterSerializable {
     @Override
     public PacketType getType() {
         return PacketType.TYPE_ACK;
+    }
+
+    @Override
+    public void tagLuid(UUID luid) {
+        luidtag = luid;
+    }
+
+    @Override
+    public UUID getLuid() {
+        return luidtag;
     }
 
     public String getReason() {

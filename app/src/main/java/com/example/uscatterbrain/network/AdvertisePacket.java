@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
+import java.util.UUID;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -23,6 +24,7 @@ import io.reactivex.Single;
 public class AdvertisePacket implements ScatterSerializable {
     private final ScatterProto.Advertise mAdvertise;
     private final List<ScatterProto.Advertise.Provides> mProvides;
+    private UUID luidtag;
 
     private AdvertisePacket(Builder builder) {
         this.mProvides = builder.getProvides();
@@ -101,6 +103,16 @@ public class AdvertisePacket implements ScatterSerializable {
     @Override
     public PacketType getType() {
         return PacketType.TYPE_ADVERTISE;
+    }
+
+    @Override
+    public void tagLuid(UUID luid) {
+        luidtag = luid;
+    }
+
+    @Override
+    public UUID getLuid() {
+        return luidtag;
     }
 
     /**

@@ -52,10 +52,7 @@ message ElectLeader {
     message Body {
         bytes salt = 1;
         Advertise.Provides provides = 2;
-        oneof tiebreaker {
-            UUID tiebreaker_val = 3;
-            bool tiebreaker_gone = 4;
-        }
+        UUID tiebreaker_val = 3;
     }
     oneof val {
         Body val_body = 1;
