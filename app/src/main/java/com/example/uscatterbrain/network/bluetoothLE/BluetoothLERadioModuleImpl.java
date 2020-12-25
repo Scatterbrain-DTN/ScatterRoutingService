@@ -427,7 +427,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                         return client.handshake(clientConnection)
                                                                 .doOnSubscribe(disposable -> {
                                                                     Log.v("debug", "client handshake subscribed");
-                                                                    connectionDisposable.add(disposable);
                                                                     Disposable serverDisposable = server.handshake(connection)
                                                                             .subscribe(
                                                                                     () -> Log.v(TAG, "server handshake success"),
@@ -439,13 +438,15 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
                                                                 });
                                                     }
-                                            );
+                                            )
+                                                    .flatMap(result -> result);
                                         })
-                                        .flatMapSingle(result -> result)
                                         .doOnNext(transactionResult -> session.setStage(transactionResult.nextStage));
 
                             })
-                            .ignoreElements();
+                            .ignoreElements()
+                            .doFinally(connectionDisposable::dispose);
+
 
                 })
                 .subscribe(() -> {
