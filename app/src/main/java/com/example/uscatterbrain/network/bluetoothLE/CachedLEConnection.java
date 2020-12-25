@@ -56,6 +56,7 @@ public class CachedLEConnection implements Disposable {
                 .flatMap(observable -> observable)
                 .doOnSubscribe(disposable::add)
                 .doOnComplete(() -> Log.e(TAG, "notifications completed for some reason"))
+                .doOnNext(bytes -> Log.v(TAG, "client received bytes " + bytes.length))
                 .subscribe(fs);
         notificationMap.put(uuid, fs);
         return fs;

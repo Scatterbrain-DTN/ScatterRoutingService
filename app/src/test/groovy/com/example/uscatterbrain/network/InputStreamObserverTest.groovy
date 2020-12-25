@@ -71,4 +71,31 @@ class InputStreamObserverTest extends Specification {
         Arrays.equals(result, data)
 
     }
+
+    def "test multiple subscribes"() {
+        when:
+        def ret = -2
+        def result = new byte[data.length]
+        int half = data.length/2
+        try {
+            Bytes.from(new ByteArrayInputStream(Arrays.copyOfRange(data, 0, half)), 20)
+                    .toObservable()
+                    .subscribe(inputStreamObserver)
+
+            Bytes.from(new ByteArrayInputStream(Arrays.copyOfRange(data, half, data.length)), 20)
+                    .toObservable()
+                    .subscribe(inputStreamObserver)
+
+            ret = inputStreamObserver.read(result)
+        } catch (IOException e) {
+            e.printStackTrace()
+        }
+
+        then:
+        ret == data.length
+        result == data
+
+        where:
+        data << [1..(BUF_CAPACITY) as byte[]]
+    }
 }

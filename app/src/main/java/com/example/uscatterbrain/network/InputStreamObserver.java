@@ -39,6 +39,6 @@ public class InputStreamObserver extends InputStreamCallback implements Observer
 
     @Override
     public void onComplete() {
-        complete();
+
     }
 }

@@ -2,8 +2,10 @@ package com.example.uscatterbrain.network;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.Semaphore;
 
 import io.reactivex.disposables.Disposable;
 
@@ -19,6 +21,7 @@ public abstract class InputStreamCallback extends InputStream {
     protected boolean closed = false;
     protected Disposable disposable;
     private final CircularBuffer buf;
+    private final Semaphore readLock = new Semaphore(1, true);
     private boolean complete = false;
 
     public InputStreamCallback() {
@@ -31,10 +34,11 @@ public abstract class InputStreamCallback extends InputStream {
     }
 
     protected void acceptBytes(byte[] val) {
-        buf.put(val, 0, Math.min(val.length, buf.remaining()));
-        synchronized (buf) {
-            buf.notifyAll();
+        if (val.length >= buf.remaining()) {
+            throw new BufferOverflowException();
         }
+        buf.put(val, 0, val.length);
+        readLock.release();
     }
 
     public int size() {
@@ -42,8 +46,8 @@ public abstract class InputStreamCallback extends InputStream {
     }
 
     protected void complete() {
-        complete = true;
         synchronized (buf) {
+            complete = true;
             buf.notifyAll();
         }
     }
@@ -64,7 +68,7 @@ public abstract class InputStreamCallback extends InputStream {
         synchronized (buf) {
             try {
                 while (buf.size() == 0) {
-                    buf.wait();
+                    readLock.acquire();
                 }
                 int l = Math.min(len, buf.size());
                 buf.get(result, offset, l);
@@ -106,9 +110,7 @@ public abstract class InputStreamCallback extends InputStream {
     @Override
     public void close() throws IOException {
         closed = true;
-        synchronized (buf) {
-            buf.notifyAll();
-        }
+        readLock.release();
         if (disposable != null) {
             disposable.dispose();
         }
@@ -142,7 +144,7 @@ public abstract class InputStreamCallback extends InputStream {
         synchronized (buf) {
             try {
                 while (buf.size() == 0) {
-                     buf.wait();
+                    readLock.acquire();
                 }
                 return buf.get();
             } catch (InterruptedException ignored) {

@@ -64,7 +64,7 @@ public class InputStreamFlowableSubscriber extends InputStreamCallback
 
     @Override
     public void onComplete() {
-        complete();
+
     }
 
     @Override
