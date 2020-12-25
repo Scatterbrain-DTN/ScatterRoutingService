@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,19 +24,68 @@ import io.reactivex.Single;
  */
 public class AdvertisePacket implements ScatterSerializable {
     private final ScatterProto.Advertise mAdvertise;
-    private final List<ScatterProto.Advertise.Provides> mProvides;
+    private final List<Provides> mProvides;
+    public enum Provides {
+        INVALID(-1),
+        BLE(0),
+        WIFIP2P(1);
+
+        private int val;
+
+        Provides(int val) {
+            this.val = val;
+        }
+
+        public int getVal() {
+            return val;
+        }
+    }
+
     private UUID luidtag;
 
+    public static List<Integer> providesToValArray(List<Provides> provides) {
+        final List<Integer> res = new ArrayList<>();
+        for (Provides p : provides) {
+            res.add(p.getVal());
+        }
+        return res;
+    }
+
+    public static List<Provides> valToProvidesArray(List<Integer> vals) {
+        final ArrayList<Provides> provides = new ArrayList<>();
+        for (Integer i : vals) {
+            for (Provides p : Provides.values()) {
+                if (p.getVal() == i) {
+                    provides.add(p);
+                }
+            }
+        }
+        return provides;
+    }
+
+    public static Provides valToProvides(int val) {
+        for (Provides p : Provides.values()) {
+            if (p.getVal() == val) {
+                return p;
+            }
+        }
+        return Provides.INVALID;
+    }
+
+    public static int providesToVal(Provides provides) {
+        return provides.getVal();
+    }
+
     private AdvertisePacket(Builder builder) {
-        this.mProvides = builder.getProvides();
+        mProvides = builder.getProvides();
         this.mAdvertise = ScatterProto.Advertise.newBuilder()
-                .addAllProvides(mProvides)
+                .addAllProvides(providesToValArray(mProvides))
                 .build();
     }
 
     private AdvertisePacket(InputStream is) throws IOException {
         mAdvertise =  ScatterProto.Advertise.parseDelimitedFrom(is);
-        this.mProvides = mAdvertise.getProvidesList();
+        mProvides = valToProvidesArray(mAdvertise.getProvidesList());
     }
 
     /**
@@ -65,7 +115,7 @@ public class AdvertisePacket implements ScatterSerializable {
      *
      * @return the provides
      */
-    public List<ScatterProto.Advertise.Provides> getProvides() {
+    public List<Provides> getProvides() {
         return mProvides;
     }
 
@@ -128,7 +178,7 @@ public class AdvertisePacket implements ScatterSerializable {
      * builder for advertise packet
      */
     public static class Builder {
-        private List<ScatterProto.Advertise.Provides> mProvides;
+        private List<Provides> mProvides;
 
         /**
          * Instantiates a new Builder.
@@ -143,7 +193,7 @@ public class AdvertisePacket implements ScatterSerializable {
          * @param provides scatterbrain provides enum
          * @return builder
          */
-        public  Builder setProvides(List<ScatterProto.Advertise.Provides> provides) {
+        public  Builder setProvides(List<Provides> provides) {
             this.mProvides = provides;
             return this;
         }
@@ -165,7 +215,7 @@ public class AdvertisePacket implements ScatterSerializable {
          *
          * @return the provides
          */
-        public List<ScatterProto.Advertise.Provides> getProvides() {
+        public List<Provides> getProvides() {
             return mProvides;
         }
 

@@ -35,7 +35,7 @@ public class ElectLeaderPacket implements ScatterSerializable {
         ScatterProto.ElectLeader.Builder b = ScatterProto.ElectLeader.newBuilder();
         if (!builder.enableHashing) {
             ScatterProto.ElectLeader.Body.Builder body = ScatterProto.ElectLeader.Body.newBuilder()
-                    .setProvides(builder.provides)
+                    .setProvides(AdvertisePacket.providesToVal(builder.provides))
                     .setSalt(ByteString.copyFrom(salt));
 
             body.setTiebreakerVal(ScatterProto.UUID.newBuilder()
@@ -63,7 +63,7 @@ public class ElectLeaderPacket implements ScatterSerializable {
 
         ByteBuffer buffer = ByteBuffer.allocate(Integer.SIZE);
 
-        buffer.putInt(builder.provides.getNumber());
+        buffer.putInt(builder.provides.getVal());
         bytes.concat(ByteString.copyFrom(buffer.array()));
 
         LibsodiumInterface.getSodium().crypto_generichash(
@@ -95,7 +95,7 @@ public class ElectLeaderPacket implements ScatterSerializable {
 
         ByteBuffer buffer = ByteBuffer.allocate(Integer.SIZE);
 
-        buffer.putInt(mElectLeader.getValBody().getProvides().getNumber());
+        buffer.putInt(mElectLeader.getValBody().getProvides());
         bytes.concat(ByteString.copyFrom(buffer.array()));
 
         LibsodiumInterface.getSodium().crypto_generichash(
@@ -148,8 +148,8 @@ public class ElectLeaderPacket implements ScatterSerializable {
         return luidtag;
     }
 
-    public ScatterProto.Advertise.Provides getProvides() {
-        return mElectLeader.getValBody().getProvides();
+    public AdvertisePacket.Provides getProvides() {
+        return AdvertisePacket.valToProvides(mElectLeader.getValBody().getProvides());
     }
 
     public static Single<ElectLeaderPacket> parseFrom(InputStream inputStream) {
@@ -219,7 +219,7 @@ public class ElectLeaderPacket implements ScatterSerializable {
     public static class Builder {
 
         private boolean enableHashing = false;
-        private ScatterProto.Advertise.Provides provides;
+        private AdvertisePacket.Provides provides;
         private UUID tiebreaker;
 
         private Builder() {
@@ -230,7 +230,7 @@ public class ElectLeaderPacket implements ScatterSerializable {
             return this;
         }
 
-        public Builder setProvides(ScatterProto.Advertise.Provides provides) {
+        public Builder setProvides(AdvertisePacket.Provides provides) {
             this.provides = provides;
             return this;
         }

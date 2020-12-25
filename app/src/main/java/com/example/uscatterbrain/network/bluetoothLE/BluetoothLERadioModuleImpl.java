@@ -14,7 +14,6 @@ import android.os.ParcelUuid;
 import android.util.Log;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
-import com.example.uscatterbrain.ScatterProto;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.UpgradePacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
@@ -177,7 +176,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         LeDeviceSession<TransactionResult> session = new LeDeviceSession<>(device, bleScheduler);
 
         session.addStage(
-                LeDeviceSession.STAGE_LUID_HASHED,
+                TransactionResult.STAGE_LUID_HASHED,
                 serverConn -> {
                     Log.v(TAG, "gatt server luid hashed stage");
                     return session.getLuidStage().getSelfHashed()
@@ -191,12 +190,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                 session.getLuidStage().addPacket(luidPacket);
                             })
                             .doOnError(err -> Log.e(TAG, "error while receiving luid packet: " + err))
-                            .map(luidPacket -> new TransactionResult(LeDeviceSession.STAGE_LUID, device));
+                            .map(luidPacket -> new TransactionResult(TransactionResult.STAGE_LUID, device));
         });
 
 
         session.addStage(
-                LeDeviceSession.STAGE_LUID,
+                TransactionResult.STAGE_LUID,
                 serverConn -> {
                     Log.v(TAG, "gatt server luid stage");
                     return session.getLuidStage().getSelf()
@@ -214,14 +213,14 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                     session.getLuidStage().verifyPackets()
                                     .doOnComplete(() -> session.getLuidMap().put(device.getAddress(), luidPacket.getLuid()))
                             )
-                            .toSingleDefault(new TransactionResult(LeDeviceSession.STAGE_ADVERTISE, device))
+                            .toSingleDefault(new TransactionResult(TransactionResult.STAGE_ADVERTISE, device))
                             .doOnError(err -> Log.e(TAG, "luid hash verify failed: " + err))
-                            .onErrorReturnItem(new TransactionResult(LeDeviceSession.STAGE_EXIT, device));
+                            .onErrorReturnItem(new TransactionResult(TransactionResult.STAGE_EXIT, device));
 
                 });
 
         session.addStage(
-                LeDeviceSession.STAGE_ADVERTISE,
+                TransactionResult.STAGE_ADVERTISE,
                 serverConn -> {
                     Log.v(TAG, "gatt server advertise stage");
                     return serverConn.serverNotify(AdvertiseStage.getSelf(), UUID_ADVERTISE);
@@ -233,12 +232,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .doOnError(err -> Log.e(TAG, "error while receiving advertise packet: " + err))
                             .map(advertisePacket -> {
                                 session.getAdvertiseStage().addPacket(advertisePacket);
-                                return new TransactionResult(LeDeviceSession.STAGE_ELECTION_HASHED, device);
+                                return new TransactionResult(TransactionResult.STAGE_ELECTION_HASHED, device);
                             });
                 });
 
         session.addStage(
-                LeDeviceSession.STAGE_ELECTION_HASHED,
+                TransactionResult.STAGE_ELECTION_HASHED,
                 serverConn -> {
                     Log.v(TAG, "gatt server election hashed stage");
                     return serverConn.serverNotify(session.getVotingStage().getSelf(true), UUID_ELECTIONLEADER);
@@ -250,12 +249,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .doOnError(err -> Log.e(TAG, "error while receiving election packet: " + err))
                             .map(electLeaderPacket -> {
                                 session.getVotingStage().addPacket(electLeaderPacket);
-                                return new TransactionResult(LeDeviceSession.STAGE_ELECTION, device);
+                                return new TransactionResult(TransactionResult.STAGE_ELECTION, device);
                             });
                 });
 
         session.addStage(
-                LeDeviceSession.STAGE_ELECTION,
+                TransactionResult.STAGE_ELECTION,
                 serverConn -> {
                     Log.v(TAG, "gatt server election stage");
                     return serverConn.serverNotify(session.getVotingStage().getSelf(false), UUID_ELECTIONLEADER);
@@ -271,15 +270,15 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .andThen(session.getVotingStage().determineUpgrade())
                             .map(provides -> {
                                 Log.v(TAG, "election received provides: " + provides);
-                                return new TransactionResult(LeDeviceSession.STAGE_EXIT, device);
+                                return new TransactionResult(TransactionResult.STAGE_EXIT, device);
                             })
                             .doOnError(err -> Log.e(TAG, "error while receiving packet: " + err))
                             .doOnSuccess(electLeaderPacket -> Log.v(TAG, "client handshake received election result"))
-                            .onErrorReturn(err -> new TransactionResult(LeDeviceSession.STAGE_EXIT, device));
+                            .onErrorReturn(err -> new TransactionResult(TransactionResult.STAGE_EXIT, device));
                 });
 
 
-        session.setStage(LeDeviceSession.STAGE_LUID_HASHED);
+        session.setStage(TransactionResult.STAGE_LUID_HASHED);
         protocolSpec.put(device.getAddress(), session);
     }
 
@@ -368,7 +367,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         int seqnum = Math.abs(new Random().nextInt());
 
         return UpgradePacket.newBuilder()
-                .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
+                .setProvides(AdvertisePacket.Provides.WIFIP2P)
                 .setSessionID(seqnum)
                 .setMetadata(WifiDirectRadioModule.UPGRADE_METADATA)
                 .build();

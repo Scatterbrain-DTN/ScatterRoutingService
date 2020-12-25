@@ -27,7 +27,7 @@ public class UpgradePacket implements ScatterSerializable {
     private final ScatterProto.Upgrade mUpgrade;
     private final int mSessionID;
     private final Map<String,String> mMetadata;
-    private final ScatterProto.Advertise.Provides mProvides;
+    private final AdvertisePacket.Provides mProvides;
     private UUID luidtag;
 
     private UpgradePacket(Builder builder) {
@@ -35,7 +35,7 @@ public class UpgradePacket implements ScatterSerializable {
         this.mSessionID = builder.getSessionID();
         this.mMetadata = builder.metadata;
         this.mUpgrade = ScatterProto.Upgrade.newBuilder()
-                .setProvides(mProvides)
+                .setProvides(AdvertisePacket.providesToVal(mProvides))
                 .setSessionid(mSessionID)
                 .putAllMetadata(mMetadata)
                 .build();
@@ -44,7 +44,7 @@ public class UpgradePacket implements ScatterSerializable {
     private UpgradePacket(InputStream is) throws IOException {
         this.mUpgrade = ScatterProto.Upgrade.parseDelimitedFrom(is);
         this.mSessionID = this.mUpgrade.getSessionid();
-        this.mProvides = this.mUpgrade.getProvides();
+        this.mProvides = AdvertisePacket.valToProvides(this.mUpgrade.getProvides());
         this.mMetadata = this.mUpgrade.getMetadataMap();
     }
 
@@ -138,7 +138,7 @@ public class UpgradePacket implements ScatterSerializable {
      *
      * @return the provies
      */
-    public ScatterProto.Advertise.Provides getProvides() {
+    public AdvertisePacket.Provides getProvides() {
         return this.mProvides;
     }
 
@@ -156,7 +156,7 @@ public class UpgradePacket implements ScatterSerializable {
      */
     public static class Builder {
         private int mSessionid;
-        private ScatterProto.Advertise.Provides mProvides;
+        private AdvertisePacket.Provides mProvides;
         private Map<String, String> metadata;
 
         /**
@@ -176,7 +176,7 @@ public class UpgradePacket implements ScatterSerializable {
          * @param provides the provides
          * @return builder
          */
-        public Builder setProvides(ScatterProto.Advertise.Provides provides) {
+        public Builder setProvides(AdvertisePacket.Provides provides) {
             this.mProvides = provides;
             return this;
         }
@@ -201,7 +201,7 @@ public class UpgradePacket implements ScatterSerializable {
          *
          * @return provides
          */
-        public ScatterProto.Advertise.Provides getProvides() {
+        public AdvertisePacket.Provides getProvides() {
             return this.mProvides;
         }
 

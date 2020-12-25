@@ -15,14 +15,6 @@ import io.reactivex.subjects.BehaviorSubject;
 
 public class LeDeviceSession<T> {
     public static final String TAG = "LeDeviceSession";
-    public static final String STAGE_EXIT = "exit";
-    public static final String STAGE_START = "start";
-    public static final String STAGE_LUID_HASHED = "luid-hashed";
-    public static final String STAGE_LUID = "luid";
-    public static final String STAGE_ADVERTISE = "advertise";
-    public static final String STAGE_ELECTION_HASHED = "election-hashed";
-    public static final String STAGE_ELECTION = "election";
-    public static final String STAGE_BLOCKDATA = "blockdata";
 
     private final LuidStage luidStage;
     private final AdvertiseStage advertiseStage;
@@ -33,7 +25,7 @@ public class LeDeviceSession<T> {
     private final Scheduler scheduler;
     private final BehaviorSubject<String> stageChanges = BehaviorSubject.create();
     private final ConcurrentHashMap<String, UUID> luidMap = new ConcurrentHashMap<>();
-    private String stage = STAGE_START;
+    private String stage = TransactionResult.STAGE_START;
     public LeDeviceSession(BluetoothDevice device, Scheduler scheduler) {
         this.device = device;
         this.luidStage = new LuidStage(device);
@@ -60,7 +52,7 @@ public class LeDeviceSession<T> {
 
     public Observable<String> observeStage() {
         return stageChanges
-                .takeWhile(s -> s.compareTo(STAGE_EXIT) != 0)
+                .takeWhile(s -> s.compareTo(TransactionResult.STAGE_EXIT) != 0)
                 .delay(0, TimeUnit.SECONDS, scheduler);
     }
 

@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice;
 import android.util.Log;
 
 import com.example.uscatterbrain.ScatterProto;
+import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.ElectLeaderPacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
@@ -39,7 +40,7 @@ public class VotingStage {
 
         //TODO: add ability to change this
         return builder
-                .setProvides(ScatterProto.Advertise.Provides.WIFIP2P)
+                .setProvides(AdvertisePacket.Provides.WIFIP2P)
                 .setTiebreaker(tiebreaker)
                 .build();
     }
@@ -52,7 +53,7 @@ public class VotingStage {
         }
     }
 
-    private ScatterProto.Advertise.Provides tieBreak() {
+    private AdvertisePacket.Provides tieBreak() {
         BigInteger val = BigInteger.ONE;
         for (ElectLeaderPacket packet : unhashedPackets.values()) {
             BigInteger newval = new BigInteger(ElectLeaderPacket.uuidToBytes(packet.getTieBreak()));
@@ -70,7 +71,7 @@ public class VotingStage {
         );
 
         BigInteger compare = new BigInteger(hash);
-        ScatterProto.Advertise.Provides ret = ScatterProto.Advertise.Provides.UNRECOGNIZED; //for miracles
+        AdvertisePacket.Provides ret = AdvertisePacket.Provides.INVALID; //for miracles
 
         for (ElectLeaderPacket packet : unhashedPackets.values()) {
             UUID uuid = packet.getLuid();
@@ -87,10 +88,10 @@ public class VotingStage {
         return ret;
     }
 
-    private Single<ScatterProto.Advertise.Provides> countVotes() {
+    private Single<AdvertisePacket.Provides> countVotes() {
 
         return Single.fromCallable(() -> {
-            final Map<ScatterProto.Advertise.Provides, Integer> providesBuckets = new HashMap<>();
+            final Map<AdvertisePacket.Provides, Integer> providesBuckets = new HashMap<>();
             for (ElectLeaderPacket packet : unhashedPackets.values()) {
                 providesBuckets.putIfAbsent(packet.getProvides(), 0);
                 providesBuckets.put(packet.getProvides(), providesBuckets.get(packet.getProvides())+1);
@@ -103,7 +104,7 @@ public class VotingStage {
         });
     }
 
-    public Single<ScatterProto.Advertise.Provides> determineUpgrade() {
+    public Single<AdvertisePacket.Provides> determineUpgrade() {
         return countVotes();
     }
 

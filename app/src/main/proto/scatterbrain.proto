@@ -11,13 +11,7 @@ message UUID {
 // used to advertise the presence of a scatterbrain device
 // and to request the exchange of identities and blockdata
 message Advertise {
-    enum Provides {
-        BLUETOOTHCLASSIC = 0;
-        BLE = 1;
-        WIFIP2P = 2;
-        ULTRASOUND = 4;
-    }
-    repeated Provides provides = 1;
+    repeated uint32 provides = 1;
 }
 
 // header + metadata for a file, message or data stream
@@ -51,7 +45,7 @@ message Luid {
 message ElectLeader {
     message Body {
         bytes salt = 1;
-        Advertise.Provides provides = 2;
+        uint32 provides = 2;
         UUID tiebreaker_val = 3;
     }
     oneof val {
@@ -75,7 +69,7 @@ message Ack {
 
 // used to request switching to a different physical transport
 message Upgrade {
-    Advertise.Provides provides = 1;
+    uint32 provides = 1;
     uint32 sessionid = 2;
     map<string, string> metadata = 3;
 }

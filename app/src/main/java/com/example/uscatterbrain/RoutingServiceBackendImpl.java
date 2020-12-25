@@ -39,7 +39,7 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
         this.scheduler = scheduler;
         this.radioModuleDebug = radioModuleDebug;
         this.mPacket = AdvertisePacket.newBuilder()
-                .setProvides(Collections.singletonList(ScatterProto.Advertise.Provides.BLE))
+                .setProvides(Collections.singletonList(AdvertisePacket.Provides.BLE))
                 .build();
         this.bluetoothLeRadioModule.setAdvertisePacket(mPacket);
     }
