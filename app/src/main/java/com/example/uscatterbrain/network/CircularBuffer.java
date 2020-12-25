@@ -11,8 +11,17 @@ public class CircularBuffer {
         this.readBuffer = byteBuffer.duplicate();
     }
 
+    private static int mod(int a, int b) {
+        if (b > 0) {
+            int m = (m = a % b) < 0 ? a + b : a;
+            return m;
+        } else {
+            throw new ArithmeticException();
+        }
+    }
+
     public int size() {
-        return (writeBuffer.position() - readBuffer.position()) % writeBuffer.capacity();
+        return mod(writeBuffer.position() - readBuffer.position(), writeBuffer.capacity());
     }
 
     public byte get() {
@@ -23,34 +32,33 @@ public class CircularBuffer {
     }
 
     public void get(byte[] val, int offset, int length) {
-        int l = length;
-
-        if (l > size()) {
+        if (length > size()) {
             throw new BufferOverflowException();
         }
 
+        int l = length;
         int read = Math.min(length, readBuffer.remaining());
         readBuffer.get(val, offset, read);
         l -= read;
         if (l > 0) {
             readBuffer.position(0);
-            readBuffer.get(val, offset, l);
+            readBuffer.get(val, offset+read, l);
         }
     }
 
     public void put(byte[] val, int offset, int len) {
-        int l = len;
+        int l = Math.min(val.length, len);
 
         if (l > remaining()) {
             throw new BufferOverflowException();
         }
 
-        int write = Math.min(len, writeBuffer.remaining());
+        int write = Math.min(l, writeBuffer.remaining());
         writeBuffer.put(val, offset, write);
         l -= write;
         if (l > 0) {
             writeBuffer.position(0);
-            writeBuffer.put(val, offset, l);
+            writeBuffer.put(val, offset+write, l);
         }
     }
 

@@ -52,11 +52,23 @@ class InputStreamObserverTest extends Specification {
         thrown(IOException)
     }
 
+    def "test ring buffer"() {
+        when:
+        def bufsize = 17
+        def smol = new InputStreamObserver(bufsize)
+        def data = new byte[15]
+        def result = new byte[15]
+        new Random().nextBytes(data)
+        for(int i=0;i<2;i++) {
+            Bytes.from(new ByteArrayInputStream(data), 4)
+                    .toObservable()
+                    .blockingSubscribe(smol)
 
-    def "test single read"() {
-        byte[] data = [1,2,3,5,6,7,8,9]
-        def result = new byte[data.length]
-        def flowable = Flowable.just(data).repeat(2)
+            smol.read(result)
+        }
+
+        then:
+        Arrays.equals(result, data)
 
     }
 }

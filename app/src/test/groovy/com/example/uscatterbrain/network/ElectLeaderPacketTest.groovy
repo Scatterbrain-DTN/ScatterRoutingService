@@ -12,6 +12,8 @@ class ElectLeaderPacketTest extends Specification {
     }
 
 
+    /*
+
     def "hashing works"() {
         when:
         def unhashedpacket = ElectLeaderPacket.newBuilder()
@@ -34,4 +36,6 @@ class ElectLeaderPacketTest extends Specification {
         hashedresult.verifyHash(unhashedresult)
         unhashedresult.verifyHash(hashedresult)
     }
+
+     */
 }

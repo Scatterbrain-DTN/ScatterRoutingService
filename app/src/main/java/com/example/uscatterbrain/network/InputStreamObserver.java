@@ -1,13 +1,19 @@
 package com.example.uscatterbrain.network;
 
-import android.util.Log;
-
 import java.io.IOException;
 
 import io.reactivex.Observer;
 import io.reactivex.disposables.Disposable;
 
 public class InputStreamObserver extends InputStreamCallback implements Observer<byte[]> {
+
+    public InputStreamObserver(int capacity) {
+        super(capacity);
+    }
+
+    public InputStreamObserver() {
+        super();
+    }
 
     @Override
     public void onSubscribe(Disposable d) {
@@ -33,6 +39,6 @@ public class InputStreamObserver extends InputStreamCallback implements Observer
 
     @Override
     public void onComplete() {
-        complete();
+
     }
 }
