@@ -6,17 +6,14 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.ElectLeaderPacket;
-import com.example.uscatterbrain.network.InputStreamObserver;
 import com.example.uscatterbrain.network.LuidPacket;
 import com.example.uscatterbrain.network.UpgradePacket;
 import com.polidea.rxandroidble2.NotificationSetupMode;
 import com.polidea.rxandroidble2.RxBleConnection;
 
-import java.io.IOException;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
+import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
@@ -32,7 +29,6 @@ public class CachedLEConnection implements Disposable {
 
     public static final String TAG = "CachedLEConnection";
     private final RxBleConnection connection;
-    private final ConcurrentHashMap<UUID, InputStreamObserver> notificationMap = new ConcurrentHashMap<>();
     private final CompositeDisposable disposable = new CompositeDisposable();
 
     public CachedLEConnection(RxBleConnection connection) {
@@ -43,23 +39,22 @@ public class CachedLEConnection implements Disposable {
         return connection;
     }
 
-    private InputStreamObserver cachedNotification(UUID uuid) {
-        InputStreamObserver val = notificationMap.get(uuid);
-        if (val != null) {
-            return val;
-        }
-
-        InputStreamObserver fs = new InputStreamObserver();
-        connection.
-                setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
+    private Observable<byte[]> cachedNotification(UUID uuid) {
+        final CompositeDisposable notificationDisposable = new CompositeDisposable();
+        return connection.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
                 .doOnSubscribe(disposable -> Log.v(TAG, "client subscribed to notifications for " + uuid))
                 .flatMap(observable -> observable)
-                .doOnSubscribe(disposable::add)
                 .doOnComplete(() -> Log.e(TAG, "notifications completed for some reason"))
-                .doOnNext(bytes -> Log.v(TAG, "client received bytes " + bytes.length))
-                .subscribe(fs);
-        notificationMap.put(uuid, fs);
-        return fs;
+                .doOnNext(b -> Log.v(TAG, "client received bytes " + b.length))
+                .doOnSubscribe(disp -> {
+                    Disposable d = connection.writeCharacteristic(uuid, new byte[0])
+                            .subscribe(
+                                    success -> Log.v(TAG, "successfually wrote timing characteristic"),
+                                    err -> Log.e(TAG, "failed to write timing characteristic: " + err)
+                            );
+                            notificationDisposable.add(d);
+                })
+                .doFinally(notificationDisposable::dispose);
     }
 
     public Single<AdvertisePacket> readAdvertise() {
@@ -93,14 +88,6 @@ public class CachedLEConnection implements Disposable {
 
     @Override
     public boolean isDisposed() {
-        for (Map.Entry<UUID, InputStreamObserver> entry : notificationMap.entrySet()) {
-            try {
-                entry.getValue().close();
-            } catch (IOException ignored) {
-
-            }
-        }
-
         return disposable.isDisposed();
     }
 }

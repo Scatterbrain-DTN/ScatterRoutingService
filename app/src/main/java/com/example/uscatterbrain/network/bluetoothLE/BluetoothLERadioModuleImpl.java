@@ -90,7 +90,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final Scheduler bleScheduler;
     private final int discoverDelay = 45;
     private final boolean discovering = true;
-    private final AtomicReference<Disposable> discoveryDispoable = new AtomicReference<>();
+    private final AtomicReference<CompositeDisposable> discoveryDispoable = new AtomicReference<>();
     private final ConcurrentHashMap<String, Observable<CachedLEConnection>> connectionCache = new ConcurrentHashMap<>();
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
@@ -334,7 +334,13 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                         },
                         err -> Log.e(TAG, "handshake failed: " + err + '\n' + Arrays.toString(err.getStackTrace()))
                 );
-        discoveryDispoable.set(d);
+        discoveryDispoable.getAndUpdate(compositeDisposable -> {
+            if (compositeDisposable == null) {
+                compositeDisposable = new CompositeDisposable();
+            }
+            compositeDisposable.add(d);
+            return compositeDisposable;
+        });
 
         if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
             Disposable timeoutDisp = Completable.fromAction(() -> {})
@@ -342,11 +348,18 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     .subscribe(
                             () -> {
                                 Log.v(TAG, "scan timed out");
-                                    Disposable disposable = discoveryDispoable.get();
-                                    if (disposable != null) {
-                                        disposable.dispose();
-                                        discoveryDispoable.set(null);
-                                    }
+                                    discoveryDispoable.getAndUpdate(compositeDisposable -> {
+                                        if (compositeDisposable == null) {
+                                            compositeDisposable = new CompositeDisposable();
+                                        }
+                                        int size = compositeDisposable.size();
+                                        compositeDisposable.dispose();
+                                        if (size <= 1) {
+                                            return null;
+                                        } else {
+                                            return compositeDisposable;
+                                        }
+                                    });
                             },
                             err -> Log.e(TAG, "error while timing out scan: " + err)
                     );
@@ -389,7 +402,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
         Disposable d = mServer.openServer(config)
                 .doOnError(err -> Log.e(TAG, "failed to open server"))
-                .onErrorResumeNext(mServer.openServer(config))
                 .flatMapCompletable(connectionRaw -> {
                     final CachedLEServerConnection connection = new CachedLEServerConnection(connectionRaw);
                     final CompositeDisposable connectionDisposable = new CompositeDisposable();
@@ -424,28 +436,50 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                     session.singleClient(),
                                                     session.singleServer(),
                                                     (client, server) -> {
-                                                        return client.handshake(clientConnection)
+                                                                return server.handshake(connection)
+                                                                        .doOnComplete(() -> Log.v(TAG, "server handshake completed"))
+                                                                        .toSingleDefault(true)
+                                                                        .zipWith(
+                                                                                client.handshake(clientConnection),
+                                                                                (bool, trans) -> trans
+                                                                        )
+                                                                        .toObservable()
                                                                 .doOnSubscribe(disposable -> {
                                                                     Log.v("debug", "client handshake subscribed");
-                                                                    Disposable serverDisposable = server.handshake(connection)
-                                                                            .subscribe(
-                                                                                    () -> Log.v(TAG, "server handshake success"),
-                                                                                    err -> Log.e(TAG, "server handshake failure " + err)
-                                                                            );
-
                                                                     connectionDisposable.add(disposable);
-                                                                    connectionDisposable.add(serverDisposable);
+                                                                    connectionDisposable.add(connection);
 
                                                                 });
                                                     }
-                                            )
-                                                    .flatMap(result -> result);
+                                            );
                                         })
-                                        .doOnNext(transactionResult -> session.setStage(transactionResult.nextStage));
+                                        .flatMap(result -> result)
+                                        .doOnError(err -> Log.e(TAG, "stage " + session.getStage() + " error " + err))
+                                        .doOnNext(transactionResult -> session.setStage(transactionResult.nextStage))
+                                        .doFinally(() -> {
+                                            Log.v(TAG, "stages complete, cleaning up");
+                                            clientConnection.dispose();
+                                            protocolSpec.remove(device.getMacAddress());
+                                            discoveryDispoable.getAndUpdate(compositeDisposable -> {
+                                                if (compositeDisposable == null) {
+                                                    compositeDisposable = new CompositeDisposable();
+                                                }
+                                                compositeDisposable.dispose();
+                                                return null;
+                                            });
+                                        });
 
                             })
+                            .doOnDispose(() -> {
+                                stopServer();
+                                startServer();
+                            })
                             .ignoreElements()
-                            .doFinally(connectionDisposable::dispose);
+                            .doFinally(() -> {
+                                Log.v(TAG, "session finished, cleaning up");
+                                connectionDisposable.dispose();
+                                connection.getConnection().disconnect();
+                            });
 
 
                 })
@@ -457,6 +491,14 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 });
 
 
+        discoveryDispoable.getAndUpdate(compositeDisposable -> {
+            if (compositeDisposable == null) {
+                compositeDisposable = new CompositeDisposable();
+            }
+            compositeDisposable.add(d);
+            return compositeDisposable;
+        });
+
         mGattDisposable.add(d);
 
         startAdvertise();
@@ -467,6 +509,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public void stopServer() {
         mGattDisposable.dispose();
         mServer.closeServer();
+        stopAdvertise();
     }
 
     @Override
