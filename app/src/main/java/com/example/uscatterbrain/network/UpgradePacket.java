@@ -211,7 +211,7 @@ public class UpgradePacket implements ScatterSerializable {
          * @return the upgrade packet
          */
         public UpgradePacket build() {
-            if (mProvides == null || mSessionid <= 0)
+            if (mProvides == null)
                 return null;
 
             if (metadata == null) {

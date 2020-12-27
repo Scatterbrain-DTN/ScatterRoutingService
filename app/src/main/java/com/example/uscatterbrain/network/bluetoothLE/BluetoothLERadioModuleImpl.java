@@ -16,18 +16,16 @@ import android.util.Log;
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
+import com.example.uscatterbrain.network.ElectLeaderPacket;
 import com.example.uscatterbrain.network.UpgradePacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.google.protobuf.ByteString;
-import com.polidea.rxandroidble2.LogConstants;
-import com.polidea.rxandroidble2.LogOptions;
 import com.polidea.rxandroidble2.RxBleClient;
 import com.polidea.rxandroidble2.RxBleDevice;
 import com.polidea.rxandroidble2.RxBleServer;
 import com.polidea.rxandroidble2.ServerConfig;
 import com.polidea.rxandroidble2.Timeout;
-import com.polidea.rxandroidble2.internal.RxBleLog;
 import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
@@ -194,7 +192,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 serverConn -> {
                     Log.v(TAG, "gatt server luid hashed stage");
                     return session.getLuidStage().getSelfHashed()
-                            .flatMapCompletable(luidpacket -> serverConn.serverNotify(luidpacket, UUID_LUID));
+                            .flatMapCompletable(luidpacket -> {
+                                session.getLuidStage().addPacket(luidpacket);
+                                return serverConn.serverNotify(luidpacket, UUID_LUID);
+                            });
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client luid hashed stage");
@@ -213,7 +214,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 serverConn -> {
                     Log.v(TAG, "gatt server luid stage");
                     return session.getLuidStage().getSelf()
-                            .flatMapCompletable(luidpacket -> serverConn.serverNotify(luidpacket, UUID_LUID));
+                            .flatMapCompletable(luidpacket -> {
+                                session.getLuidStage().addPacket(luidpacket);
+                                return serverConn.serverNotify(luidpacket, UUID_LUID);
+                            });
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client luid stage");
@@ -254,7 +258,9 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 TransactionResult.STAGE_ELECTION_HASHED,
                 serverConn -> {
                     Log.v(TAG, "gatt server election hashed stage");
-                    return serverConn.serverNotify(session.getVotingStage().getSelf(true), UUID_ELECTIONLEADER);
+                    ElectLeaderPacket packet = session.getVotingStage().getSelf(true);
+                    session.getVotingStage().addPacket(packet);
+                    return serverConn.serverNotify(packet, UUID_ELECTIONLEADER);
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client election hashed stage");
@@ -271,7 +277,13 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 TransactionResult.STAGE_ELECTION,
                 serverConn -> {
                     Log.v(TAG, "gatt server election stage");
-                    return serverConn.serverNotify(session.getVotingStage().getSelf(false), UUID_ELECTIONLEADER);
+                    return session.getLuidStage().getSelf()
+                            .flatMapCompletable(luidPacket -> {
+                                ElectLeaderPacket packet = session.getVotingStage().getSelf(false);
+                                packet.tagLuid(luidPacket.getLuid());
+                                session.getVotingStage().addPacket(packet);
+                                return serverConn.serverNotify(packet, UUID_ELECTIONLEADER);
+                            });
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client election stage");
@@ -498,7 +510,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                             );
                                         })
                                         .flatMap(result -> result)
-                                        .doOnError(err -> Log.e(TAG, "stage " + session.getStage() + " error " + err))
+                                        .doOnError(err -> {
+                                            Log.e(TAG, "stage " + session.getStage() + " error " + err);
+                                            err.printStackTrace();
+                                        })
                                         .doOnNext(transactionResult -> session.setStage(transactionResult.nextStage))
                                         .doFinally(() -> {
                                             Log.v(TAG, "stages complete, cleaning up");

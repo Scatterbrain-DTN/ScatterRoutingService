@@ -7,8 +7,9 @@ import androidx.annotation.NonNull;
 
 import com.example.uscatterbrain.network.LuidPacket;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -17,8 +18,8 @@ import io.reactivex.Observable;
 import io.reactivex.Single;
 
 public class LuidStage {
-    private final HashMap<String, LuidPacket> hashPackets = new HashMap<>();
-    private final HashMap<String, LuidPacket> realPackets = new HashMap<>();
+    private final ArrayList<LuidPacket> hashPackets = new ArrayList<>();
+    private final ArrayList<LuidPacket> realPackets = new ArrayList<>();
     private final AtomicReference<LuidPacket> selfhashed = new AtomicReference<>();
     private UUID uuid;
     private final AtomicReference<LuidPacket> self = new AtomicReference<>();
@@ -83,9 +84,9 @@ public class LuidStage {
 
     public void addPacket(LuidPacket packet) {
         if (packet.isHashed()) {
-            hashPackets.put(device.getAddress(), packet);
+            hashPackets.add(packet);
         } else {
-            realPackets.put(device.getAddress(), packet);
+            realPackets.add(packet);
         }
     }
 
@@ -96,8 +97,8 @@ public class LuidStage {
             }
 
             return Observable.zip(
-                    Observable.fromIterable(hashPackets.values()),
-                    Observable.fromIterable(realPackets.values()),
+                    Observable.fromIterable(hashPackets),
+                    Observable.fromIterable(realPackets),
                     LuidPacket::verifyHash
             )
                     .flatMap(bool -> {
@@ -108,14 +109,6 @@ public class LuidStage {
                         }
                     })
                     .ignoreElements();
-    }
-
-    public Map<String, LuidPacket> getPackets() {
-        return realPackets;
-    }
-
-    public Map<String, LuidPacket> getHashedPackets() {
-        return hashPackets;
     }
 
     public static class InvalidLuidException extends Exception {

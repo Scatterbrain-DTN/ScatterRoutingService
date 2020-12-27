@@ -3,15 +3,14 @@ package com.example.uscatterbrain.network.bluetoothLE;
 import android.bluetooth.BluetoothDevice;
 import android.util.Log;
 
-import com.example.uscatterbrain.ScatterProto;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.ElectLeaderPacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -23,8 +22,8 @@ import io.reactivex.Single;
 
 public class VotingStage {
     private final BluetoothDevice device;
-    private final HashMap<String, ElectLeaderPacket> hashedPackets = new HashMap<>();
-    private final HashMap<String, ElectLeaderPacket> unhashedPackets = new HashMap<>();
+    private final ArrayList<ElectLeaderPacket> hashedPackets = new ArrayList<>();
+    private final ArrayList<ElectLeaderPacket> unhashedPackets = new ArrayList<>();
     private final UUID tiebreaker = UUID.randomUUID();
 
     public VotingStage(BluetoothDevice device) {
@@ -47,16 +46,16 @@ public class VotingStage {
 
     public void addPacket(ElectLeaderPacket packet) {
         if (packet.isHashed()) {
-            hashedPackets.put(device.getAddress(), packet);
+            hashedPackets.add(packet);
         } else {
-            unhashedPackets.put(device.getAddress(), packet);
+            unhashedPackets.add(packet);
         }
     }
 
 
     private ElectLeaderPacket selectLeader() {
         BigInteger val = BigInteger.ONE;
-        for (ElectLeaderPacket packet : unhashedPackets.values()) {
+        for (ElectLeaderPacket packet : unhashedPackets) {
             BigInteger newval = new BigInteger(ElectLeaderPacket.uuidToBytes(packet.getTieBreak()));
             val = val.multiply(newval);
             val = newval;
@@ -74,7 +73,7 @@ public class VotingStage {
         BigInteger compare = new BigInteger(hash);
         ElectLeaderPacket ret = null;
 
-        for (ElectLeaderPacket packet : unhashedPackets.values()) {
+        for (ElectLeaderPacket packet : unhashedPackets) {
             UUID uuid = packet.getLuid();
             if (uuid != null) {
                 BigInteger c = new BigInteger(ElectLeaderPacket.uuidToBytes(uuid));
@@ -105,7 +104,7 @@ public class VotingStage {
 
         return Single.fromCallable(() -> {
             final Map<AdvertisePacket.Provides, Integer> providesBuckets = new HashMap<>();
-            for (ElectLeaderPacket packet : unhashedPackets.values()) {
+            for (ElectLeaderPacket packet : unhashedPackets) {
                 providesBuckets.putIfAbsent(packet.getProvides(), 0);
                 providesBuckets.put(packet.getProvides(), providesBuckets.get(packet.getProvides())+1);
             }
@@ -127,8 +126,8 @@ public class VotingStage {
         }
 
         return Observable.zip(
-                Observable.fromIterable(hashedPackets.values()),
-                Observable.fromIterable(unhashedPackets.values()),
+                Observable.fromIterable(hashedPackets),
+                Observable.fromIterable(unhashedPackets),
                 ElectLeaderPacket::verifyHash
         )
                 .flatMap(bool -> {
