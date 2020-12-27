@@ -75,7 +75,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 uuid,
                 BluetoothGattCharacteristic.PROPERTY_READ |
                         BluetoothGattCharacteristic.PROPERTY_WRITE |
-                        BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                        BluetoothGattCharacteristic.PROPERTY_INDICATE,
                 BluetoothGattCharacteristic.PERMISSION_WRITE |
                         BluetoothGattCharacteristic.PERMISSION_READ
         );

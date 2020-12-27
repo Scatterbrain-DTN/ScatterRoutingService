@@ -45,7 +45,7 @@ public class CachedLEServerConnection implements Disposable {
                                 )
                         .flatMapCompletable(packet -> {
                     Log.v(TAG, "server received timing characteristic write");
-                    return connection.setupNotifications(characteristic.getUuid(), packet.writeToStream(20))
+                    return connection.setupIndication(characteristic.getUuid(), packet.writeToStream(20))
                             .doOnError(session.errorRelay)
                             .doFinally(() -> session.sizeRelay.accept(session.decrementSize()));
                 })
