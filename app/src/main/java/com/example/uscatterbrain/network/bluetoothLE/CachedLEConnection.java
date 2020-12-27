@@ -18,9 +18,11 @@ import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 
+import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.SERVICE_UUID;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_ADVERTISE;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_BLOCKDATA;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_BLOCKSEQUENCE;
+import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_CLK_DESCRIPTOR;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_ELECTIONLEADER;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_LUID;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_UPGRADE;
@@ -47,9 +49,9 @@ public class CachedLEConnection implements Disposable {
                 .doOnComplete(() -> Log.e(TAG, "notifications completed for some reason"))
                 .doOnNext(b -> Log.v(TAG, "client received bytes " + b.length))
                 .doOnSubscribe(disp -> {
-                    Disposable d = connection.writeCharacteristic(uuid, new byte[0])
+                    Disposable d = connection.writeDescriptor(SERVICE_UUID, uuid, UUID_CLK_DESCRIPTOR, new byte[0])
                             .subscribe(
-                                    success -> Log.v(TAG, "successfually wrote timing characteristic"),
+                                    () -> Log.v(TAG, "successfually wrote timing characteristic"),
                                     err -> Log.e(TAG, "failed to write timing characteristic: " + err)
                             );
                             notificationDisposable.add(d);

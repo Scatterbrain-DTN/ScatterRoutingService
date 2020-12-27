@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.reactivex.BackpressureStrategy;
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.disposables.CompositeDisposable;
@@ -32,15 +33,18 @@ public class CachedLEServerConnection implements Disposable {
             if (oldSession == null) {
                 final NotificationSession session = new NotificationSession();
                 Disposable d =
-                        connection.getOnCharacteristicWriteRequest(characteristic.getUuid())
+                        connection.getOnDescriptorWriteRequest(
+                                characteristic.getUuid(), BluetoothLERadioModuleImpl.UUID_CLK_DESCRIPTOR
+                        )
                                 .doOnNext(req -> Log.v(TAG, "received timing characteristic write request"))
                                 .flatMap(req ->
                                         req.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null)
                                         .toSingleDefault(0)
                                         .toObservable()
                                 )
+                                .toFlowable(BackpressureStrategy.BUFFER)
                                 .zipWith(
-                                        session.packetQueue,
+                                        session.packetQueue.toFlowable(BackpressureStrategy.BUFFER),
                                         (integer, packet) -> packet
                                 )
                         .flatMapCompletable(packet -> {
@@ -75,11 +79,13 @@ public class CachedLEServerConnection implements Disposable {
             UUID characteristic
     ) {
         Log.v(TAG, "serverNotify for packet " + packet.getType());
-            NotificationSession session = sessions.get(characteristic);
-            if (session == null) {
-                return Completable.error(new IllegalStateException("invalid uuid"));
-            }
-            return session.sizeRelay
+        NotificationSession session = sessions.get(characteristic);
+        if (session == null) {
+            return Completable.error(new IllegalStateException("invalid uuid"));
+        }
+
+        session.incrementSize();
+        return session.sizeRelay
                     .mergeWith(
                             session.errorRelay
                             .flatMap(Observable::error)
@@ -88,7 +94,6 @@ public class CachedLEServerConnection implements Disposable {
                     .ignoreElements()
                     .doOnSubscribe(disposable -> {
                         Log.v(TAG, "packet queue accepted packet " + packet.getType());
-                        session.incrementSize();
                         session.packetQueue.accept(packet);
                     });
 

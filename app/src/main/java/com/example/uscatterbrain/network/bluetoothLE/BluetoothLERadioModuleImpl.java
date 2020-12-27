@@ -2,6 +2,7 @@ package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseCallback;
@@ -61,6 +62,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public static final UUID UUID_ELECTIONLEADER = UUID.fromString("9a26e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_BLOCKDATA = UUID.fromString("9a27e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_BLOCKSEQUENCE = UUID.fromString("9a28e79f-4a6d-4e28-95c6-257f5e47fd90");
+    public static final UUID UUID_CLK_DESCRIPTOR = UUID.fromString("cb882be2-d3ee-40e1-a40c-f485a598389f");
 
     public static final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
     public static final BluetoothGattCharacteristic ADVERTISE_CHARACTERISTIC = makeCharacteristic(UUID_ADVERTISE);
@@ -91,6 +93,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 BluetoothGattCharacteristic.PERMISSION_WRITE |
                         BluetoothGattCharacteristic.PERMISSION_READ
         );
+        BluetoothGattDescriptor descriptor = new BluetoothGattDescriptor(
+                UUID_CLK_DESCRIPTOR,
+                BluetoothGattDescriptor.PERMISSION_WRITE
+        );
+
+        characteristic.addDescriptor(descriptor);
         mService.addCharacteristic(characteristic);
         return characteristic;
     }
