@@ -4,6 +4,8 @@ import android.bluetooth.BluetoothDevice;
 import android.util.Log;
 import android.util.Pair;
 
+import com.example.uscatterbrain.network.AdvertisePacket;
+
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +21,7 @@ public class LeDeviceSession<T> {
     private final LuidStage luidStage;
     private final AdvertiseStage advertiseStage;
     private final VotingStage votingStage;
+    private UpgradeStage upgradeStage;
     private final ConcurrentHashMap<String, Pair<GattClientTransaction<T>, GattServerConnectionConfig>> transactionMap
             = new ConcurrentHashMap<>();
     private final BluetoothDevice device;
@@ -26,6 +29,7 @@ public class LeDeviceSession<T> {
     private final BehaviorSubject<String> stageChanges = BehaviorSubject.create();
     private final ConcurrentHashMap<String, UUID> luidMap = new ConcurrentHashMap<>();
     private String stage = TransactionResult.STAGE_START;
+    private BluetoothLEModule.ConnectionRole connectionRole = BluetoothLEModule.ConnectionRole.ROLE_UKE;
     public LeDeviceSession(BluetoothDevice device, Scheduler scheduler) {
         this.device = device;
         this.luidStage = new LuidStage(device);
@@ -50,6 +54,14 @@ public class LeDeviceSession<T> {
                 .onErrorResumeNext(Single.never());
     }
 
+    public BluetoothLEModule.ConnectionRole getRole() {
+        return connectionRole;
+    }
+
+    public void setRole(BluetoothLEModule.ConnectionRole role) {
+        this.connectionRole = role;
+    }
+
     public Observable<String> observeStage() {
         return stageChanges
                 .takeWhile(s -> s.compareTo(TransactionResult.STAGE_EXIT) != 0)
@@ -62,6 +74,18 @@ public class LeDeviceSession<T> {
 
     public LuidStage getLuidStage() {
         return luidStage;
+    }
+
+    public void setUpgradeStage(AdvertisePacket.Provides provides) {
+        upgradeStage = new UpgradeStage(provides);
+    }
+
+    public UpgradeStage getUpgradeStage() {
+        if (upgradeStage == null) {
+            throw new IllegalStateException("upgrade stage not set");
+        }
+
+        return upgradeStage;
     }
 
     public AdvertiseStage getAdvertiseStage() {

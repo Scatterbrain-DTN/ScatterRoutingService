@@ -53,7 +53,8 @@ public class VotingStage {
         }
     }
 
-    private AdvertisePacket.Provides tieBreak() {
+
+    private ElectLeaderPacket selectLeader() {
         BigInteger val = BigInteger.ONE;
         for (ElectLeaderPacket packet : unhashedPackets.values()) {
             BigInteger newval = new BigInteger(ElectLeaderPacket.uuidToBytes(packet.getTieBreak()));
@@ -71,21 +72,33 @@ public class VotingStage {
         );
 
         BigInteger compare = new BigInteger(hash);
-        AdvertisePacket.Provides ret = AdvertisePacket.Provides.INVALID; //for miracles
+        ElectLeaderPacket ret = null;
 
         for (ElectLeaderPacket packet : unhashedPackets.values()) {
             UUID uuid = packet.getLuid();
             if (uuid != null) {
                 BigInteger c = new BigInteger(ElectLeaderPacket.uuidToBytes(uuid));
                 if (c.abs().compareTo(compare.abs()) < 0) {
-                    ret = packet.getProvides();
+                    ret = packet;
                     compare = c;
                 }
             } else {
                 Log.w("debug", "luid tag was null in tiebreak");
             }
         }
+
+        if (ret == null) {
+            throw new MiracleException();
+        }
         return ret;
+    }
+
+    private AdvertisePacket.Provides tieBreak() {
+        return selectLeader().getProvides();
+    }
+
+    public UUID selectSeme() {
+        return selectLeader().getLuid();
     }
 
     private Single<AdvertisePacket.Provides> countVotes() {
@@ -126,5 +139,11 @@ public class VotingStage {
                     }
                 })
                 .ignoreElements();
+    }
+
+    // this is thrown in exceedingly rare cases if every device in the local mesh
+    // has the same luid. This should only be thrown after the heat death of the universe
+    public static class MiracleException extends RuntimeException {
+
     }
 }

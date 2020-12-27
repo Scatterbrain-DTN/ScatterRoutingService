@@ -154,12 +154,15 @@ public interface RoutingServiceComponent {
         abstract RoutingServiceBackend bindsRoutingServiceBackend(RoutingServiceBackendImpl impl);
 
         @Binds
+        @Singleton
         abstract ScatterbrainScheduler bindScatterbrainScheduler(ScatterbrainSchedulerImpl impl);
 
         @Binds
+        @Singleton
         abstract ScatterbrainDatastore bindDatastore(ScatterbrainDatastoreImpl impl);
 
         @Binds
+        @Singleton
         abstract WifiDirectRadioModule bindWifiDirectRadioModule(WifiDirectRadioModuleImpl impl);
 
         @Binds
@@ -167,9 +170,11 @@ public interface RoutingServiceComponent {
         abstract WifiDirectUnregisteredReceiver bindWifiDirectBroadcastReceiver(WifiDirectBroadcastReceiverImpl impl);
 
         @Binds
+        @Singleton
         abstract FileStore bindFileStore(FileStoreImpl impl);
 
         @Binds
+        @Singleton
         abstract BluetoothLEModule bindRadioModuleInternal(BluetoothLERadioModuleImpl impl);
     }
 

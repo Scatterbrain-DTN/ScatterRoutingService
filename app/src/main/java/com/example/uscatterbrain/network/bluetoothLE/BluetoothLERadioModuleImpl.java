@@ -15,8 +15,11 @@ import android.util.Log;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.network.AdvertisePacket;
+import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.UpgradePacket;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
+import com.google.protobuf.ByteString;
 import com.polidea.rxandroidble2.LogConstants;
 import com.polidea.rxandroidble2.LogOptions;
 import com.polidea.rxandroidble2.RxBleClient;
@@ -28,9 +31,9 @@ import com.polidea.rxandroidble2.internal.RxBleLog;
 import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +44,7 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 
 import io.reactivex.Completable;
+import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
@@ -60,7 +64,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public static final UUID UUID_BLOCKDATA = UUID.fromString("9a27e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_BLOCKSEQUENCE = UUID.fromString("9a28e79f-4a6d-4e28-95c6-257f5e47fd90");
 
-    private final BehaviorSubject<UpgradeRequest> upgradePacketSubject = BehaviorSubject.create();
     public static final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
     public static final BluetoothGattCharacteristic ADVERTISE_CHARACTERISTIC = makeCharacteristic(UUID_ADVERTISE);
     public static final BluetoothGattCharacteristic UPGRADE_CHARACTERISTIC = makeCharacteristic(UUID_UPGRADE);
@@ -69,6 +72,17 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public static final BluetoothGattCharacteristic BOCKDATA_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKDATA);
     public static final BluetoothGattCharacteristic BLOCKSEQUENCE_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKSEQUENCE);
 
+
+    private static final BlockHeaderPacket headerPacket = BlockHeaderPacket.newBuilder()
+            .setApplication("fmef".getBytes())
+            .setBlockSize(512)
+            .setHashes(new ArrayList<>())
+            .setSessionID(1)
+            .setSig(ByteString.copyFrom(new byte[8]))
+            .setToDisk(true)
+            .setFromFingerprint(ByteString.copyFrom(new byte[8]))
+            .setToFingerprint(ByteString.copyFrom(new byte[8]))
+            .build();
 
     public static BluetoothGattCharacteristic makeCharacteristic(UUID uuid) {
         final BluetoothGattCharacteristic characteristic = new BluetoothGattCharacteristic(
@@ -108,6 +122,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         }
     };
     private final BluetoothLeAdvertiser mAdvertiser;
+    private final WifiDirectRadioModule wifiDirectRadioModule;
     private final RxBleServer mServer;
     private final RxBleClient mClient;
     private AdvertisePacket mAdvertise;
@@ -118,7 +133,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             BluetoothLeAdvertiser advertiser,
             @Named(RoutingServiceComponent.NamedSchedulers.BLE) Scheduler bluetoothScheduler,
             RxBleServer rxBleServer,
-            RxBleClient rxBleClient
+            RxBleClient rxBleClient,
+            WifiDirectRadioModule wifiDirectRadioModule
             ) {
         mContext = context;
         mAdvertise = null;
@@ -126,9 +142,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         this.bleScheduler = bluetoothScheduler;
         this.mServer = rxBleServer;
         this.mClient = rxBleClient;
-        RxBleLog.updateLogOptions(new LogOptions.Builder().setLogLevel(LogConstants.DEBUG).build());
-        RxBleClient.updateLogOptions(new LogOptions.Builder()
-        .setLogLevel(LogConstants.DEBUG).build());
+        this.wifiDirectRadioModule = wifiDirectRadioModule;
     }
 
     @Override
@@ -270,16 +284,81 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .andThen(session.getVotingStage().determineUpgrade())
                             .map(provides -> {
                                 Log.v(TAG, "election received provides: " + provides);
-                                return new TransactionResult(TransactionResult.STAGE_EXIT, device);
+                                final ConnectionRole role;
+                                if (session.getVotingStage().selectSeme().equals(session.getLuidStage().getLuid())) {
+                                    role = ConnectionRole.ROLE_SEME;
+                                } else {
+                                    role = ConnectionRole.ROLE_UKE;
+                                }
+                                Log.v(TAG, "selected role: " + role);
+                                session.setRole(role);
+                                session.setUpgradeStage(provides);
+                                if (provides.equals(AdvertisePacket.Provides.INVALID)) {
+                                    Log.e(TAG, "received invalid provides");
+                                    return new TransactionResult(TransactionResult.STAGE_EXIT, device);
+                                } else if (provides.equals(AdvertisePacket.Provides.BLE)) {
+                                    Log.v(TAG, "blockdata not implemented, exiting");
+                                    return new TransactionResult(TransactionResult.STAGE_EXIT, device);
+                                } else if (provides.equals(AdvertisePacket.Provides.WIFIP2P)){
+                                    return new TransactionResult(TransactionResult.STAGE_UPGRADE, device);
+                                } else {
+                                    return new TransactionResult(TransactionResult.STAGE_EXIT, device);
+                                }
                             })
                             .doOnError(err -> Log.e(TAG, "error while receiving packet: " + err))
                             .doOnSuccess(electLeaderPacket -> Log.v(TAG, "client handshake received election result"))
                             .onErrorReturn(err -> new TransactionResult(TransactionResult.STAGE_EXIT, device));
                 });
 
+        session.addStage(
+                TransactionResult.STAGE_UPGRADE,
+                serverConn -> {
+                    Log.v(TAG, "gatt server upgrade stage");
+                    if (session.getRole().equals(ConnectionRole.ROLE_SEME)) {
+                        return session.getUpgradeStage().getUpgrade()
+                                .flatMapCompletable(upgradePacket -> {
+                                    bootstrapWifiP2p(upgradePacket, ConnectionRole.ROLE_SEME);
+                                    return serverConn.serverNotify(upgradePacket, UUID_UPGRADE);
+                                });
+
+                    } else {
+                        return Completable.complete();
+                    }
+                }
+                , conn -> {
+                    Log.v(TAG, "gatt client upgrade stage");
+                    if (session.getRole().equals(ConnectionRole.ROLE_UKE)) {
+                        return conn.readUpgrade()
+                                .doOnSuccess(electLeaderPacket -> Log.v(TAG, "client handshake received upgrade packet"))
+                                .doOnError(err -> Log.e(TAG, "error while receiving upgrade packet: " + err))
+                                .map(upgradePacket -> {
+                                    bootstrapWifiP2p(upgradePacket, ConnectionRole.ROLE_UKE);
+                                    return new TransactionResult(TransactionResult.STAGE_EXIT, device);
+                                });
+                    } else {
+                        return Single.just(new TransactionResult(TransactionResult.STAGE_EXIT, device));
+                    }
+                });
+
+
 
         session.setStage(TransactionResult.STAGE_LUID_HASHED);
         protocolSpec.put(device.getAddress(), session);
+    }
+
+    private final void bootstrapWifiP2p(UpgradePacket packet, ConnectionRole role) {
+        WifiDirectBootstrapRequest bootstrapRequest = WifiDirectBootstrapRequest.create(
+                packet,
+                role
+        );
+        Disposable ignored = wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest,
+                Observable.just(new WifiDirectRadioModule.BlockDataStream(
+                        headerPacket,
+                        Flowable.empty()
+                ))).subscribe(
+                ok -> Log.v(TAG, "successfully bootstrapped from upgrade packet"),
+                err -> Log.e(TAG, "failed to bootstrap from upgrade")
+        );
     }
 
     private Observable<CachedLEConnection> establishConnection(RxBleDevice device, Timeout timeout) {
@@ -361,22 +440,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         if (d != null) {
             d.dispose();
         }
-    }
-
-
-    private UpgradePacket getUpgradePacket() {
-        int seqnum = Math.abs(new Random().nextInt());
-
-        return UpgradePacket.newBuilder()
-                .setProvides(AdvertisePacket.Provides.WIFIP2P)
-                .setSessionID(seqnum)
-                .setMetadata(WifiDirectRadioModule.UPGRADE_METADATA)
-                .build();
-    }
-
-    @Override
-    public Observable<UpgradeRequest> getOnUpgrade() {
-        return upgradePacketSubject;
     }
 
     @Override

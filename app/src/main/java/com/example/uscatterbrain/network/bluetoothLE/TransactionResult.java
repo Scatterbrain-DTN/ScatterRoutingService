@@ -10,6 +10,7 @@ public class TransactionResult {
     public static final String STAGE_ADVERTISE = "advertise";
     public static final String STAGE_ELECTION_HASHED = "election-hashed";
     public static final String STAGE_ELECTION = "election";
+    public static final String STAGE_UPGRADE = "upgrade";
     public static final String STAGE_BLOCKDATA = "blockdata";
     public final String nextStage;
     public final BluetoothDevice device;

@@ -15,7 +15,6 @@ import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 
 import java.net.InetAddress;
 import java.net.Socket;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -55,10 +54,7 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
             Log.e(TAG, "failed to create wifi direct group");
         }
     };
-    private static final WifiP2pConfig globalconfig = new WifiP2pConfig.Builder()
-            .setNetworkName(GROUP_NAME)
-            .setPassphrase(GROUP_PASSPHRASE)
-            .build();
+
     private static final CompositeDisposable wifidirectDisposable = new CompositeDisposable();
     private static final CompositeDisposable tcpServerDisposable = new CompositeDisposable();
 
@@ -120,11 +116,6 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
         wifidirectDisposable.add(d2);
         wifidirectDisposable.add(d3);
         wifidirectDisposable.add(d4);
-    }
-
-    @Override
-    public Completable createGroup() {
-        return createGroup(GROUP_NAME, GROUP_PASSPHRASE);
     }
 
     public Completable createGroup(String name, String passphrase) {
@@ -284,7 +275,7 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
 
     @Override
     public Observable<BlockDataStream> bootstrapFromUpgrade(
-            BluetoothLEModule.UpgradeRequest upgradeRequest,
+            WifiDirectBootstrapRequest upgradeRequest,
             Observable<BlockDataStream> streamObservable
             ) {
 
@@ -305,87 +296,76 @@ public class WifiDirectRadioModuleImpl implements  WifiDirectRadioModule {
 
 
     private Completable writeBlockData(
-            BluetoothLEModule.UpgradeRequest request,
+            WifiDirectBootstrapRequest request,
             Observable<BlockDataStream> stream
     ) {
-        Map<String, String> metadata = request.getPacket().getMetadata();
-        if (metadata.containsKey(KEY_GROUP_NAME) && metadata.containsKey(KEY_GROUP_PASSPHRASE)) {
-            if (request.getRole() == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
-                return createGroup(metadata.get(KEY_GROUP_NAME), metadata.get(KEY_GROUP_PASSPHRASE))
-                        .andThen(socketFactory.create(SCATTERBRAIN_PORT))
-                        .flatMapObservable(InterceptableServerSocket::observeConnections)
-                        .map(InterceptableServerSocket.SocketConnection::getSocket)
-                        .flatMapCompletable(socket ->
-                                stream.flatMapCompletable(blockDataStream ->
-                                        blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
-                                                .subscribeOn(writeScheduler)
-                                                .doOnComplete(() -> Log.v(TAG, "server wrote header packet"))
-                                                .andThen(blockDataStream.getSequencePackets()
-                                                        .concatMapCompletable(blockSequencePacket ->
-                                                                blockSequencePacket.writeToStream(socket.getOutputStream())
-                                                        .subscribeOn(writeScheduler))
-                                                        .doOnComplete(() -> Log.v(TAG, "server wrote sequence packets"))
-                                                )));
-            } else if (request.getRole() == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
-                return connectToGroup(metadata.get(KEY_GROUP_NAME), metadata.get(KEY_GROUP_PASSPHRASE))
-                        .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
-                        .flatMapCompletable(socket -> stream.flatMapCompletable(blockDataStream ->
-                                blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
-                                        .subscribeOn(writeScheduler)
-                                        .doOnComplete(() -> Log.v(TAG, "wrote headerpacket to client socket"))
-                                        .andThen(
-                                                blockDataStream.getSequencePackets()
-                                                        .concatMapCompletable(sequencePacket -> sequencePacket.writeToStream(socket.getOutputStream())
-                                                                .subscribeOn(writeScheduler)
-                                                        ).doOnComplete(() -> Log.v(TAG, "wrote sequence packets to client socket"))
-                                        )));
-            } else {
-                return Completable.error(new IllegalStateException("invalid role"));
-            }
+        if (request.getRole() == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
+            return createGroup(request.getName(), request.getPassphrase())
+                    .andThen(socketFactory.create(SCATTERBRAIN_PORT))
+                    .flatMapObservable(InterceptableServerSocket::observeConnections)
+                    .map(InterceptableServerSocket.SocketConnection::getSocket)
+                    .flatMapCompletable(socket ->
+                            stream.flatMapCompletable(blockDataStream ->
+                                    blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
+                                            .subscribeOn(writeScheduler)
+                                            .doOnComplete(() -> Log.v(TAG, "server wrote header packet"))
+                                            .andThen(blockDataStream.getSequencePackets()
+                                                    .concatMapCompletable(blockSequencePacket ->
+                                                            blockSequencePacket.writeToStream(socket.getOutputStream())
+                                                                    .subscribeOn(writeScheduler))
+                                                    .doOnComplete(() -> Log.v(TAG, "server wrote sequence packets"))
+                                            )));
+        } else if (request.getRole() == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
+            return connectToGroup(request.getName(), request.getPassphrase())
+                    .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
+                    .flatMapCompletable(socket -> stream.flatMapCompletable(blockDataStream ->
+                            blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
+                                    .subscribeOn(writeScheduler)
+                                    .doOnComplete(() -> Log.v(TAG, "wrote headerpacket to client socket"))
+                                    .andThen(
+                                            blockDataStream.getSequencePackets()
+                                                    .concatMapCompletable(sequencePacket -> sequencePacket.writeToStream(socket.getOutputStream())
+                                                            .subscribeOn(writeScheduler)
+                                                    ).doOnComplete(() -> Log.v(TAG, "wrote sequence packets to client socket"))
+                                    )));
         } else {
-            return Completable.error(new IllegalStateException("invalid metadata"));
+            return Completable.error(new IllegalStateException("invalid role"));
         }
     }
 
     private Observable<BlockDataStream> readBlockData(
-            BluetoothLEModule.UpgradeRequest upgradeRequest
+            WifiDirectBootstrapRequest upgradeRequest
     ) {
-        Map<String, String> metadata = upgradeRequest.getPacket().getMetadata();
-        if (metadata.containsKey(KEY_GROUP_NAME) && metadata.containsKey(KEY_GROUP_PASSPHRASE)) {
-            if (upgradeRequest.getRole() == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
-                return createGroup(metadata.get(KEY_GROUP_NAME), metadata.get(KEY_GROUP_PASSPHRASE))
-                        .andThen(socketFactory.create(SCATTERBRAIN_PORT))
-                        .flatMapObservable(serverSocket -> serverSocket.observeConnections()
-                                .map(InterceptableServerSocket.SocketConnection::getSocket)
-                                .flatMapSingle(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
-                                        .subscribeOn(readScheduler)
-                                        .doOnSuccess(packet -> Log.v(TAG, "server read header packet"))
-                                        .map(headerPacket -> new BlockDataStream(
-                                                headerPacket,
-                                                BlockSequencePacket.parseFrom(socket.getInputStream())
-                                                        .subscribeOn(readScheduler)
-                                                        .repeat(headerPacket.getHashList().size())
-                                                .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
-                                        ))));
-            } else if (upgradeRequest.getRole() == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
-                return connectToGroup(metadata.get(KEY_GROUP_NAME), metadata.get(KEY_GROUP_PASSPHRASE))
-                        .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
-                        .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
-                                .subscribeOn(readScheduler)
-                                .doOnSuccess(packet -> Log.v(TAG, "client read header packet"))
-                                .map(header -> new BlockDataStream(
-                                        header,
-                                        BlockSequencePacket.parseFrom(socket.getInputStream())
-                                                .subscribeOn(readScheduler)
-                                                .repeat(header.getHashList().size())
-                                        .doOnComplete(() -> Log.v(TAG, "client read sequence packets"))
-                                ))).toObservable();
-            } else {
-                return Observable.error(new IllegalStateException("invalid role"));
-            }
-        }
-        else {
-            return Observable.error(new IllegalStateException("invalid metadata"));
+        if (upgradeRequest.getRole() == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
+            return createGroup(upgradeRequest.getName(), upgradeRequest.getPassphrase())
+                    .andThen(socketFactory.create(SCATTERBRAIN_PORT))
+                    .flatMapObservable(serverSocket -> serverSocket.observeConnections()
+                            .map(InterceptableServerSocket.SocketConnection::getSocket)
+                            .flatMapSingle(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
+                                    .subscribeOn(readScheduler)
+                                    .doOnSuccess(packet -> Log.v(TAG, "server read header packet"))
+                                    .map(headerPacket -> new BlockDataStream(
+                                            headerPacket,
+                                            BlockSequencePacket.parseFrom(socket.getInputStream())
+                                                    .subscribeOn(readScheduler)
+                                                    .repeat(headerPacket.getHashList().size())
+                                                    .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
+                                    ))));
+        } else if (upgradeRequest.getRole() == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
+            return connectToGroup(upgradeRequest.getName(), upgradeRequest.getPassphrase())
+                    .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
+                    .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
+                            .subscribeOn(readScheduler)
+                            .doOnSuccess(packet -> Log.v(TAG, "client read header packet"))
+                            .map(header -> new BlockDataStream(
+                                    header,
+                                    BlockSequencePacket.parseFrom(socket.getInputStream())
+                                            .subscribeOn(readScheduler)
+                                            .repeat(header.getHashList().size())
+                                            .doOnComplete(() -> Log.v(TAG, "client read sequence packets"))
+                            ))).toObservable();
+        } else {
+            return Observable.error(new IllegalStateException("invalid role"));
         }
     }
 }

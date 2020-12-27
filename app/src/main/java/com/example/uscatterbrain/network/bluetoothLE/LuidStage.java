@@ -71,6 +71,16 @@ public class LuidStage {
         }
     }
 
+
+    public UUID getLuid() {
+        LuidPacket s = self.get();
+        if (s == null) {
+            return null;
+        }
+
+        return s.getLuid();
+    }
+
     public void addPacket(LuidPacket packet) {
         if (packet.isHashed()) {
             hashPackets.put(device.getAddress(), packet);

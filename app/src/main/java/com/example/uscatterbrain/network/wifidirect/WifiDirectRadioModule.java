@@ -16,18 +16,9 @@ import io.reactivex.Single;
 
 public interface WifiDirectRadioModule {
     String TAG = "WifiDirectRadioModule";
-    String GROUP_NAME = "DIRECT-scattertest";
-    String GROUP_PASSPHRASE = "youwillneverguessthis";
-    String KEY_GROUP_NAME = "group-name";
-    String KEY_GROUP_PASSPHRASE = "group-pass";
-    Map<String,String> UPGRADE_METADATA = new HashMap<String, String>() {{
-        put(KEY_GROUP_NAME, GROUP_NAME);
-        put(KEY_GROUP_PASSPHRASE, GROUP_PASSPHRASE);
-    }};
-    Completable createGroup();
     Single<WifiP2pInfo> connectToGroup(String name, String passphrase);
     Observable<BlockDataStream> bootstrapFromUpgrade(
-            BluetoothLEModule.UpgradeRequest upgradeRequest,
+            WifiDirectBootstrapRequest upgradeRequest,
             Observable<BlockDataStream> streamObservable
     );
 

@@ -9,7 +9,6 @@ import java.util.UUID;
 import io.reactivex.Observable;
 
 public interface BluetoothLEModule {
-    Observable<UpgradeRequest> getOnUpgrade();
     void setAdvertisePacket(AdvertisePacket packet);
     AdvertisePacket getAdvertisePacket();
     void startAdvertise();
@@ -28,27 +27,5 @@ public interface BluetoothLEModule {
     enum ConnectionRole {
         ROLE_UKE,
         ROLE_SEME
-    }
-
-    class UpgradeRequest {
-        private final ConnectionRole role;
-        private final UpgradePacket packet;
-
-        public static UpgradeRequest create(ConnectionRole role, UpgradePacket packet) {
-            return new UpgradeRequest(role, packet);
-        }
-
-        private UpgradeRequest(ConnectionRole role, UpgradePacket packet) {
-            this.role = role;
-            this.packet = packet;
-        }
-
-        public ConnectionRole getRole() {
-            return role;
-        }
-
-        public UpgradePacket getPacket() {
-            return packet;
-        }
     }
 }
