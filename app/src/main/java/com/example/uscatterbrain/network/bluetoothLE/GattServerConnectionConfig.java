@@ -1,9 +1,9 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
-import io.reactivex.Completable;
+import io.reactivex.Single;
 
-public interface GattServerConnectionConfig {
+public interface GattServerConnectionConfig<T> {
     String TAG = "GattServerConnectionConfig";
 
-    Completable handshake(CachedLEServerConnection connection);
+    Single<T> handshake(CachedLEServerConnection connection);
 }

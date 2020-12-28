@@ -5,6 +5,7 @@ import android.net.wifi.p2p.WifiP2pInfo;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
+import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,9 +17,9 @@ import io.reactivex.Single;
 
 public interface WifiDirectRadioModule {
     String TAG = "WifiDirectRadioModule";
-    Single<WifiP2pInfo> connectToGroup(String name, String passphrase);
+    Single<WifiP2pInfo> connectToGroup(String name, String passphrase, int timeout);
     Observable<BlockDataStream> bootstrapFromUpgrade(
-            WifiDirectBootstrapRequest upgradeRequest,
+            BootstrapRequest upgradeRequest,
             Observable<BlockDataStream> streamObservable
     );
 

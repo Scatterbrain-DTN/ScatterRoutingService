@@ -1,10 +1,12 @@
 package com.example.uscatterbrain.network.wifidirect;
 
 import android.content.Context;
+import android.content.IntentFilter;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Build;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.RequiresApi;
@@ -13,6 +15,7 @@ import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
+import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
 
 import java.net.InetAddress;
 import java.net.Socket;
@@ -21,16 +24,21 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+import javax.inject.Singleton;
 
 import io.reactivex.Completable;
+import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
+import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.CompletableSubject;
+import io.reactivex.subjects.ReplaySubject;
 
 @RequiresApi(api = Build.VERSION_CODES.Q)
+@Singleton
 public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     private final WifiP2pManager mManager;
     private final WifiDirectBroadcastReceiver mBroadcastReceiver;
@@ -40,22 +48,10 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     private final Scheduler operationsScheduler;
     private final Context mContext;
     private static final int SCATTERBRAIN_PORT = 7575;
-    private static final int CREATE_GROUP_RETRY = 10;
     private static final InterceptableServerSocket.InterceptableServerSocketFactory socketFactory =
             new InterceptableServerSocket.InterceptableServerSocketFactory();
     private static final AtomicReference<Boolean> groupOperationInProgress = new AtomicReference<>();
     private static final AtomicReference<Boolean> groupConnectInProgress = new AtomicReference<>();
-    private static final WifiP2pManager.ActionListener actionListener = new WifiP2pManager.ActionListener() {
-        @Override
-        public void onSuccess() {
-            Log.v(TAG, "created wifi direct group");
-        }
-
-        @Override
-        public void onFailure(int reason) {
-            Log.e(TAG, "failed to create wifi direct group");
-        }
-    };
 
     private static final CompositeDisposable wifidirectDisposable = new CompositeDisposable();
     private static final CompositeDisposable tcpServerDisposable = new CompositeDisposable();
@@ -63,8 +59,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     @Inject
     public WifiDirectRadioModuleImpl(
             WifiP2pManager manager,
-            WifiDirectBroadcastReceiver receiver,
-            WifiP2pManager.Channel channel,
             Context context,
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_READ) Scheduler readScheduler,
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_WRITE) Scheduler writeScheduler,
@@ -72,8 +66,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     ) {
         this.mContext = context;
         this.mManager = manager;
-        this.mBroadcastReceiver = receiver;
-        this.mP2pChannel = channel;
+        this.mP2pChannel = manager.initialize(context, context.getMainLooper(), null);
+        this.mBroadcastReceiver = new WifiDirectBroadcastReceiver(manager, mP2pChannel, context);
         this.readScheduler = readScheduler;
         this.writeScheduler = writeScheduler;
         this.operationsScheduler = operationsScheduler;
@@ -120,125 +114,92 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         wifidirectDisposable.add(d2);
         wifidirectDisposable.add(d3);
         wifidirectDisposable.add(d4);
+
+        //TODO: unregister this when appropriate
+        registerBroadcastReceiver();
+    }
+
+
+    private void registerBroadcastReceiver() {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
+
+        // Indicates a change in the list of available peers.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
+
+        // Indicates the state of Wi-Fi P2P connectivity has changed.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
+
+        // Indicates this device's details have changed.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
+
+        mContext.registerReceiver(mBroadcastReceiver.asReceiver(), intentFilter);
     }
 
     public Completable createGroup(String name, String passphrase) {
-        Log.v(TAG, "creategroup called" + name + " " + passphrase);
-        try {
-            final WifiP2pConfig config = new WifiP2pConfig.Builder()
-                    .setNetworkName(name)
-                    .setPassphrase(passphrase)
-                    .build();
-            final CompletableSubject subject = CompletableSubject.create();
-            if (!groupOperationInProgress.getAndUpdate(val -> true)) {
-                final AtomicReference<Integer> retryCount = new AtomicReference<>();
-                retryCount.set(CREATE_GROUP_RETRY);
-                final WifiP2pManager.ActionListener listener = new WifiP2pManager.ActionListener() {
-                    @Override
-                    public void onSuccess() {
-                        Log.v(TAG, "successfully created group!");
-                        subject.onComplete();
-                        groupOperationInProgress.set(false);
-                    }
+        return Single.fromCallable(() -> {
+            Log.v(TAG, "creategroup called" + name + " " + passphrase);
+            try {
+                final WifiP2pConfig config = new WifiP2pConfig.Builder()
+                        .setNetworkName(name)
+                        .setPassphrase(passphrase)
+                        .build();
+                final ReplaySubject<Object> subject = ReplaySubject.create();
+                final AtomicReference<Integer> groupRetry = new AtomicReference<>(5);
+                if (!groupOperationInProgress.getAndUpdate(val -> true)) {
+                    final WifiP2pManager.ActionListener listener = new WifiP2pManager.ActionListener() {
+                        @Override
+                        public void onSuccess() {
+                            Log.v(TAG, "successfully created group!");
+                            groupOperationInProgress.set(false);
+                            subject.onComplete();
+                        }
 
-                    @Override
-                    public void onFailure(int reason) {
-                        switch (reason) {
-                            case WifiP2pManager.BUSY: {
-                                Log.w(TAG, "failed to create group: busy: retry");
-                                if (retryCount.getAndUpdate(integer -> --integer) > 0) {
-                                    mManager.createGroup(mP2pChannel, this);
-                                } else {
-                                    subject.onError(new IllegalStateException("failed to create group: busy retry exceeded"));
-                                    groupOperationInProgress.set(false);
-                                }
-                                break;
-                            }
-                            case WifiP2pManager.ERROR: {
-                                Log.e(TAG, "failed to create group: error");
-                                if (retryCount.getAndUpdate(integer -> --integer) > 0) {
-                                    mManager.createGroup(mP2pChannel, this);
-                                } else {
-                                    subject.onError(new IllegalStateException("failed to create group: error"));
-                                    groupOperationInProgress.set(false);
-                                    groupOperationInProgress.set(false);
-                                }
-                                break;
-                            }
-                            case WifiP2pManager.P2P_UNSUPPORTED: {
-                                Log.e(TAG, "failed to create group: p2p unsupported");
-                                subject.onError(new IllegalStateException("failed to create group: p2p unsupported"));
-                                groupOperationInProgress.set(false);
-                                break;
-                            }
-                            default: {
-                                subject.onError(new IllegalStateException("invalid status code"));
-                                groupOperationInProgress.set(false);
-                                break;
+                        @Override
+                        public void onFailure(int reason) {
+                            Log.e(TAG, "failed to create group: " + reasonCodeToString(reason));
+                            if (groupRetry.getAndUpdate(val -> --val) > 0) {
+                                mManager.createGroup(mP2pChannel, this);
+                            } else {
+                                subject.onError(new IllegalStateException("failed to create group"));
                             }
                         }
-                    }
-                };
-                mManager.requestGroupInfo(mP2pChannel, group -> {
-                    if (group == null) {
-                        Log.v(TAG, "group is null, assuming not created");
-                        mManager.createGroup(mP2pChannel, config, listener);
-                    } else {
-                        mManager.removeGroup(mP2pChannel, new WifiP2pManager.ActionListener() {
-                            @Override
-                            public void onSuccess() {
-                                mManager.createGroup(mP2pChannel, config, listener);
-                            }
-
-                            @Override
-                            public void onFailure(int reason) {
-                                switch (reason) {
-                                    case WifiP2pManager.BUSY: {
-                                        Log.w(TAG, "failed to remove old group: busy: retry");
-                                        if (retryCount.getAndUpdate(integer -> --integer) > 0) {
-                                            mManager.removeGroup(mP2pChannel, this);
-                                        } else {
-                                            groupOperationInProgress.set(false);
-                                        }
-                                        break;
-                                    }
-                                    case WifiP2pManager.ERROR: {
-                                        Log.w(TAG, "failed to remove group probably nonexistent, retry");
-                                        if (retryCount.getAndUpdate(integer -> --integer) > 0) {
-                                            mManager.removeGroup(mP2pChannel, this);
-                                        } else {
-                                            subject.onError(new IllegalStateException("failed to remove group: error"));
-                                            groupOperationInProgress.set(false);
-                                        }
-                                        break;
-                                    }
-                                    case WifiP2pManager.P2P_UNSUPPORTED: {
-                                        Log.e(TAG, "failed to remove group: p2p unsupported");
-                                        subject.onError(new IllegalStateException("failed to create group: p2p unsupported"));
-                                        groupOperationInProgress.set(false);
-                                        break;
-                                    }
-                                    default: {
-                                        subject.onError(new IllegalStateException("invalid status code"));
-                                        groupOperationInProgress.set(false);
-                                        break;
-                                    }
+                    };
+                    mManager.requestGroupInfo(mP2pChannel, group -> {
+                        if (group == null) {
+                            Log.v(TAG, "group is null, assuming not created");
+                            mManager.createGroup(mP2pChannel, config, listener);
+                        } else {
+                            mManager.removeGroup(mP2pChannel, new WifiP2pManager.ActionListener() {
+                                @Override
+                                public void onSuccess() {
+                                    mManager.createGroup(mP2pChannel, config, listener);
                                 }
-                            }
-                        });
-                    }
-                });
-            } else {
-                subject.onComplete();
+
+                                @Override
+                                public void onFailure(int reason) {
+                                    Log.e(TAG, "failed to remove group");
+                                    groupOperationInProgress.set(false);
+                                    subject.onError(new IllegalStateException("failed to remove group"));
+                                }
+                            });
+                        }
+                    });
+                } else {
+                    subject.onComplete();
+                }
+                return subject
+                        .ignoreElements()
+                        .andThen(mBroadcastReceiver.observeConnectionInfo()
+                        .takeUntil(wifiP2pInfo -> wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner)
+                        .ignoreElements())
+                        .doOnComplete(() -> Log.v(TAG, "createGroup return success"))
+                        .doFinally(() -> groupOperationInProgress.set(false));
+            } catch (SecurityException e) {
+                return Completable.error(e);
             }
-            return subject.andThen(mBroadcastReceiver.observeConnectionInfo()
-                    .takeUntil(wifiP2pInfo -> wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner)
-                    .ignoreElements().timeout(10, TimeUnit.SECONDS))
-                    .doOnComplete(() -> Log.v(TAG, "createGroup return success"))
-                    .doFinally(() -> groupOperationInProgress.set(false));
-        } catch (SecurityException e) {
-            return Completable.error(e);
-        }
+        }).flatMapCompletable(completable -> completable
+                .timeout(5, TimeUnit.SECONDS, operationsScheduler));
     }
 
     private static Single<Socket> getTcpSocket(InetAddress address) {
@@ -263,80 +224,83 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     }
 
     @Override
-    public Single<WifiP2pInfo> connectToGroup(String name, String passphrase) {
+    public Single<WifiP2pInfo> connectToGroup(String name, String passphrase, int timeout) {
         if (!groupConnectInProgress.getAndUpdate(val -> true)) {
             WifiP2pConfig config = new WifiP2pConfig.Builder()
                     .setPassphrase(passphrase)
                     .setNetworkName(name)
                     .build();
-            return initateConnection(config)
-                    .retry(10)
-                    .andThen(awaitConnection());
+            return retryDelay(initiateConnection(config), 20, 1)
+                    .andThen(awaitConnection(timeout));
         } else {
-            return awaitConnection();
+            return awaitConnection(timeout);
         }
     }
 
     public Completable discoverPeers() {
-        final CompletableSubject subject = CompletableSubject.create();
-        final AtomicReference<Integer> discoverretry = new AtomicReference<>(20);
+        return Single.fromCallable(() -> {
+            final CompletableSubject subject = CompletableSubject.create();
+            final AtomicReference<Integer> discoverretry = new AtomicReference<>(20);
 
-        try {
-            final WifiP2pManager.ActionListener discoveryListener = new WifiP2pManager.ActionListener() {
-                @Override
-                public void onSuccess() {
-                    Log.v(TAG, "peer discovery request completed, initiating connection");
-                    subject.onComplete();
-                }
-
-                @Override
-                public void onFailure(int reason) {
-                    Log.e(TAG, "peer discovery failed");
-                    if (discoverretry.getAndUpdate(val -> --val) > 0) {
-                        mManager.discoverPeers(mP2pChannel, this);
-                    } else {
-                        subject.onError(new IllegalStateException("failed to discver peers: " + reasonCodeToString(reason)));
+            try {
+                final WifiP2pManager.ActionListener discoveryListener = new WifiP2pManager.ActionListener() {
+                    @Override
+                    public void onSuccess() {
+                        Log.v(TAG, "peer discovery request completed, initiating connection");
+                        subject.onComplete();
                     }
-                }
-            };
 
-            mManager.discoverPeers(mP2pChannel, discoveryListener);
+                    @Override
+                    public void onFailure(int reason) {
+                        Log.e(TAG, "peer discovery failed");
+                        if (discoverretry.getAndUpdate(val -> --val) > 0) {
+                            mManager.discoverPeers(mP2pChannel, this);
+                        } else {
+                            subject.onError(new IllegalStateException("failed to discover peers: " + reasonCodeToString(reason)));
+                        }
+                    }
+                };
 
-        } catch (SecurityException e) {
-            subject.onError(e);
-        }
+                mManager.discoverPeers(mP2pChannel, discoveryListener);
 
-        return subject.andThen(awaitPeersChanged(15, TimeUnit.SECONDS));
+            } catch (SecurityException e) {
+                subject.onError(e);
+            }
+
+            return subject.andThen(awaitPeersChanged(15, TimeUnit.SECONDS));
+        }).flatMapCompletable(single -> single);
     }
 
-    public Completable initateConnection(WifiP2pConfig config) {
-        final CompletableSubject subject = CompletableSubject.create();
-        final AtomicReference<Integer> connectretry = new AtomicReference<>(20);
-        try {
-
-            final WifiP2pManager.ActionListener connectListener = new WifiP2pManager.ActionListener() {
-                @Override
-                public void onSuccess() {
-                    Log.v(TAG, "connected to wifi direct group! FMEEEEE! AM HAPPY!");
-                    subject.onComplete();
-                }
-
-                @Override
-                public void onFailure(int reason) {
-                    Log.e(TAG, "failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(reason));
-                    if (connectretry.getAndUpdate(val -> --val) > 0) {
-                        mManager.connect(mP2pChannel, config, this);
-                    } else {
-                        subject.onError(new IllegalStateException("failed to connect to group: " + reasonCodeToString(reason)));
+    public Completable initiateConnection(WifiP2pConfig config) {
+        return Single.fromCallable(() -> {
+            Log.e(TAG, " mylooper " + (Looper.myLooper() == Looper.getMainLooper()));
+            final CompletableSubject subject = CompletableSubject.create();
+            final AtomicReference<Integer> connectRetry = new AtomicReference<>(10);
+            try {
+                final WifiP2pManager.ActionListener connectListener = new WifiP2pManager.ActionListener() {
+                    @Override
+                    public void onSuccess() {
+                        Log.v(TAG, "connected to wifi direct group! FMEEEEE! AM HAPPY!");
+                        subject.onComplete();
                     }
-                }
-            };
 
-            mManager.connect(mP2pChannel, config, connectListener);
-            return subject;
-        } catch (SecurityException e) {
-            return Completable.error(e);
-        }
+                    @Override
+                    public void onFailure(int reason) {
+                        Log.e(TAG, "failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(reason));
+                        if (connectRetry.getAndUpdate(val -> --val) > 0) {
+                            mManager.connect(mP2pChannel, config, this);
+                        } else {
+                            subject.onError(new IllegalStateException("failed to connect to group: " + reasonCodeToString(reason)));
+                        }
+                    }
+                };
+
+                mManager.connect(mP2pChannel, config, connectListener);
+                return subject;
+            } catch (SecurityException e) {
+                return Completable.error(e);
+            }
+        }).flatMapCompletable(completable -> completable);
     }
 
     public Completable awaitPeersChanged(int timeout, TimeUnit unit) {
@@ -346,11 +310,11 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 .ignoreElement();
     }
 
-    public Single<WifiP2pInfo> awaitConnection() {
+    public Single<WifiP2pInfo> awaitConnection(int timeout) {
         return mBroadcastReceiver.observeConnectionInfo()
                 .takeUntil(info -> info.groupFormed && !info.isGroupOwner)
                 .lastOrError()
-                .timeout(20, TimeUnit.SECONDS)
+                .timeout(timeout, TimeUnit.SECONDS)
                 .doOnSuccess(info -> Log.v(TAG, "connect to group returned: " + info.groupOwnerAddress))
                 .doOnError(err -> Log.e(TAG, "connect to group failed: " + err))
                 .doFinally(() -> {
@@ -361,12 +325,13 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
 
     @Override
     public Observable<BlockDataStream> bootstrapFromUpgrade(
-            WifiDirectBootstrapRequest upgradeRequest,
+            BootstrapRequest upgradeRequest,
             Observable<BlockDataStream> streamObservable
             ) {
 
-        Log.v(TAG, "bootstrapFromUpgrade: " + upgradeRequest.getName() + " " + upgradeRequest.getPassphrase() +
-                " " + upgradeRequest.getRole());
+        Log.v(TAG, "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
+                + " " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)+ " "
+                + upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE));
         Disposable tcpserverdisposable = socketFactory.create(SCATTERBRAIN_PORT)
                 .flatMapObservable(InterceptableServerSocket::acceptLoop)
                 .subscribeOn(operationsScheduler)
@@ -374,7 +339,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                         socket -> Log.v(TAG,"accepted socket: " + socket.getSocket()),
                         err -> Log.e(TAG, "error when accepting socket: " + err)
                 );
-        return Observable.merge(
+        Observable<BlockDataStream> result =  Observable.mergeDelayError(
                    readBlockData(upgradeRequest)
                 .doOnError(err -> {
                     Log.e(TAG, "error on readBlockData: " + err);
@@ -385,19 +350,45 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     Log.e(TAG, "error on writeBlockData" + err);
                     err.printStackTrace();
                 }
-           ).retryWhen(errors -> errors
-                        .zipWith(Observable.range(1,20), (v, i) -> i)
-                        .flatMapSingle(error -> Single.timer(10, TimeUnit.SECONDS)))
-                    .doFinally(tcpserverdisposable::dispose);
+           );
+
+        return retryDelay(result, 20, 5)
+                .doFinally(tcpserverdisposable::dispose);
     }
 
 
+    private <T> Observable<T> retryDelay(Observable<T> observable, int count, int seconds) {
+        return observable
+                .retryWhen(errors -> errors
+                        .zipWith(Observable.range(1,count), (v, i) -> i)
+                        .concatMapSingle(error -> Single.timer(seconds, TimeUnit.SECONDS)));
+    }
+
+    private Completable retryDelay(Completable completable, int count, int seconds) {
+        return completable
+                .observeOn(operationsScheduler)
+                .retryWhen(errors -> errors
+                        .zipWith(Flowable.range(1,count), (v, i) -> i)
+                        .concatMapSingle(error -> Single.timer(seconds, TimeUnit.SECONDS)));
+    }
+
+    private <T> Single<T> retryDelay(Single<T> single, int count, int seconds) {
+        return single
+                .retryWhen(errors -> errors
+                        .zipWith(Flowable.range(1,count), (v, i) -> i)
+                        .concatMapSingle(error -> Single.timer(seconds, TimeUnit.SECONDS)));
+    }
+
     private Completable writeBlockData(
-            WifiDirectBootstrapRequest request,
+            BootstrapRequest request,
             Observable<BlockDataStream> stream
     ) {
-        if (request.getRole() == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
-            return createGroup(request.getName(), request.getPassphrase())
+        if (request.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
+            return retryDelay(createGroup(
+                    request.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
+                    request.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
+            ), 10, 1).observeOn(writeScheduler)
+
                     .andThen(socketFactory.create(SCATTERBRAIN_PORT))
                     .flatMapObservable(InterceptableServerSocket::observeConnections)
                     .map(InterceptableServerSocket.SocketConnection::getSocket)
@@ -409,11 +400,18 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             .andThen(blockDataStream.getSequencePackets()
                                                     .concatMapCompletable(blockSequencePacket ->
                                                             blockSequencePacket.writeToStream(socket.getOutputStream())
-                                                                    .subscribeOn(writeScheduler))
+                                                            .subscribeOn(writeScheduler)
+                                                            .observeOn(operationsScheduler)
+                                                    )
                                                     .doOnComplete(() -> Log.v(TAG, "server wrote sequence packets"))
                                             )));
-        } else if (request.getRole() == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
-            return connectToGroup(request.getName(), request.getPassphrase())
+        } else if (request.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
+            return retryDelay(connectToGroup(
+                    request.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
+                    request.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
+                    60
+            ), 20, 1)
+                    .observeOn(writeScheduler)
                     .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
                     .flatMapCompletable(socket -> stream.flatMapCompletable(blockDataStream ->
                             blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
@@ -423,6 +421,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             blockDataStream.getSequencePackets()
                                                     .concatMapCompletable(sequencePacket -> sequencePacket.writeToStream(socket.getOutputStream())
                                                             .subscribeOn(writeScheduler)
+                                                            .observeOn(operationsScheduler)
                                                     ).doOnComplete(() -> Log.v(TAG, "wrote sequence packets to client socket"))
                                     )));
         } else {
@@ -431,10 +430,13 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     }
 
     private Observable<BlockDataStream> readBlockData(
-            WifiDirectBootstrapRequest upgradeRequest
+            BootstrapRequest upgradeRequest
     ) {
-        if (upgradeRequest.getRole() == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
-            return createGroup(upgradeRequest.getName(), upgradeRequest.getPassphrase())
+        if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
+            return retryDelay(createGroup(
+                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
+                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
+            ),10, 1).observeOn(readScheduler)
                     .andThen(socketFactory.create(SCATTERBRAIN_PORT))
                     .flatMapObservable(serverSocket -> serverSocket.observeConnections()
                             .map(InterceptableServerSocket.SocketConnection::getSocket)
@@ -445,11 +447,16 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             headerPacket,
                                             BlockSequencePacket.parseFrom(socket.getInputStream())
                                                     .subscribeOn(readScheduler)
+                                                    .observeOn(operationsScheduler)
                                                     .repeat(headerPacket.getHashList().size())
                                                     .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
                                     ))));
-        } else if (upgradeRequest.getRole() == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
-            return connectToGroup(upgradeRequest.getName(), upgradeRequest.getPassphrase())
+        } else if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
+            return retryDelay(connectToGroup(
+                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
+                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
+                    60
+            ), 10, 1).observeOn(readScheduler)
                     .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
                     .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
                             .subscribeOn(readScheduler)
@@ -458,6 +465,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                     header,
                                     BlockSequencePacket.parseFrom(socket.getInputStream())
                                             .subscribeOn(readScheduler)
+                                            .observeOn(operationsScheduler)
                                             .repeat(header.getHashList().size())
                                             .doOnComplete(() -> Log.v(TAG, "client read sequence packets"))
                             ))).toObservable();

@@ -35,7 +35,7 @@ public class UpgradeStage {
                 LibsodiumInterface.getSodium().randombytes_buf(pass, pass.length);
                 metadata.putIfAbsent(
                         WifiDirectBootstrapRequest.KEY_PASSPHRASE,
-                        Base64.encodeToString(pass, Base64.DEFAULT)
+                        Base64.encodeToString(pass, Base64.NO_WRAP)
                 );
                 break;
             }

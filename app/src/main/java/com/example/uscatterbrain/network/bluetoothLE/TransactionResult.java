@@ -2,7 +2,9 @@ package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.bluetooth.BluetoothDevice;
 
-public class TransactionResult {
+import java.util.NoSuchElementException;
+
+public class TransactionResult<T> {
     public static final String STAGE_EXIT = "exit";
     public static final String STAGE_START = "start";
     public static final String STAGE_LUID_HASHED = "luid-hashed";
@@ -14,8 +16,25 @@ public class TransactionResult {
     public static final String STAGE_BLOCKDATA = "blockdata";
     public final String nextStage;
     public final BluetoothDevice device;
-    public TransactionResult(String nextStage, BluetoothDevice device) {
+    final T result;
+    public TransactionResult(String nextStage, BluetoothDevice device, T result) {
         this.nextStage = nextStage;
         this.device = device;
+        this.result = result;
+    }
+
+    public TransactionResult(String nextStage, BluetoothDevice device) {
+        this(nextStage, device, null);
+    }
+
+    public T getResult() {
+        if (result == null) {
+            throw new NoSuchElementException();
+        }
+        return result;
+    }
+
+    public boolean hasResult() {
+        return result != null;
     }
 }

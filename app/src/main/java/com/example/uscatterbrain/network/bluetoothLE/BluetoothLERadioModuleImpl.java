@@ -13,14 +13,13 @@ import android.content.Context;
 import android.os.Build;
 import android.os.ParcelUuid;
 import android.util.Log;
+import android.util.Pair;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.ElectLeaderPacket;
-import com.example.uscatterbrain.network.UpgradePacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
-import com.example.uscatterbrain.network.wifidirect.WifiDirectProvider;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.google.protobuf.ByteString;
 import com.polidea.rxandroidble2.RxBleClient;
@@ -34,6 +33,7 @@ import com.polidea.rxandroidble2.scan.ScanSettings;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -106,7 +106,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
 
     private final CompositeDisposable mGattDisposable = new CompositeDisposable();
-    private final ConcurrentHashMap<String, LeDeviceSession<TransactionResult>> protocolSpec = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, LeDeviceSession<TransactionResult<BootstrapRequest>, Optional<BootstrapRequest>>> protocolSpec
+            = new ConcurrentHashMap<>();
     private final Context mContext;
     private final Scheduler bleScheduler;
     private final int discoverDelay = 45;
@@ -129,7 +130,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         }
     };
     private final BluetoothLeAdvertiser mAdvertiser;
-    private final WifiDirectProvider wifiDirectRadioModule;
+    private final WifiDirectRadioModule wifiDirectRadioModule;
     private final RxBleServer mServer;
     private final RxBleClient mClient;
     private AdvertisePacket mAdvertise;
@@ -141,7 +142,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             @Named(RoutingServiceComponent.NamedSchedulers.BLE) Scheduler bluetoothScheduler,
             RxBleServer rxBleServer,
             RxBleClient rxBleClient,
-            WifiDirectProvider wifiDirectRadioModule
+            WifiDirectRadioModule wifiDirectRadioModule
             ) {
         mContext = context;
         mAdvertise = null;
@@ -194,7 +195,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
     private void initializeProtocol(BluetoothDevice device) {
         Log.v(TAG, "initialize protocol");
-        LeDeviceSession<TransactionResult> session = new LeDeviceSession<>(device, bleScheduler);
+        LeDeviceSession<TransactionResult<BootstrapRequest>, Optional<BootstrapRequest>> session = new LeDeviceSession<>(device, bleScheduler);
 
         session.addStage(
                 TransactionResult.STAGE_LUID_HASHED,
@@ -204,7 +205,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .flatMapCompletable(luidpacket -> {
                                 session.getLuidStage().addPacket(luidpacket);
                                 return serverConn.serverNotify(luidpacket, UUID_LUID);
-                            });
+                            }).toSingleDefault(Optional.empty());
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client luid hashed stage");
@@ -214,7 +215,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                 session.getLuidStage().addPacket(luidPacket);
                             })
                             .doOnError(err -> Log.e(TAG, "error while receiving luid packet: " + err))
-                            .map(luidPacket -> new TransactionResult(TransactionResult.STAGE_LUID, device));
+                            .map(luidPacket -> new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_LUID, device));
         });
 
 
@@ -226,7 +227,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .flatMapCompletable(luidpacket -> {
                                 session.getLuidStage().addPacket(luidpacket);
                                 return serverConn.serverNotify(luidpacket, UUID_LUID);
-                            });
+                            }).toSingleDefault(Optional.empty());
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client luid stage");
@@ -240,9 +241,9 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                     session.getLuidStage().verifyPackets()
                                     .doOnComplete(() -> session.getLuidMap().put(device.getAddress(), luidPacket.getLuid()))
                             )
-                            .toSingleDefault(new TransactionResult(TransactionResult.STAGE_ADVERTISE, device))
+                            .toSingleDefault(new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, device))
                             .doOnError(err -> Log.e(TAG, "luid hash verify failed: " + err))
-                            .onErrorReturnItem(new TransactionResult(TransactionResult.STAGE_EXIT, device));
+                            .onErrorReturnItem(new TransactionResult<>(TransactionResult.STAGE_EXIT, device));
 
                 });
 
@@ -250,7 +251,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 TransactionResult.STAGE_ADVERTISE,
                 serverConn -> {
                     Log.v(TAG, "gatt server advertise stage");
-                    return serverConn.serverNotify(AdvertiseStage.getSelf(), UUID_ADVERTISE);
+                    return serverConn.serverNotify(AdvertiseStage.getSelf(), UUID_ADVERTISE)
+                            .toSingleDefault(Optional.empty());
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client advertise stage");
@@ -259,7 +261,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .doOnError(err -> Log.e(TAG, "error while receiving advertise packet: " + err))
                             .map(advertisePacket -> {
                                 session.getAdvertiseStage().addPacket(advertisePacket);
-                                return new TransactionResult(TransactionResult.STAGE_ELECTION_HASHED, device);
+                                return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ELECTION_HASHED, device);
                             });
                 });
 
@@ -269,7 +271,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     Log.v(TAG, "gatt server election hashed stage");
                     ElectLeaderPacket packet = session.getVotingStage().getSelf(true);
                     session.getVotingStage().addPacket(packet);
-                    return serverConn.serverNotify(packet, UUID_ELECTIONLEADER);
+                    return serverConn.serverNotify(packet, UUID_ELECTIONLEADER)
+                            .toSingleDefault(Optional.empty());
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client election hashed stage");
@@ -278,7 +281,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .doOnError(err -> Log.e(TAG, "error while receiving election packet: " + err))
                             .map(electLeaderPacket -> {
                                 session.getVotingStage().addPacket(electLeaderPacket);
-                                return new TransactionResult(TransactionResult.STAGE_ELECTION, device);
+                                return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ELECTION, device);
                             });
                 });
 
@@ -292,7 +295,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                 packet.tagLuid(luidPacket.getLuid());
                                 session.getVotingStage().addPacket(packet);
                                 return serverConn.serverNotify(packet, UUID_ELECTIONLEADER);
-                            });
+                            }).toSingleDefault(Optional.empty());
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client election stage");
@@ -316,19 +319,19 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                 session.setUpgradeStage(provides);
                                 if (provides.equals(AdvertisePacket.Provides.INVALID)) {
                                     Log.e(TAG, "received invalid provides");
-                                    return new TransactionResult(TransactionResult.STAGE_EXIT, device);
+                                    return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device);
                                 } else if (provides.equals(AdvertisePacket.Provides.BLE)) {
                                     Log.v(TAG, "blockdata not implemented, exiting");
-                                    return new TransactionResult(TransactionResult.STAGE_EXIT, device);
+                                    return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device);
                                 } else if (provides.equals(AdvertisePacket.Provides.WIFIP2P)){
-                                    return new TransactionResult(TransactionResult.STAGE_UPGRADE, device);
+                                    return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_UPGRADE, device);
                                 } else {
-                                    return new TransactionResult(TransactionResult.STAGE_EXIT, device);
+                                    return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device);
                                 }
                             })
                             .doOnError(err -> Log.e(TAG, "error while receiving packet: " + err))
                             .doOnSuccess(electLeaderPacket -> Log.v(TAG, "client handshake received election result"))
-                            .onErrorReturn(err -> new TransactionResult(TransactionResult.STAGE_EXIT, device));
+                            .onErrorReturn(err -> new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device));
                 });
 
         session.addStage(
@@ -337,13 +340,17 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     Log.v(TAG, "gatt server upgrade stage");
                     if (session.getRole().equals(ConnectionRole.ROLE_SEME)) {
                         return session.getUpgradeStage().getUpgrade()
-                                .flatMapCompletable(upgradePacket -> {
-                                    bootstrapWifiP2p(upgradePacket, ConnectionRole.ROLE_SEME);
-                                    return serverConn.serverNotify(upgradePacket, UUID_UPGRADE);
+                                .flatMap(upgradePacket -> {
+                                    final BootstrapRequest request = WifiDirectBootstrapRequest.create(
+                                                    upgradePacket,
+                                                    ConnectionRole.ROLE_SEME
+                                            );
+                                    return serverConn.serverNotify(upgradePacket, UUID_UPGRADE)
+                                            .toSingleDefault(Optional.of(request));
                                 });
 
                     } else {
-                        return Completable.complete();
+                        return Single.just(Optional.empty());
                     }
                 }
                 , conn -> {
@@ -353,11 +360,14 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                 .doOnSuccess(electLeaderPacket -> Log.v(TAG, "client handshake received upgrade packet"))
                                 .doOnError(err -> Log.e(TAG, "error while receiving upgrade packet: " + err))
                                 .map(upgradePacket -> {
-                                    bootstrapWifiP2p(upgradePacket, ConnectionRole.ROLE_UKE);
-                                    return new TransactionResult(TransactionResult.STAGE_EXIT, device);
+                                    BootstrapRequest request = WifiDirectBootstrapRequest.create(
+                                            upgradePacket,
+                                            ConnectionRole.ROLE_UKE
+                                    );
+                                    return new TransactionResult<>(TransactionResult.STAGE_EXIT, device, request);
                                 });
                     } else {
-                        return Single.just(new TransactionResult(TransactionResult.STAGE_EXIT, device));
+                        return Single.just(new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device));
                     }
                 });
 
@@ -367,19 +377,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         protocolSpec.put(device.getAddress(), session);
     }
 
-    private final void bootstrapWifiP2p(UpgradePacket packet, ConnectionRole role) {
-        WifiDirectBootstrapRequest bootstrapRequest = WifiDirectBootstrapRequest.create(
-                packet,
-                role
-        );
-        Disposable ignored = wifiDirectRadioModule.getRadioModule().bootstrapFromUpgrade(bootstrapRequest,
+    private final Completable bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {
+        return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest,
                 Observable.just(new WifiDirectRadioModule.BlockDataStream(
                         headerPacket,
                         Flowable.empty()
-                ))).subscribe(
-                ok -> Log.v(TAG, "successfully bootstrapped from upgrade packet"),
-                err -> Log.e(TAG, "failed to bootstrap from upgrade")
-        );
+                ))).ignoreElements();
     }
 
     private Observable<CachedLEConnection> establishConnection(RxBleDevice device, Timeout timeout) {
@@ -474,14 +477,14 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
         Disposable d = mServer.openServer(config)
                 .doOnError(err -> Log.e(TAG, "failed to open server"))
-                .flatMapCompletable(connectionRaw -> {
+                .flatMap(connectionRaw -> {
                     final CachedLEServerConnection connection = new CachedLEServerConnection(connectionRaw);
                     RxBleDevice device = mClient.getBleDevice(connection.getConnection().getDevice().getAddress());
 
                     //don't attempt to initiate a reverse connection when we already initiated the outgoing connection
                     if (device == null) {
                         Log.e(TAG, "device " + connection.getConnection().getDevice().getAddress() + " was null in client");
-                        return Completable.error(new IllegalStateException("device was null"));
+                        return Observable.error(new IllegalStateException("device was null"));
                     }
 
                     // only attempt to feed protocol to reverse connection if this is our first time
@@ -489,15 +492,16 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                         initializeProtocol(device.getBluetoothDevice());
                     }
 
-                    final LeDeviceSession<TransactionResult> session = protocolSpec.get(device.getMacAddress());
+                    final LeDeviceSession<TransactionResult<BootstrapRequest>, Optional<BootstrapRequest>> session = protocolSpec.get(device.getMacAddress());
 
                     if (session == null) {
                         Log.e(TAG, "gatt session was null. Somethig is wrong");
-                        return Completable.error(new IllegalStateException("session was null"));
+                        return Observable.error(new IllegalStateException("session was null"));
                     }
 
                     Log.d(TAG, "gatt server connection from " + connection.getConnection().getDevice().getAddress());
                     return establishConnection(device, new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS))
+                            .onErrorResumeNext(Observable.never())
                             .flatMap(clientConnection -> {
                                 return session.observeStage()
                                         .doOnNext(stage -> Log.v(TAG, "handling stage: " + stage))
@@ -507,11 +511,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                     session.singleServer(),
                                                     (client, server) -> {
                                                                 return server.handshake(connection)
-                                                                        .doOnComplete(() -> Log.v(TAG, "server handshake completed"))
-                                                                        .toSingleDefault(true)
+                                                                        .doOnSuccess(request -> Log.v(TAG, "server handshake completed"))
                                                                         .zipWith(
                                                                                 client.handshake(clientConnection),
-                                                                                (bool, trans) -> trans
+                                                                                Pair::new
                                                                         )
                                                                         .toObservable()
                                                                 .doOnSubscribe(disposable -> Log.v("debug", "client handshake subscribed"));
@@ -519,28 +522,26 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                             );
                                         })
                                         .flatMap(result -> result)
+                                        .onErrorResumeNext(Observable.never())
                                         .doOnError(err -> {
                                             Log.e(TAG, "stage " + session.getStage() + " error " + err);
                                             err.printStackTrace();
                                         })
-                                        .doOnNext(transactionResult -> session.setStage(transactionResult.nextStage))
+                                        .doOnNext(transactionResult -> {
+                                            if (transactionResult.second.nextStage.equals(TransactionResult.STAGE_EXIT)) {
+                                                cleanup(device);
+                                            }
+                                            session.setStage(transactionResult.second.nextStage);
+                                        })
                                         .doFinally(() -> {
                                             Log.v(TAG, "stages complete, cleaning up");
-                                            protocolSpec.remove(device.getMacAddress());
-                                            connectionCache.remove(device.getMacAddress());
-                                            discoveryDispoable.getAndUpdate(compositeDisposable -> {
-                                                if (compositeDisposable != null) {
-                                                    compositeDisposable.dispose();
-                                                }
-                                                return null;
-                                            });
+
                                         });
 
                             })
-                            .ignoreElements()
-                            .onErrorComplete()
                             .doFinally(() -> {
                                 Log.v(TAG, "session finished, cleaning up");
+                                cleanup(device);
                             });
 
 
@@ -549,18 +550,39 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     Log.e(TAG, "gatt server disposed");
                     stopServer();
                 })
-                .subscribe(() -> {
-                    Log.v(TAG, "gatt server shut down with success");
-                }, err -> {
-                    Log.e(TAG, "gatt server shut down with error: " + err);
-                    err.printStackTrace();
-                });
+                .flatMapCompletable(resultPair -> {
+                    if (resultPair.second.hasResult()) {
+                        return bootstrapWifiP2p(resultPair.second.getResult());
+                    } else if (resultPair.first.isPresent()) {
+                        return bootstrapWifiP2p(resultPair.first.get());
+                    } else {
+                        Log.e(TAG, "handshake failed, no result received");
+                        return Completable.never();
+                    }
+                })
+                .subscribe(
+                        () -> Log.e(TAG, "gatt server completed. This should not happen"),
+                        err -> {
+                            Log.e(TAG, "gatt server shut down with error: " + err);
+                            err.printStackTrace();
+                        });
 
         mGattDisposable.add(d);
 
         startAdvertise();
 
         return true;
+    }
+
+    public void cleanup(RxBleDevice device) {
+        protocolSpec.remove(device.getMacAddress());
+        connectionCache.remove(device.getMacAddress());
+        discoveryDispoable.getAndUpdate(compositeDisposable -> {
+            if (compositeDisposable != null) {
+                compositeDisposable.dispose();
+            }
+            return null;
+        });
     }
 
     public void stopServer() {
