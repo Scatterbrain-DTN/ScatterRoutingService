@@ -20,6 +20,7 @@ import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.ElectLeaderPacket;
 import com.example.uscatterbrain.network.UpgradePacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectProvider;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.google.protobuf.ByteString;
 import com.polidea.rxandroidble2.RxBleClient;
@@ -128,7 +129,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         }
     };
     private final BluetoothLeAdvertiser mAdvertiser;
-    private final WifiDirectRadioModule wifiDirectRadioModule;
+    private final WifiDirectProvider wifiDirectRadioModule;
     private final RxBleServer mServer;
     private final RxBleClient mClient;
     private AdvertisePacket mAdvertise;
@@ -140,7 +141,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             @Named(RoutingServiceComponent.NamedSchedulers.BLE) Scheduler bluetoothScheduler,
             RxBleServer rxBleServer,
             RxBleClient rxBleClient,
-            WifiDirectRadioModule wifiDirectRadioModule
+            WifiDirectProvider wifiDirectRadioModule
             ) {
         mContext = context;
         mAdvertise = null;
@@ -371,7 +372,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 packet,
                 role
         );
-        Disposable ignored = wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest,
+        Disposable ignored = wifiDirectRadioModule.getRadioModule().bootstrapFromUpgrade(bootstrapRequest,
                 Observable.just(new WifiDirectRadioModule.BlockDataStream(
                         headerPacket,
                         Flowable.empty()

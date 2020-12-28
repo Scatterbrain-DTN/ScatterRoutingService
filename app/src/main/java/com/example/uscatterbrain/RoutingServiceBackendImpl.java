@@ -5,6 +5,7 @@ import android.util.Log;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectProvider;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
 
@@ -19,7 +20,7 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
     private final BluetoothLEModule bluetoothLeRadioModule;
     private final ScatterbrainDatastore datastore;
     private final ScatterbrainScheduler scheduler;
-    private final WifiDirectRadioModule radioModuleDebug;
+    private final WifiDirectProvider radioModuleDebug;
     private final AdvertisePacket mPacket;
 
 
@@ -28,7 +29,7 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
             ScatterbrainDatastore datastore,
             BluetoothLEModule bluetoothLeRadioModule,
             ScatterbrainScheduler scheduler,
-            WifiDirectRadioModule radioModuleDebug
+            WifiDirectProvider radioModuleDebug
             ) {
         RxJavaPlugins.setErrorHandler(e -> {
             Log.e(TAG, "received an unhandled exception: " + e);
@@ -56,6 +57,6 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
 
     @Override
     public WifiDirectRadioModule getWifiDirect() {
-        return radioModuleDebug;
+        return radioModuleDebug.getRadioModule();
     }
 }

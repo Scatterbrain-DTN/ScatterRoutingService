@@ -18,6 +18,8 @@ import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiverImpl;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectProvider;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectProviderImpl;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectUnregisteredReceiver;
@@ -75,7 +77,6 @@ public interface RoutingServiceComponent {
         }
 
         @Provides
-        @Singleton
         static WifiDirectBroadcastReceiver providesWifiP2pIntentFilter(Context ctx, WifiDirectUnregisteredReceiver receiver) {
             IntentFilter intentFilter = new IntentFilter();
             intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
@@ -168,6 +169,10 @@ public interface RoutingServiceComponent {
         @Binds
         @Singleton
         abstract WifiDirectUnregisteredReceiver bindWifiDirectBroadcastReceiver(WifiDirectBroadcastReceiverImpl impl);
+
+        @Binds
+        @Singleton
+        abstract WifiDirectProvider bindWifiDirectProvider(WifiDirectProviderImpl impl);
 
         @Binds
         @Singleton
