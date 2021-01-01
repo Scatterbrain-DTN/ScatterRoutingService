@@ -206,7 +206,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         return Single.fromCallable(() -> new Socket(address, SCATTERBRAIN_PORT));
     }
 
-    public static final String reasonCodeToString(int reason) {
+    public static String reasonCodeToString(int reason) {
         switch (reason) {
             case WifiP2pManager.BUSY: {
                 return "Busy";
