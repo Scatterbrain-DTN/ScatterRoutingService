@@ -220,39 +220,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         }).ignoreElements();
      }
 
-     /*
-     @Override
-     public Completable insertDataPacket(BlockDataObservableSource packet) {
-         if(!packet.isHashValid().blockingGet()) {
-            return Completable.error(new IllegalStateException("inserted a packet with invalid hash"));
-         }
-
-         return Completable.fromCallable(() -> {
-             ScatterMessage message = new ScatterMessage();
-             message.setFilePath(packet.getFile().getAbsolutePath());
-             message.setBody(new byte[0]); //TODO: implement body
-             message.setFrom(packet.getHeader().blockingGet().getFromFingerprint().toByteArray());
-             message.setTo(packet.getHeader().blockingGet().getToFingerprint().toByteArray());
-             message.setSig(packet.getHeader().blockingGet().getSig().toByteArray());
-             message.setApplication(packet.getHeader().blockingGet().getApplication());
-             message.setSessionid(packet.getHeader().blockingGet().getSessionID());
-             message.setIdentity(null); //TODO: update identity later
-             Log.e("debug", "header blocksize " + packet.getHeader().blockingGet().getBlockSize());
-             message.setBlocksize(packet.getHeader().blockingGet().getBlockSize());
-
-             List<Hashes> hashlist = new ArrayList<>();
-             for (ByteString hash : packet.getHashes().blockingGet()) {
-                 Hashes hashes = new Hashes();
-                 hashes.setHash(hash.toByteArray());
-                 hashlist.add(hashes);
-             }
-
-             message.setHashes(hashlist);
-             return insertMessagesSync(message);
-         });
-     }
-*/
-
      public Observable<com.example.uscatterbrain.identity.Identity> getIdentity(List<Long> ids) {
             return mDatastore.identityDao().getIdentitiesWithRelations(ids)
                     .toObservable()
@@ -274,34 +241,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     });
                         });
     }
-
-
-    /*
-     @Override
-     public Observable<BlockDataObservableSource> getDataPacket(List<Long> id) {
-            return mDatastore.scatterMessageDao().getByID(id)
-                    .toObservable()
-                    .flatMap(messages -> {
-                        return Observable.fromIterable(messages)
-                                .flatMap(message -> {
-                                    File f = Paths.get(message.getFilePath()).toAbsolutePath().toFile();
-                                    BlockDataSourceFactory.BuildOptions options = new BlockDataSourceFactory.BuildOptions.Builder()
-                                            .setApplication(ByteString.copyFrom(message.getApplication()).toStringUtf8())
-                                            .setFromAddress(ByteString.copyFrom(message.getFrom()))
-                                            .setToAddress(ByteString.copyFrom(message.getTo()))
-                                            .setSessionID(message.getSessionid())
-                                            .setBlockSize(message.getBlocksize())
-                                            .setFragmentFile(f)
-                                            .setSig(ByteString.copyFrom(message.getSig()))
-                                            .build();
-
-                                    return blockDataSourceFactory.buildSource(options).toObservable();
-
-                                });
-                    });
-     }
-*/
-
     /**
      * Clears the datastore, dropping all tables
      */
