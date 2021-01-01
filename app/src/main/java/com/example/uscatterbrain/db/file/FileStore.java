@@ -1,6 +1,9 @@
 package com.example.uscatterbrain.db.file;
 
+import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
+import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.google.protobuf.ByteString;
 
 import java.io.Closeable;
@@ -12,24 +15,35 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.List;
 
+import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
 import io.reactivex.Single;
 
 public interface FileStore {
-    Single<FileCallbackResult> deleteFile(Path path);
+    Completable deleteFile(Path path);
 
     boolean isOpen(Path path);
 
     boolean close(Path path);
 
-    boolean open(Path path);
+    Single<OpenFile> open(Path path);
 
-    Single<FileCallbackResult> insertFile(InputStream is, Path path);
+    Completable insertFile(InputStream is, Path path);
 
-    Single<FileCallbackResult> insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path);
+    Completable insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path);
 
-    Single<FileCallbackResult> insertFile(ByteString data, Path path, WriteMode mode);
+    Completable insertFile(WifiDirectRadioModule.BlockDataStream stream);
+
+    Completable insertFile(ByteString data, Path path, WriteMode mode);
 
     Single<List<ByteString>> hashFile(Path path, int blocksize);
+
+    Flowable<BlockSequencePacket> readFile(Path path, int blocksize);
+
+    File getFilePath(BlockHeaderPacket packet);
+
+    File getFilePath(ScatterMessage message);
 
     enum FileCallbackResult {
         ERR_FILE_EXISTS,
@@ -44,10 +58,6 @@ public interface FileStore {
     enum WriteMode {
         APPEND,
         OVERWRITE
-    }
-
-    interface FileStoreCallback<T> extends Runnable {
-        void setResult(T result);
     }
 
     class OpenFile implements Closeable {

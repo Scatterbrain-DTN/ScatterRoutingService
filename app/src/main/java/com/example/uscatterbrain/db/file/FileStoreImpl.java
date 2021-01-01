@@ -1,37 +1,47 @@
 package com.example.uscatterbrain.db.file;
 
+import android.content.Context;
 import android.util.Log;
+import android.util.Pair;
 
+import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.google.protobuf.ByteString;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Inject;
 
-import io.reactivex.Observable;
+import io.reactivex.Completable;
+import io.reactivex.Flowable;
 import io.reactivex.Single;
+import io.reactivex.schedulers.Schedulers;
 
 public class FileStoreImpl implements FileStore{
-    private static final FileStoreImpl mFileStoreInstance = null;
-    private final Map<Path, OpenFile> mOpenFiles;
+    private final ConcurrentHashMap<Path, OpenFile> mOpenFiles;
+    private final Context mCtx;
 
     @Inject
-    public FileStoreImpl() {
+    public FileStoreImpl(
+            Context context
+    ) {
         mOpenFiles = new ConcurrentHashMap<>();
+        this.mCtx = context;
     }
 
-    public Single<FileCallbackResult> deleteFile(Path path) {
+    @Override
+    public Completable deleteFile(Path path) {
         return Single.fromCallable(() -> {
             if (!path.toFile().exists()) {
                 return FileCallbackResult.ERR_FILE_NO_EXISTS;
@@ -46,13 +56,21 @@ public class FileStoreImpl implements FileStore{
             } else {
                 return FileCallbackResult.ERR_FAILED;
             }
+        }).flatMapCompletable(result -> {
+            if (result.equals(FileCallbackResult.ERR_SUCCESS)) {
+                return Completable.complete();
+            } else {
+                return Completable.error(new IllegalStateException(result.toString()));
+            }
         });
     }
 
+    @Override
     public boolean isOpen(Path path) {
         return mOpenFiles.containsKey(path);
     }
 
+    @Override
     public boolean close(Path path) {
         if (isOpen(path)) {
             OpenFile f = mOpenFiles.get(path);
@@ -68,31 +86,39 @@ public class FileStoreImpl implements FileStore{
         return  true;
     }
 
-    public boolean open(Path path) {
-        if (!isOpen(path)) {
-            try {
-                OpenFile f = new OpenFile(path, false);
-                mOpenFiles.put(path, f);
-            } catch (Exception e) {
-                return false;
-            }
-        }
-        return true;
+    @Override
+    public File getFilePath(BlockHeaderPacket packet) {
+        return new File(mCtx.getFilesDir(), packet.getFilename());
     }
 
-    public Single<FileCallbackResult> insertFile(InputStream is, Path path) {
+    @Override
+    public File getFilePath(ScatterMessage message) {
+        return new File(mCtx.getFilesDir(), message.getFilePath());
+    }
+
+    @Override
+    public Single<OpenFile> open(Path path) {
         return Single.fromCallable(() -> {
-            if (path.toFile().exists()) {
-                return FileCallbackResult.ERR_FILE_EXISTS;
+            OpenFile old = mOpenFiles.get(path);
+            if (old == null) {
+                OpenFile f = new OpenFile(path, false);
+                mOpenFiles.put(path, f);
+                return f;
+            } else {
+                return old;
             }
+        });
 
-            if (!open(path)) {
-                return FileCallbackResult.ERR_IO_EXCEPTION;
-            }
+    }
 
-            try {
-                OpenFile f = mOpenFiles.get(path);
-                if (f != null) {
+    @Override
+    public Completable insertFile(InputStream is, Path path) {
+        if (path.toFile().exists()) {
+            return Completable.error(new FileAlreadyExistsException("file already exists"));
+        }
+
+        return open(path)
+                .flatMapCompletable(f -> Completable.fromAction(() -> {
                     FileOutputStream os = f.getOutputStream();
                     byte[] buf = new byte[8 * 1024];
                     int read;
@@ -101,98 +127,61 @@ public class FileStoreImpl implements FileStore{
                     }
                     f.getOutputStream().close();
                     f.lock();
-                } else {
-                    return FileCallbackResult.ERR_FILE_NO_EXISTS;
-                }
-            } catch (IOException e) {
-                return FileCallbackResult.ERR_IO_EXCEPTION;
+                }).subscribeOn(Schedulers.io()));
+    }
+
+    private Completable insertSequence(Flowable<BlockSequencePacket> packets, BlockHeaderPacket header, Path path) {
+        return packets
+          .concatMapCompletable(blockSequencePacket -> {
+            if (!blockSequencePacket.verifyHash(header)) {
+                return Completable.error(new IllegalStateException("failed to verify hash"));
             }
-            return FileCallbackResult.ERR_SUCCESS;
+            return insertFile(blockSequencePacket.getmData(), path, WriteMode.APPEND);
         });
     }
 
-    public Single<FileCallbackResult> insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path) {
-
-        return BlockSequencePacket.parseFrom(inputStream)
-                .repeat(count)
-                .toObservable()
-                .concatMap(blockSequencePacket -> {
-                    if (!blockSequencePacket.verifyHash(header)) {
-                        return Observable.error(new IllegalStateException("failed to verify hash"));
-                    }
-                    return insertFile(blockSequencePacket.getmData(), path, WriteMode.APPEND).toObservable();
-                })
-                .reduce((fileCallbackResult, fileCallbackResult2) -> {
-                    if (fileCallbackResult == FileCallbackResult.ERR_SUCCESS && fileCallbackResult2 == FileCallbackResult.ERR_SUCCESS) {
-                        return FileCallbackResult.ERR_SUCCESS;
-                    } else  {
-                        return FileCallbackResult.ERR_FAILED;
-                    }
-                }).toSingle();
+    @Override
+    public Completable insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path) {
+        return insertSequence(
+                BlockSequencePacket.parseFrom(inputStream)
+                .repeat(count),
+                header,
+                path
+        );
      }
 
-    public Single<FileCallbackResult> insertFile(ByteString data, Path path, WriteMode mode) {
-        return Single.fromCallable(() -> {
-            if (!open(path)) {
-                return FileCallbackResult.ERR_IO_EXCEPTION;
-            }
-
-            try {
-                OpenFile f = mOpenFiles.get(path);
-                if (f == null) {
-                    return FileCallbackResult.ERR_FILE_NO_EXISTS;
-                }
-                switch (mode) {
-                    case APPEND:
-                        f.setMode(true);
-                        break;
-                    case OVERWRITE:
-                        f.setMode(false);
-                        break;
-                    default:
-                        return FileCallbackResult.ERR_INVALID_ARGUMENT;
-                }
-
-                FileOutputStream os = f.getOutputStream();
-                data.writeTo(os);
-
-            } catch (IOException e) {
-                return FileCallbackResult.ERR_IO_EXCEPTION;
-
-            }
-            return FileCallbackResult.ERR_SUCCESS;
-        });
+    @Override
+    public Completable insertFile(WifiDirectRadioModule.BlockDataStream stream) {
+        return insertSequence(
+                stream.getSequencePackets(),
+                stream.getHeaderPacket(),
+                getFilePath(stream.getHeaderPacket()).toPath()
+        );
     }
 
-    public Single<FileCallbackResult> getFile(OutputStream os, Path path) {
-        return Single.fromCallable(() -> {
-            try {
-                if (!path.toFile().exists()) {
-                    return FileCallbackResult.ERR_FILE_NO_EXISTS;
-                }
-
-                FileInputStream is = new FileInputStream(path.toFile());
-
-                byte[] buf = new byte[8*1024];
-                int read;
-                while ((read = is.read(buf)) != -1) {
-                    os.write(buf, 0, read);
-                }
-
-                is.close();
-                os.close();
-            } catch (IOException e) {
-                return FileStore.FileCallbackResult.ERR_IO_EXCEPTION;
-            }
-            return FileStore.FileCallbackResult.ERR_SUCCESS;
-        });
+    @Override
+     public Completable insertFile(ByteString data, Path path, WriteMode mode) {
+        return open(path)
+                .flatMapCompletable(f -> Completable.fromAction(() -> {
+                    switch (mode) {
+                        case APPEND:
+                            f.setMode(true);
+                            break;
+                        case OVERWRITE:
+                            f.setMode(false);
+                            break;
+                    }
+                    FileOutputStream os = f.getOutputStream();
+                    data.writeTo(os);
+                }).subscribeOn(Schedulers.io()));
     }
 
+    @Override
     public Single<List<ByteString>> hashFile(Path path, int blocksize) {
         return Single.fromCallable(() -> {
             List<ByteString> r = new ArrayList<>();
             if (!path.toFile().exists()) {
-                return null;
+                throw new FileAlreadyExistsException("file already exists");
             }
 
             FileInputStream is = new FileInputStream(path.toFile());
@@ -210,6 +199,36 @@ public class FileStoreImpl implements FileStore{
                 Log.e("debug", "hashing "+ read);
             }
             return r;
-        });
+        }).subscribeOn(Schedulers.io());
+    }
+
+    @Override
+    public Flowable<BlockSequencePacket> readFile(Path path, int blocksize) {
+        return Flowable.fromCallable(() -> new FileInputStream(path.toFile()))
+                .flatMap(is -> {
+                    Flowable<Integer> seq = Flowable.generate(() -> 0, (state, emitter) -> {
+                        emitter.onNext(state);
+                        return state + 1;
+                    });
+                    return Flowable.just(is)
+                            .zipWith(seq, (fileInputStream, seqnum) -> {
+                                return Flowable.fromCallable(() -> {
+                                    byte[] buf = new byte[blocksize];
+                                    int read;
+
+                                    read = is.read(buf);
+                                    return new Pair<>(read, buf);
+                                })
+                                        .takeWhile(pair -> pair.first != -1)
+                                        .map(pair -> {
+                                            Log.e("debug", "reading "+ pair.first);
+                                            return BlockSequencePacket.newBuilder()
+                                                    .setSequenceNumber(seqnum)
+                                                    .setData(ByteString.copyFrom(pair.second, 0, pair.first))
+                                                    .build();
+                                        })
+                                        .subscribeOn(Schedulers.io());
+                            }).concatMap(result -> result);
+                });
     }
 }

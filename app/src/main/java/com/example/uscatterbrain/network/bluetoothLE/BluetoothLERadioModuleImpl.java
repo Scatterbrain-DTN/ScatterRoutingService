@@ -79,6 +79,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             .setBlockSize(512)
             .setHashes(new ArrayList<>())
             .setSessionID(1)
+            .setExtension("fmef")
             .setSig(ByteString.copyFrom(new byte[8]))
             .setToDisk(true)
             .setFromFingerprint(ByteString.copyFrom(new byte[8]))

@@ -6,6 +6,7 @@ import com.example.uscatterbrain.ScatterProto;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
@@ -33,6 +34,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
     private final List<ByteString> mHashList;
     private final ByteString mFromFingerprint;
     private final ByteString mToFingerprint;
+    private final String extension;
     private byte[] mSignature;
     private final byte[] mApplication;
     private final int mSessionID;
@@ -52,6 +54,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
         this.mApplication = builder.getApplication();
         this.mSessionID = builder.getSessionid();
         this.mToDisk = builder.getToDisk();
+        this.extension = builder.extension;
         this.mBlocksize = builder.getBlockSize();
         Log.e("debug", "adding all nexthashes " + mHashList.size());
         this.blockdata = ScatterProto.BlockData.newBuilder()
@@ -71,6 +74,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
         messagebytes = messagebytes.concat(this.mFromFingerprint);
         messagebytes = messagebytes.concat(this.mToFingerprint);
         messagebytes = messagebytes.concat(ByteString.copyFrom(this.mApplication));
+        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(this.extension));
         byte td = 0;
         if (this.mToDisk)
             td = 1;
@@ -121,6 +125,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
                     .setFromFingerprint(this.mFromFingerprint)
                     .setToFingerprint(this.mToFingerprint)
                     .setTodisk(this.mToDisk)
+                    .setExtension(this.extension)
                     .addAllNexthashes(this.mHashList)
                     .setSessionid(this.mSessionID)
                     .setBlocksize(mBlocksize)
@@ -130,6 +135,19 @@ public class BlockHeaderPacket implements ScatterSerializable {
         } else {
             return false;
         }
+    }
+
+    public String getFilename() {
+        byte[] outhash = new byte[GenericHash.BYTES];
+        byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
+        LibsodiumInterface.getSodium().crypto_generichash_init(state, null, 0, outhash.length);
+        for (ByteString bytes : mHashList) {
+            LibsodiumInterface.getSodium().crypto_generichash_update(state, bytes.toByteArray(), bytes.size());
+        }
+        LibsodiumInterface.getSodium().crypto_generichash_final(state, outhash, outhash.length);
+        ByteBuffer buf = ByteBuffer.wrap(outhash);
+        //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+        return new UUID(buf.getLong(), buf.getLong()).toString() + "." + extension;
     }
 
     private BlockHeaderPacket(InputStream in) throws IOException {
@@ -144,6 +162,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
         this.mToDisk = blockdata.getTodisk();
         this.mSessionID = blockdata.getSessionid();
         this.mBlocksize = blockdata.getBlocksize();
+        this.extension = blockdata.getExtension();
     }
 
     /**
@@ -314,6 +333,14 @@ public class BlockHeaderPacket implements ScatterSerializable {
     }
 
     /**
+     * Gets file extension
+     * @return file extension
+     */
+    public String getExtension() {
+        return extension;
+    }
+
+    /**
      * Sets to disk.
      *
      * @param t the t
@@ -339,6 +366,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
         public int mBlockSize;
         private ByteString mToFingerprint;
         private ByteString mFromFingerprint;
+        private String extension;
         private List<ByteString> hashlist;
         private ByteString mSig;
 
@@ -417,6 +445,17 @@ public class BlockHeaderPacket implements ScatterSerializable {
             return this;
         }
 
+
+        /**
+         * Sets the file extension
+         * @param ext: string file extension
+         * @return builder
+         */
+        public Builder setExtension(String ext) {
+            this.extension = ext;
+            return this;
+        }
+
         /**
          * Sets blocksize
          * @param blockSize
@@ -452,6 +491,10 @@ public class BlockHeaderPacket implements ScatterSerializable {
 
             if (mBlockSize <= 0) {
                 return null;
+            }
+
+            if (extension == null) {
+                throw new IllegalArgumentException("extension should not be null");
             }
 
             return new BlockHeaderPacket(this);

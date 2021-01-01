@@ -7,6 +7,8 @@ import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.db.file.FileStore;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.google.protobuf.ByteString;
 
 import java.util.ArrayList;
@@ -31,6 +33,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     private final Datastore mDatastore;
     private final Context ctx;
     private final Scheduler databaseScheduler;
+    private final FileStore fileStore;
     /**
      * constructor
      * @param ctx  application or service context
@@ -39,11 +42,13 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public ScatterbrainDatastoreImpl(
             Context ctx,
             Datastore datastore,
+            FileStore fileStore,
             @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) Scheduler databaseScheduler
     ) {
         mDatastore = datastore;
         this.ctx = ctx;
         this.databaseScheduler = databaseScheduler;
+        this.fileStore = fileStore;
     }
 
     /**
@@ -84,41 +89,34 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .ignoreElements();
     }
 
-
     /**
      * Asynchronously inserts a list of messages into the datastore, allows tracking result
      * via provided callback
      *
      * @param messages room entities to insert
-     * @throws DatastoreInsertException
      * @return future returning list of ids inserted
      */
     @Override
-    public Completable insertMessages(List<ScatterMessage> messages) throws DatastoreInsertException {
-        for(ScatterMessage message : messages) {
-            if (message.getIdentity() == null || message.getHashes() == null) {
-                throw new DatastoreInsertException();
-            }
-        }
+    public Completable insertMessages(List<ScatterMessage> messages) {
         return insertMessagesSync(messages);
     }
-
 
     /**
      * Asynchronously inserts a single message into the datastore, allows tracking result
      * via provided callback
      *
      * @param message room entity to insert
-     * @throws DatastoreInsertException thrown if inner classes are null
      * @return future returning id of row inserted
      */
     @Override
-    public Completable insertMessage(ScatterMessage message) throws DatastoreInsertException {
-        if(message.getIdentity() == null || message.getHashes() == null) {
-            throw new DatastoreInsertException();
-        }
-
+    public Completable insertMessage(ScatterMessage message) {
         return insertMessagesSync(message);
+    }
+
+    @Override
+    public Completable insertMessage(WifiDirectRadioModule.BlockDataStream stream) {
+        return insertMessage(stream.getEntity())
+                .andThen(fileStore.insertFile(stream));
     }
 
     /**
@@ -153,10 +151,14 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      * @return livedata representation of list of messages
      */
     @Override
-    public Observable<ScatterMessage> getTopRandomMessages(int count) {
+    public Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(int count) {
         return this.mDatastore.scatterMessageDao().getTopRandom(count)
                 .toObservable()
-                .flatMap(Observable::fromIterable);
+                .flatMap(Observable::fromIterable)
+                .map(scatterMessage -> new WifiDirectRadioModule.BlockDataStream(
+                        scatterMessage,
+                        fileStore.readFile(fileStore.getFilePath(scatterMessage).toPath(), scatterMessage.getBlocksize())
+                        ));
     }
 
     /**
@@ -183,18 +185,8 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .flatMap(Observable::fromIterable);
     }
 
-    /*
     @Override
-    public Completable insertDataPacket(List<BlockDataObservableSource> packets) {
-        return Observable.fromIterable(packets)
-                .flatMap(packet -> insertDataPacket(packet).toObservable())
-                .ignoreElements();
-     }
-
-     */
-
-     @Override
-     public Completable insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity) {
+    public Completable insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity) {
         return Observable.fromCallable(() -> {
             List<Identity> idlist = new ArrayList<>();
             List<Keys> keysList = new ArrayList<>();

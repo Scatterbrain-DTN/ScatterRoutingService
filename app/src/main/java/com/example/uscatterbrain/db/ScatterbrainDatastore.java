@@ -2,6 +2,7 @@ package com.example.uscatterbrain.db;
 
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 
 import java.util.List;
 
@@ -21,14 +22,21 @@ public interface ScatterbrainDatastore {
 
 
     /**
+     * Inserts a message stream (with header and blocksequence packets) from a network source
+     * into both the database and filestore if applicable
+     * @return completable for message insertion
+     */
+    Completable insertMessage(WifiDirectRadioModule.BlockDataStream stream);
+
+
+    /**
      * Asynchronously inserts a list of messages into the datastore, allows tracking result
      * via provided callback
      *
      * @param messages room entities to insert
-     * @throws ScatterbrainDatastoreImpl.DatastoreInsertException
      * @return future returning list of ids inserted
      */
-    Completable insertMessages(List<ScatterMessage> messages) throws ScatterbrainDatastoreImpl.DatastoreInsertException;
+    Completable insertMessages(List<ScatterMessage> messages);
 
 
     /**
@@ -36,10 +44,9 @@ public interface ScatterbrainDatastore {
      * via provided callback
      *
      * @param message room entity to insert
-     * @throws ScatterbrainDatastoreImpl.DatastoreInsertException thrown if inner classes are null
      * @return future returning id of row inserted
      */
-    Completable insertMessage(ScatterMessage message) throws ScatterbrainDatastoreImpl.DatastoreInsertException;
+    Completable insertMessage(ScatterMessage message);
 
 
     /**
@@ -69,7 +76,7 @@ public interface ScatterbrainDatastore {
      * @param count how many messages to retrieve
      * @return livedata representation of list of messages
      */
-    Observable<ScatterMessage> getTopRandomMessages(int count);
+    Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(int count);
 
 
     /**
@@ -91,10 +98,4 @@ public interface ScatterbrainDatastore {
     Observable<com.example.uscatterbrain.identity.Identity> getIdentity(List<Long> ids);
 
     void clear();
-
-    class DatastoreInsertException extends Exception {
-        public DatastoreInsertException() {
-            super();
-        }
-    }
 }

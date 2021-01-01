@@ -19,11 +19,12 @@ message BlockData {
     bytes from_fingerprint = 1;
     bytes to_fingerprint = 2;
     string application = 3;
-    uint32 sessionid = 4;
-    bool todisk = 5;
-    repeated bytes nexthashes = 6; //size of this is fragment count
-    uint32 blocksize = 7;
-    bytes sig = 8;
+    string extension = 4;
+    uint32 sessionid = 5;
+    bool todisk = 6;
+    repeated bytes nexthashes = 7; //size of this is fragment count
+    uint32 blocksize = 8;
+    bytes sig = 9;
 }
 
 // body of file, message, or data stream.

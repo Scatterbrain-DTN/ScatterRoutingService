@@ -6,6 +6,9 @@ import androidx.room.ForeignKey;
 import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
+import com.google.protobuf.ByteString;
+import com.goterl.lazycode.lazysodium.interfaces.Hash;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,6 +24,24 @@ public class ScatterMessage {
     public ScatterMessage(Identity identity, byte[] body) {
         this.identity = identity;
         this.body = body;
+    }
+
+    public static List<Hashes> hash2hashs(List<ByteString> hashes) {
+        final ArrayList<Hashes> result = new ArrayList<>();
+        for (ByteString hash : hashes) {
+            Hashes h = new Hashes();
+            h.setHash(hash.toByteArray());
+            result.add(h);
+        }
+        return result;
+    }
+
+    public static List<ByteString> hashes2hash(List<Hashes> hashes) {
+        final ArrayList<ByteString> result = new ArrayList<>();
+        for (Hashes hash : hashes) {
+            result.add(ByteString.copyFrom(hash.getHash()));
+        }
+        return result;
     }
 
     @PrimaryKey(autoGenerate = true)
