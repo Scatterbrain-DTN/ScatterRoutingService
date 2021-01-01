@@ -37,16 +37,13 @@ public class CachedLEServerConnection implements Disposable {
                                 characteristic.getUuid(), BluetoothLERadioModuleImpl.UUID_CLK_DESCRIPTOR
                         )
                                 .doOnNext(req -> Log.v(TAG, "received timing characteristic write request"))
-                                .flatMap(req ->
-                                        req.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null)
-                                        .toSingleDefault(0)
-                                        .toObservable()
-                                )
                                 .toFlowable(BackpressureStrategy.BUFFER)
                                 .zipWith(
                                         session.packetQueue.toFlowable(BackpressureStrategy.BUFFER),
-                                        (integer, packet) -> packet
+                                        (req, packet) -> req.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null)
+                                                .toSingleDefault(packet)
                                 )
+                                .flatMapSingle(packet -> packet)
                         .flatMapCompletable(packet -> {
                     Log.v(TAG, "server received timing characteristic write");
                     return connection.setupIndication(characteristic.getUuid(), packet.writeToStream(20))
