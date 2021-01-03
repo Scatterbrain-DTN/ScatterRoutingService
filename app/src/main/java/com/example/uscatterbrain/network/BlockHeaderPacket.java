@@ -3,10 +3,10 @@ package com.example.uscatterbrain.network;
 import android.util.Log;
 
 import com.example.uscatterbrain.ScatterProto;
+import com.example.uscatterbrain.db.file.FileStore;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
@@ -40,6 +40,8 @@ public class BlockHeaderPacket implements ScatterSerializable {
     private final int mSessionID;
     private boolean mToDisk;
     private final int mBlocksize;
+    private final String mime;
+    private final String filename;
     private UUID luidtag;
 
     private BlockHeaderPacket(Builder builder) {
@@ -56,8 +58,16 @@ public class BlockHeaderPacket implements ScatterSerializable {
         this.mToDisk = builder.getToDisk();
         this.extension = builder.extension;
         this.mBlocksize = builder.getBlockSize();
-        Log.e("debug", "adding all nexthashes " + mHashList.size());
-        this.blockdata = ScatterProto.BlockData.newBuilder()
+        this.mime = builder.mime;
+        final ScatterProto.BlockData.Builder b = ScatterProto.BlockData.newBuilder();
+        if (builder.filename == null) {
+            this.filename = getAutogenFilename();
+            b.setFilenameGone(true);
+        } else {
+            b.setFilenameVal(builder.filename);
+            this.filename = builder.filename;
+        }
+        this.blockdata = b
                 .setApplicationBytes(ByteString.copyFrom(this.mApplication))
                 .setFromFingerprint(this.mFromFingerprint)
                 .setToFingerprint(this.mToFingerprint)
@@ -66,6 +76,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
                 .setSessionid(this.mSessionID)
                 .setSig(ByteString.copyFrom(this.mSignature))
                 .setBlocksize(mBlocksize)
+                .setMime(this.mime)
                 .build();
     }
 
@@ -75,6 +86,8 @@ public class BlockHeaderPacket implements ScatterSerializable {
         messagebytes = messagebytes.concat(this.mToFingerprint);
         messagebytes = messagebytes.concat(ByteString.copyFrom(this.mApplication));
         messagebytes = messagebytes.concat(ByteString.copyFromUtf8(this.extension));
+        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(this.mime));
+        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(this.filename));
         byte td = 0;
         if (this.mToDisk)
             td = 1;
@@ -137,17 +150,12 @@ public class BlockHeaderPacket implements ScatterSerializable {
         }
     }
 
-    public String getFilename() {
-        byte[] outhash = new byte[GenericHash.BYTES];
-        byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
-        LibsodiumInterface.getSodium().crypto_generichash_init(state, null, 0, outhash.length);
-        for (ByteString bytes : mHashList) {
-            LibsodiumInterface.getSodium().crypto_generichash_update(state, bytes.toByteArray(), bytes.size());
-        }
-        LibsodiumInterface.getSodium().crypto_generichash_final(state, outhash, outhash.length);
-        ByteBuffer buf = ByteBuffer.wrap(outhash);
-        //note: this only is safe because crypto_generichash_BYTES_MIN is 16
-        return new UUID(buf.getLong(), buf.getLong()).toString() + "." + extension;
+    public String getUserFilename() {
+        return filename;
+    }
+
+    public String getAutogenFilename() {
+        return FileStore.getDefaultFileName(this) + "." + extension;
     }
 
     private BlockHeaderPacket(InputStream in) throws IOException {
@@ -163,6 +171,12 @@ public class BlockHeaderPacket implements ScatterSerializable {
         this.mSessionID = blockdata.getSessionid();
         this.mBlocksize = blockdata.getBlocksize();
         this.extension = blockdata.getExtension();
+        if (blockdata.getFilenameCase().equals(ScatterProto.BlockData.FilenameCase.FILENAME_VAL)) {
+            this.filename = blockdata.getFilenameVal();
+        } else {
+            this.filename = getAutogenFilename();
+        }
+        this.mime = blockdata.getMime();
     }
 
     /**
@@ -347,6 +361,10 @@ public class BlockHeaderPacket implements ScatterSerializable {
      */
     public void setToDisk(boolean t) { this.mToDisk = t; }
 
+    public String getMime() {
+        return mime;
+    }
+
     /**
      * New builder builder.
      *
@@ -369,6 +387,8 @@ public class BlockHeaderPacket implements ScatterSerializable {
         private String extension;
         private List<ByteString> hashlist;
         private ByteString mSig;
+        private String filename;
+        private String mime;
 
         /**
          * Instantiates a new Builder.
@@ -377,6 +397,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
             todisk = false;
             sessionid = -1;
             mBlockSize = -1;
+            mime = "application/octet-stream";
         }
 
         /**
@@ -468,6 +489,16 @@ public class BlockHeaderPacket implements ScatterSerializable {
 
         public Builder setSig(ByteString sig) {
             this.mSig = sig;
+            return this;
+        }
+
+        public Builder setMime(String mime) {
+            this.mime = mime;
+            return this;
+        }
+
+        public Builder setFilename(String filename) {
+            this.filename = filename;
             return this;
         }
 

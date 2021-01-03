@@ -22,5 +22,16 @@
         <service
             android:name=".ScatterRoutingService"
             android:exported="false"/>
+
+        <provider
+            android:authorities="com.example.uscatterbrain"
+            android:name="com.example.uscatterbrain.db.file.DatastoreImportProviderImpl"
+            android:grantUriPermissions="true"
+            android:exported="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER"/>
+            </intent-filter>
+        </provider>
     </application>
 </manifest>

@@ -4,16 +4,19 @@ import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.ForeignKey;
 import androidx.room.Ignore;
+import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
 import com.google.protobuf.ByteString;
-import com.goterl.lazycode.lazysodium.interfaces.Hash;
 
 import java.util.ArrayList;
 import java.util.List;
 
 
-@Entity(tableName = "messages")
+@Entity(
+        tableName = "messages",
+        indices = {@Index(value =  {"filepath"}, unique = true)}
+        )
 public class ScatterMessage {
 
     public ScatterMessage() {
@@ -45,135 +48,45 @@ public class ScatterMessage {
     }
 
     @PrimaryKey(autoGenerate = true)
-    private long messageID;
+    public long messageID;
 
     @ColumnInfo
-    private byte[] body;
+    public byte[] body;
 
     @ColumnInfo
     @ForeignKey(entity = Identity.class, parentColumns = "identityID", childColumns = "identityID")
-    private long identityID;
+    public long identityID;
 
     @ColumnInfo
-    private byte[] to;
+    public byte[] to;
 
     @ColumnInfo
-    private byte[] from;
+    public byte[] from;
 
     @ColumnInfo
-    private byte[] application;
+    public byte[] application;
 
     @ColumnInfo
-    private byte[] sig;
+    public byte[] sig;
 
     @ColumnInfo
-    private int sessionid;
+    public int sessionid;
 
     @ColumnInfo
-    private int blocksize;
+    public int blocksize;
+
+    @ColumnInfo(name = "filepath")
+    public String filePath;
 
     @ColumnInfo
-    String filePath;
+    public String userFilename;
+
+    @ColumnInfo
+    public String mimeType;
 
     @Ignore
-    private List<Hashes> hashes = new ArrayList<>();
+    public List<Hashes> hashes = new ArrayList<>();
 
     @Ignore
-    private Identity identity;
-
-    public byte[] getBody() {
-        return body;
-    }
-
-    public void setBody(byte[] body) {
-        this.body = body;
-    }
-
-    public void setIdentityID(long identityID) {
-        this.identityID = identityID;
-    }
-
-    public long getIdentityID() {
-        return identityID;
-    }
-
-    public byte[] getTo() {
-        return to;
-    }
-
-    public void setTo(byte[] to) {
-        this.to = to;
-    }
-
-    public byte[] getApplication() {
-        return application;
-    }
-
-    public void setApplication(byte[] application) {
-        this.application = application;
-    }
-
-    public List<Hashes> getHashes() {
-        return hashes;
-    }
-
-    public void setHashes(List<Hashes> hashes) {
-        this.hashes = hashes;
-    }
-
-    public long getMessageID() {
-        return messageID;
-    }
-
-    public void setMessageID(long messageID) {
-        this.messageID = messageID;
-    }
-
-    public byte[] getSig() {
-        return sig;
-    }
-
-    public void setSig(byte[] sig) {
-        this.sig = sig;
-    }
-
-    public byte[] getFrom() {
-        return from;
-    }
-
-    public String getFilePath() {
-        return filePath;
-    }
-
-    public void setFrom(byte[] from) {
-        this.from = from;
-    }
-
-    public int getSessionid() {
-        return sessionid;
-    }
-
-    public void setSessionid(int sessionid) {
-        this.sessionid = sessionid;
-    }
-
-    public void setIdentity(Identity identity) {
-        this.identity = identity;
-    }
-
-    public void setFilePath(String file) {
-        this.filePath = file;
-    }
-
-    public int getBlocksize() {
-        return blocksize;
-    }
-
-    public void setBlocksize(int blocksize) {
-        this.blocksize = blocksize;
-    }
-
-    public Identity getIdentity() {
-        return identity;
-    }
+    public Identity identity;
 }

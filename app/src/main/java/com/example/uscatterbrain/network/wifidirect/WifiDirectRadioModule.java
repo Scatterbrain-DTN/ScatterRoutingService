@@ -28,26 +28,27 @@ public interface WifiDirectRadioModule {
         public BlockDataStream(BlockHeaderPacket headerPacket, Flowable<BlockSequencePacket> sequencePackets) {
             this.sequencePackets = sequencePackets;
             this.headerPacket = headerPacket;
-            messageEntity.setTo(headerPacket.getToFingerprint().toByteArray());
-            messageEntity.setFrom(headerPacket.getFromFingerprint().toByteArray());
-            messageEntity.setApplication(headerPacket.getApplication());
-            messageEntity.setSig(headerPacket.getSignature());
-            messageEntity.setSessionid(headerPacket.getSessionID());
-            messageEntity.setBlocksize(headerPacket.getBlockSize());
-            messageEntity.setFilePath(headerPacket.getFilename());
-            messageEntity.setHashes(ScatterMessage.hash2hashs(headerPacket.getHashList()));
+            messageEntity.to = headerPacket.getToFingerprint().toByteArray();
+            messageEntity.from = headerPacket.getFromFingerprint().toByteArray();
+            messageEntity.application = headerPacket.getApplication();
+            messageEntity.sig = headerPacket.getSignature();
+            messageEntity.sessionid = headerPacket.getSessionID();
+            messageEntity.blocksize = headerPacket.getBlockSize();
+            messageEntity.mimeType =  headerPacket.getMime();
+            messageEntity.hashes = ScatterMessage.hash2hashs(headerPacket.getHashList());
         }
 
         public BlockDataStream(ScatterMessage message, Flowable<BlockSequencePacket> packetFlowable) {
             this(BlockHeaderPacket.newBuilder()
-                    .setToFingerprint(ByteString.copyFrom(message.getTo()))
-                    .setFromFingerprint(ByteString.copyFrom(message.getFrom()))
-                    .setApplication(message.getApplication())
-                    .setSig(ByteString.copyFrom(message.getSig()))
-                    .setToDisk(true)
-                    .setSessionID(message.getSessionid())
-                    .setBlockSize(message.getBlocksize())
-                    .setHashes(ScatterMessage.hashes2hash(message.getHashes()))
+                    .setToFingerprint(ByteString.copyFrom(message.to))
+                    .setFromFingerprint(ByteString.copyFrom(message.from))
+                    .setApplication(message.application)
+                    .setSig(ByteString.copyFrom(message.sig))
+                    .setToDisk(true) //TODO: handle this intelligently
+                    .setSessionID(message.sessionid)
+                    .setBlockSize(message.blocksize)
+                    .setMime(message.mimeType)
+                    .setHashes(ScatterMessage.hashes2hash(message.hashes))
                     .build(), packetFlowable);
         }
 

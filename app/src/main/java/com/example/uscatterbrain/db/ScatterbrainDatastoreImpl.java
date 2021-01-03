@@ -11,6 +11,9 @@ import com.example.uscatterbrain.db.file.FileStore;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.google.protobuf.ByteString;
 
+import java.io.File;
+import java.io.Serializable;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +26,9 @@ import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
+
+import android.provider.DocumentsContract.Document;
+
 
 /**
  * Interface to the androidx room backed datastore
@@ -58,10 +64,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      */
     @Override
     public Completable insertMessagesSync(ScatterMessage message) {
-        return this.mDatastore.scatterMessageDao().insertIdentity(message.getIdentity())
-                .flatMap(identityid -> this.mDatastore.scatterMessageDao().insertHashes(message.getHashes())
+        return this.mDatastore.scatterMessageDao().insertIdentity(message.identity)
+                .flatMap(identityid -> this.mDatastore.scatterMessageDao().insertHashes(message.hashes)
                         .flatMap(hashids -> {
-                            message.setIdentityID(identityid);
+                            message.identityID = identityid;
                             return mDatastore.scatterMessageDao()._insertMessages(message)
                                     .flatMap(messageid -> {
                                         List<MessageHashCrossRef> hashes = new ArrayList<>();
@@ -115,6 +121,8 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     @Override
     public Completable insertMessage(WifiDirectRadioModule.BlockDataStream stream) {
+        File filePath = fileStore.getFilePath(stream.getHeaderPacket());
+        stream.getEntity().filePath = filePath.getAbsolutePath();
         return insertMessage(stream.getEntity())
                 .andThen(fileStore.insertFile(stream));
     }
@@ -157,7 +165,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .flatMap(Observable::fromIterable)
                 .map(scatterMessage -> new WifiDirectRadioModule.BlockDataStream(
                         scatterMessage,
-                        fileStore.readFile(fileStore.getFilePath(scatterMessage).toPath(), scatterMessage.getBlocksize())
+                        fileStore.readFile(fileStore.getFilePath(scatterMessage).toPath(), scatterMessage.blocksize)
                         ));
     }
 
@@ -183,6 +191,25 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         return this.mDatastore.scatterMessageDao().getByIdentity(id.getIdentityID())
                 .toObservable()
                 .flatMap(Observable::fromIterable);
+    }
+
+    @Override
+    public Single<ScatterMessage> getMessageByPath(String path) {
+        return this.mDatastore.scatterMessageDao().getByFilePath(path)
+                .toObservable()
+                .flatMap(Observable::fromIterable)
+                .firstOrError();
+    }
+
+
+    public ScatterMessage getMessageByPathSync(String path) {
+        //note: this has unique constraint so it is safe, I am terribly sorry for this horrible code
+        final List<ScatterMessage> result = this.mDatastore.scatterMessageDao().getByFilePath(path).blockingGet();
+        if (result.size() == 0) {
+            return null;
+        } else {
+            return result.get(0);
+        }
     }
 
     @Override
@@ -241,6 +268,27 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     });
                         });
     }
+
+    @Override
+    public Map<String, Serializable> getFileMetadataSync(File path) {
+        return getMessageByPath(path.getAbsolutePath())
+                .map(message -> {
+                    final HashMap<String, Serializable> result = new HashMap<>();
+                    result.put(Document.COLUMN_DOCUMENT_ID, message.filePath);
+                    result.put(Document.COLUMN_MIME_TYPE, message.mimeType);
+                    if (message.userFilename != null) {
+                        result.put(Document.COLUMN_DISPLAY_NAME, message.userFilename);
+                    } else {
+                        result.put(Document.COLUMN_DISPLAY_NAME, FileStore.getDefaultFileNameFromHashes(message.hashes));
+                    }
+                    result.put(Document.COLUMN_FLAGS, Document.FLAG_SUPPORTS_DELETE); //TODO: is this enough?
+                    result.put(Document.COLUMN_SIZE, fileStore.getFileSize(path.toPath()));
+                    return result;
+                })
+                .onErrorReturn(err -> new HashMap<>())
+                .blockingGet();
+    }
+
     /**
      * Clears the datastore, dropping all tables
      */

@@ -1,26 +1,36 @@
 package com.example.uscatterbrain.db.file;
 
+import android.os.ParcelFileDescriptor;
+
+import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.google.protobuf.ByteString;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
-import io.reactivex.Observable;
 import io.reactivex.Single;
 
 public interface FileStore {
+    String USER_FILES_PATH = "userFiles";
+    String CACHE_FILES_PATH = "systemFiles";
+
     Completable deleteFile(Path path);
 
     boolean isOpen(Path path);
@@ -45,6 +55,14 @@ public interface FileStore {
 
     File getFilePath(ScatterMessage message);
 
+    File getCacheDir();
+
+    File getUserDir();
+
+    ParcelFileDescriptor getDescriptor(Path path, String mode) throws FileNotFoundException;
+
+    long getFileSize(Path path);
+
     enum FileCallbackResult {
         ERR_FILE_EXISTS,
         ERR_FILE_NO_EXISTS,
@@ -58,6 +76,27 @@ public interface FileStore {
     enum WriteMode {
         APPEND,
         OVERWRITE
+    }
+
+    static String getDefaultFileNameFromHashes(List<Hashes> hashes) {
+        return getDefaultFileName(ScatterMessage.hashes2hash(hashes));
+    }
+
+    static String getDefaultFileName(List<ByteString> hashes) {
+        byte[] outhash = new byte[GenericHash.BYTES];
+        byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
+        LibsodiumInterface.getSodium().crypto_generichash_init(state, null, 0, outhash.length);
+        for (ByteString bytes : hashes) {
+            LibsodiumInterface.getSodium().crypto_generichash_update(state, bytes.toByteArray(), bytes.size());
+        }
+        LibsodiumInterface.getSodium().crypto_generichash_final(state, outhash, outhash.length);
+        ByteBuffer buf = ByteBuffer.wrap(outhash);
+        //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+        return new UUID(buf.getLong(), buf.getLong()).toString();
+    }
+
+    static String getDefaultFileName(BlockHeaderPacket packet) {
+        return getDefaultFileName(packet.getHashList());
     }
 
     class OpenFile implements Closeable {

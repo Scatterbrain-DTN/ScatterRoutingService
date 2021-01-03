@@ -1,6 +1,7 @@
 package com.example.uscatterbrain.db.file;
 
 import android.content.Context;
+import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.util.Pair;
 
@@ -12,6 +13,7 @@ import com.google.protobuf.ByteString;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,6 +33,8 @@ import io.reactivex.schedulers.Schedulers;
 public class FileStoreImpl implements FileStore{
     private final ConcurrentHashMap<Path, OpenFile> mOpenFiles;
     private final Context mCtx;
+    private final File USER_FILES_DIR;
+    private final File CACHE_FILES_DIR;
 
     @Inject
     public FileStoreImpl(
@@ -38,6 +42,8 @@ public class FileStoreImpl implements FileStore{
     ) {
         mOpenFiles = new ConcurrentHashMap<>();
         this.mCtx = context;
+        USER_FILES_DIR =  new File(mCtx.getFilesDir(), USER_FILES_PATH);
+        CACHE_FILES_DIR =  new File(mCtx.getFilesDir(), CACHE_FILES_PATH);
     }
 
     @Override
@@ -87,13 +93,44 @@ public class FileStoreImpl implements FileStore{
     }
 
     @Override
+    public File getCacheDir() {
+        if (!CACHE_FILES_DIR.exists()) {
+            if (!CACHE_FILES_DIR.mkdirs()) {
+                return null;
+            }
+        }
+        return CACHE_FILES_DIR;
+    }
+
+    @Override
+    public File getUserDir() {
+        if (!USER_FILES_DIR.exists()) {
+            if (!USER_FILES_DIR.mkdirs()) {
+                return null;
+            }
+        }
+        return USER_FILES_DIR;
+    }
+
+    @Override
     public File getFilePath(BlockHeaderPacket packet) {
-        return new File(mCtx.getFilesDir(), packet.getFilename());
+        return new File(CACHE_FILES_DIR, packet.getAutogenFilename());
     }
 
     @Override
     public File getFilePath(ScatterMessage message) {
-        return new File(mCtx.getFilesDir(), message.getFilePath());
+        return new File(CACHE_FILES_DIR, message.filePath);
+    }
+
+    @Override
+    public long getFileSize(Path path) {
+        return path.toFile().length();
+    }
+
+    @Override
+    public ParcelFileDescriptor getDescriptor(Path path, String mode) throws FileNotFoundException {
+        File file = path.toFile();
+        return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
     }
 
     @Override

@@ -11,6 +11,8 @@ import androidx.room.Room;
 import com.example.uscatterbrain.db.Datastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
+import com.example.uscatterbrain.db.file.DatastoreImportProvider;
+import com.example.uscatterbrain.db.file.DatastoreImportProviderImpl;
 import com.example.uscatterbrain.db.file.FileStore;
 import com.example.uscatterbrain.db.file.FileStoreImpl;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
@@ -142,8 +144,14 @@ public interface RoutingServiceComponent {
 
         @Binds
         @Singleton
+        abstract DatastoreImportProvider bindsDatastoreImportProvider(DatastoreImportProviderImpl impl);
+
+        @Binds
+        @Singleton
         abstract BluetoothLEModule bindRadioModuleInternal(BluetoothLERadioModuleImpl impl);
     }
 
     RoutingServiceBackend scatterRoutingService();
+
+    void inject(DatastoreImportProviderImpl provider);
 }

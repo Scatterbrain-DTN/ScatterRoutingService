@@ -17,9 +17,13 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
+import com.jakewharton.rxrelay2.BehaviorRelay;
 
 import java.io.InputStream;
 import java.util.Objects;
+
+import io.reactivex.Single;
+import io.reactivex.subjects.BehaviorSubject;
 
 public class ScatterRoutingService extends LifecycleService {
     public final String TAG = "ScatterRoutingService";
@@ -27,9 +31,14 @@ public class ScatterRoutingService extends LifecycleService {
     private final IBinder mBinder = new ScatterBinder();
     private DeviceProfile myprofile;
     private RoutingServiceBackend mBackend;
+    private static final BehaviorRelay<RoutingServiceComponent> component = BehaviorRelay.create();
 
     public ScatterRoutingService() {
 
+    }
+
+    public static Single<RoutingServiceComponent> getComponent() {
+        return component.firstOrError();
     }
 
     public AdvertisePacket getPacket() {
@@ -174,10 +183,13 @@ public class ScatterRoutingService extends LifecycleService {
         try {
             super.onBind(i);
             //TODO: temporary
-            mBackend = DaggerRoutingServiceComponent.builder()
+            RoutingServiceComponent c = DaggerRoutingServiceComponent.builder()
                     .applicationContext(this)
-                    .build()
-                    .scatterRoutingService();
+                    .build();
+
+            component.accept(c);
+
+            mBackend = c.scatterRoutingService();
             Log.v(TAG, "called onbind");
             bound = true;
             Log.v(TAG, "initialized datastore");

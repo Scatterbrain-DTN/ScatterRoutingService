@@ -4,10 +4,15 @@ import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 
+import java.io.File;
+import java.io.Serializable;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import io.reactivex.Completable;
 import io.reactivex.Observable;
+import io.reactivex.Single;
 
 public interface ScatterbrainDatastore {
 
@@ -96,6 +101,10 @@ public interface ScatterbrainDatastore {
     Completable insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity);
 
     Observable<com.example.uscatterbrain.identity.Identity> getIdentity(List<Long> ids);
+
+    Map<String, Serializable> getFileMetadataSync(File path);
+
+    Single<ScatterMessage> getMessageByPath(String path);
 
     void clear();
 }
