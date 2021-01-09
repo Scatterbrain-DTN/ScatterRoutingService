@@ -55,7 +55,7 @@ public class ScatterMessage {
 
     @ColumnInfo
     @ForeignKey(entity = Identity.class, parentColumns = "identityID", childColumns = "identityID")
-    public long identityID;
+    public Long identityID;
 
     @ColumnInfo
     public byte[] to;

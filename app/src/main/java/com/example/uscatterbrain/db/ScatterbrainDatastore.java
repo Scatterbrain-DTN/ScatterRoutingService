@@ -104,7 +104,11 @@ public interface ScatterbrainDatastore {
 
     Map<String, Serializable> getFileMetadataSync(File path);
 
+    Map<String, Serializable> insertAndHashLocalFile(File path, int blocksize);
+
     Single<ScatterMessage> getMessageByPath(String path);
+
+    int deleteByPath(File path);
 
     void clear();
 }

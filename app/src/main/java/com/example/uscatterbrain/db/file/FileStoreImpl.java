@@ -1,7 +1,6 @@
 package com.example.uscatterbrain.db.file;
 
 import android.content.Context;
-import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.util.Pair;
 
@@ -13,7 +12,6 @@ import com.google.protobuf.ByteString;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -125,12 +123,6 @@ public class FileStoreImpl implements FileStore{
     @Override
     public long getFileSize(Path path) {
         return path.toFile().length();
-    }
-
-    @Override
-    public ParcelFileDescriptor getDescriptor(Path path, String mode) throws FileNotFoundException {
-        File file = path.toFile();
-        return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
     }
 
     @Override

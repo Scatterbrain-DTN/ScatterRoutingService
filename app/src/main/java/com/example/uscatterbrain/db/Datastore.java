@@ -17,7 +17,7 @@ import com.example.uscatterbrain.db.entities.ScatterMessageDao;
             Hashes.class,
             MessageHashCrossRef.class,
             Keys.class,
-        }, version = 1, exportSchema = false)
+        }, version = 2, exportSchema = false)
 public abstract class Datastore extends RoomDatabase {
     public abstract IdentityDao identityDao();
     public abstract ScatterMessageDao scatterMessageDao();

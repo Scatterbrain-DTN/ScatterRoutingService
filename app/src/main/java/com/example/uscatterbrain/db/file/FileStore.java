@@ -59,8 +59,6 @@ public interface FileStore {
 
     File getUserDir();
 
-    ParcelFileDescriptor getDescriptor(Path path, String mode) throws FileNotFoundException;
-
     long getFileSize(Path path);
 
     enum FileCallbackResult {

@@ -68,4 +68,7 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Delete
     public abstract Completable delete(ScatterMessage message);
+
+    @Query("DELETE FROM messages WHERE filepath = :path")
+    public abstract int deleteByPath(String path);
 }

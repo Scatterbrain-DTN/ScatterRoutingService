@@ -1,7 +1,12 @@
 package com.example.uscatterbrain.db;
 
+import android.content.ContentResolver;
 import android.content.Context;
+import android.net.Uri;
+import android.provider.DocumentsContract.Document;
+import android.webkit.MimeTypeMap;
 
+import com.example.uscatterbrain.RoutingServiceBackend;
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.Keys;
@@ -13,7 +18,6 @@ import com.google.protobuf.ByteString;
 
 import java.io.File;
 import java.io.Serializable;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,8 +30,6 @@ import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
-
-import android.provider.DocumentsContract.Document;
 
 
 /**
@@ -57,6 +59,24 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         this.fileStore = fileStore;
     }
 
+    private Completable insertMessageWithoutIdentity(ScatterMessage message, Long identityid) {
+        return this.mDatastore.scatterMessageDao().insertHashes(message.hashes)
+                .flatMap(hashids -> {
+                    message.identityID = identityid;
+                    return mDatastore.scatterMessageDao()._insertMessages(message)
+                            .flatMap(messageid -> {
+                                List<MessageHashCrossRef> hashes = new ArrayList<>();
+                                for (Long hashID : hashids) {
+                                    MessageHashCrossRef xref = new MessageHashCrossRef();
+                                    xref.messageID = messageid;
+                                    xref.hashID = hashID;
+                                    hashes.add(xref);
+                                }
+                                return this.mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes);
+                            });
+                }).ignoreElement();
+    }
+
     /**
      *  For internal use, synchronously inserts messages to database
      * @param message room entity for message to insert
@@ -64,24 +84,12 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      */
     @Override
     public Completable insertMessagesSync(ScatterMessage message) {
-        return this.mDatastore.scatterMessageDao().insertIdentity(message.identity)
-                .flatMap(identityid -> this.mDatastore.scatterMessageDao().insertHashes(message.hashes)
-                        .flatMap(hashids -> {
-                            message.identityID = identityid;
-                            return mDatastore.scatterMessageDao()._insertMessages(message)
-                                    .flatMap(messageid -> {
-                                        List<MessageHashCrossRef> hashes = new ArrayList<>();
-                                        for (Long hashID : hashids) {
-                                            MessageHashCrossRef xref = new MessageHashCrossRef();
-                                            xref.messageID = messageid;
-                                            xref.hashID = hashID;
-                                            hashes.add(xref);
-                                        }
-                                        return this.mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes);
-                                    });
-                        })
-                )
-                .ignoreElement();
+        if (message.identity != null) {
+            return this.mDatastore.scatterMessageDao().insertIdentity(message.identity)
+                    .flatMapCompletable(identityid -> insertMessageWithoutIdentity(message, identityid));
+        } else {
+            return insertMessageWithoutIdentity(message, null);
+        }
     }
 
     /**
@@ -275,7 +283,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .map(message -> {
                     final HashMap<String, Serializable> result = new HashMap<>();
                     result.put(Document.COLUMN_DOCUMENT_ID, message.filePath);
-                    result.put(Document.COLUMN_MIME_TYPE, message.mimeType);
+                    result.put(Document.COLUMN_MIME_TYPE, "application/octet-stream");
                     if (message.userFilename != null) {
                         result.put(Document.COLUMN_DISPLAY_NAME, message.userFilename);
                     } else {
@@ -283,10 +291,41 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     }
                     result.put(Document.COLUMN_FLAGS, Document.FLAG_SUPPORTS_DELETE); //TODO: is this enough?
                     result.put(Document.COLUMN_SIZE, fileStore.getFileSize(path.toPath()));
+                    result.put(Document.COLUMN_SUMMARY, "shared via scatterbrain");
                     return result;
                 })
                 .onErrorReturn(err -> new HashMap<>())
                 .blockingGet();
+    }
+
+    @Override
+    public Map<String, Serializable> insertAndHashLocalFile(File path, int blocksize) {
+        return fileStore.hashFile(path.toPath(), blocksize)
+                .flatMapCompletable(hashes -> {
+                    ContentResolver resolver = ctx.getContentResolver();
+                    MimeTypeMap mimeTypeMap = MimeTypeMap.getSingleton();
+                    String mime = mimeTypeMap.getMimeTypeFromExtension(resolver.getType(Uri.fromFile(path)));
+                    ScatterMessage message = new ScatterMessage();
+                    message.to = null;
+                    message.from = null;
+                    message.application = ByteString.copyFromUtf8(
+                            RoutingServiceBackend.Applications.APPLICATION_FILESHARING
+                    ).toByteArray();
+                    message.sig = null;
+                    message.sessionid = 0;
+                    message.blocksize = blocksize;
+                    message.userFilename = path.getName();
+                    message.filePath = path.getAbsolutePath();
+                    message.mimeType = mime;
+                    message.hashes = ScatterMessage.hash2hashs(hashes);
+                    return this.insertMessage(message);
+                }).toSingleDefault(getFileMetadataSync(path))
+                .blockingGet();
+    }
+
+    @Override
+    public int deleteByPath(File path) {
+        return mDatastore.scatterMessageDao().deleteByPath(path.getAbsolutePath());
     }
 
     /**

@@ -1,14 +1,19 @@
 package com.example.uscatterbrain.db.file;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
+import android.net.Uri;
 import android.os.CancellationSignal;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract.Document;
 import android.provider.DocumentsContract.Root;
 import android.provider.DocumentsProvider;
 import android.util.Log;
+import android.webkit.MimeTypeMap;
 
 import androidx.annotation.Nullable;
 
@@ -18,6 +23,7 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,10 +37,8 @@ import io.reactivex.disposables.Disposable;
 public class DatastoreImportProviderImpl extends DocumentsProvider
         implements DatastoreImportProvider {
     private static final String TAG = "DatastoreImportProvider";
-    private static final int USER_ROOT_ID = 0;
-    private static final int CACHE_ROOT_ID = 1;
-    private static final String DOC_ID_ROOT = "root";
-
+    private static final String USER_ROOT_ID = "/userroot/";
+    private static final String CACHE_ROOT_ID = "/cacheroot/";
     private static final String[] DEFAULT_ROOT = new String[] {
             Root.COLUMN_ROOT_ID,
             Root.COLUMN_MIME_TYPES,
@@ -49,8 +53,11 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
             Document.COLUMN_MIME_TYPE,
             Document.COLUMN_DISPLAY_NAME,
             Document.COLUMN_FLAGS,
-            Document.COLUMN_SIZE
+            Document.COLUMN_SIZE,
+            Document.COLUMN_SUMMARY
     };
+
+    private final Handler fileCloseHandler;
 
     @Inject
     public Context ctx;
@@ -61,14 +68,32 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     @Inject
     public ScatterbrainDatastore datastore;
 
-    public DatastoreImportProviderImpl() { }
+    public DatastoreImportProviderImpl() {
+        fileCloseHandler = new Handler(Looper.getMainLooper());
+    }
+
+
+    private Map<String, Serializable> defaultFile(File path) {
+        final HashMap<String, Serializable> result = new HashMap<>();
+        ContentResolver resolver = ctx.getContentResolver();
+        MimeTypeMap mimeTypeMap = MimeTypeMap.getSingleton();
+        String mime = mimeTypeMap.getMimeTypeFromExtension(resolver.getType(Uri.fromFile(path)));
+        result.put(Document.COLUMN_DOCUMENT_ID, path.getAbsolutePath());
+        result.put(Document.COLUMN_MIME_TYPE, mime);
+        result.put(Document.COLUMN_DISPLAY_NAME, path.getName());
+        result.put(Document.COLUMN_SUMMARY, "not shared");
+        result.put(Document.COLUMN_FLAGS, Document.FLAG_SUPPORTS_DELETE);
+        result.put(Document.COLUMN_SIZE, fileStore.getFileSize(path.toPath()));
+        return result;
+    }
 
     private Map<String, Serializable> getFileMetadataRootNode(int root) {
         final HashMap<String, Serializable> result = new HashMap<>();
         result.put(Document.COLUMN_DOCUMENT_ID, getRootId(root));
         result.put(Document.COLUMN_MIME_TYPE, Document.MIME_TYPE_DIR);
         result.put(Document.COLUMN_DISPLAY_NAME, "root");
-        result.put(Document.COLUMN_FLAGS, Document.FLAG_SUPPORTS_DELETE); //TODO: is this enough?
+        result.put(Document.COLUMN_SUMMARY, "rootn node");
+        result.put(Document.COLUMN_FLAGS, Document.FLAG_DIR_SUPPORTS_CREATE); //TODO: is this enough?
         result.put(Document.COLUMN_SIZE, 0);
         return result;
     }
@@ -77,16 +102,28 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         if (fileMetaData.size() > 0) {
             final MatrixCursor.RowBuilder row = result.newRow();
             for (String column : DEFAULT_DOCUMENT_PROJECTION) {
+                Log.v(TAG, "adding column: " + column + " : "  + fileMetaData.get(column));
                 row.add(column, fileMetaData.get(column));
             }
             Log.v(TAG, "adding file row: " + row);
         } else {
             Log.e(TAG, "file metadata was zero");
+
         }
     }
 
     private String getRootId(int rootid) {
-        return DOC_ID_ROOT + rootid;
+        switch (rootid) {
+            case 0: {
+                return USER_ROOT_ID;
+            }
+            case 1: {
+                return CACHE_ROOT_ID;
+            }
+            default: {
+                return null;
+            }
+        }
     }
 
     private void initilizeRoot(MatrixCursor result, int rootid, String title, int flags) {
@@ -106,33 +143,43 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
                 (projection == null || projection.length == 0) ? DEFAULT_ROOT : projection
         );
 
-        initilizeRoot(result, USER_ROOT_ID, "Scatterbrain shared files", Root.FLAG_SUPPORTS_CREATE);
-        initilizeRoot(result, CACHE_ROOT_ID, "Scatterbrain received files", Root.FLAG_SUPPORTS_RECENTS);
+        initilizeRoot(result, 0, "Scatterbrain shared files", Root.FLAG_SUPPORTS_CREATE);
+        initilizeRoot(result, 1, "Scatterbrain received files", Root.FLAG_SUPPORTS_RECENTS);
 
         return result;
     }
 
     @Override
     public Cursor queryDocument(String documentId, String[] projection) throws FileNotFoundException {
+        Log.v(TAG, "querying file metadata: " + documentId);
         final MatrixCursor result =  new MatrixCursor(
                 (projection == null || projection.length == 0) ? DEFAULT_DOCUMENT_PROJECTION : projection
         );
 
         final  Map<String, Serializable> fileMetaData;
 
-        if (documentId.equals(getRootId(USER_ROOT_ID))) {
-            addFileRow(result, getFileMetadataRootNode(USER_ROOT_ID));
-        } else if (documentId.equals(getRootId(CACHE_ROOT_ID))) {
-            addFileRow(result, getFileMetadataRootNode(CACHE_ROOT_ID));
+        if (documentId.equals(USER_ROOT_ID)) {
+            addFileRow(result, getFileMetadataRootNode(0));
+        } else if (documentId.equals(CACHE_ROOT_ID)) {
+            addFileRow(result, getFileMetadataRootNode(1));
         } else {
-            fileMetaData = datastore.getFileMetadataSync(new File(documentId));
-            addFileRow(result, fileMetaData);
+            final File f = new File(documentId);
+            fileMetaData = datastore.getFileMetadataSync(f);
+            if (fileMetaData.size() > 0) {
+                addFileRow(result, fileMetaData);
+            } else if (f.exists()) {
+                addFileRow(result, defaultFile(f));
+            } else {
+                Log.e(TAG, "file does not exist");
+                return null;
+            }
         }
         return result;
     }
 
     @Override
     public Cursor queryChildDocuments(String parentDocumentId, String[] projection, String sortOrder) throws FileNotFoundException {
+        Log.v(TAG, "queryChildDocuments: " + parentDocumentId);
         final MatrixCursor result =  new MatrixCursor(
                 (projection == null || projection.length == 0) ? DEFAULT_DOCUMENT_PROJECTION : projection
         );
@@ -140,9 +187,9 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         final File f;
 
 
-        if (parentDocumentId.equals(getRootId(USER_ROOT_ID))) {
+        if (parentDocumentId.equals(USER_ROOT_ID)) {
             f = fileStore.getUserDir();
-        } else if (parentDocumentId.equals(getRootId(CACHE_ROOT_ID))) {
+        } else if (parentDocumentId.equals(CACHE_ROOT_ID)) {
             f = fileStore.getCacheDir();
         } else {
             f = new File(parentDocumentId);
@@ -152,22 +199,99 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         File[] fileList = f.listFiles();
         if (fileList != null) {
             for (File file : fileList) {
-                addFileRow(result, datastore.getFileMetadataSync(file));
+                final Map<String, Serializable> r = datastore.getFileMetadataSync(file);
+                if (r.size() > 0) {
+                    addFileRow(result, r);
+                } else {
+                    addFileRow(result, defaultFile(file));
+                }
             }
         }
         return result;
     }
 
-    @Override
-    public ParcelFileDescriptor openDocument(String documentId, String mode, @Nullable CancellationSignal signal) throws FileNotFoundException {
-        if (documentId.equals(getRootId(USER_ROOT_ID))) {
-            return fileStore.getDescriptor(fileStore.getUserDir().toPath(), mode);
-        } else if (documentId.equals(getRootId(CACHE_ROOT_ID))) {
-            return fileStore.getDescriptor(fileStore.getCacheDir().toPath(), mode);
-        } else {
-            return fileStore.getDescriptor(new File(documentId).toPath(), mode);
+    private ParcelFileDescriptor getDescriptor(File file, String mode) throws FileNotFoundException {
+        try {
+            return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode), fileCloseHandler, e -> {});
+        } catch (IOException e) {
+            return null;
         }
     }
+
+    @Override
+    public boolean isChildDocument(String parentDocumentId, String documentId) {
+        return documentId.startsWith(parentDocumentId);
+    }
+
+    @Override
+    public ParcelFileDescriptor openDocument(String documentId, String mode, @Nullable CancellationSignal signal) throws FileNotFoundException {
+        Log.v(TAG, "openDocument: " + documentId);
+        if (documentId.equals(USER_ROOT_ID)) {
+            return getDescriptor(fileStore.getUserDir(), mode);
+        } else if (documentId.equals(CACHE_ROOT_ID)) {
+            return getDescriptor(fileStore.getCacheDir(), mode);
+        } else {
+            final File f = new File(documentId);
+            return getDescriptor(f, mode);
+        }
+    }
+
+
+
+
+    @Override
+    public String createDocument(String parentDocumentId, String mimeType, String displayName) throws FileNotFoundException {
+        final File f;
+        final String parent;
+        if (parentDocumentId.equals(USER_ROOT_ID)) {
+            parent = fileStore.getUserDir().toPath().toString();
+        } else if (parentDocumentId.equals(CACHE_ROOT_ID)) {
+            parent = fileStore.getCacheDir().toPath().toString();
+        } else {
+            parent = parentDocumentId;
+        }
+
+        Log.v(TAG, "parentID: " + parentDocumentId.compareTo(USER_ROOT_ID));
+        if (Document.MIME_TYPE_DIR.equals(mimeType)) {
+            f = new File(parent, displayName);
+            if (!f.mkdirs()) {
+                return null;
+            }
+        } else {
+            f = new File(parent, displayName);
+            Log.v(TAG, "creating file: " + f.getAbsolutePath());
+            try {
+                if (!f.createNewFile()) {
+                    Log.e(TAG, "failed to create new file: " + displayName);
+                    return  null;
+                }
+
+                if (!f.setReadable(true)) {
+                    Log.e(TAG, "failed to set file readable");
+                    return null;
+                }
+
+                if (!f.setWritable(true)) {
+                    Log.e(TAG, "failed to set file writable");
+                    return null;
+                }
+                datastore.insertAndHashLocalFile(f, 4096);
+            } catch (IOException e) {
+                Log.e(TAG, "IOException when creating new file: " + displayName);
+                return null;
+            }
+        }
+        return f.getAbsolutePath();
+    }
+
+    @Override
+    public void deleteDocument(String documentId) throws FileNotFoundException {
+        final File file = new File(documentId);
+        datastore.deleteByPath(file);
+        file.delete();
+    }
+
+
 
     private void onInject() {
     }

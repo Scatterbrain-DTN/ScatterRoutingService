@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
     <application
         android:allowBackup="true"
@@ -17,15 +18,16 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        tools:replace="android:allowBackup">
+        tools:replace="android:allowBackup"
+        android:targetSdkVersion="23">
 
         <service
             android:name=".ScatterRoutingService"
-            android:exported="false"/>
+            android:exported="true"/>
 
         <provider
-            android:authorities="com.example.uscatterbrain"
-            android:name="com.example.uscatterbrain.db.file.DatastoreImportProviderImpl"
+            android:authorities="com.example.uscatterbrain.documents"
+            android:name=".db.file.DatastoreImportProviderImpl"
             android:grantUriPermissions="true"
             android:exported="true"
             android:permission="android.permission.MANAGE_DOCUMENTS">
