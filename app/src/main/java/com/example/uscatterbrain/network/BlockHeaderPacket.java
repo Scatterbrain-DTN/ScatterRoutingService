@@ -51,8 +51,17 @@ public class BlockHeaderPacket implements ScatterSerializable {
         } else {
             this.mSignature = builder.getSig().toByteArray();
         }
-        this.mToFingerprint = builder.getmToFingerprint();
-        this.mFromFingerprint = builder.getmFromFingerprint();
+        if (builder.getmToFingerprint() != null) {
+            this.mToFingerprint = builder.getmToFingerprint();
+        } else {
+            this.mToFingerprint = ByteString.EMPTY;
+        }
+
+        if (builder.getmFromFingerprint() != null) {
+            this.mFromFingerprint = builder.getmFromFingerprint();
+        } else  {
+            this.mFromFingerprint = ByteString.EMPTY;
+        }
         this.mApplication = builder.getApplication();
         this.mSessionID = builder.getSessionid();
         this.mToDisk = builder.getToDisk();
@@ -516,7 +525,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
                 return null;
 
             // fingerprints and application are required
-            if (mFromFingerprint == null || mToFingerprint == null || application == null) {
+            if (application == null) {
                 return null;
             }
 

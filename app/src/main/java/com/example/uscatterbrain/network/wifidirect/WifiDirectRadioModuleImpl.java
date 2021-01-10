@@ -12,6 +12,7 @@ import android.util.Log;
 import androidx.annotation.RequiresApi;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
+import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
@@ -46,6 +47,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     private final Scheduler readScheduler;
     private final Scheduler writeScheduler;
     private final Scheduler operationsScheduler;
+    private final ScatterbrainDatastore datastore;
     private final Context mContext;
     private static final int SCATTERBRAIN_PORT = 7575;
     private static final InterceptableServerSocket.InterceptableServerSocketFactory socketFactory =
@@ -60,6 +62,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     public WifiDirectRadioModuleImpl(
             WifiP2pManager manager,
             Context context,
+            ScatterbrainDatastore datastore,
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_READ) Scheduler readScheduler,
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_WRITE) Scheduler writeScheduler,
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_OPERATIONS) Scheduler operationsScheduler
@@ -71,6 +74,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         this.readScheduler = readScheduler;
         this.writeScheduler = writeScheduler;
         this.operationsScheduler = operationsScheduler;
+        this.datastore = datastore;
         groupOperationInProgress.set(false);
         groupConnectInProgress.set(false);
         Disposable d = mBroadcastReceiver.observeConnectionInfo()
@@ -345,15 +349,16 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     Log.e(TAG, "error on readBlockData: " + err);
                     err.printStackTrace();
                 }),
-                   writeBlockData(upgradeRequest, streamObservable).toObservable())
+                   writeBlockData(upgradeRequest, streamObservable)
+                           .doOnSubscribe(disp -> Log.v(TAG, "subscribed to writeBlockData"))
+                           .toObservable())
                 .doOnError(err -> {
                     Log.e(TAG, "error on writeBlockData" + err);
                     err.printStackTrace();
                 }
            );
 
-        return retryDelay(result, 20, 5)
-                .doFinally(tcpserverdisposable::dispose);
+        return result.doFinally(tcpserverdisposable::dispose);
     }
 
 
@@ -392,6 +397,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     .andThen(socketFactory.create(SCATTERBRAIN_PORT))
                     .flatMapObservable(InterceptableServerSocket::observeConnections)
                     .map(InterceptableServerSocket.SocketConnection::getSocket)
+                    .doOnNext(socket -> Log.v(TAG, "received socket as UKE"))
                     .flatMapCompletable(socket ->
                             stream.flatMapCompletable(blockDataStream ->
                                     blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())

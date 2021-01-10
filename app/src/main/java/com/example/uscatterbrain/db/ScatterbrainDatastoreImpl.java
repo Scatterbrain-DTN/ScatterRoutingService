@@ -4,6 +4,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.net.Uri;
 import android.provider.DocumentsContract.Document;
+import android.util.Log;
 import android.webkit.MimeTypeMap;
 
 import com.example.uscatterbrain.RoutingServiceBackend;
@@ -38,6 +39,7 @@ import io.reactivex.Single;
  */
 public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
+    private static final String TAG = "ScatterbrainDatastore";
     private final Datastore mDatastore;
     private final Context ctx;
     private final Scheduler databaseScheduler;
@@ -168,8 +170,11 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      */
     @Override
     public Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(int count) {
+        Log.v(TAG, "called getTopRandomMessages");
         return this.mDatastore.scatterMessageDao().getTopRandom(count)
                 .toObservable()
+                .doOnSubscribe(disp -> Log.v(TAG, "subscribed to getTopRandoMessages"))
+                .doOnNext(messages -> Log.v(TAG, "retrieved top " + messages.size() + " random messages"))
                 .flatMap(Observable::fromIterable)
                 .map(scatterMessage -> new WifiDirectRadioModule.BlockDataStream(
                         scatterMessage,
@@ -323,6 +328,11 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     @Override
     public int deleteByPath(File path) {
         return mDatastore.scatterMessageDao().deleteByPath(path.getAbsolutePath());
+    }
+
+    @Override
+    public int messageCount() {
+        return mDatastore.scatterMessageDao().messageCount();
     }
 
     /**

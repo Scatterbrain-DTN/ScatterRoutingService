@@ -28,7 +28,8 @@ import io.reactivex.Flowable;
 import io.reactivex.Single;
 import io.reactivex.schedulers.Schedulers;
 
-public class FileStoreImpl implements FileStore{
+public class FileStoreImpl implements FileStore {
+    private static final String TAG = "FileStore";
     private final ConcurrentHashMap<Path, OpenFile> mOpenFiles;
     private final Context mCtx;
     private final File USER_FILES_DIR;
@@ -233,6 +234,7 @@ public class FileStoreImpl implements FileStore{
 
     @Override
     public Flowable<BlockSequencePacket> readFile(Path path, int blocksize) {
+        Log.v(TAG, "called readFile " + path);
         return Flowable.fromCallable(() -> new FileInputStream(path.toFile()))
                 .flatMap(is -> {
                     Flowable<Integer> seq = Flowable.generate(() -> 0, (state, emitter) -> {
@@ -258,6 +260,6 @@ public class FileStoreImpl implements FileStore{
                                         })
                                         .subscribeOn(Schedulers.io());
                             }).concatMap(result -> result);
-                });
+                }).doOnComplete(() -> Log.v(TAG, "readfile completed"));
     }
 }

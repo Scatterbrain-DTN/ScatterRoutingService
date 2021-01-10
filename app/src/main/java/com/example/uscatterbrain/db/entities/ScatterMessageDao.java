@@ -43,7 +43,6 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
     @Query("SELECT * FROM messages WHERE identityID IN (:ids)")
     public abstract Maybe<List<ScatterMessage>> getByIdentity(long ids);
 
-    @Transaction
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
     public abstract Maybe<List<ScatterMessage>> getTopRandom(int count);
 
@@ -71,4 +70,8 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Query("DELETE FROM messages WHERE filepath = :path")
     public abstract int deleteByPath(String path);
+
+
+    @Query("SELECT COUNT(*) FROM messages")
+    public abstract int messageCount();
 }

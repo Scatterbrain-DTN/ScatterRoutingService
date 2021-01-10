@@ -69,7 +69,6 @@ public interface RoutingServiceComponent {
         @Provides
         static Datastore provideDatastore(Context ctx) {
             return Room.databaseBuilder(ctx, Datastore.class, ScatterbrainDatastore.DATABASE_NAME)
-                    .fallbackToDestructiveMigration()
                     .build();
         }
 

@@ -16,6 +16,7 @@ import android.util.Log;
 import android.util.Pair;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
+import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.ElectLeaderPacket;
@@ -44,7 +45,6 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 
 import io.reactivex.Completable;
-import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
@@ -115,6 +115,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final boolean discovering = true;
     private final AtomicReference<Disposable> discoveryDispoable = new AtomicReference<>();
     private final ConcurrentHashMap<String, Observable<CachedLEConnection>> connectionCache = new ConcurrentHashMap<>();
+    private final ScatterbrainDatastore datastore;
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -143,7 +144,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             @Named(RoutingServiceComponent.NamedSchedulers.BLE) Scheduler bluetoothScheduler,
             RxBleServer rxBleServer,
             RxBleClient rxBleClient,
-            WifiDirectRadioModule wifiDirectRadioModule
+            WifiDirectRadioModule wifiDirectRadioModule,
+            ScatterbrainDatastore datastore
             ) {
         mContext = context;
         mAdvertise = null;
@@ -152,6 +154,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         this.mServer = rxBleServer;
         this.mClient = rxBleClient;
         this.wifiDirectRadioModule = wifiDirectRadioModule;
+        this.datastore = datastore;
     }
 
     @Override
@@ -378,12 +381,11 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         protocolSpec.put(device.getAddress(), session);
     }
 
-    private final Completable bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {
-        return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest,
-                Observable.just(new WifiDirectRadioModule.BlockDataStream(
-                        headerPacket,
-                        Flowable.empty()
-                ))).ignoreElements();
+    private Completable bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {
+        return wifiDirectRadioModule.bootstrapFromUpgrade(
+                bootstrapRequest,
+                datastore.getTopRandomMessages(10)
+               ).flatMapCompletable(datastore::insertMessage);
     }
 
     private Observable<CachedLEConnection> establishConnection(RxBleDevice device, Timeout timeout) {

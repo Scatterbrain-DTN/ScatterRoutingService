@@ -108,6 +108,8 @@ public interface ScatterbrainDatastore {
 
     Single<ScatterMessage> getMessageByPath(String path);
 
+    int messageCount();
+
     int deleteByPath(File path);
 
     void clear();
