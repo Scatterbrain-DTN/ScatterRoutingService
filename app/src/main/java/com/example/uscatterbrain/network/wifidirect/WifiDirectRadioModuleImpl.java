@@ -446,7 +446,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
             return retryDelay(createGroup(
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
-            ),10, 1).observeOn(readScheduler)
+            ),10, 1)
                     .andThen(socketFactory.create(SCATTERBRAIN_PORT))
                     .flatMapObservable(serverSocket -> serverSocket.observeConnections()
                             .map(InterceptableServerSocket.SocketConnection::getSocket)
@@ -465,7 +465,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
                     60
-            ), 10, 1).observeOn(readScheduler)
+            ), 10, 1)
                     .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
                     .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
                             .subscribeOn(readScheduler)

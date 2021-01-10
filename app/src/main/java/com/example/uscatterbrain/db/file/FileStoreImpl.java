@@ -46,9 +46,9 @@ public class FileStoreImpl implements FileStore {
     }
 
     @Override
-    public Completable deleteFile(Path path) {
+    public Completable deleteFile(File path) {
         return Single.fromCallable(() -> {
-            if (!path.toFile().exists()) {
+            if (!path.exists()) {
                 return FileCallbackResult.ERR_FILE_NO_EXISTS;
             }
 
@@ -56,7 +56,7 @@ public class FileStoreImpl implements FileStore {
                 return FileCallbackResult.ERR_FAILED;
             }
 
-            if(path.toFile().delete()) {
+            if(path.delete()) {
                 return FileCallbackResult.ERR_SUCCESS;
             } else {
                 return FileCallbackResult.ERR_FAILED;
@@ -71,12 +71,12 @@ public class FileStoreImpl implements FileStore {
     }
 
     @Override
-    public boolean isOpen(Path path) {
-        return mOpenFiles.containsKey(path);
+    public boolean isOpen(File path) {
+        return mOpenFiles.containsKey(path.toPath());
     }
 
     @Override
-    public boolean close(Path path) {
+    public boolean close(File path) {
         if (isOpen(path)) {
             OpenFile f = mOpenFiles.get(path);
             if (f != null) {
@@ -122,17 +122,17 @@ public class FileStoreImpl implements FileStore {
     }
 
     @Override
-    public long getFileSize(Path path) {
-        return path.toFile().length();
+    public long getFileSize(File path) {
+        return path.length();
     }
 
     @Override
-    public Single<OpenFile> open(Path path) {
+    public Single<OpenFile> open(File path) {
         return Single.fromCallable(() -> {
-            OpenFile old = mOpenFiles.get(path);
+            OpenFile old = mOpenFiles.get(path.toPath());
             if (old == null) {
                 OpenFile f = new OpenFile(path, false);
-                mOpenFiles.put(path, f);
+                mOpenFiles.put(path.toPath(), f);
                 return f;
             } else {
                 return old;
@@ -142,8 +142,8 @@ public class FileStoreImpl implements FileStore {
     }
 
     @Override
-    public Completable insertFile(InputStream is, Path path) {
-        if (path.toFile().exists()) {
+    public Completable insertFile(InputStream is, File path) {
+        if (path.exists()) {
             return Completable.error(new FileAlreadyExistsException("file already exists"));
         }
 
@@ -160,7 +160,7 @@ public class FileStoreImpl implements FileStore {
                 }).subscribeOn(Schedulers.io()));
     }
 
-    private Completable insertSequence(Flowable<BlockSequencePacket> packets, BlockHeaderPacket header, Path path) {
+    private Completable insertSequence(Flowable<BlockSequencePacket> packets, BlockHeaderPacket header, File path) {
         return packets
           .concatMapCompletable(blockSequencePacket -> {
             if (!blockSequencePacket.verifyHash(header)) {
@@ -171,7 +171,7 @@ public class FileStoreImpl implements FileStore {
     }
 
     @Override
-    public Completable insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path) {
+    public Completable insertFile(BlockHeaderPacket header, InputStream inputStream, int count, File path) {
         return insertSequence(
                 BlockSequencePacket.parseFrom(inputStream)
                 .repeat(count),
@@ -185,12 +185,12 @@ public class FileStoreImpl implements FileStore {
         return insertSequence(
                 stream.getSequencePackets(),
                 stream.getHeaderPacket(),
-                getFilePath(stream.getHeaderPacket()).toPath()
+                getFilePath(stream.getHeaderPacket())
         );
     }
 
     @Override
-     public Completable insertFile(ByteString data, Path path, WriteMode mode) {
+     public Completable insertFile(ByteString data, File path, WriteMode mode) {
         return open(path)
                 .flatMapCompletable(f -> Completable.fromAction(() -> {
                     switch (mode) {
@@ -207,14 +207,14 @@ public class FileStoreImpl implements FileStore {
     }
 
     @Override
-    public Single<List<ByteString>> hashFile(Path path, int blocksize) {
+    public Single<List<ByteString>> hashFile(File path, int blocksize) {
         return Single.fromCallable(() -> {
             List<ByteString> r = new ArrayList<>();
-            if (!path.toFile().exists()) {
+            if (!path.exists()) {
                 throw new FileAlreadyExistsException("file already exists");
             }
 
-            FileInputStream is = new FileInputStream(path.toFile());
+            FileInputStream is = new FileInputStream(path);
             byte[] buf = new byte[blocksize];
             int read;
             int seqnum = 0;
@@ -233,9 +233,9 @@ public class FileStoreImpl implements FileStore {
     }
 
     @Override
-    public Flowable<BlockSequencePacket> readFile(Path path, int blocksize) {
+    public Flowable<BlockSequencePacket> readFile(File path, int blocksize) {
         Log.v(TAG, "called readFile " + path);
-        return Flowable.fromCallable(() -> new FileInputStream(path.toFile()))
+        return Flowable.fromCallable(() -> new FileInputStream(path))
                 .doOnSubscribe(disp -> Log.v(TAG, "subscribed to readFile"))
                 .flatMap(is -> {
                     Flowable<Integer> seq = Flowable.generate(() -> 0, (state, emitter) -> {

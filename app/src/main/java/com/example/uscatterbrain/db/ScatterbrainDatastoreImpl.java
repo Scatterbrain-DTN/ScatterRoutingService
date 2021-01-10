@@ -175,7 +175,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .doOnNext(message -> Log.v(TAG, "retrieved message"))
                 .map(scatterMessage -> new WifiDirectRadioModule.BlockDataStream(
                         scatterMessage,
-                        fileStore.readFile(fileStore.getFilePath(scatterMessage).toPath(), scatterMessage.blocksize)
+                        fileStore.readFile(fileStore.getFilePath(scatterMessage), scatterMessage.blocksize)
                         ));
     }
 
@@ -292,7 +292,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         result.put(Document.COLUMN_DISPLAY_NAME, FileStore.getDefaultFileNameFromHashes(message.hashes));
                     }
                     result.put(Document.COLUMN_FLAGS, Document.FLAG_SUPPORTS_DELETE); //TODO: is this enough?
-                    result.put(Document.COLUMN_SIZE, fileStore.getFileSize(path.toPath()));
+                    result.put(Document.COLUMN_SIZE, fileStore.getFileSize(path));
                     result.put(Document.COLUMN_SUMMARY, "shared via scatterbrain");
                     return result;
                 })
@@ -302,7 +302,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     @Override
     public Map<String, Serializable> insertAndHashLocalFile(File path, int blocksize) {
-        return fileStore.hashFile(path.toPath(), blocksize)
+        return fileStore.hashFile(path, blocksize)
                 .flatMapCompletable(hashes -> {
                     ScatterMessage message = new ScatterMessage();
                     message.to = null;

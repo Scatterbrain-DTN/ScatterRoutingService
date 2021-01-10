@@ -1,6 +1,5 @@
 package com.example.uscatterbrain.db.file;
 
-import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
 import android.webkit.MimeTypeMap;
 
@@ -16,12 +15,10 @@ import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,25 +30,25 @@ public interface FileStore {
     String USER_FILES_PATH = "userFiles";
     String CACHE_FILES_PATH = "systemFiles";
 
-    Completable deleteFile(Path path);
+    Completable deleteFile(File path);
 
-    boolean isOpen(Path path);
+    boolean isOpen(File path);
 
-    boolean close(Path path);
+    boolean close(File path);
 
-    Single<OpenFile> open(Path path);
+    Single<OpenFile> open(File path);
 
-    Completable insertFile(InputStream is, Path path);
+    Completable insertFile(InputStream is, File path);
 
-    Completable insertFile(BlockHeaderPacket header, InputStream inputStream, int count, Path path);
+    Completable insertFile(BlockHeaderPacket header, InputStream inputStream, int count, File path);
 
     Completable insertFile(WifiDirectRadioModule.BlockDataStream stream);
 
-    Completable insertFile(ByteString data, Path path, WriteMode mode);
+    Completable insertFile(ByteString data, File path, WriteMode mode);
 
-    Single<List<ByteString>> hashFile(Path path, int blocksize);
+    Single<List<ByteString>> hashFile(File path, int blocksize);
 
-    Flowable<BlockSequencePacket> readFile(Path path, int blocksize);
+    Flowable<BlockSequencePacket> readFile(File path, int blocksize);
 
     File getFilePath(BlockHeaderPacket packet);
 
@@ -61,7 +58,7 @@ public interface FileStore {
 
     File getUserDir();
 
-    long getFileSize(Path path);
+    long getFileSize(File path);
 
     enum FileCallbackResult {
         ERR_FILE_EXISTS,
@@ -98,7 +95,7 @@ public interface FileStore {
     static String getDefaultFileName(BlockHeaderPacket packet) {
         return getDefaultFileName(packet.getHashList());
     }
-
+    
     static String getMimeType(File file) {
         if (file.isDirectory()) {
             return DocumentsContract.Document.MIME_TYPE_DIR;
@@ -121,9 +118,9 @@ public interface FileStore {
         private final WriteMode mMode;
         private boolean mLocked;
 
-        public OpenFile(Path path, boolean append) throws IOException {
+        public OpenFile(File path, boolean append) throws IOException {
             this.mMode = WriteMode.OVERWRITE;
-            this.mFile = path.toFile();
+            this.mFile = path;
             this.mOs = new FileOutputStream(mFile,append);
             this.mIs = new FileInputStream(mFile);
             this.mLocked = false;
