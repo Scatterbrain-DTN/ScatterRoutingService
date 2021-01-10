@@ -1,5 +1,7 @@
 package com.example.uscatterbrain;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
@@ -32,6 +34,7 @@ public class ScatterRoutingService extends LifecycleService {
     private DeviceProfile myprofile;
     private RoutingServiceBackend mBackend;
     private static final BehaviorRelay<RoutingServiceComponent> component = BehaviorRelay.create();
+    private static final String NOTIFICATION_CHANNEL_FOREGROUND = "foreground";
 
     public ScatterRoutingService() {
 
@@ -190,34 +193,29 @@ public class ScatterRoutingService extends LifecycleService {
             component.accept(c);
 
             mBackend = c.scatterRoutingService();
+
+            NotificationChannel channel = new NotificationChannel(
+                    NOTIFICATION_CHANNEL_FOREGROUND,
+                    "fmef",
+                    NotificationManager.IMPORTANCE_DEFAULT
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            manager.createNotificationChannel(channel);
+            Intent notificationIntent = new Intent(this, ScatterRoutingService.class);
+            PendingIntent pendingIntent = PendingIntent.getService(this, 0, notificationIntent, 0);
+
+            Notification notification = new Notification.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
+                    .setContentTitle("ScatterRoutingService")
+                    .setContentText("discovering peers...")
+                    .setSmallIcon(R.drawable.ic_launcher_background)
+                    .setContentIntent(pendingIntent)
+                    .setTicker("fmef am tire")
+                    .build();
+
+            startForeground(1, notification);
             Log.v(TAG, "called onbind");
             bound = true;
             Log.v(TAG, "initialized datastore");
-           // mRadioModule.register(this);
-            NotificationCompat.Builder not = new NotificationCompat.Builder(this)
-                    .setSmallIcon(R.drawable.ic_toys_black_24dp)
-                    .setContentTitle("Scatterbrain")
-                    .setContentText("Discoverting Peers...");
-
-            Intent result = new Intent(this, ScatterRoutingService.class);
-
-            PendingIntent resultPendingIntent =
-                    PendingIntent.getActivity(
-                            this,
-                            0,
-                            result,
-                            PendingIntent.FLAG_UPDATE_CURRENT
-                    );
-
-            not.setContentIntent(resultPendingIntent);
-
-            int notificationId = 1;
-            NotificationManager man = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            try {
-                Objects.requireNonNull(man).notify(notificationId, not.build());
-            } catch (NullPointerException e) {
-                Log.e(TAG, "NullPointerException while creating persistent notification");
-            }
             return mBinder;
         } catch (Exception e) {
             e.printStackTrace();
