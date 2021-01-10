@@ -9,7 +9,6 @@ import java.net.Socket;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
@@ -78,9 +77,6 @@ public class InterceptableServerSocket extends ServerSocket {
             socketSet.add(socket);
             return socket;
         } catch (IOException e) {
-            if (!closed && socketBehaviorSubject.hasObservers()) {
-                socketBehaviorSubject.onError(e);
-            }
             throw e;
         }
     }
@@ -98,6 +94,7 @@ public class InterceptableServerSocket extends ServerSocket {
     }
 
     public Observable<SocketConnection> observeConnections() {
-        return socketBehaviorSubject.delay(0, TimeUnit.SECONDS);
+        return socketBehaviorSubject
+                .doOnSubscribe(disp -> Log.v("debug", "subscribed to server sockets"));
     }
 }

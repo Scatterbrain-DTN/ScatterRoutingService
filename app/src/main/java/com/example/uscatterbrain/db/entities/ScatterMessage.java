@@ -75,6 +75,9 @@ public class ScatterMessage {
     @ColumnInfo
     public int blocksize;
 
+    @ColumnInfo
+    public String extension;
+
     @ColumnInfo(name = "filepath")
     public String filePath;
 

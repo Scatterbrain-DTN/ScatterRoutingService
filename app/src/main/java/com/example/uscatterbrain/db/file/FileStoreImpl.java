@@ -236,6 +236,7 @@ public class FileStoreImpl implements FileStore {
     public Flowable<BlockSequencePacket> readFile(Path path, int blocksize) {
         Log.v(TAG, "called readFile " + path);
         return Flowable.fromCallable(() -> new FileInputStream(path.toFile()))
+                .doOnSubscribe(disp -> Log.v(TAG, "subscribed to readFile"))
                 .flatMap(is -> {
                     Flowable<Integer> seq = Flowable.generate(() -> 0, (state, emitter) -> {
                         emitter.onNext(state);

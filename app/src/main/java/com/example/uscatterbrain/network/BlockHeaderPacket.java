@@ -49,16 +49,16 @@ public class BlockHeaderPacket implements ScatterSerializable {
         if (builder.getSig() == null) {
             this.mSignature = new byte[Sign.ED25519_BYTES];
         } else {
-            this.mSignature = builder.getSig().toByteArray();
+            this.mSignature = builder.getSig();
         }
         if (builder.getmToFingerprint() != null) {
-            this.mToFingerprint = builder.getmToFingerprint();
+            this.mToFingerprint = ByteString.copyFrom(builder.getmToFingerprint());
         } else {
             this.mToFingerprint = ByteString.EMPTY;
         }
 
         if (builder.getmFromFingerprint() != null) {
-            this.mFromFingerprint = builder.getmFromFingerprint();
+            this.mFromFingerprint = ByteString.copyFrom(builder.getmFromFingerprint());
         } else  {
             this.mFromFingerprint = ByteString.EMPTY;
         }
@@ -391,11 +391,11 @@ public class BlockHeaderPacket implements ScatterSerializable {
         private byte[] application;
         private int sessionid;
         public int mBlockSize;
-        private ByteString mToFingerprint;
-        private ByteString mFromFingerprint;
+        private byte[] mToFingerprint;
+        private byte[] mFromFingerprint;
         private String extension;
         private List<ByteString> hashlist;
-        private ByteString mSig;
+        private byte[] mSig;
         private String filename;
         private String mime;
 
@@ -415,7 +415,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
          * @param toFingerprint the to fingerprint
          * @return builder
          */
-        public Builder setToFingerprint(ByteString toFingerprint) {
+        public Builder setToFingerprint(byte[] toFingerprint) {
             this.mToFingerprint = toFingerprint;
             return this;
         }
@@ -426,7 +426,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
          * @param fromFingerprint sets the fingerprint for the sender
          * @return builder
          */
-        public Builder setFromFingerprint(ByteString fromFingerprint) {
+        public Builder setFromFingerprint(byte[] fromFingerprint) {
             this.mFromFingerprint = fromFingerprint;
             return this;
         }
@@ -496,7 +496,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
             return this;
         }
 
-        public Builder setSig(ByteString sig) {
+        public Builder setSig(byte[] sig) {
             this.mSig = sig;
             return this;
         }
@@ -511,7 +511,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
             return this;
         }
 
-        public ByteString getSig() {
+        public byte[] getSig() {
             return mSig;
         }
 
@@ -572,7 +572,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
          *
          * @return the to fingerprint
          */
-        public ByteString getmToFingerprint() {
+        public byte[] getmToFingerprint() {
             return mToFingerprint;
         }
 
@@ -581,7 +581,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
          *
          * @return the from fingerprint
          */
-        public ByteString getmFromFingerprint() {
+        public byte[] getmFromFingerprint() {
             return mFromFingerprint;
         }
 

@@ -1,6 +1,5 @@
 package com.example.uscatterbrain.db;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.net.Uri;
 import android.provider.DocumentsContract.Document;
@@ -172,10 +171,8 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(int count) {
         Log.v(TAG, "called getTopRandomMessages");
         return this.mDatastore.scatterMessageDao().getTopRandom(count)
-                .toObservable()
                 .doOnSubscribe(disp -> Log.v(TAG, "subscribed to getTopRandoMessages"))
-                .doOnNext(messages -> Log.v(TAG, "retrieved top " + messages.size() + " random messages"))
-                .flatMap(Observable::fromIterable)
+                .doOnNext(message -> Log.v(TAG, "retrieved message"))
                 .map(scatterMessage -> new WifiDirectRadioModule.BlockDataStream(
                         scatterMessage,
                         fileStore.readFile(fileStore.getFilePath(scatterMessage).toPath(), scatterMessage.blocksize)
@@ -317,6 +314,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     message.sessionid = 0;
                     message.blocksize = blocksize;
                     message.userFilename = path.getName();
+                    message.extension = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString());
                     message.filePath = path.getAbsolutePath();
                     message.mimeType = FileStore.getMimeType(path);
                     message.hashes = ScatterMessage.hash2hashs(hashes);

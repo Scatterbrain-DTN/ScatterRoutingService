@@ -18,11 +18,9 @@ import android.util.Pair;
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.ElectLeaderPacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
-import com.google.protobuf.ByteString;
 import com.polidea.rxandroidble2.RxBleClient;
 import com.polidea.rxandroidble2.RxBleDevice;
 import com.polidea.rxandroidble2.RxBleServer;
@@ -31,7 +29,6 @@ import com.polidea.rxandroidble2.Timeout;
 import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +41,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import io.reactivex.BackpressureStrategy;
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
@@ -72,19 +70,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public static final BluetoothGattCharacteristic ELECTION_CHARACTERISTIC = makeCharacteristic(UUID_ELECTIONLEADER);
     public static final BluetoothGattCharacteristic BOCKDATA_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKDATA);
     public static final BluetoothGattCharacteristic BLOCKSEQUENCE_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKSEQUENCE);
-
-
-    private static final BlockHeaderPacket headerPacket = BlockHeaderPacket.newBuilder()
-            .setApplication("fmef".getBytes())
-            .setBlockSize(512)
-            .setHashes(new ArrayList<>())
-            .setSessionID(1)
-            .setExtension("fmef")
-            .setSig(ByteString.copyFrom(new byte[8]))
-            .setToDisk(true)
-            .setFromFingerprint(ByteString.copyFrom(new byte[8]))
-            .setToFingerprint(ByteString.copyFrom(new byte[8]))
-            .build();
 
     public static BluetoothGattCharacteristic makeCharacteristic(UUID uuid) {
         final BluetoothGattCharacteristic characteristic = new BluetoothGattCharacteristic(
@@ -385,6 +370,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         return wifiDirectRadioModule.bootstrapFromUpgrade(
                 bootstrapRequest,
                 datastore.getTopRandomMessages(10)
+                        .toFlowable(BackpressureStrategy.BUFFER)
+                        .doOnComplete(() -> Log.v("debug", "getTopRandomMessages oncomplete"))
                ).flatMapCompletable(datastore::insertMessage);
     }
 

@@ -20,6 +20,7 @@ import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
 
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -124,6 +125,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         Disposable tcpserverdisposable = socketFactory.create(SCATTERBRAIN_PORT)
                 .flatMapObservable(InterceptableServerSocket::acceptLoop)
                 .subscribeOn(operationsScheduler)
+                .doOnComplete(() -> Log.e(TAG, "tcp server completed. fueee"))
                 .subscribe(
                         socket -> Log.v(TAG,"accepted socket: " + socket.getSocket()),
                         err -> Log.e(TAG, "error when accepting socket: " + err)
@@ -212,7 +214,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 return Completable.error(e);
             }
         }).flatMapCompletable(completable -> completable
-                .timeout(5, TimeUnit.SECONDS, operationsScheduler));
+                .timeout(5, TimeUnit.SECONDS));
     }
 
     private static Single<Socket> getTcpSocket(InetAddress address) {
@@ -339,7 +341,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     @Override
     public Observable<BlockDataStream> bootstrapFromUpgrade(
             BootstrapRequest upgradeRequest,
-            Observable<BlockDataStream> streamObservable
+            Flowable<BlockDataStream> streamObservable
             ) {
 
         Log.v(TAG, "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
@@ -373,7 +375,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
 
     private Completable retryDelay(Completable completable, int count, int seconds) {
         return completable
-                .observeOn(operationsScheduler)
                 .retryWhen(errors -> errors
                         .zipWith(Flowable.range(1,count), (v, i) -> i)
                         .concatMapSingle(error -> Single.timer(seconds, TimeUnit.SECONDS)));
@@ -388,19 +389,23 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
 
     private Completable writeBlockData(
             BootstrapRequest request,
-            Observable<BlockDataStream> stream
+            Flowable<BlockDataStream> stream
     ) {
         if (request.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
             return retryDelay(createGroup(
                     request.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                     request.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
-            ), 10, 1).observeOn(writeScheduler)
+            ), 10, 1)
 
                     .andThen(socketFactory.create(SCATTERBRAIN_PORT))
+                    .subscribeOn(writeScheduler)
                     .flatMapObservable(InterceptableServerSocket::observeConnections)
                     .map(InterceptableServerSocket.SocketConnection::getSocket)
+                    .doOnNext(n -> Log.v(TAG, "accepted server socket"))
                     .flatMapCompletable(socket ->
-                            stream.flatMapCompletable(blockDataStream ->
+                            stream.doOnSubscribe(disp -> Log.v(TAG, "subscribed to BlockDataStream observable"))
+                                    .doOnNext(p -> Log.v(TAG, "writeBlockData processing BlockDataStream"))
+                                    .flatMapCompletable(blockDataStream ->
                                     blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
                                             .subscribeOn(writeScheduler)
                                             .doOnComplete(() -> Log.v(TAG, "server wrote header packet"))
@@ -408,7 +413,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                     .concatMapCompletable(blockSequencePacket ->
                                                             blockSequencePacket.writeToStream(socket.getOutputStream())
                                                             .subscribeOn(writeScheduler)
-                                                            .observeOn(operationsScheduler)
                                                     )
                                                     .doOnComplete(() -> Log.v(TAG, "server wrote sequence packets"))
                                             )));
@@ -418,8 +422,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     request.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
                     60
             ), 20, 1)
-                    .observeOn(writeScheduler)
                     .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
+                    .doOnSuccess(socket -> Log.v(TAG, "accepted client socket"))
                     .flatMapCompletable(socket -> stream.flatMapCompletable(blockDataStream ->
                             blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
                                     .subscribeOn(writeScheduler)
@@ -428,7 +432,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             blockDataStream.getSequencePackets()
                                                     .concatMapCompletable(sequencePacket -> sequencePacket.writeToStream(socket.getOutputStream())
                                                             .subscribeOn(writeScheduler)
-                                                            .observeOn(operationsScheduler)
                                                     ).doOnComplete(() -> Log.v(TAG, "wrote sequence packets to client socket"))
                                     )));
         } else {
@@ -454,7 +457,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             headerPacket,
                                             BlockSequencePacket.parseFrom(socket.getInputStream())
                                                     .subscribeOn(readScheduler)
-                                                    .observeOn(operationsScheduler)
                                                     .repeat(headerPacket.getHashList().size())
                                                     .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
                                     ))));
@@ -472,7 +474,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                     header,
                                     BlockSequencePacket.parseFrom(socket.getInputStream())
                                             .subscribeOn(readScheduler)
-                                            .observeOn(operationsScheduler)
                                             .repeat(header.getHashList().size())
                                             .doOnComplete(() -> Log.v(TAG, "client read sequence packets"))
                             ))).toObservable();

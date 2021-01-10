@@ -10,6 +10,7 @@ import java.util.List;
 
 import io.reactivex.Completable;
 import io.reactivex.Maybe;
+import io.reactivex.Observable;
 import io.reactivex.Single;
 
 @Dao
@@ -44,7 +45,7 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
     public abstract Maybe<List<ScatterMessage>> getByIdentity(long ids);
 
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
-    public abstract Maybe<List<ScatterMessage>> getTopRandom(int count);
+    public abstract Observable<ScatterMessage> getTopRandom(int count);
 
     @Transaction
     @Insert

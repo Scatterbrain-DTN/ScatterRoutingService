@@ -6,7 +6,6 @@ import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
-import com.google.protobuf.ByteString;
 
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
@@ -17,7 +16,7 @@ public interface WifiDirectRadioModule {
     Single<WifiP2pInfo> connectToGroup(String name, String passphrase, int timeout);
     Observable<BlockDataStream> bootstrapFromUpgrade(
             BootstrapRequest upgradeRequest,
-            Observable<BlockDataStream> streamObservable
+            Flowable<BlockDataStream> streamObservable
     );
 
     class BlockDataStream {
@@ -35,19 +34,21 @@ public interface WifiDirectRadioModule {
             messageEntity.sessionid = headerPacket.getSessionID();
             messageEntity.blocksize = headerPacket.getBlockSize();
             messageEntity.mimeType =  headerPacket.getMime();
+            messageEntity.extension = headerPacket.getExtension();
             messageEntity.hashes = ScatterMessage.hash2hashs(headerPacket.getHashList());
         }
 
         public BlockDataStream(ScatterMessage message, Flowable<BlockSequencePacket> packetFlowable) {
             this(BlockHeaderPacket.newBuilder()
-                    .setToFingerprint(ByteString.copyFrom(message.to))
-                    .setFromFingerprint(ByteString.copyFrom(message.from))
+                    .setToFingerprint(message.to)
+                    .setFromFingerprint(message.from)
                     .setApplication(message.application)
-                    .setSig(ByteString.copyFrom(message.sig))
+                    .setSig(message.sig)
                     .setToDisk(true) //TODO: handle this intelligently
                     .setSessionID(message.sessionid)
                     .setBlockSize(message.blocksize)
                     .setMime(message.mimeType)
+                    .setExtension(message.extension)
                     .setHashes(ScatterMessage.hashes2hash(message.hashes))
                     .build(), packetFlowable);
         }
