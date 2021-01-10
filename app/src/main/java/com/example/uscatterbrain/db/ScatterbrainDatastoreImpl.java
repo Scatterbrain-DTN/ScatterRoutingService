@@ -175,7 +175,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .doOnNext(message -> Log.v(TAG, "retrieved message"))
                 .map(scatterMessage -> new WifiDirectRadioModule.BlockDataStream(
                         scatterMessage,
-                        fileStore.readFile(fileStore.getFilePath(scatterMessage), scatterMessage.blocksize)
+                        fileStore.readFile(new File(scatterMessage.filePath), scatterMessage.blocksize)
                         ));
     }
 

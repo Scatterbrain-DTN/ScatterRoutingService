@@ -4,7 +4,6 @@ import android.content.Context;
 import android.util.Log;
 import android.util.Pair;
 
-import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
@@ -114,11 +113,6 @@ public class FileStoreImpl implements FileStore {
     @Override
     public File getFilePath(BlockHeaderPacket packet) {
         return new File(CACHE_FILES_DIR, packet.getAutogenFilename());
-    }
-
-    @Override
-    public File getFilePath(ScatterMessage message) {
-        return new File(CACHE_FILES_DIR, message.filePath);
     }
 
     @Override

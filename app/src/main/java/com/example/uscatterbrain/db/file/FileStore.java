@@ -52,8 +52,6 @@ public interface FileStore {
 
     File getFilePath(BlockHeaderPacket packet);
 
-    File getFilePath(ScatterMessage message);
-
     File getCacheDir();
 
     File getUserDir();
