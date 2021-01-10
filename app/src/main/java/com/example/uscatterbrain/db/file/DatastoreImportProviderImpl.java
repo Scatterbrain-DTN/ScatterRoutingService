@@ -1,10 +1,8 @@
 package com.example.uscatterbrain.db.file;
 
-import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
-import android.net.Uri;
 import android.os.CancellationSignal;
 import android.os.Handler;
 import android.os.Looper;
@@ -13,7 +11,6 @@ import android.provider.DocumentsContract.Document;
 import android.provider.DocumentsContract.Root;
 import android.provider.DocumentsProvider;
 import android.util.Log;
-import android.webkit.MimeTypeMap;
 
 import androidx.annotation.Nullable;
 
@@ -72,21 +69,6 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         fileCloseHandler = new Handler(Looper.getMainLooper());
     }
 
-
-    private Map<String, Serializable> defaultFile(File path) {
-        final HashMap<String, Serializable> result = new HashMap<>();
-        ContentResolver resolver = ctx.getContentResolver();
-        MimeTypeMap mimeTypeMap = MimeTypeMap.getSingleton();
-        String mime = mimeTypeMap.getMimeTypeFromExtension(resolver.getType(Uri.fromFile(path)));
-        result.put(Document.COLUMN_DOCUMENT_ID, path.getAbsolutePath());
-        result.put(Document.COLUMN_MIME_TYPE, mime);
-        result.put(Document.COLUMN_DISPLAY_NAME, path.getName());
-        result.put(Document.COLUMN_SUMMARY, "not shared");
-        result.put(Document.COLUMN_FLAGS, Document.FLAG_SUPPORTS_DELETE);
-        result.put(Document.COLUMN_SIZE, fileStore.getFileSize(path.toPath()));
-        return result;
-    }
-
     private Map<String, Serializable> getFileMetadataRootNode(int root) {
         final HashMap<String, Serializable> result = new HashMap<>();
         result.put(Document.COLUMN_DOCUMENT_ID, getRootId(root));
@@ -143,7 +125,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
                 (projection == null || projection.length == 0) ? DEFAULT_ROOT : projection
         );
 
-        initilizeRoot(result, 0, "Scatterbrain shared files", Root.FLAG_SUPPORTS_CREATE);
+        initilizeRoot(result, 0, "Scatterbrain shared files", Root.FLAG_SUPPORTS_CREATE | Root.FLAG_SUPPORTS_IS_CHILD);
         initilizeRoot(result, 1, "Scatterbrain received files", Root.FLAG_SUPPORTS_RECENTS);
 
         return result;
@@ -165,10 +147,10 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         } else {
             final File f = new File(documentId);
             fileMetaData = datastore.getFileMetadataSync(f);
-            if (fileMetaData.size() > 0) {
+            if (!f.exists()) {
+              return result;
+            } else if (fileMetaData.size() > 0) {
                 addFileRow(result, fileMetaData);
-            } else if (f.exists()) {
-                addFileRow(result, defaultFile(f));
             } else {
                 Log.e(TAG, "file does not exist");
                 return null;
@@ -199,11 +181,11 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         File[] fileList = f.listFiles();
         if (fileList != null) {
             for (File file : fileList) {
-                final Map<String, Serializable> r = datastore.getFileMetadataSync(file);
-                if (r.size() > 0) {
-                    addFileRow(result, r);
-                } else {
-                    addFileRow(result, defaultFile(file));
+                if (file.exists()) {
+                    final Map<String, Serializable> r = datastore.getFileMetadataSync(file);
+                    if (r.size() > 0) {
+                        addFileRow(result, r);
+                    }
                 }
             }
         }
@@ -286,9 +268,14 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
 
     @Override
     public void deleteDocument(String documentId) throws FileNotFoundException {
+        Log.v(TAG, "deleteDocument: " + documentId);
         final File file = new File(documentId);
-        datastore.deleteByPath(file);
-        file.delete();
+        if (!file.delete()) {
+            throw new FileNotFoundException("failed to delete file");
+        }
+        if (datastore.deleteByPath(file) == 0) {
+            throw new FileNotFoundException("failed to delete database entry");
+        }
     }
 
 

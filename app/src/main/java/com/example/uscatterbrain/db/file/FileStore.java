@@ -1,6 +1,8 @@
 package com.example.uscatterbrain.db.file;
 
 import android.os.ParcelFileDescriptor;
+import android.provider.DocumentsContract;
+import android.webkit.MimeTypeMap;
 
 import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
@@ -97,6 +99,21 @@ public interface FileStore {
         return getDefaultFileName(packet.getHashList());
     }
 
+    static String getMimeType(File file) {
+        if (file.isDirectory()) {
+            return DocumentsContract.Document.MIME_TYPE_DIR;
+        } else {
+            final String name = file.getName();
+            final int lastDot = name.lastIndexOf('.');
+            if (lastDot >= 0) {
+                final String extension = name.substring(lastDot + 1).toLowerCase();
+                final String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+                if (mime != null) return mime;
+            }
+            return "application/octet-stream";
+        }
+    }
+    
     class OpenFile implements Closeable {
         private final FileInputStream mIs;
         private FileOutputStream mOs;

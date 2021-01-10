@@ -283,7 +283,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .map(message -> {
                     final HashMap<String, Serializable> result = new HashMap<>();
                     result.put(Document.COLUMN_DOCUMENT_ID, message.filePath);
-                    result.put(Document.COLUMN_MIME_TYPE, "application/octet-stream");
+                    result.put(Document.COLUMN_MIME_TYPE, message.mimeType);
                     if (message.userFilename != null) {
                         result.put(Document.COLUMN_DISPLAY_NAME, message.userFilename);
                     } else {
@@ -302,9 +302,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public Map<String, Serializable> insertAndHashLocalFile(File path, int blocksize) {
         return fileStore.hashFile(path.toPath(), blocksize)
                 .flatMapCompletable(hashes -> {
-                    ContentResolver resolver = ctx.getContentResolver();
-                    MimeTypeMap mimeTypeMap = MimeTypeMap.getSingleton();
-                    String mime = mimeTypeMap.getMimeTypeFromExtension(resolver.getType(Uri.fromFile(path)));
                     ScatterMessage message = new ScatterMessage();
                     message.to = null;
                     message.from = null;
@@ -316,7 +313,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     message.blocksize = blocksize;
                     message.userFilename = path.getName();
                     message.filePath = path.getAbsolutePath();
-                    message.mimeType = mime;
+                    message.mimeType = FileStore.getMimeType(path);
                     message.hashes = ScatterMessage.hash2hashs(hashes);
                     return this.insertMessage(message);
                 }).toSingleDefault(getFileMetadataSync(path))
