@@ -32,7 +32,6 @@ import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
-import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.CompletableSubject;
@@ -121,6 +120,16 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
 
         //TODO: unregister this when appropriate
         registerBroadcastReceiver();
+
+        Disposable tcpserverdisposable = socketFactory.create(SCATTERBRAIN_PORT)
+                .flatMapObservable(InterceptableServerSocket::acceptLoop)
+                .subscribeOn(operationsScheduler)
+                .subscribe(
+                        socket -> Log.v(TAG,"accepted socket: " + socket.getSocket()),
+                        err -> Log.e(TAG, "error when accepting socket: " + err)
+                );
+
+        wifidirectDisposable.add(tcpserverdisposable);
     }
 
 
@@ -336,13 +345,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         Log.v(TAG, "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
                 + " " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)+ " "
                 + upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE));
-        Disposable tcpserverdisposable = socketFactory.create(SCATTERBRAIN_PORT)
-                .flatMapObservable(InterceptableServerSocket::acceptLoop)
-                .subscribeOn(operationsScheduler)
-                .subscribe(
-                        socket -> Log.v(TAG,"accepted socket: " + socket.getSocket()),
-                        err -> Log.e(TAG, "error when accepting socket: " + err)
-                );
         Observable<BlockDataStream> result =  Observable.mergeDelayError(
                    readBlockData(upgradeRequest)
                 .doOnError(err -> {
@@ -358,7 +360,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 }
            );
 
-        return result.doFinally(tcpserverdisposable::dispose);
+        return result;
     }
 
 
@@ -397,7 +399,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     .andThen(socketFactory.create(SCATTERBRAIN_PORT))
                     .flatMapObservable(InterceptableServerSocket::observeConnections)
                     .map(InterceptableServerSocket.SocketConnection::getSocket)
-                    .doOnNext(socket -> Log.v(TAG, "received socket as UKE"))
                     .flatMapCompletable(socket ->
                             stream.flatMapCompletable(blockDataStream ->
                                     blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
