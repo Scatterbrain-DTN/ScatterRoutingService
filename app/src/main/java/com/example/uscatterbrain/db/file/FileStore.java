@@ -38,13 +38,7 @@ public interface FileStore {
 
     Single<OpenFile> open(File path);
 
-    Completable insertFile(InputStream is, File path);
-
-    Completable insertFile(BlockHeaderPacket header, InputStream inputStream, int count, File path);
-
     Completable insertFile(WifiDirectRadioModule.BlockDataStream stream);
-
-    Completable insertFile(ByteString data, File path, WriteMode mode);
 
     Single<List<ByteString>> hashFile(File path, int blocksize);
 

@@ -13,7 +13,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -135,44 +134,17 @@ public class FileStoreImpl implements FileStore {
 
     }
 
-    @Override
-    public Completable insertFile(InputStream is, File path) {
-        if (path.exists()) {
-            return Completable.error(new FileAlreadyExistsException("file already exists"));
-        }
-
-        return open(path)
-                .flatMapCompletable(f -> Completable.fromAction(() -> {
-                    FileOutputStream os = f.getOutputStream();
-                    byte[] buf = new byte[8 * 1024];
-                    int read;
-                    while ((read = is.read(buf)) != -1) {
-                        os.write(buf, 0, read);
-                    }
-                    f.getOutputStream().close();
-                    f.lock();
-                }).subscribeOn(Schedulers.io()));
-    }
-
     private Completable insertSequence(Flowable<BlockSequencePacket> packets, BlockHeaderPacket header, File path) {
-        return packets
-          .concatMapCompletable(blockSequencePacket -> {
-            if (!blockSequencePacket.verifyHash(header)) {
-                return Completable.error(new IllegalStateException("failed to verify hash"));
-            }
-            return insertFile(blockSequencePacket.getmData(), path, WriteMode.APPEND);
-        });
+        return Single.fromCallable(() -> new FileOutputStream(path))
+                .flatMapCompletable(fileOutputStream -> packets
+                        .concatMapCompletable(blockSequencePacket -> {
+                            if (!blockSequencePacket.verifyHash(header)) {
+                                return Completable.error(new IllegalStateException("failed to verify hash"));
+                            }
+                            return Completable.fromAction(() -> blockSequencePacket.getmData().writeTo(fileOutputStream))
+                                    .subscribeOn(Schedulers.io());
+                        }));
     }
-
-    @Override
-    public Completable insertFile(BlockHeaderPacket header, InputStream inputStream, int count, File path) {
-        return insertSequence(
-                BlockSequencePacket.parseFrom(inputStream)
-                .repeat(count),
-                header,
-                path
-        );
-     }
 
     @Override
     public Completable insertFile(WifiDirectRadioModule.BlockDataStream stream) {
@@ -188,23 +160,6 @@ public class FileStoreImpl implements FileStore {
                 stream.getHeaderPacket(),
                 file
         ));
-    }
-
-    @Override
-     public Completable insertFile(ByteString data, File path, WriteMode mode) {
-        return open(path)
-                .flatMapCompletable(f -> Completable.fromAction(() -> {
-                    switch (mode) {
-                        case APPEND:
-                            f.setMode(true);
-                            break;
-                        case OVERWRITE:
-                            f.setMode(false);
-                            break;
-                    }
-                    FileOutputStream os = f.getOutputStream();
-                    data.writeTo(os);
-                }).subscribeOn(Schedulers.io()));
     }
 
     @Override
