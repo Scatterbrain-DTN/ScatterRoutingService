@@ -179,15 +179,15 @@ public class FileStoreImpl implements FileStore {
         final File file = getFilePath(stream.getHeaderPacket());
         Log.v(TAG, "insertFile: " + file);
 
-        if (file.exists()) {
-            return Completable.error(new FileAlreadyExistsException("file " + file + " already exists"));
-        }
-
-        return insertSequence(
+        return Completable.fromAction(() -> {
+            if (!file.createNewFile()) {
+                throw new FileAlreadyExistsException("file " + file + " already exists");
+            }
+        }).andThen(insertSequence(
                 stream.getSequencePackets(),
                 stream.getHeaderPacket(),
                 file
-        );
+        ));
     }
 
     @Override
