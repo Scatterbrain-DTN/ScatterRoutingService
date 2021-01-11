@@ -8,6 +8,7 @@ import android.webkit.MimeTypeMap;
 
 import com.example.uscatterbrain.RoutingServiceBackend;
 import com.example.uscatterbrain.RoutingServiceComponent;
+import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
@@ -61,10 +62,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     private Completable insertMessageWithoutIdentity(ScatterMessage message, Long identityid) {
-        return this.mDatastore.scatterMessageDao().insertHashes(message.hashes)
+        return this.mDatastore.scatterMessageDao().insertHashes(message.messageHashes)
                 .flatMap(hashids -> {
-                    message.identityID = identityid;
-                    return mDatastore.scatterMessageDao()._insertMessages(message)
+                    message.message.identityID = identityid;
+                    return mDatastore.scatterMessageDao()._insertMessages(message.message)
                             .flatMap(messageid -> {
                                 List<MessageHashCrossRef> hashes = new ArrayList<>();
                                 for (Long hashID : hashids) {
@@ -85,8 +86,8 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      */
     @Override
     public Completable insertMessagesSync(ScatterMessage message) {
-        if (message.identity != null) {
-            return this.mDatastore.scatterMessageDao().insertIdentity(message.identity)
+        if (message.message.identity != null) {
+            return this.mDatastore.scatterMessageDao().insertIdentity(message.message.identity)
                     .flatMapCompletable(identityid -> insertMessageWithoutIdentity(message, identityid));
         } else {
             return insertMessageWithoutIdentity(message, null);
@@ -131,7 +132,8 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     @Override
     public Completable insertMessage(WifiDirectRadioModule.BlockDataStream stream) {
         File filePath = fileStore.getFilePath(stream.getHeaderPacket());
-        stream.getEntity().filePath = filePath.getAbsolutePath();
+        Log.e(TAG, "inserting message at filePath " + filePath);
+        stream.getEntity().message.filePath = filePath.getAbsolutePath();
         return mDatastore.scatterMessageDao().messageCountSingle(filePath.getAbsolutePath())
                 .flatMapCompletable(count -> {
                     if (count > 0) {
@@ -185,7 +187,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .doOnNext(message -> Log.v(TAG, "retrieved message"))
                 .map(scatterMessage -> new WifiDirectRadioModule.BlockDataStream(
                         scatterMessage,
-                        fileStore.readFile(new File(scatterMessage.filePath), scatterMessage.blocksize)
+                        fileStore.readFile(new File(scatterMessage.message.filePath), scatterMessage.message.blocksize)
                         ));
     }
 
@@ -294,12 +296,12 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         return getMessageByPath(path.getAbsolutePath())
                 .map(message -> {
                     final HashMap<String, Serializable> result = new HashMap<>();
-                    result.put(Document.COLUMN_DOCUMENT_ID, message.filePath);
-                    result.put(Document.COLUMN_MIME_TYPE, message.mimeType);
-                    if (message.userFilename != null) {
-                        result.put(Document.COLUMN_DISPLAY_NAME, message.userFilename);
+                    result.put(Document.COLUMN_DOCUMENT_ID, message.message.filePath);
+                    result.put(Document.COLUMN_MIME_TYPE, message.message.mimeType);
+                    if (message.message.userFilename != null) {
+                        result.put(Document.COLUMN_DISPLAY_NAME, message.message.userFilename);
                     } else {
-                        result.put(Document.COLUMN_DISPLAY_NAME, FileStore.getDefaultFileNameFromHashes(message.hashes));
+                        result.put(Document.COLUMN_DISPLAY_NAME, FileStore.getDefaultFileNameFromHashes(message.messageHashes));
                     }
                     result.put(Document.COLUMN_FLAGS, Document.FLAG_SUPPORTS_DELETE); //TODO: is this enough?
                     result.put(Document.COLUMN_SIZE, fileStore.getFileSize(path));
@@ -314,7 +316,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public Map<String, Serializable> insertAndHashLocalFile(File path, int blocksize) {
         return fileStore.hashFile(path, blocksize)
                 .flatMapCompletable(hashes -> {
-                    ScatterMessage message = new ScatterMessage();
+                    HashlessScatterMessage message = new HashlessScatterMessage();
                     message.to = null;
                     message.from = null;
                     message.application = ByteString.copyFromUtf8(
@@ -327,8 +329,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     message.extension = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString());
                     message.filePath = path.getAbsolutePath();
                     message.mimeType = FileStore.getMimeType(path);
-                    message.hashes = ScatterMessage.hash2hashs(hashes);
-                    return this.insertMessage(message);
+                    ScatterMessage hashedMessage = new ScatterMessage();
+                    hashedMessage.message = message;
+                    hashedMessage.messageHashes = HashlessScatterMessage.hash2hashs(hashes);
+                    return this.insertMessage(hashedMessage);
                 }).toSingleDefault(getFileMetadataSync(path))
                 .blockingGet();
     }

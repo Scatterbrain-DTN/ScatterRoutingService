@@ -1,12 +1,11 @@
 package com.example.uscatterbrain.db;
 
-import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 
 import java.io.File;
 import java.io.Serializable;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 

@@ -13,7 +13,7 @@ import io.reactivex.Maybe;
 import io.reactivex.Single;
 
 @Dao
-public interface IdentityDao extends BaseDao<Identity> {
+public interface IdentityDao {
     @Query("SELECT * FROM identities")
     Maybe<List<Identity>> getAll();
 

@@ -6,6 +6,8 @@ import androidx.room.Insert;
 import androidx.room.Query;
 import androidx.room.Transaction;
 
+import com.goterl.lazycode.lazysodium.interfaces.Hash;
+
 import java.util.List;
 
 import io.reactivex.Completable;
@@ -14,7 +16,7 @@ import io.reactivex.Observable;
 import io.reactivex.Single;
 
 @Dao
-public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
+public abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT * FROM messages")
@@ -22,7 +24,7 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Transaction
     @Query("SELECT * FROM messages")
-    public abstract Maybe<List<ScatterMessageRelations>> getMessagesWithFiles();
+    public abstract Maybe<List<ScatterMessage>> getMessagesWithFiles();
 
     @Transaction
     @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
@@ -44,6 +46,7 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
     @Query("SELECT * FROM messages WHERE identityID IN (:ids)")
     public abstract Maybe<List<ScatterMessage>> getByIdentity(long ids);
 
+    @Transaction
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
     public abstract Observable<ScatterMessage> getTopRandom(int count);
 
@@ -52,10 +55,10 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
     public abstract Single<List<Long>> insertMessagesWithHashes(List<MessageHashCrossRef> messagesWithHashes);
 
     @Insert
-    public abstract Single<List<Long>> _insertMessages(List<ScatterMessage> messages);
+    public abstract Single<List<Long>> _insertMessages(List<HashlessScatterMessage> messages);
 
     @Insert
-    public abstract Single<Long> _insertMessages(ScatterMessage message);
+    public abstract Single<Long> _insertMessages(HashlessScatterMessage message);
 
     @Insert
     public abstract Single<List<Long>> insertHashes(List<Hashes> h);
@@ -67,7 +70,7 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
     public abstract Single<List<Long>> insertIdentities(List<Identity> ids);
 
     @Delete
-    public abstract Completable delete(ScatterMessage message);
+    public abstract Completable delete(HashlessScatterMessage message);
 
     @Query("DELETE FROM messages WHERE filepath = :path")
     public abstract int deleteByPath(String path);

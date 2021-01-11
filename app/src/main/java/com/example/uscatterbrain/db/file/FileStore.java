@@ -4,7 +4,7 @@ import android.provider.DocumentsContract;
 import android.webkit.MimeTypeMap;
 
 import com.example.uscatterbrain.db.entities.Hashes;
-import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
@@ -74,7 +74,7 @@ public interface FileStore {
     }
 
     static String getDefaultFileNameFromHashes(List<Hashes> hashes) {
-        return getDefaultFileName(ScatterMessage.hashes2hash(hashes));
+        return getDefaultFileName(HashlessScatterMessage.hashes2hash(hashes));
     }
 
     static String getDefaultFileName(List<ByteString> hashes) {

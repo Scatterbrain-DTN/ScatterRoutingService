@@ -2,6 +2,7 @@ package com.example.uscatterbrain.network.wifidirect;
 
 import android.net.wifi.p2p.WifiP2pInfo;
 
+import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
@@ -22,35 +23,39 @@ public interface WifiDirectRadioModule {
     class BlockDataStream {
         private final Flowable<BlockSequencePacket> sequencePackets;
         private final BlockHeaderPacket headerPacket;
-        private final ScatterMessage messageEntity = new ScatterMessage();
+        private final ScatterMessage messageEntity;
 
         public BlockDataStream(BlockHeaderPacket headerPacket, Flowable<BlockSequencePacket> sequencePackets) {
             this.sequencePackets = sequencePackets;
             this.headerPacket = headerPacket;
-            messageEntity.to = headerPacket.getToFingerprint().toByteArray();
-            messageEntity.from = headerPacket.getFromFingerprint().toByteArray();
-            messageEntity.application = headerPacket.getApplication();
-            messageEntity.sig = headerPacket.getSignature();
-            messageEntity.sessionid = headerPacket.getSessionID();
-            messageEntity.blocksize = headerPacket.getBlockSize();
-            messageEntity.mimeType =  headerPacket.getMime();
-            messageEntity.extension = headerPacket.getExtension();
-            messageEntity.hashes = ScatterMessage.hash2hashs(headerPacket.getHashList());
+            messageEntity = new ScatterMessage();
+            messageEntity.message = new HashlessScatterMessage();
+            messageEntity.message.to = headerPacket.getToFingerprint().toByteArray();
+            messageEntity.message.from = headerPacket.getFromFingerprint().toByteArray();
+            messageEntity.message.application = headerPacket.getApplication();
+            messageEntity.message.sig = headerPacket.getSignature();
+            messageEntity.message.sessionid = headerPacket.getSessionID();
+            messageEntity.message.blocksize = headerPacket.getBlockSize();
+            messageEntity.message.mimeType =  headerPacket.getMime();
+            messageEntity.message.extension = headerPacket.getExtension();
+            messageEntity.messageHashes = HashlessScatterMessage.hash2hashs(headerPacket.getHashList());
         }
 
         public BlockDataStream(ScatterMessage message, Flowable<BlockSequencePacket> packetFlowable) {
-            this(BlockHeaderPacket.newBuilder()
-                    .setToFingerprint(message.to)
-                    .setFromFingerprint(message.from)
-                    .setApplication(message.application)
-                    .setSig(message.sig)
+            headerPacket = BlockHeaderPacket.newBuilder()
+                    .setToFingerprint(message.message.to)
+                    .setFromFingerprint(message.message.from)
+                    .setApplication(message.message.application)
+                    .setSig(message.message.sig)
                     .setToDisk(true) //TODO: handle this intelligently
-                    .setSessionID(message.sessionid)
-                    .setBlockSize(message.blocksize)
-                    .setMime(message.mimeType)
-                    .setExtension(message.extension)
-                    .setHashes(ScatterMessage.hashes2hash(message.hashes))
-                    .build(), packetFlowable);
+                    .setSessionID(message.message.sessionid)
+                    .setBlockSize(message.message.blocksize)
+                    .setMime(message.message.mimeType)
+                    .setExtension(message.message.extension)
+                    .setHashes(HashlessScatterMessage.hashes2hash(message.messageHashes))
+                    .build();
+            this.messageEntity = message;
+            this.sequencePackets = packetFlowable;
         }
 
         public BlockHeaderPacket getHeaderPacket() {

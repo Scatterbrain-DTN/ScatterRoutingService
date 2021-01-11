@@ -76,17 +76,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
             b.setFilenameVal(builder.filename);
             this.filename = builder.filename;
         }
-        this.blockdata = b
-                .setApplicationBytes(ByteString.copyFrom(this.mApplication))
-                .setFromFingerprint(this.mFromFingerprint)
-                .setToFingerprint(this.mToFingerprint)
-                .setTodisk(this.mToDisk)
-                .addAllNexthashes(this.mHashList)
-                .setSessionid(this.mSessionID)
-                .setSig(ByteString.copyFrom(this.mSignature))
-                .setBlocksize(mBlocksize)
-                .setMime(this.mime)
-                .build();
+        regenBlockData();
     }
 
     private ByteString sumBytes() {
@@ -126,6 +116,21 @@ public class BlockHeaderPacket implements ScatterSerializable {
                 pubkey) == 0;
     }
 
+    private void regenBlockData() {
+        this.blockdata = ScatterProto.BlockData.newBuilder()
+                .setApplicationBytes(ByteString.copyFrom(this.mApplication))
+                .setFromFingerprint(this.mFromFingerprint)
+                .setToFingerprint(this.mToFingerprint)
+                .setTodisk(this.mToDisk)
+                .setExtension(this.extension)
+                .addAllNexthashes(this.mHashList)
+                .setSessionid(this.mSessionID)
+                .setBlocksize(this.mBlocksize)
+                .setMime(this.mime)
+                .setSig(ByteString.copyFrom(this.mSignature))
+                .build();
+    }
+
     /**
      * Sign ed 25519 boolean.
      *
@@ -142,17 +147,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
         Pointer p = new PointerByReference(Pointer.NULL).getPointer();
         if (LibsodiumInterface.getSodium().crypto_sign_detached(this.mSignature,
                 p, messagebytes.toByteArray(), messagebytes.size(), secretkey) == 0) {
-            this.blockdata = ScatterProto.BlockData.newBuilder()
-                    .setApplicationBytes(ByteString.copyFrom(this.mApplication))
-                    .setFromFingerprint(this.mFromFingerprint)
-                    .setToFingerprint(this.mToFingerprint)
-                    .setTodisk(this.mToDisk)
-                    .setExtension(this.extension)
-                    .addAllNexthashes(this.mHashList)
-                    .setSessionid(this.mSessionID)
-                    .setBlocksize(mBlocksize)
-                    .setSig(ByteString.copyFrom(this.mSignature))
-                    .build();
+            regenBlockData();
             return true;
         } else {
             return false;
@@ -164,7 +159,9 @@ public class BlockHeaderPacket implements ScatterSerializable {
     }
 
     public String getAutogenFilename() {
-        return FileStore.getDefaultFileName(this) + "." + extension;
+        String ext  = FileStore.getDefaultFileName(this) + "." + extension;
+        Log.e("debug", "getAutogenFilename: " + ext);
+        return ext;
     }
 
     private BlockHeaderPacket(InputStream in) throws IOException {
