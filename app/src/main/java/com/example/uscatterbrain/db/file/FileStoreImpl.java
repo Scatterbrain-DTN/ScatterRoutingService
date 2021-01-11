@@ -112,7 +112,7 @@ public class FileStoreImpl implements FileStore {
 
     @Override
     public File getFilePath(BlockHeaderPacket packet) {
-        return new File(CACHE_FILES_DIR, packet.getAutogenFilename());
+        return new File(getCacheDir(), packet.getAutogenFilename());
     }
 
     @Override
@@ -176,10 +176,17 @@ public class FileStoreImpl implements FileStore {
 
     @Override
     public Completable insertFile(WifiDirectRadioModule.BlockDataStream stream) {
+        final File file = getFilePath(stream.getHeaderPacket());
+        Log.v(TAG, "insertFile: " + file);
+
+        if (file.exists()) {
+            return Completable.error(new FileAlreadyExistsException("file " + file + " already exists"));
+        }
+
         return insertSequence(
                 stream.getSequencePackets(),
                 stream.getHeaderPacket(),
-                getFilePath(stream.getHeaderPacket())
+                file
         );
     }
 

@@ -185,6 +185,8 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
                     final Map<String, Serializable> r = datastore.getFileMetadataSync(file);
                     if (r.size() > 0) {
                         addFileRow(result, r);
+                    } else {
+                        Log.e(TAG, "queryChildDocuments failed to retrieve file: " + file);
                     }
                 }
             }

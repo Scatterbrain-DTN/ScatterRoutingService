@@ -75,4 +75,10 @@ public abstract class ScatterMessageDao implements BaseDao<ScatterMessage> {
 
     @Query("SELECT COUNT(*) FROM messages")
     public abstract int messageCount();
+
+    @Query("SELECT COUNT(*) FROM messages WHERE filepath = :path")
+    public abstract int messageCount(String path);
+
+    @Query("SELECT COUNT(*) FROM messages WHERE filepath = :path")
+    public abstract Single<Integer> messageCountSingle(String path);
 }

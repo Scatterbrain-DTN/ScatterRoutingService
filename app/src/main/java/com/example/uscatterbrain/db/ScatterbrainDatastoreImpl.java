@@ -132,8 +132,18 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public Completable insertMessage(WifiDirectRadioModule.BlockDataStream stream) {
         File filePath = fileStore.getFilePath(stream.getHeaderPacket());
         stream.getEntity().filePath = filePath.getAbsolutePath();
-        return insertMessage(stream.getEntity())
-                .andThen(fileStore.insertFile(stream));
+        return mDatastore.scatterMessageDao().messageCountSingle(filePath.getAbsolutePath())
+                .flatMapCompletable(count -> {
+                    if (count > 0) {
+                        //TODO: we read and discard packets here because currently, but eventually
+                        // it would be a good idea to check the hash first and add support for aborting the transfer
+                        return stream.getSequencePackets()
+                                .ignoreElements();
+                    } else {
+                        return insertMessage(stream.getEntity())
+                                .andThen(fileStore.insertFile(stream));
+                    }
+                });
     }
 
     /**
