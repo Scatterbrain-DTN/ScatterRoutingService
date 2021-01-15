@@ -60,13 +60,21 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     public Context ctx;
 
     @Inject
-    public FileStore fileStore;
-
-    @Inject
     public ScatterbrainDatastore datastore;
 
     public DatastoreImportProviderImpl() {
         fileCloseHandler = new Handler(Looper.getMainLooper());
+    }
+
+    private Map<String, Serializable> getDefaultFileMetadata(File path) {
+        final HashMap<String, Serializable> result = new HashMap<>();
+        result.put(Document.COLUMN_DOCUMENT_ID, path.getAbsolutePath());
+        result.put(Document.COLUMN_MIME_TYPE, ScatterbrainDatastore.getMimeType(path));
+        result.put(Document.COLUMN_DISPLAY_NAME, path.getName());
+        result.put(Document.COLUMN_FLAGS, Document.FLAG_SUPPORTS_DELETE); //TODO: is this enough?
+        result.put(Document.COLUMN_SIZE, path.length());
+        result.put(Document.COLUMN_SUMMARY, "not yet indexed");
+        return result;
     }
 
     private Map<String, Serializable> getFileMetadataRootNode(int root) {
@@ -153,7 +161,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
                 addFileRow(result, fileMetaData);
             } else {
                 Log.e(TAG, "file does not exist");
-                return null;
+                addFileRow(result, getDefaultFileMetadata(f));
             }
         }
         return result;
@@ -170,9 +178,9 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
 
 
         if (parentDocumentId.equals(USER_ROOT_ID)) {
-            f = fileStore.getUserDir();
+            f = datastore.getUserDir();
         } else if (parentDocumentId.equals(CACHE_ROOT_ID)) {
-            f = fileStore.getCacheDir();
+            f = datastore.getCacheDir();
         } else {
             f = new File(parentDocumentId);
         }
@@ -187,6 +195,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
                         addFileRow(result, r);
                     } else {
                         Log.e(TAG, "queryChildDocuments failed to retrieve file: " + file);
+                        addFileRow(result, getDefaultFileMetadata(f));
                     }
                 }
             }
@@ -211,9 +220,9 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     public ParcelFileDescriptor openDocument(String documentId, String mode, @Nullable CancellationSignal signal) throws FileNotFoundException {
         Log.v(TAG, "openDocument: " + documentId);
         if (documentId.equals(USER_ROOT_ID)) {
-            return getDescriptor(fileStore.getUserDir(), mode);
+            return getDescriptor(datastore.getUserDir(), mode);
         } else if (documentId.equals(CACHE_ROOT_ID)) {
-            return getDescriptor(fileStore.getCacheDir(), mode);
+            return getDescriptor(datastore.getCacheDir(), mode);
         } else {
             final File f = new File(documentId);
             return getDescriptor(f, mode);
@@ -228,9 +237,9 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         final File f;
         final String parent;
         if (parentDocumentId.equals(USER_ROOT_ID)) {
-            parent = fileStore.getUserDir().toPath().toString();
+            parent = datastore.getUserDir().toPath().toString();
         } else if (parentDocumentId.equals(CACHE_ROOT_ID)) {
-            parent = fileStore.getCacheDir().toPath().toString();
+            parent = datastore.getCacheDir().toPath().toString();
         } else {
             parent = parentDocumentId;
         }
@@ -259,7 +268,6 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
                     Log.e(TAG, "failed to set file writable");
                     return null;
                 }
-                datastore.insertAndHashLocalFile(f, 4096);
             } catch (IOException e) {
                 Log.e(TAG, "IOException when creating new file: " + displayName);
                 return null;
@@ -275,6 +283,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         if (!file.delete()) {
             throw new FileNotFoundException("failed to delete file");
         }
+
         if (datastore.deleteByPath(file) == 0) {
             throw new FileNotFoundException("failed to delete database entry");
         }

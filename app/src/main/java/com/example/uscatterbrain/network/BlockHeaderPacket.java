@@ -3,7 +3,7 @@ package com.example.uscatterbrain.network;
 import android.util.Log;
 
 import com.example.uscatterbrain.ScatterProto;
-import com.example.uscatterbrain.db.file.FileStore;
+import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
@@ -159,7 +159,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
     }
 
     public String getAutogenFilename() {
-        String ext  = FileStore.getDefaultFileName(this) + "." + extension;
+        String ext  = ScatterbrainDatastore.getDefaultFileName(this) + "." + extension;
         Log.e("debug", "getAutogenFilename: " + ext);
         return ext;
     }

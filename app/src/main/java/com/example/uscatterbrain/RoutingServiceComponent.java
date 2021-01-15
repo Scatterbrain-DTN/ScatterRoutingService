@@ -13,8 +13,6 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
 import com.example.uscatterbrain.db.file.DatastoreImportProvider;
 import com.example.uscatterbrain.db.file.DatastoreImportProviderImpl;
-import com.example.uscatterbrain.db.file.FileStore;
-import com.example.uscatterbrain.db.file.FileStoreImpl;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
@@ -137,10 +135,6 @@ public interface RoutingServiceComponent {
         @Binds
         @Singleton
         abstract WifiDirectRadioModule bindWifiDirectRadioModule(WifiDirectRadioModuleImpl impl);
-
-        @Binds
-        @Singleton
-        abstract FileStore bindFileStore(FileStoreImpl impl);
 
         @Binds
         @Singleton
