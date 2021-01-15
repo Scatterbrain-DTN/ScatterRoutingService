@@ -15,6 +15,7 @@ import androidx.lifecycle.LifecycleService;
 
 import com.example.uscatterbrain.API.OnRecieveCallback;
 import com.example.uscatterbrain.API.ScatterTransport;
+import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
@@ -232,6 +233,11 @@ public class ScatterRoutingService extends LifecycleService {
     //TODO: remove this in production
     public WifiDirectRadioModule getWifiDirect() {
         return mBackend.getWifiDirect();
+    }
+
+    //TODO: remove this in production
+    public ScatterbrainDatastore getDatastore() {
+        return mBackend.getDatastore();
     }
 
     @Override

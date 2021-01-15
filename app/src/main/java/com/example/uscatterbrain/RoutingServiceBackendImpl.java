@@ -58,4 +58,9 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
     public WifiDirectRadioModule getWifiDirect() {
         return radioModuleDebug;
     }
+
+    @Override
+    public ScatterbrainDatastore getDatastore() {
+        return datastore;
+    }
 }
