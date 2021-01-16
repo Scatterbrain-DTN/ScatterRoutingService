@@ -39,6 +39,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
     private final byte[] mApplication;
     private final int mSessionID;
     private boolean mToDisk;
+    private final boolean endofstream;
     private final int mBlocksize;
     private final String mime;
     private final String filename;
@@ -46,6 +47,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
 
     private BlockHeaderPacket(Builder builder) {
         this.mHashList = builder.getHashlist();
+        this.endofstream = builder.endofstream;
         if (builder.getSig() == null) {
             this.mSignature = new byte[Sign.ED25519_BYTES];
         } else {
@@ -127,6 +129,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
                 .setSessionid(this.mSessionID)
                 .setBlocksize(this.mBlocksize)
                 .setMime(this.mime)
+                .setEndofstream(this.endofstream)
                 .setSig(ByteString.copyFrom(this.mSignature))
                 .build();
     }
@@ -177,6 +180,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
         this.mSessionID = blockdata.getSessionid();
         this.mBlocksize = blockdata.getBlocksize();
         this.extension = blockdata.getExtension();
+        this.endofstream = blockdata.getEndofstream();
         if (blockdata.getFilenameCase().equals(ScatterProto.BlockData.FilenameCase.FILENAME_VAL)) {
             this.filename = blockdata.getFilenameVal();
         } else {
@@ -395,6 +399,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
         private byte[] mSig;
         private String filename;
         private String mime;
+        private boolean endofstream = false;
 
         /**
          * Instantiates a new Builder.
@@ -503,6 +508,11 @@ public class BlockHeaderPacket implements ScatterSerializable {
             return this;
         }
 
+        public Builder setEndOfStream() {
+            this.endofstream = true;
+            return this;
+        }
+
         public Builder setFilename(String filename) {
             this.filename = filename;
             return this;
@@ -526,15 +536,11 @@ public class BlockHeaderPacket implements ScatterSerializable {
                 return null;
             }
 
-            if (mBlockSize <= 0) {
-                return null;
-            }
-
             if (extension == null) {
                 throw new IllegalArgumentException("extension should not be null");
             }
 
-            if (mBlockSize < 0) {
+            if (mBlockSize <= 0) {
                 throw new IllegalArgumentException("blocksize not set");
             }
 

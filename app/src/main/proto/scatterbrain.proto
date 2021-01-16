@@ -27,9 +27,10 @@ message BlockData {
     string mime = 7;
     uint32 sessionid = 8;
     bool todisk = 9;
-    repeated bytes nexthashes = 10; //size of this is fragment count
-    uint32 blocksize = 11;
-    bytes sig = 12;
+    bool endofstream = 10;
+    repeated bytes nexthashes= 11; //size of this is fragment count
+    uint32 blocksize = 12;
+    bytes sig = 13;
 }
 
 // body of file, message, or data stream.
