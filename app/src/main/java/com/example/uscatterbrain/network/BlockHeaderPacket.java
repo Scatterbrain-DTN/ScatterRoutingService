@@ -39,7 +39,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
     private final byte[] mApplication;
     private final int mSessionID;
     private boolean mToDisk;
-    private final boolean endofstream;
+    private boolean endofstream;
     private final int mBlocksize;
     private final String mime;
     private final String filename;
@@ -79,6 +79,15 @@ public class BlockHeaderPacket implements ScatterSerializable {
             this.filename = builder.filename;
         }
         regenBlockData();
+    }
+
+    public void markEnd() {
+        this.endofstream = true;
+        regenBlockData();
+    }
+
+    public boolean isEndOfStream() {
+        return this.endofstream;
     }
 
     private ByteString sumBytes() {

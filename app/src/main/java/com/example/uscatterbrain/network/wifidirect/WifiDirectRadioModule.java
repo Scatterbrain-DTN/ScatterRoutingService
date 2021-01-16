@@ -42,7 +42,11 @@ public interface WifiDirectRadioModule {
         }
 
         public BlockDataStream(ScatterMessage message, Flowable<BlockSequencePacket> packetFlowable) {
-            headerPacket = BlockHeaderPacket.newBuilder()
+            this(message, packetFlowable, false);
+        }
+
+        public BlockDataStream(ScatterMessage message, Flowable<BlockSequencePacket> packetFlowable, boolean end) {
+            BlockHeaderPacket.Builder builder = BlockHeaderPacket.newBuilder()
                     .setToFingerprint(message.message.to)
                     .setFromFingerprint(message.message.from)
                     .setApplication(message.message.application)
@@ -52,8 +56,13 @@ public interface WifiDirectRadioModule {
                     .setBlockSize(message.message.blocksize)
                     .setMime(message.message.mimeType)
                     .setExtension(message.message.extension)
-                    .setHashes(HashlessScatterMessage.hashes2hash(message.messageHashes))
-                    .build();
+                    .setHashes(HashlessScatterMessage.hashes2hash(message.messageHashes));
+
+            if (end) {
+                builder.setEndOfStream();
+            }
+
+            this.headerPacket = builder.build();
             this.messageEntity = message;
             this.sequencePackets = packetFlowable;
         }

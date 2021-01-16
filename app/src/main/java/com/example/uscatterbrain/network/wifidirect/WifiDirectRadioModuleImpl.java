@@ -33,8 +33,10 @@ import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
+import io.reactivex.annotations.NonNull;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Predicate;
 import io.reactivex.subjects.CompletableSubject;
 import io.reactivex.subjects.ReplaySubject;
 
@@ -457,19 +459,25 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                     .subscribeOn(readScheduler)
                                                     .repeat(headerPacket.getHashList().size())
                                                     .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
-                                    ))));
+                                    )))).takeUntil(stream -> {
+                                        return stream.getHeaderPacket().isEndOfStream();
+                                    });
         } else if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
             return getTcpSocket(info.groupOwnerAddress)
-                    .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
+                    .flatMapObservable(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
+                            .repeat()
                             .subscribeOn(readScheduler)
-                            .doOnSuccess(packet -> Log.v(TAG, "client read header packet"))
+                            .doOnNext(packet -> Log.v(TAG, "client read header packet"))
                             .map(header -> new BlockDataStream(
                                     header,
                                     BlockSequencePacket.parseFrom(socket.getInputStream())
                                             .subscribeOn(readScheduler)
                                             .repeat(header.getHashList().size())
                                             .doOnComplete(() -> Log.v(TAG, "client read sequence packets"))
-                            ))).toObservable();
+                            )).toObservable())
+                    .takeUntil(stream -> {
+                        return stream.getHeaderPacket().isEndOfStream();
+                    });
         } else {
             return Observable.error(new IllegalStateException("invalid role"));
         }

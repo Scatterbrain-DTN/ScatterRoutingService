@@ -40,6 +40,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import io.reactivex.BackpressureStrategy;
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
@@ -251,13 +252,25 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     @Override
     public Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(int count) {
         Log.v(TAG, "called getTopRandomMessages");
+
         return this.mDatastore.scatterMessageDao().getTopRandom(count)
                 .doOnSubscribe(disp -> Log.v(TAG, "subscribed to getTopRandoMessages"))
+                .toFlowable(BackpressureStrategy.BUFFER)
                 .doOnNext(message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size()))
-                .map(scatterMessage -> new WifiDirectRadioModule.BlockDataStream(
-                        scatterMessage,
-                        readFile(new File(scatterMessage.message.filePath), scatterMessage.message.blocksize)
-                        ));
+                .zipWith(getSeq(), (message, s) -> {
+                   return new WifiDirectRadioModule.BlockDataStream(
+                            message,
+                            readFile(new File(message.message.filePath), message.message.blocksize),
+                           s < count-1
+                    );
+                }).toObservable();
+    }
+
+    private Flowable<Integer> getSeq() {
+        return Flowable.generate(() -> 0, (state, emitter) -> {
+            emitter.onNext(state);
+            return state + 1;
+        });
     }
 
     /**
@@ -583,12 +596,8 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         return Flowable.fromCallable(() -> new FileInputStream(path))
                 .doOnSubscribe(disp -> Log.v(TAG, "subscribed to readFile"))
                 .flatMap(is -> {
-                    Flowable<Integer> seq = Flowable.generate(() -> 0, (state, emitter) -> {
-                        emitter.onNext(state);
-                        return state + 1;
-                    });
                     return Bytes.from(path, blocksize)
-                            .zipWith(seq, (bytes, seqnum) -> {
+                            .zipWith(getSeq(), (bytes, seqnum) -> {
                                 Log.e("debug", "reading "+ bytes.length);
                                 return BlockSequencePacket.newBuilder()
                                         .setSequenceNumber(seqnum)
