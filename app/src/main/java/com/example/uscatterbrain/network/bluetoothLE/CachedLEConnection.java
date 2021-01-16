@@ -12,6 +12,7 @@ import com.polidea.rxandroidble2.NotificationSetupMode;
 import com.polidea.rxandroidble2.RxBleConnection;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
@@ -56,6 +57,7 @@ public class CachedLEConnection implements Disposable {
                             );
                             notificationDisposable.add(d);
                 })
+                .timeout(BluetoothLEModule.TIMEOUT, TimeUnit.SECONDS)
                 .doFinally(notificationDisposable::dispose);
     }
 
