@@ -9,6 +9,7 @@ import java.util.UUID;
 import io.reactivex.Observable;
 
 public interface BluetoothLEModule {
+    int TIMEOUT = 2;
     void setAdvertisePacket(AdvertisePacket packet);
     AdvertisePacket getAdvertisePacket();
     void startAdvertise();

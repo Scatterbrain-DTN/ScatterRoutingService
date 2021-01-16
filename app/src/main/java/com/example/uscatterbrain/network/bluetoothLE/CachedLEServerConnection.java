@@ -11,6 +11,7 @@ import com.polidea.rxandroidble2.RxBleServerConnection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.reactivex.BackpressureStrategy;
@@ -43,7 +44,7 @@ public class CachedLEServerConnection implements Disposable {
                                         (req, packet) -> req.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null)
                                                 .toSingleDefault(packet)
                                 )
-                                .flatMapSingle(packet -> packet)
+                                .concatMapSingle(packet -> packet)
                         .flatMapCompletable(packet -> {
                     Log.v(TAG, "server received timing characteristic write");
                     return connection.setupIndication(characteristic.getUuid(), packet.writeToStream(20))
@@ -56,6 +57,9 @@ public class CachedLEServerConnection implements Disposable {
                         );
                 disposable.add(d);
                 sessions.putIfAbsent(characteristic.getUuid(), session);
+            } else {
+                Log.e(TAG, "oldSession was null");
+                throw new IllegalStateException("oldSession was null");
             }
         }
     }
@@ -71,7 +75,22 @@ public class CachedLEServerConnection implements Disposable {
         return d;
     }
 
-    public   <T extends ScatterSerializable> Completable serverNotify(
+    private synchronized <T extends ScatterSerializable> Completable enqueuePacket(NotificationSession session, T packet) {
+        session.incrementSize();
+       return session.sizeRelay
+                .mergeWith(
+                        session.errorRelay
+                                .flatMap(Observable::error)
+                )
+                .takeWhile(s -> s > 0)
+                .ignoreElements()
+                .doOnSubscribe(disposable -> {
+                    Log.v(TAG, "packet queue accepted packet " + packet.getType());
+                    session.packetQueue.accept(packet);
+                });
+    }
+
+    public synchronized <T extends ScatterSerializable> Completable serverNotify(
             T packet,
             UUID characteristic
     ) {
@@ -81,19 +100,15 @@ public class CachedLEServerConnection implements Disposable {
             return Completable.error(new IllegalStateException("invalid uuid"));
         }
 
-        session.incrementSize();
-        return session.sizeRelay
-                    .mergeWith(
-                            session.errorRelay
-                            .flatMap(Observable::error)
-                    )
+        if (session.size.get() <= 0) {
+            return enqueuePacket(session, packet);
+        } else {
+            return session.sizeRelay
                     .takeWhile(s -> s > 0)
                     .ignoreElements()
-                    .doOnSubscribe(disposable -> {
-                        Log.v(TAG, "packet queue accepted packet " + packet.getType());
-                        session.packetQueue.accept(packet);
-                    });
-
+                    .andThen(enqueuePacket(session, packet))
+                    .timeout(BluetoothLEModule.TIMEOUT, TimeUnit.SECONDS);
+        }
     }
 
     public RxBleServerConnection getConnection() {

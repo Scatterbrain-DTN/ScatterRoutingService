@@ -511,7 +511,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                     }
                                             );
                                         })
-                                        .flatMap(result -> result)
+                                        .concatMap(result -> result)
                                         .onErrorResumeNext(Observable.never())
                                         .doOnError(err -> {
                                             Log.e(TAG, "stage " + session.getStage() + " error " + err);
