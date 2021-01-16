@@ -5,7 +5,6 @@ import android.net.Uri;
 import android.os.FileObserver;
 import android.provider.DocumentsContract.Document;
 import android.util.Log;
-import android.util.Pair;
 import android.webkit.MimeTypeMap;
 
 import androidx.annotation.Nullable;
@@ -20,10 +19,12 @@ import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
+import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
@@ -55,7 +56,7 @@ import io.reactivex.schedulers.Schedulers;
 public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     private static final String TAG = "ScatterbrainDatastore";
-    public static int DEFAULT_BLOCKSIZE = 1024*8;
+    public static int DEFAULT_BLOCKSIZE = 1024*2;
     private final Datastore mDatastore;
     private final Context ctx;
     private final Scheduler databaseScheduler;
@@ -200,7 +201,15 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         //TODO: we read and discard packets here because currently, but eventually
                         // it would be a good idea to check the hash first and add support for aborting the transfer
                         return stream.getSequencePackets()
-                                .ignoreElements();
+                                .map(packet -> {
+                                    if (packet.verifyHash(stream.getHeaderPacket())) {
+                                        Log.v(TAG, "hash verified");
+                                        return packet;
+                                    } else  {
+                                        Log.e(TAG, "hash invalid");
+                                        return null;
+                                    }
+                                }).ignoreElements();
                     } else {
                         return insertMessage(stream.getEntity())
                                 .andThen(insertFile(stream));
@@ -244,7 +253,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         Log.v(TAG, "called getTopRandomMessages");
         return this.mDatastore.scatterMessageDao().getTopRandom(count)
                 .doOnSubscribe(disp -> Log.v(TAG, "subscribed to getTopRandoMessages"))
-                .doOnNext(message -> Log.v(TAG, "retrieved message"))
+                .doOnNext(message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size()))
                 .map(scatterMessage -> new WifiDirectRadioModule.BlockDataStream(
                         scatterMessage,
                         readFile(new File(scatterMessage.message.filePath), scatterMessage.message.blocksize)
@@ -566,6 +575,11 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     @Override
     public Flowable<BlockSequencePacket> readFile(File path, int blocksize) {
         Log.v(TAG, "called readFile " + path);
+
+        if (!path.exists()) {
+            return Flowable.error(new FileNotFoundException(path.toString()));
+        }
+
         return Flowable.fromCallable(() -> new FileInputStream(path))
                 .doOnSubscribe(disp -> Log.v(TAG, "subscribed to readFile"))
                 .flatMap(is -> {
@@ -573,25 +587,14 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         emitter.onNext(state);
                         return state + 1;
                     });
-                    return Flowable.just(is)
-                            .zipWith(seq, (fileInputStream, seqnum) -> {
-                                return Flowable.fromCallable(() -> {
-                                    byte[] buf = new byte[blocksize];
-                                    int read;
-
-                                    read = is.read(buf);
-                                    return new Pair<>(read, buf);
-                                })
-                                        .takeWhile(pair -> pair.first != -1)
-                                        .map(pair -> {
-                                            Log.e("debug", "reading "+ pair.first);
-                                            return BlockSequencePacket.newBuilder()
-                                                    .setSequenceNumber(seqnum)
-                                                    .setData(ByteString.copyFrom(pair.second, 0, pair.first))
-                                                    .build();
-                                        })
-                                        .subscribeOn(Schedulers.io());
-                            }).concatMap(result -> result);
+                    return Bytes.from(path, blocksize)
+                            .zipWith(seq, (bytes, seqnum) -> {
+                                Log.e("debug", "reading "+ bytes.length);
+                                return BlockSequencePacket.newBuilder()
+                                        .setSequenceNumber(seqnum)
+                                        .setData(ByteString.copyFrom(bytes))
+                                        .build();
+                            }).subscribeOn(Schedulers.io());
                 }).doOnComplete(() -> Log.v(TAG, "readfile completed"));
     }
 }

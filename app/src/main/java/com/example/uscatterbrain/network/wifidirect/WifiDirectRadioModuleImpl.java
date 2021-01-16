@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Looper;
 import android.util.Log;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
@@ -346,22 +347,28 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         Log.v(TAG, "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
                 + " " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)+ " "
                 + upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE));
-        Observable<BlockDataStream> result =  Observable.mergeDelayError(
-                   readBlockData(upgradeRequest)
-                .doOnError(err -> {
-                    Log.e(TAG, "error on readBlockData: " + err);
-                    err.printStackTrace();
-                }),
-                   writeBlockData(upgradeRequest, streamObservable)
-                           .doOnSubscribe(disp -> Log.v(TAG, "subscribed to writeBlockData"))
-                           .toObservable())
-                .doOnError(err -> {
-                    Log.e(TAG, "error on writeBlockData" + err);
-                    err.printStackTrace();
-                }
-           );
 
-        return result;
+        if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
+                == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
+            return retryDelay(createGroup(
+                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
+                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
+            ),10, 1)
+                    .andThen(readBlockData(upgradeRequest, null)
+                            .concatWith(writeBlockData(upgradeRequest, streamObservable, null)));
+        } else if(upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
+                == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
+            return retryDelay(connectToGroup(
+                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
+                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
+                    60
+            ), 20, 1)
+                    .flatMapObservable(info -> writeBlockData(upgradeRequest, streamObservable, info)
+                            .andThen(readBlockData(upgradeRequest, info)))
+                    .doOnSubscribe(disp -> Log.v(TAG, "subscribed to writeBlockData"));
+        } else {
+            return Observable.error(new IllegalStateException("invalid role"));
+        }
     }
 
 
@@ -388,15 +395,12 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
 
     private Completable writeBlockData(
             BootstrapRequest request,
-            Flowable<BlockDataStream> stream
+            Flowable<BlockDataStream> stream,
+            @Nullable WifiP2pInfo info
     ) {
+        Log.v(TAG, "writeBlockData called, role: " + request.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE));
         if (request.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
-            return retryDelay(createGroup(
-                    request.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
-                    request.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
-            ), 10, 1)
-
-                    .andThen(socketFactory.create(SCATTERBRAIN_PORT))
+            return socketFactory.create(SCATTERBRAIN_PORT)
                     .subscribeOn(writeScheduler)
                     .flatMapObservable(InterceptableServerSocket::observeConnections)
                     .map(InterceptableServerSocket.SocketConnection::getSocket)
@@ -409,6 +413,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             .subscribeOn(writeScheduler)
                                             .doOnComplete(() -> Log.v(TAG, "server wrote header packet"))
                                             .andThen(blockDataStream.getSequencePackets()
+                                                    .doOnNext(packet -> Log.v(TAG, "uke writing sequence packet: " + packet.getmData().size()))
                                                     .concatMapCompletable(blockSequencePacket ->
                                                             blockSequencePacket.writeToStream(socket.getOutputStream())
                                                             .subscribeOn(writeScheduler)
@@ -416,12 +421,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                     .doOnComplete(() -> Log.v(TAG, "server wrote sequence packets"))
                                             )));
         } else if (request.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
-            return retryDelay(connectToGroup(
-                    request.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
-                    request.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
-                    60
-            ), 20, 1)
-                    .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
+            return getTcpSocket(info.groupOwnerAddress)
                     .doOnSuccess(socket -> Log.v(TAG, "accepted client socket"))
                     .flatMapCompletable(socket -> stream.flatMapCompletable(blockDataStream ->
                             blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
@@ -429,6 +429,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                     .doOnComplete(() -> Log.v(TAG, "wrote headerpacket to client socket"))
                                     .andThen(
                                             blockDataStream.getSequencePackets()
+                                                    .doOnNext(packet -> Log.v(TAG, "seme writing sequence packet: " + packet.getmData().size()))
                                                     .concatMapCompletable(sequencePacket -> sequencePacket.writeToStream(socket.getOutputStream())
                                                             .subscribeOn(writeScheduler)
                                                     ).doOnComplete(() -> Log.v(TAG, "wrote sequence packets to client socket"))
@@ -439,14 +440,12 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     }
 
     private Observable<BlockDataStream> readBlockData(
-            BootstrapRequest upgradeRequest
+            BootstrapRequest upgradeRequest,
+            WifiP2pInfo info
     ) {
+        Log.v(TAG, "readBlockdata called, role: " + upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE));
         if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
-            return retryDelay(createGroup(
-                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
-                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
-            ),10, 1)
-                    .andThen(socketFactory.create(SCATTERBRAIN_PORT))
+            return socketFactory.create(SCATTERBRAIN_PORT)
                     .flatMapObservable(serverSocket -> serverSocket.observeConnections()
                             .map(InterceptableServerSocket.SocketConnection::getSocket)
                             .flatMapSingle(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
@@ -460,12 +459,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                     .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
                                     ))));
         } else if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
-            return retryDelay(connectToGroup(
-                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
-                    upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
-                    60
-            ), 10, 1)
-                    .flatMap(info -> getTcpSocket(info.groupOwnerAddress))
+            return getTcpSocket(info.groupOwnerAddress)
                     .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
                             .subscribeOn(readScheduler)
                             .doOnSuccess(packet -> Log.v(TAG, "client read header packet"))

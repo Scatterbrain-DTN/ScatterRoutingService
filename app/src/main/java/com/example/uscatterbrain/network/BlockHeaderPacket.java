@@ -534,6 +534,10 @@ public class BlockHeaderPacket implements ScatterSerializable {
                 throw new IllegalArgumentException("extension should not be null");
             }
 
+            if (mBlockSize < 0) {
+                throw new IllegalArgumentException("blocksize not set");
+            }
+
             return new BlockHeaderPacket(this);
         }
 

@@ -78,25 +78,25 @@ public interface RoutingServiceComponent {
         @Provides
         @Named(NamedSchedulers.DATABASE)
         static Scheduler provideDatabaseScheduler() {
-            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+            return RxJavaPlugins.createIoScheduler(new ScatterbrainThreadFactory());
         }
 
         @Provides
         @Named(NamedSchedulers.WIFI_DIRECT_READ)
         static Scheduler provideWifiDirectReadScheduler() {
-            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+            return RxJavaPlugins.createIoScheduler(new ScatterbrainThreadFactory());
         }
 
         @Provides
         @Named(NamedSchedulers.WIFI_DIRECT_WRITE)
         static Scheduler provideWifiDirectWriteScheduler() {
-            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+            return RxJavaPlugins.createIoScheduler(new ScatterbrainThreadFactory());
         }
 
         @Provides
         @Named(NamedSchedulers.WIFI_DIRECT_OPERATIONS)
         static Scheduler provideWifiDirectOperationsScheduler() {
-            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+            return RxJavaPlugins.createIoScheduler(new ScatterbrainThreadFactory());
         }
 
         @Provides
@@ -112,7 +112,7 @@ public interface RoutingServiceComponent {
         @Provides
         @Named(NamedSchedulers.BLE)
         static Scheduler provideBleScheduler() {
-            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
+            return RxJavaPlugins.createIoScheduler(new ScatterbrainThreadFactory());
         }
 
         @Provides
