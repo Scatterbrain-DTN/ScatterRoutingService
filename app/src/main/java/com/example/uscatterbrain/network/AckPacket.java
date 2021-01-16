@@ -24,7 +24,9 @@ public class AckPacket implements ScatterSerializable {
 
     public enum Status {
         OK,
-        ERR
+        ERR,
+        FILE_EXISTS,
+        PROTO_INVALID
     }
 
     private AckPacket(Builder builder) {
@@ -60,17 +62,44 @@ public class AckPacket implements ScatterSerializable {
     }
 
     private static Status proto2status(ScatterProto.Ack.Status status) {
-        if (status == ScatterProto.Ack.Status.OK) {
-            return Status.OK;
+        switch (status) {
+            case FILE_EXISTS:
+            {
+                return Status.FILE_EXISTS;
+            }
+            case ERR:
+            {
+                return Status.ERR;
+            }
+            case OK:
+            {
+                return Status.OK;
+            }
+            default:
+            {
+                return Status.PROTO_INVALID;
+            }
         }
-        return Status.ERR;
     }
 
     private static ScatterProto.Ack.Status status2proto(Status status) {
-        if (status == Status.OK) {
-            return ScatterProto.Ack.Status.OK;
+        switch (status) {
+            case OK:
+            {
+                return ScatterProto.Ack.Status.OK;
+            }
+            case ERR:
+            {
+                return ScatterProto.Ack.Status.ERR;
+            }
+            case FILE_EXISTS:
+            {
+                return ScatterProto.Ack.Status.FILE_EXISTS;
+            }
+            default: {
+                return null;
+            }
         }
-        return ScatterProto.Ack.Status.ERR;
     }
 
     @Override

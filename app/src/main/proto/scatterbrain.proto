@@ -64,6 +64,7 @@ message Ack {
     enum Status {
         OK = 0;
         ERR = 1;
+        FILE_EXISTS = 2;
     }
     Status status = 1;
     oneof message {
