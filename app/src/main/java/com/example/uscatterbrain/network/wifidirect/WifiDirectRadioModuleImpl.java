@@ -354,7 +354,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
             ),10, 1)
                     .andThen(readBlockDataUke()
-                            .concatWith(writeBlockDataUke(streamObservable)));
+                            .mergeWith(writeBlockDataUke(streamObservable)));
         } else if(upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                 == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
             return retryDelay(connectToGroup(
@@ -365,7 +365,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     .flatMapCompletable(info -> getTcpSocket(info.groupOwnerAddress)
                             .flatMapCompletable(socket ->
                             writeBlockDataSeme(socket, streamObservable)
-                            .andThen(readBlockDataSeme(socket))))
+                            .mergeWith(readBlockDataSeme(socket))))
                     .doOnSubscribe(disp -> Log.v(TAG, "subscribed to writeBlockData"));
         } else {
             return Completable.error(new IllegalStateException("invalid role"));
