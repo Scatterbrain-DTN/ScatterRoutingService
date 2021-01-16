@@ -8,14 +8,18 @@ import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
 
+import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Single;
+import io.reactivex.subjects.BehaviorSubject;
+import io.reactivex.subjects.CompletableSubject;
+import io.reactivex.subjects.PublishSubject;
 
 public interface WifiDirectRadioModule {
     String TAG = "WifiDirectRadioModule";
     Single<WifiP2pInfo> connectToGroup(String name, String passphrase, int timeout);
-    Observable<BlockDataStream> bootstrapFromUpgrade(
+    Completable bootstrapFromUpgrade(
             BootstrapRequest upgradeRequest,
             Flowable<BlockDataStream> streamObservable
     );
@@ -24,9 +28,12 @@ public interface WifiDirectRadioModule {
         private final Flowable<BlockSequencePacket> sequencePackets;
         private final BlockHeaderPacket headerPacket;
         private final ScatterMessage messageEntity;
+        private final CompletableSubject sequenceCompletable = CompletableSubject.create();
 
         public BlockDataStream(BlockHeaderPacket headerPacket, Flowable<BlockSequencePacket> sequencePackets) {
-            this.sequencePackets = sequencePackets;
+            this.sequencePackets = sequencePackets
+                    .doOnComplete(sequenceCompletable::onComplete)
+                    .doOnError(sequenceCompletable::onError);
             this.headerPacket = headerPacket;
             messageEntity = new ScatterMessage();
             messageEntity.message = new HashlessScatterMessage();
@@ -64,7 +71,13 @@ public interface WifiDirectRadioModule {
 
             this.headerPacket = builder.build();
             this.messageEntity = message;
-            this.sequencePackets = packetFlowable;
+            this.sequencePackets = packetFlowable
+                    .doOnComplete(sequenceCompletable::onComplete)
+                    .doOnError(sequenceCompletable::onError);
+        }
+
+        public Completable awaitSequencePackets() {
+            return sequenceCompletable;
         }
 
         public BlockHeaderPacket getHeaderPacket() {

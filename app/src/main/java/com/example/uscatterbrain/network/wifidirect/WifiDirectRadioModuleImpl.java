@@ -9,7 +9,6 @@ import android.os.Build;
 import android.os.Looper;
 import android.util.Log;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
@@ -33,10 +32,8 @@ import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
-import io.reactivex.annotations.NonNull;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.Predicate;
 import io.reactivex.subjects.CompletableSubject;
 import io.reactivex.subjects.ReplaySubject;
 
@@ -341,7 +338,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     }
 
     @Override
-    public Observable<BlockDataStream> bootstrapFromUpgrade(
+    public Completable bootstrapFromUpgrade(
             BootstrapRequest upgradeRequest,
             Flowable<BlockDataStream> streamObservable
             ) {
@@ -356,8 +353,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
             ),10, 1)
-                    .andThen(readBlockData(upgradeRequest, null)
-                            .concatWith(writeBlockData(upgradeRequest, streamObservable, null)));
+                    .andThen(readBlockDataUke()
+                            .concatWith(writeBlockDataUke(streamObservable)));
         } else if(upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                 == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
             return retryDelay(connectToGroup(
@@ -365,11 +362,13 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
                     60
             ), 20, 1)
-                    .flatMapObservable(info -> writeBlockData(upgradeRequest, streamObservable, info)
-                            .andThen(readBlockData(upgradeRequest, info)))
+                    .flatMapCompletable(info -> getTcpSocket(info.groupOwnerAddress)
+                            .flatMapCompletable(socket ->
+                            writeBlockDataSeme(socket, streamObservable)
+                            .andThen(readBlockDataSeme(socket))))
                     .doOnSubscribe(disp -> Log.v(TAG, "subscribed to writeBlockData"));
         } else {
-            return Observable.error(new IllegalStateException("invalid role"));
+            return Completable.error(new IllegalStateException("invalid role"));
         }
     }
 
@@ -395,91 +394,100 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                         .concatMapSingle(error -> Single.timer(seconds, TimeUnit.SECONDS)));
     }
 
-    private Completable writeBlockData(
-            BootstrapRequest request,
-            Flowable<BlockDataStream> stream,
-            @Nullable WifiP2pInfo info
+
+    private Completable writeBlockDataSeme(
+        Socket socket,
+        Flowable<BlockDataStream> stream
     ) {
-        Log.v(TAG, "writeBlockData called, role: " + request.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE));
-        if (request.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
-            return socketFactory.create(SCATTERBRAIN_PORT)
-                    .subscribeOn(writeScheduler)
-                    .flatMapObservable(InterceptableServerSocket::observeConnections)
-                    .map(InterceptableServerSocket.SocketConnection::getSocket)
-                    .doOnNext(n -> Log.v(TAG, "accepted server socket"))
-                    .flatMapCompletable(socket ->
-                            stream.doOnSubscribe(disp -> Log.v(TAG, "subscribed to BlockDataStream observable"))
-                                    .doOnNext(p -> Log.v(TAG, "writeBlockData processing BlockDataStream"))
-                                    .flatMapCompletable(blockDataStream ->
-                                    blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
-                                            .subscribeOn(writeScheduler)
-                                            .doOnComplete(() -> Log.v(TAG, "server wrote header packet"))
-                                            .andThen(blockDataStream.getSequencePackets()
-                                                    .doOnNext(packet -> Log.v(TAG, "uke writing sequence packet: " + packet.getmData().size()))
-                                                    .concatMapCompletable(blockSequencePacket ->
-                                                            blockSequencePacket.writeToStream(socket.getOutputStream())
-                                                            .subscribeOn(writeScheduler)
-                                                    )
-                                                    .doOnComplete(() -> Log.v(TAG, "server wrote sequence packets"))
-                                            )));
-        } else if (request.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
-            return getTcpSocket(info.groupOwnerAddress)
-                    .doOnSuccess(socket -> Log.v(TAG, "accepted client socket"))
-                    .flatMapCompletable(socket -> stream.flatMapCompletable(blockDataStream ->
-                            blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
-                                    .subscribeOn(writeScheduler)
-                                    .doOnComplete(() -> Log.v(TAG, "wrote headerpacket to client socket"))
-                                    .andThen(
-                                            blockDataStream.getSequencePackets()
-                                                    .doOnNext(packet -> Log.v(TAG, "seme writing sequence packet: " + packet.getmData().size()))
-                                                    .concatMapCompletable(sequencePacket -> sequencePacket.writeToStream(socket.getOutputStream())
-                                                            .subscribeOn(writeScheduler)
-                                                    ).doOnComplete(() -> Log.v(TAG, "wrote sequence packets to client socket"))
-                                    )));
-        } else {
-            return Completable.error(new IllegalStateException("invalid role"));
-        }
+        return stream.flatMapCompletable(blockDataStream ->
+                blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
+                        .subscribeOn(writeScheduler)
+                        .doOnComplete(() -> Log.v(TAG, "wrote headerpacket to client socket"))
+                        .andThen(
+                                blockDataStream.getSequencePackets()
+                                        .doOnNext(packet -> Log.v(TAG, "seme writing sequence packet: " + packet.getmData().size()))
+                                        .concatMapCompletable(sequencePacket -> sequencePacket.writeToStream(socket.getOutputStream())
+                                                .subscribeOn(writeScheduler)
+                                        ).doOnComplete(() -> Log.v(TAG, "wrote sequence packets to client socket"))
+                        ));
     }
 
-    private Observable<BlockDataStream> readBlockData(
-            BootstrapRequest upgradeRequest,
-            WifiP2pInfo info
+
+    private Completable writeBlockDataUke(
+        Flowable<BlockDataStream> stream
     ) {
-        Log.v(TAG, "readBlockdata called, role: " + upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE));
-        if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_UKE) {
-            return socketFactory.create(SCATTERBRAIN_PORT)
-                    .flatMapObservable(serverSocket -> serverSocket.observeConnections()
-                            .map(InterceptableServerSocket.SocketConnection::getSocket)
-                            .flatMapSingle(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
-                                    .subscribeOn(readScheduler)
-                                    .doOnSuccess(packet -> Log.v(TAG, "server read header packet"))
-                                    .map(headerPacket -> new BlockDataStream(
-                                            headerPacket,
-                                            BlockSequencePacket.parseFrom(socket.getInputStream())
-                                                    .subscribeOn(readScheduler)
-                                                    .repeat(headerPacket.getHashList().size())
-                                                    .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
-                                    )))).takeUntil(stream -> {
-                                        return stream.getHeaderPacket().isEndOfStream();
-                                    });
-        } else if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE) == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
-            return getTcpSocket(info.groupOwnerAddress)
-                    .flatMapObservable(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
-                            .repeat()
-                            .subscribeOn(readScheduler)
-                            .doOnNext(packet -> Log.v(TAG, "client read header packet"))
-                            .map(header -> new BlockDataStream(
-                                    header,
-                                    BlockSequencePacket.parseFrom(socket.getInputStream())
-                                            .subscribeOn(readScheduler)
-                                            .repeat(header.getHashList().size())
-                                            .doOnComplete(() -> Log.v(TAG, "client read sequence packets"))
-                            )).toObservable())
-                    .takeUntil(stream -> {
-                        return stream.getHeaderPacket().isEndOfStream();
-                    });
-        } else {
-            return Observable.error(new IllegalStateException("invalid role"));
-        }
+        return socketFactory.create(SCATTERBRAIN_PORT)
+                .subscribeOn(writeScheduler)
+                .flatMapObservable(InterceptableServerSocket::observeConnections)
+                .map(InterceptableServerSocket.SocketConnection::getSocket)
+                .doOnNext(n -> Log.v(TAG, "accepted server socket"))
+                .flatMapCompletable(socket ->
+                        stream.doOnSubscribe(disp -> Log.v(TAG, "subscribed to BlockDataStream observable"))
+                                .doOnNext(p -> Log.v(TAG, "writeBlockData processing BlockDataStream"))
+                                .flatMapCompletable(blockDataStream ->
+                                        blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
+                                                .subscribeOn(writeScheduler)
+                                                .doOnComplete(() -> Log.v(TAG, "server wrote header packet"))
+                                                .andThen(blockDataStream.getSequencePackets()
+                                                        .doOnNext(packet -> Log.v(TAG, "uke writing sequence packet: " + packet.getmData().size()))
+                                                        .concatMapCompletable(blockSequencePacket ->
+                                                                blockSequencePacket.writeToStream(socket.getOutputStream())
+                                                                        .subscribeOn(writeScheduler)
+                                                        )
+                                                        .doOnComplete(() -> Log.v(TAG, "server wrote sequence packets"))
+                                                )));
+    }
+
+
+    private Completable readBlockDataUke() {
+        return socketFactory.create(SCATTERBRAIN_PORT)
+                .flatMapObservable(serverSocket -> serverSocket.observeConnections()
+                        .map(InterceptableServerSocket.SocketConnection::getSocket)
+                        .flatMapSingle(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
+                                .subscribeOn(readScheduler)
+                                .doOnSuccess(packet -> Log.v(TAG, "server read header packet"))
+                                .map(headerPacket -> new BlockDataStream(
+                                        headerPacket,
+                                        BlockSequencePacket.parseFrom(socket.getInputStream())
+                                                .subscribeOn(readScheduler)
+                                                .repeat(headerPacket.getHashList().size())
+                                                .doOnNext(packet -> Log.v(TAG, "uke reading sequence packet: " + packet.getmData().size()))
+                                                .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
+                                )))
+                )
+                .takeUntil(stream -> {
+                    final boolean end = stream.getHeaderPacket().isEndOfStream();
+                    if (end) {
+                        Log.v(TAG, "uke end of stream");
+                    }
+                    return end;
+                })
+                .concatMapCompletable(datastore::insertMessage);
+    }
+
+    private Completable readBlockDataSeme(
+            Socket socket
+    ) {
+        return Single.fromCallable(() -> BlockHeaderPacket.parseFrom(socket.getInputStream()))
+                .flatMap(obs -> obs)
+                .repeat()
+                .subscribeOn(readScheduler)
+                .doOnNext(packet -> Log.v(TAG, "client read header packet: " + packet.getHashList().size()))
+                .map(header -> new BlockDataStream(
+                        header,
+                        BlockSequencePacket.parseFrom(socket.getInputStream())
+                                .subscribeOn(readScheduler)
+                                .repeat(header.getHashList().size())
+                                .doOnNext(packet -> Log.v(TAG, "seme reading sequence packet: " + packet.getmData().size()))
+                                .doOnComplete(() -> Log.v(TAG, "seme complete read sequence packets"))
+                ))
+                .takeUntil(stream -> {
+                    final boolean end = stream.getHeaderPacket().isEndOfStream();
+                    if (end) {
+                        Log.v(TAG, "seme end of stream");
+                    }
+                    return end;
+                })
+                .concatMapCompletable(datastore::insertMessage);
     }
 }

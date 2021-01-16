@@ -252,6 +252,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     @Override
     public Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(int count) {
         Log.v(TAG, "called getTopRandomMessages");
+        final int num = Math.min(count, mDatastore.scatterMessageDao().messageCount());
 
         return this.mDatastore.scatterMessageDao().getTopRandom(count)
                 .doOnSubscribe(disp -> Log.v(TAG, "subscribed to getTopRandoMessages"))
@@ -261,7 +262,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                    return new WifiDirectRadioModule.BlockDataStream(
                             message,
                             readFile(new File(message.message.filePath), message.message.blocksize),
-                           s < count-1
+                           s < num-1
                     );
                 }).toObservable();
     }

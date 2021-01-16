@@ -372,7 +372,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 datastore.getTopRandomMessages(10)
                         .toFlowable(BackpressureStrategy.BUFFER)
                         .doOnComplete(() -> Log.v("debug", "getTopRandomMessages oncomplete"))
-               ).flatMapCompletable(datastore::insertMessage);
+               );
     }
 
     private Observable<CachedLEConnection> establishConnection(RxBleDevice device, Timeout timeout) {
