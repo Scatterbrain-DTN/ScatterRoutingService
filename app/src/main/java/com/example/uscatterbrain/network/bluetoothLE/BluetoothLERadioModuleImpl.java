@@ -539,11 +539,17 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                             }
                                             session.setStage(transactionResult.second.nextStage);
                                         })
+                                        .takeUntil(result -> {
+                                            return result.second.nextStage.equals(TransactionResult.STAGE_EXIT);
+                                        })
                                         .doFinally(() -> {
                                             Log.v(TAG, "stages complete, cleaning up");
 
                                         });
 
+                            })
+                            .takeUntil(result -> {
+                                return result.second.nextStage.equals(TransactionResult.STAGE_EXIT);
                             })
                             .doFinally(() -> {
                                 Log.v(TAG, "session finished, cleaning up");
@@ -585,12 +591,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public void cleanup(RxBleDevice device) {
         protocolSpec.remove(device.getMacAddress());
         connectionCache.remove(device.getMacAddress());
-        discoveryDispoable.getAndUpdate(compositeDisposable -> {
-            if (compositeDisposable != null) {
-                compositeDisposable.dispose();
-            }
-            return null;
-        });
     }
 
     public void stopServer() {
