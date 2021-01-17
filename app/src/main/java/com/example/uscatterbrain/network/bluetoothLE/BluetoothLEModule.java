@@ -6,6 +6,7 @@ import com.example.uscatterbrain.network.UpgradePacket;
 import java.util.List;
 import java.util.UUID;
 
+import io.reactivex.Completable;
 import io.reactivex.Observable;
 
 public interface BluetoothLEModule {
@@ -19,6 +20,7 @@ public interface BluetoothLEModule {
     boolean startServer();
     void stopServer();
     List<UUID> getPeers();
+    Completable awaitTransaction();
 
     enum discoveryOptions {
         OPT_DISCOVER_ONCE,

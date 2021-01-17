@@ -21,6 +21,7 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.ElectLeaderPacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
+import com.jakewharton.rxrelay2.PublishRelay;
 import com.polidea.rxandroidble2.RxBleClient;
 import com.polidea.rxandroidble2.RxBleDevice;
 import com.polidea.rxandroidble2.RxBleServer;
@@ -101,6 +102,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final AtomicReference<Disposable> discoveryDispoable = new AtomicReference<>();
     private final ConcurrentHashMap<String, Observable<CachedLEConnection>> connectionCache = new ConcurrentHashMap<>();
     private final ScatterbrainDatastore datastore;
+    private final PublishRelay<Boolean> transactionCompleteRelay = PublishRelay.create();
+    private final PublishRelay<Throwable> transactionErrorRelay = PublishRelay.create();
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
@@ -372,7 +375,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 datastore.getTopRandomMessages(10)
                         .toFlowable(BackpressureStrategy.BUFFER)
                         .doOnComplete(() -> Log.v("debug", "getTopRandomMessages oncomplete"))
-               );
+               ).doOnComplete(() -> transactionCompleteRelay.accept(true))
+                .doOnError(err -> {
+                    Log.e(TAG, "wifi p2p upgrade failed: " + err);
+                    transactionCompleteRelay.accept(false);
+                })
+                .onErrorComplete();
     }
 
     private Observable<CachedLEConnection> establishConnection(RxBleDevice device, Timeout timeout) {
@@ -445,6 +453,15 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     );
             mGattDisposable.add(timeoutDisp);
         }
+    }
+
+
+    @Override
+    public Completable awaitTransaction() {
+        return Completable.mergeArray(
+                transactionCompleteRelay.firstOrError().ignoreElement(),
+                transactionErrorRelay.flatMapCompletable(Completable::error)
+        );
     }
 
     @Override
@@ -537,6 +554,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 })
                 .doOnDispose(() -> {
                     Log.e(TAG, "gatt server disposed");
+                    transactionErrorRelay.accept(new IllegalStateException("gatt server disposed"));
                     stopServer();
                 })
                 .flatMapCompletable(resultPair -> {
@@ -549,6 +567,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                         return Completable.never();
                     }
                 })
+                .doFinally(() -> transactionErrorRelay.accept(new IllegalStateException("gatt server shut down")))
                 .subscribe(
                         () -> Log.e(TAG, "gatt server completed. This should not happen"),
                         err -> {
