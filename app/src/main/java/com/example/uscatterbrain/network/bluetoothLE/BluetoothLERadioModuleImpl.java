@@ -427,8 +427,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     }
 
     @Override
-    public void startDiscover(discoveryOptions opts) {
-        Disposable ignored = discoverOnce()
+    public Disposable startDiscover(discoveryOptions opts) {
+        Disposable d = discoverOnce()
                 .doOnError(err -> Log.e(TAG, "error with initial handshake: " + err))
                 .subscribe(
                         complete -> {
@@ -453,6 +453,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     );
             mGattDisposable.add(timeoutDisp);
         }
+
+        return d;
     }
 
 

@@ -1,13 +1,12 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.UpgradePacket;
 
 import java.util.List;
 import java.util.UUID;
 
 import io.reactivex.Completable;
-import io.reactivex.Observable;
+import io.reactivex.disposables.Disposable;
 
 public interface BluetoothLEModule {
     int TIMEOUT = 2;
@@ -15,7 +14,7 @@ public interface BluetoothLEModule {
     AdvertisePacket getAdvertisePacket();
     void startAdvertise();
     void stopAdvertise();
-    void startDiscover(discoveryOptions options);
+    Disposable startDiscover(discoveryOptions options);
     void stopDiscover();
     boolean startServer();
     void stopServer();
