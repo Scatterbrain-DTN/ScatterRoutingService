@@ -414,12 +414,13 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                     scanResult.getBleDevice().getBluetoothDevice(),
                                     connection
                             ));
-                });
+                })
+                .doOnSubscribe(discoveryDispoable::set);
     }
 
     @Override
     public void startDiscover(discoveryOptions opts) {
-        Disposable d  = discoverOnce()
+        Disposable ignored = discoverOnce()
                 .doOnError(err -> Log.e(TAG, "error with initial handshake: " + err))
                 .subscribe(
                         complete -> {
@@ -427,8 +428,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                         },
                         err -> Log.e(TAG, "handshake failed: " + err + '\n' + Arrays.toString(err.getStackTrace()))
                 );
-        discoveryDispoable.set(d);
-
         if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
             Disposable timeoutDisp = Completable.fromAction(() -> {})
                     .delay(discoverDelay, TimeUnit.SECONDS)
