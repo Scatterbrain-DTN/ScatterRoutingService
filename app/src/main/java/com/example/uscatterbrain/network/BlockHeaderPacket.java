@@ -550,7 +550,9 @@ public class BlockHeaderPacket implements ScatterSerializable {
             }
 
             if (mBlockSize <= 0) {
-                throw new IllegalArgumentException("blocksize not set");
+                IllegalArgumentException e = new IllegalArgumentException("blocksize not set");
+                e.printStackTrace();
+                throw e;
             }
 
             return new BlockHeaderPacket(this);

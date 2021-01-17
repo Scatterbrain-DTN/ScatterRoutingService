@@ -125,9 +125,11 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     private Completable insertMessageWithoutIdentity(ScatterMessage message, Long identityid) {
         return this.mDatastore.scatterMessageDao().insertHashes(message.messageHashes)
+                .subscribeOn(Schedulers.io())
                 .flatMap(hashids -> {
                     message.message.identityID = identityid;
                     return mDatastore.scatterMessageDao()._insertMessages(message.message)
+                            .subscribeOn(Schedulers.io())
                             .flatMap(messageid -> {
                                 List<MessageHashCrossRef> hashes = new ArrayList<>();
                                 for (Long hashID : hashids) {
@@ -136,7 +138,8 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     xref.hashID = hashID;
                                     hashes.add(xref);
                                 }
-                                return this.mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes);
+                                return this.mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes)
+                                        .subscribeOn(Schedulers.io());
                             });
                 }).ignoreElement();
     }
@@ -150,6 +153,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public Completable insertMessagesSync(ScatterMessage message) {
         if (message.message.identity != null) {
             return this.mDatastore.scatterMessageDao().insertIdentity(message.message.identity)
+                    .subscribeOn(Schedulers.io())
                     .flatMapCompletable(identityid -> insertMessageWithoutIdentity(message, identityid));
         } else {
             return insertMessageWithoutIdentity(message, null);
@@ -215,7 +219,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         return insertMessage(stream.getEntity())
                                 .andThen(insertFile(stream));
                     }
-                });
+                }).subscribeOn(Schedulers.io());
     }
 
     /**
