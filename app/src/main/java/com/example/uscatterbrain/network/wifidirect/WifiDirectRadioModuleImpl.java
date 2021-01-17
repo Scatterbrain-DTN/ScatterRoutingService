@@ -12,14 +12,17 @@ import android.util.Log;
 import androidx.annotation.RequiresApi;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
+import com.example.uscatterbrain.ScatterProto;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.DeclareHashesPacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
 
 import java.net.InetAddress;
 import java.net.Socket;
+import java.security.spec.RSAOtherPrimeInfo;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -32,8 +35,10 @@ import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
+import io.reactivex.SingleEmitter;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.CompletableSubject;
 import io.reactivex.subjects.ReplaySubject;
 
@@ -317,6 +322,33 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         }).flatMapCompletable(completable -> completable);
     }
 
+    public Single<DeclareHashesPacket> declareHashesUke() {
+        return getServerSocket()
+                .flatMapObservable(sock -> DeclareHashesPacket.parseFrom(sock.getInputStream())
+                        .toObservable()
+                        .subscribeOn(Schedulers.io())
+                        .mergeWith(DeclareHashesPacket.newBuilder()
+                                .optOut()
+                                .build()
+                                .writeToStream(sock.getOutputStream())
+                                .subscribeOn(Schedulers.io()))
+                )
+                .firstOrError();
+    }
+
+    public Single<DeclareHashesPacket> declareHashesSeme(Socket socket) {
+        return Single.just(socket)
+                .flatMap(sock -> DeclareHashesPacket.parseFrom(sock.getInputStream())
+                        .toObservable()
+                        .subscribeOn(Schedulers.io())
+                        .mergeWith(DeclareHashesPacket.newBuilder()
+                        .optOut()
+                        .build()
+                        .writeToStream(sock.getOutputStream())
+                                .subscribeOn(Schedulers.io())).firstOrError()
+                );
+    }
+
     public Completable awaitPeersChanged(int timeout, TimeUnit unit) {
         return mBroadcastReceiver.observePeers()
                 .firstOrError()
@@ -344,7 +376,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
             ) {
 
         Log.v(TAG, "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
-                + " " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)+ " "
+                + " " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE) + " "
                 + upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE));
 
         if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
@@ -353,6 +385,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
             ),10, 1)
+                    .andThen(declareHashesUke().ignoreElement())
                     .andThen(readBlockDataUke()
                             .mergeWith(writeBlockDataUke(streamObservable)));
         } else if(upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
@@ -364,8 +397,11 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
             ), 20, 1)
                     .flatMapCompletable(info -> getTcpSocket(info.groupOwnerAddress)
                             .flatMapCompletable(socket ->
+                                    declareHashesSeme(socket)
+                                    .ignoreElement()
+                                    .andThen(
                             writeBlockDataSeme(socket, streamObservable)
-                            .mergeWith(readBlockDataSeme(socket))))
+                            .mergeWith(readBlockDataSeme(socket)))))
                     .doOnSubscribe(disp -> Log.v(TAG, "subscribed to writeBlockData"));
         } else {
             return Completable.error(new IllegalStateException("invalid role"));
@@ -416,11 +452,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     private Completable writeBlockDataUke(
         Flowable<BlockDataStream> stream
     ) {
-        return socketFactory.create(SCATTERBRAIN_PORT)
-                .subscribeOn(writeScheduler)
-                .flatMapObservable(InterceptableServerSocket::observeConnections)
-                .map(InterceptableServerSocket.SocketConnection::getSocket)
-                .doOnNext(n -> Log.v(TAG, "accepted server socket"))
+        return getServerSocket()
                 .flatMapCompletable(socket ->
                         stream.doOnSubscribe(disp -> Log.v(TAG, "subscribed to BlockDataStream observable"))
                                 .doOnNext(p -> Log.v(TAG, "writeBlockData processing BlockDataStream"))
@@ -440,12 +472,12 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
 
 
     private Completable readBlockDataUke() {
-        return socketFactory.create(SCATTERBRAIN_PORT)
-                .flatMapObservable(serverSocket -> serverSocket.observeConnections()
-                        .map(InterceptableServerSocket.SocketConnection::getSocket)
-                        .flatMapSingle(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
+        return getServerSocket()
+                        .toFlowable()
+                        .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
+                                .repeat()
                                 .subscribeOn(readScheduler)
-                                .doOnSuccess(packet -> Log.v(TAG, "server read header packet"))
+                                .doOnNext(packet -> Log.v(TAG, "server read header packet"))
                                 .map(headerPacket -> new BlockDataStream(
                                         headerPacket,
                                         BlockSequencePacket.parseFrom(socket.getInputStream())
@@ -454,15 +486,23 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                 .doOnNext(packet -> Log.v(TAG, "uke reading sequence packet: " + packet.getmData().size()))
                                                 .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
                                 )))
-                )
                 .takeUntil(stream -> {
                     final boolean end = stream.getHeaderPacket().isEndOfStream();
                     if (end) {
                         Log.v(TAG, "uke end of stream");
                     }
                     return end;
-                })
+                }) //TODO: timeout here
                 .concatMapCompletable(datastore::insertMessage);
+    }
+
+    private Single<Socket> getServerSocket() {
+        return socketFactory.create(SCATTERBRAIN_PORT)
+                .subscribeOn(writeScheduler)
+                .flatMapObservable(InterceptableServerSocket::observeConnections)
+                .map(InterceptableServerSocket.SocketConnection::getSocket)
+                .firstOrError()
+                .doOnSuccess(n -> Log.v(TAG, "accepted server socket"));
     }
 
     private Completable readBlockDataSeme(
