@@ -14,6 +14,11 @@ message Advertise {
     repeated uint32 provides = 1;
 }
 
+message DeclareHashes {
+    bool optout = 1;
+    repeated bytes hashes = 2;
+}
+
 // header + metadata for a file, message or data stream
 message BlockData {
     bytes from_fingerprint = 1;

@@ -18,7 +18,8 @@ public interface ScatterSerializable {
         TYPE_ADVERTISE,
         TYPE_UPGRADE,
         TYPE_ELECT_LEADER,
-        TYPE_LUID
+        TYPE_LUID,
+        TYPE_DECLARE_HASHES
     }
     byte[] getBytes();
     ByteString getByteString();
