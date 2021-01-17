@@ -99,5 +99,6 @@ message Identity {
 // used for building more complex routing algorithms someday
 message RoutingMetadata {
     UUID id = 1;
-    map<string, bytes> keyval = 2;
+    bool endofstream = 2;
+    map<string, bytes> keyval = 3;
 }

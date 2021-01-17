@@ -40,6 +40,7 @@ public class RoutingMetadataPacket implements ScatterSerializable {
                 .setId(ScatterProto.UUID.newBuilder()
                         .setLower(builder.uuid.getLeastSignificantBits())
                         .setUpper(builder.uuid.getMostSignificantBits()))
+                .setEndofstream(builder.empty)
                 .build();
     }
 
@@ -60,6 +61,10 @@ public class RoutingMetadataPacket implements ScatterSerializable {
 
     public Map<UUID, byte[]> getMetadata() {
         return metadataMap;
+    }
+
+    public boolean isEmpty() {
+        return routingMetadata.getEndofstream();
     }
 
     public UUID getUUID() {
@@ -151,9 +156,18 @@ public class RoutingMetadataPacket implements ScatterSerializable {
             return this;
         }
 
+        public Builder setEmpty() {
+            this.empty = true;
+            return this;
+        }
+
         public RoutingMetadataPacket build() {
-            if (this.uuid == null || !empty) {
+            if (this.uuid == null && !empty) {
                 throw new IllegalArgumentException("uuid must be set");
+            }
+
+            if (empty) {
+                uuid = new UUID(0,0);
             }
 
             return new RoutingMetadataPacket(this);

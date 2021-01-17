@@ -17,6 +17,7 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.DeclareHashesPacket;
+import com.example.uscatterbrain.network.RoutingMetadataPacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
 
@@ -36,8 +37,10 @@ import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.SingleEmitter;
+import io.reactivex.annotations.NonNull;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Predicate;
 import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.CompletableSubject;
 import io.reactivex.subjects.ReplaySubject;
@@ -349,6 +352,29 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 );
     }
 
+    public Observable<RoutingMetadataPacket> routingMetadataUke(Flowable<RoutingMetadataPacket> packets) {
+        return getServerSocket()
+                .flatMapObservable(sock -> routingMetadataSeme(sock, packets));
+    }
+
+    public Observable<RoutingMetadataPacket> routingMetadataSeme(Socket socket, Flowable<RoutingMetadataPacket> packets) {
+        return Observable.just(socket)
+                .flatMap(sock -> RoutingMetadataPacket.parseFrom(sock.getInputStream())
+                        .toObservable()
+                        .repeat()
+                        .takeUntil(routingMetadataPacket -> {
+                            final boolean end = routingMetadataPacket.isEmpty();
+                            if (end) {
+                                Log.v(TAG, "routingMetadata seme end of stream");
+                            }
+                            return end;
+                        }) //TODO: timeout here
+                        .subscribeOn(Schedulers.io())
+                        .mergeWith(packets.flatMapCompletable(p -> p.writeToStream(sock.getOutputStream())
+                                .subscribeOn(Schedulers.io())
+                        )));
+    }
+
     public Completable awaitPeersChanged(int timeout, TimeUnit unit) {
         return mBroadcastReceiver.observePeers()
                 .firstOrError()
@@ -385,6 +411,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
             ),10, 1)
+                    .andThen(routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build())))
+                    .ignoreElements()
                     .andThen(declareHashesUke().ignoreElement())
                     .andThen(readBlockDataUke()
                             .mergeWith(writeBlockDataUke(streamObservable)));
@@ -397,7 +425,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
             ), 20, 1)
                     .flatMapCompletable(info -> getTcpSocket(info.groupOwnerAddress)
                             .flatMapCompletable(socket ->
-                                    declareHashesSeme(socket)
+                                    routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
+                                    .ignoreElements()
+                                    .andThen(declareHashesSeme(socket))
                                     .ignoreElement()
                                     .andThen(
                             writeBlockDataSeme(socket, streamObservable)
