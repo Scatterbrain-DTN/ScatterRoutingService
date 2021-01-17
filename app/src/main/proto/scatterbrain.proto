@@ -98,9 +98,6 @@ message Identity {
 // arbitrary metadata about the network
 // used for building more complex routing algorithms someday
 message RoutingMetadata {
-    message RoutingPoint {
-        UUID uuid = 1;
-        bytes data = 2;
-    }
-    map<string, RoutingPoint> keyval = 3;
+    UUID id = 1;
+    map<string, bytes> keyval = 2;
 }
