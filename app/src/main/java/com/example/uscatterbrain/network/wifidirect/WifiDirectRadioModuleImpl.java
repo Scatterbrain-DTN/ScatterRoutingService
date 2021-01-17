@@ -505,8 +505,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         return getServerSocket()
                         .toFlowable()
                         .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
-                                .repeat()
                                 .subscribeOn(readScheduler)
+                                .repeat()
                                 .doOnNext(packet -> Log.v(TAG, "server read header packet"))
                                 .map(headerPacket -> new BlockDataStream(
                                         headerPacket,
@@ -528,7 +528,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
 
     private Single<Socket> getServerSocket() {
         return socketFactory.create(SCATTERBRAIN_PORT)
-                .subscribeOn(writeScheduler)
                 .flatMapObservable(InterceptableServerSocket::observeConnections)
                 .map(InterceptableServerSocket.SocketConnection::getSocket)
                 .firstOrError()
@@ -538,10 +537,10 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     private Completable readBlockDataSeme(
             Socket socket
     ) {
-        return Single.fromCallable(() -> BlockHeaderPacket.parseFrom(socket.getInputStream()))
+        return Single.fromCallable(() -> BlockHeaderPacket.parseFrom(socket.getInputStream())
+                .subscribeOn(readScheduler))
                 .flatMap(obs -> obs)
                 .repeat()
-                .subscribeOn(readScheduler)
                 .doOnNext(packet -> Log.v(TAG, "client read header packet: " + packet.getHashList().size()))
                 .map(header -> new BlockDataStream(
                         header,

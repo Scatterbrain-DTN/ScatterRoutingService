@@ -84,13 +84,13 @@ public interface RoutingServiceComponent {
         @Provides
         @Named(NamedSchedulers.WIFI_DIRECT_READ)
         static Scheduler provideWifiDirectReadScheduler() {
-            return RxJavaPlugins.createIoScheduler(new ScatterbrainThreadFactory());
+            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
         }
 
         @Provides
         @Named(NamedSchedulers.WIFI_DIRECT_WRITE)
         static Scheduler provideWifiDirectWriteScheduler() {
-            return RxJavaPlugins.createIoScheduler(new ScatterbrainThreadFactory());
+            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
         }
 
         @Provides
