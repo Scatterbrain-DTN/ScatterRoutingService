@@ -30,9 +30,7 @@ import io.reactivex.subjects.BehaviorSubject;
 
 public class ScatterRoutingService extends LifecycleService {
     public final String TAG = "ScatterRoutingService";
-    private boolean bound;
     private final IBinder mBinder = new ScatterBinder();
-    private DeviceProfile myprofile;
     private RoutingServiceBackend mBackend;
     private static final BehaviorRelay<RoutingServiceComponent> component = BehaviorRelay.create();
     private static final String NOTIFICATION_CHANNEL_FOREGROUND = "foreground";
@@ -49,133 +47,6 @@ public class ScatterRoutingService extends LifecycleService {
         return mBackend.getPacket();
     }
 
-    public void setPacket(AdvertisePacket packet) {
-        //TODO:
-    }
-
-
-    public void stopService() {
-    }
-
-
-    public SharedPreferences getPref() {
-        return null;
-    }
-
-
-    public void setPref(SharedPreferences pref) {
-
-    }
-
-
-    public DeviceProfile getProfile() {
-        return myprofile;
-    }
-
-
-    public void setProfile(DeviceProfile prof) {
-        this.myprofile = prof;
-    }
-
-
-    public ScatterTransport[] getTransports() {
-        return null;
-    }
-
-
-    public String getScatterApplication() {
-        return null;
-    }
-
-
-    public void setScatterApplication(String application) {
-
-    }
-
-    //peers
-
-    public void scanOn(ScatterTransport transport) {
-
-    }
-
-
-    public void scanOff(ScatterTransport transport) {
-
-    }
-
-
-    public void advertiseOn() {
-
-    }
-
-
-    public void advertiseOff() {
-
-    }
-
-
-    public DeviceProfile[] getPeers() {
-        return null;
-    }
-
-    //communications
-
-    public boolean sendDataDirected(DeviceProfile target, byte[] data) {
-        return false;
-    }
-
-
-    public void sendDataMulticast(byte[] data) {
-
-    }
-
-
-    public boolean sendFileDirected(DeviceProfile target, InputStream file, String name, long len) {
-        return false;
-    }
-
-
-    public void sendFileMulticast(InputStream file, String name, long len) {
-
-    }
-
-
-    public void registerOnRecieveCallback(OnRecieveCallback callback) {
-
-    }
-
-    //datastore
-
-    public BlockHeaderPacket[] getTopMessages(int num) {
-        return null;
-    }
-
-
-    public BlockHeaderPacket[] getRandomMessages(int num) {
-        return null;
-    }
-
-    //datastore systems tasks
-
-
-    public void flushDatastore() {
-
-    }
-
-
-    public void setDatastoreLimit(int limit) {
-
-    }
-
-
-    public int getDatastoreLimit() {
-        return 0;
-    }
-
-    public void startService() {
-
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
@@ -186,7 +57,6 @@ public class ScatterRoutingService extends LifecycleService {
     public IBinder onBind(Intent i) {
         try {
             super.onBind(i);
-            //TODO: temporary
             RoutingServiceComponent c = DaggerRoutingServiceComponent.builder()
                     .applicationContext(this)
                     .build();
@@ -215,7 +85,6 @@ public class ScatterRoutingService extends LifecycleService {
 
             startForeground(1, notification);
             Log.v(TAG, "called onbind");
-            bound = true;
             Log.v(TAG, "initialized datastore");
             return mBinder;
         } catch (Exception e) {
@@ -243,7 +112,6 @@ public class ScatterRoutingService extends LifecycleService {
     @Override
     public boolean onUnbind(Intent i) {
         super.onUnbind(i);
-        bound = false;
         return true;
     }
 

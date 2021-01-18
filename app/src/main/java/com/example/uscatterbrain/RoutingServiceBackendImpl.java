@@ -63,4 +63,9 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
     public ScatterbrainDatastore getDatastore() {
         return datastore;
     }
+
+    @Override
+    public ScatterbrainScheduler getScheduler() {
+        return scheduler;
+    }
 }

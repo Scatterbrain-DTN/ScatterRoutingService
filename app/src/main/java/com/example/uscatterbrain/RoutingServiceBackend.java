@@ -4,6 +4,7 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
+import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
 
 public interface RoutingServiceBackend {
     class Applications {
@@ -13,4 +14,5 @@ public interface RoutingServiceBackend {
     BluetoothLEModule getRadioModule();
     WifiDirectRadioModule getWifiDirect();
     ScatterbrainDatastore getDatastore();
+    ScatterbrainScheduler getScheduler();
 }
