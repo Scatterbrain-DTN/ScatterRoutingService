@@ -22,6 +22,7 @@ import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -191,35 +192,65 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      * @return future returning id of row inserted
      */
     @Override
-    public Completable insertMessage(ScatterMessage message) {
+    public Completable insertMessageToRoom(ScatterMessage message) {
         return insertMessagesSync(message);
+    }
+
+    private Completable discardStream(WifiDirectRadioModule.BlockDataStream stream) {
+        //TODO: we read and discard packets here because currently, but eventually
+        // it would be a good idea to check the hash first and add support for aborting the transfer
+        return stream.getSequencePackets()
+                .map(packet -> {
+                    if (packet.verifyHash(stream.getHeaderPacket())) {
+                        Log.v(TAG, "hash verified");
+                        return packet;
+                    } else  {
+                        Log.e(TAG, "hash invalid");
+                        return null;
+                    }
+                }).ignoreElements();
     }
 
     @Override
     public Completable insertMessage(WifiDirectRadioModule.BlockDataStream stream) {
+        if (stream.getToDisk()) {
+            return insertMessageWithDisk(stream);
+        } else {
+            return insertMessagesWithoutDisk(stream);
+        }
+    }
+
+    private Completable insertMessageWithDisk(WifiDirectRadioModule.BlockDataStream stream) {
         File filePath = getFilePath(stream.getHeaderPacket());
         Log.e(TAG, "inserting message at filePath " + filePath);
         stream.getEntity().message.filePath = filePath.getAbsolutePath();
         return mDatastore.scatterMessageDao().messageCountSingle(filePath.getAbsolutePath())
                 .flatMapCompletable(count -> {
                     if (count > 0) {
-                        //TODO: we read and discard packets here because currently, but eventually
-                        // it would be a good idea to check the hash first and add support for aborting the transfer
-                        return stream.getSequencePackets()
-                                .map(packet -> {
-                                    if (packet.verifyHash(stream.getHeaderPacket())) {
-                                        Log.v(TAG, "hash verified");
-                                        return packet;
-                                    } else  {
-                                        Log.e(TAG, "hash invalid");
-                                        return null;
-                                    }
-                                }).ignoreElements();
+                        return discardStream(stream);
                     } else {
-                        return insertMessage(stream.getEntity())
+                        return insertMessageToRoom(stream.getEntity())
                                 .andThen(insertFile(stream));
                     }
                 }).subscribeOn(Schedulers.io());
+    }
+
+    private Completable insertMessagesWithoutDisk(WifiDirectRadioModule.BlockDataStream stream) {
+        return mDatastore.scatterMessageDao().messageCountSingle(stream.getHeaderPacket().getAutogenFilename())
+                .flatMapCompletable(count -> {
+                    if (count > 0) {
+                        return discardStream(stream);
+                    } else {
+                        return stream.getSequencePackets()
+                                .map(BlockSequencePacket::getmData)
+                                .reduce(ByteString::concat)
+                                .flatMapCompletable(val -> {
+                                    stream.getEntity().message.body = val.toByteArray();
+                                    return insertMessageToRoom(stream.getEntity());
+                                }).subscribeOn(Schedulers.io());
+
+                    }
+                });
     }
 
     /**
@@ -246,6 +277,17 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         return mDatastore.identityDao().insertAll(identity).ignoreElement();
     }
 
+    @Override
+    public Flowable<BlockSequencePacket> readBody(byte[] body, int blocksize) {
+        return Bytes.from(new ByteArrayInputStream(body), blocksize)
+                .zipWith(getSeq(), (bytes, seq) -> {
+                   return BlockSequencePacket.newBuilder()
+                           .setData(ByteString.copyFrom(bytes))
+                           .setSequenceNumber(seq)
+                           .build();
+                });
+    }
+
     /**
      * gets a randomized list of messages from the datastore. Needs to be observed
      * to get async result
@@ -263,11 +305,21 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .doOnNext(message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size()))
                 .zipWith(getSeq(), (message, s) -> {
-                   return new WifiDirectRadioModule.BlockDataStream(
-                            message,
-                            readFile(new File(message.message.filePath), message.message.blocksize),
-                           s < num-1
-                    );
+                    if (message.message.body == null) {
+                        return new WifiDirectRadioModule.BlockDataStream(
+                                message,
+                                readFile(new File(message.message.filePath), message.message.blocksize),
+                                s < num - 1,
+                                true
+                        );
+                    } else {
+                        return new WifiDirectRadioModule.BlockDataStream(
+                                message,
+                                readBody(message.message.body, message.message.blocksize),
+                                s < num - 1,
+                                false
+                        );
+                    }
                 }).toObservable();
     }
 
@@ -420,7 +472,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     ScatterMessage hashedMessage = new ScatterMessage();
                     hashedMessage.message = message;
                     hashedMessage.messageHashes = HashlessScatterMessage.hash2hashs(hashes);
-                    return this.insertMessage(hashedMessage);
+                    return this.insertMessageToRoom(hashedMessage);
                 }).toSingleDefault(getFileMetadataSync(path))
                 .blockingGet();
     }

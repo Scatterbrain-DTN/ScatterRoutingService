@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Flow;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -49,7 +50,6 @@ public interface ScatterbrainDatastore {
      */
     Completable insertMessage(WifiDirectRadioModule.BlockDataStream stream);
 
-
     /**
      * Asynchronously inserts a list of messages into the datastore, allows tracking result
      * via provided callback
@@ -67,7 +67,7 @@ public interface ScatterbrainDatastore {
      * @param message room entity to insert
      * @return future returning id of row inserted
      */
-    Completable insertMessage(ScatterMessage message);
+    Completable insertMessageToRoom(ScatterMessage message);
 
 
     /**
@@ -146,6 +146,8 @@ public interface ScatterbrainDatastore {
     Single<List<ByteString>> hashFile(File path, int blocksize);
 
     Flowable<BlockSequencePacket> readFile(File path, int blocksize);
+
+    Flowable<BlockSequencePacket> readBody(byte[] body, int blocksize);
 
     File getFilePath(BlockHeaderPacket packet);
 

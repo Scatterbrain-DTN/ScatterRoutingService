@@ -49,16 +49,20 @@ public interface WifiDirectRadioModule {
         }
 
         public BlockDataStream(ScatterMessage message, Flowable<BlockSequencePacket> packetFlowable) {
-            this(message, packetFlowable, false);
+            this(message, packetFlowable, false, true);
         }
 
-        public BlockDataStream(ScatterMessage message, Flowable<BlockSequencePacket> packetFlowable, boolean end) {
+        public boolean getToDisk() {
+            return headerPacket.getToDisk();
+        }
+
+        public BlockDataStream(ScatterMessage message, Flowable<BlockSequencePacket> packetFlowable, boolean end, boolean todisk) {
             BlockHeaderPacket.Builder builder = BlockHeaderPacket.newBuilder()
                     .setToFingerprint(message.message.to)
                     .setFromFingerprint(message.message.from)
                     .setApplication(message.message.application)
                     .setSig(message.message.sig)
-                    .setToDisk(true) //TODO: handle this intelligently
+                    .setToDisk(todisk)
                     .setSessionID(message.message.sessionid)
                     .setBlockSize(message.message.blocksize)
                     .setMime(message.message.mimeType)

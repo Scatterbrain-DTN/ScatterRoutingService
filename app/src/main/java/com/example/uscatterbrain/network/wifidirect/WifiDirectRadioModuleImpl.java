@@ -12,7 +12,6 @@ import android.util.Log;
 import androidx.annotation.RequiresApi;
 
 import com.example.uscatterbrain.RoutingServiceComponent;
-import com.example.uscatterbrain.ScatterProto;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
@@ -23,7 +22,6 @@ import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
 
 import java.net.InetAddress;
 import java.net.Socket;
-import java.security.spec.RSAOtherPrimeInfo;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -36,11 +34,8 @@ import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
-import io.reactivex.SingleEmitter;
-import io.reactivex.annotations.NonNull;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.Predicate;
 import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.CompletableSubject;
 import io.reactivex.subjects.ReplaySubject;
