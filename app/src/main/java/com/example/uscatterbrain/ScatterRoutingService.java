@@ -50,11 +50,6 @@ public class ScatterRoutingService extends LifecycleService {
     @Override
     public void onStart(@Nullable Intent intent, int startId) {
         super.onStart(intent, startId);
-    }
-
-    @Override
-    public IBinder onBind(Intent i) {
-        super.onBind(i);
         try {
             RoutingServiceComponent c = DaggerRoutingServiceComponent.builder()
                     .applicationContext(this)
@@ -88,8 +83,12 @@ public class ScatterRoutingService extends LifecycleService {
         } catch (Exception e) {
             e.printStackTrace();
             Log.v(TAG, "exception");
-            return null;
         }
+    }
+
+    @Override
+    public IBinder onBind(Intent i) {
+        super.onBind(i);
         return mBinder;
     }
 
