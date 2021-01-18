@@ -1,5 +1,7 @@
 package com.example.uscatterbrain.scheduler;
 
+import android.util.Log;
+
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
@@ -9,7 +11,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import io.reactivex.Completable;
 import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.disposables.Disposable;
 
 @Singleton
 public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler {
@@ -18,7 +22,7 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler {
     private final BluetoothLEModule bluetoothLEModule;
     private final WifiDirectRadioModule wifiDirectRadioModule;
     private final ScatterbrainDatastore datastore;
-    private final CompositeDisposable globalDisposable = new CompositeDisposable();
+    private final AtomicReference<Disposable> globalDisposable = new AtomicReference<>();
 
     @Inject
     public ScatterbrainSchedulerImpl(
@@ -41,13 +45,31 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler {
     public void start() {
         bluetoothLEModule.startAdvertise();
         bluetoothLEModule.startServer();
+        final Disposable d = bluetoothLEModule.discoverForever()
+                .subscribe(
+                        res -> Log.v(TAG, "finished transaction: " + res),
+                        err -> Log.e(TAG, "error in transaction: " + err)
+                );
+
+        globalDisposable.getAndUpdate(disp -> {
+            if (disp != null) {
+                disp.dispose();
+            }
+            return d;
+        });
+
     }
 
     @Override
     public boolean stop() {
         bluetoothLEModule.stopAdvertise();
         bluetoothLEModule.stopServer();
-        globalDisposable.dispose();
+        globalDisposable.getAndUpdate(disp -> {
+            if (disp != null) {
+                disp.dispose();
+            }
+            return null;
+        });
         return true;
     }
 }

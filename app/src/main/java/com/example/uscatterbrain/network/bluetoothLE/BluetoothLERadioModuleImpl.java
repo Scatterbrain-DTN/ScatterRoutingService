@@ -426,35 +426,59 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 .doOnSubscribe(discoveryDispoable::set);
     }
 
+    private Observable<Boolean> discover(final int timeout, final boolean forever) {
+        return observeTransactions()
+                .doOnSubscribe(disp -> {
+                    mGattDisposable.add(disp);
+                    Disposable d = discoverOnce()
+                            .doOnError(err -> Log.e(TAG, "error with initial handshake: " + err))
+                            .subscribe(
+                                    complete -> {
+                                        Log.v(TAG, "handshake completed: " + complete);
+                                    },
+                                    err -> Log.e(TAG, "handshake failed: " + err + '\n' + Arrays.toString(err.getStackTrace()))
+                            );
+                    if (!forever) {
+                        Disposable timeoutDisp = Completable.fromAction(() -> {
+                        })
+                                .delay(timeout, TimeUnit.SECONDS)
+                                .subscribe(
+                                        () -> {
+                                            Log.v(TAG, "scan timed out");
+                                            discoveryDispoable.getAndUpdate(compositeDisposable -> {
+                                                if (compositeDisposable != null) {
+                                                    compositeDisposable.dispose();
+                                                }
+                                                return null;
+                                            });
+                                        },
+                                        err -> Log.e(TAG, "error while timing out scan: " + err)
+                                );
+                        mGattDisposable.add(timeoutDisp);
+                    }
+                    mGattDisposable.add(d);
+                });
+    }
+
+    @Override
+    public Completable discoverWithTimeout(final int timeout) {
+        return discover(timeout, false)
+                .firstOrError()
+                .ignoreElement();
+    }
+
+    @Override
+    public Observable<Boolean> discoverForever() {
+        return discover(0, true);
+    }
+
     @Override
     public Disposable startDiscover(discoveryOptions opts) {
-        Disposable d = discoverOnce()
-                .doOnError(err -> Log.e(TAG, "error with initial handshake: " + err))
+        return discover(discoverDelay, opts.equals(discoveryOptions.OPT_DISCOVER_FOREVER))
                 .subscribe(
-                        complete -> {
-                            Log.v(TAG, "handshake completed: " + complete);
-                        },
-                        err -> Log.e(TAG, "handshake failed: " + err + '\n' + Arrays.toString(err.getStackTrace()))
+                        res -> Log.v(TAG, "discovery completed"),
+                        err -> Log.v(TAG, "discovery failed: " + err)
                 );
-        if (opts == discoveryOptions.OPT_DISCOVER_ONCE) {
-            Disposable timeoutDisp = Completable.fromAction(() -> {})
-                    .delay(discoverDelay, TimeUnit.SECONDS)
-                    .subscribe(
-                            () -> {
-                                Log.v(TAG, "scan timed out");
-                                    discoveryDispoable.getAndUpdate(compositeDisposable -> {
-                                        if (compositeDisposable != null) {
-                                            compositeDisposable.dispose();
-                                        }
-                                        return null;
-                                    });
-                            },
-                            err -> Log.e(TAG, "error while timing out scan: " + err)
-                    );
-            mGattDisposable.add(timeoutDisp);
-        }
-
-        return d;
     }
 
 
@@ -463,6 +487,15 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         return Completable.mergeArray(
                 transactionCompleteRelay.firstOrError().ignoreElement(),
                 transactionErrorRelay.flatMapCompletable(Completable::error)
+        );
+    }
+
+
+    @Override
+    public Observable<Boolean> observeTransactions() {
+        return Observable.merge(
+                transactionCompleteRelay,
+                transactionErrorRelay.flatMap(Observable::error)
         );
     }
 
