@@ -5,28 +5,20 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
-import androidx.core.app.NotificationCompat;
+import androidx.annotation.Nullable;
 import androidx.lifecycle.LifecycleService;
 
-import com.example.uscatterbrain.API.OnRecieveCallback;
-import com.example.uscatterbrain.API.ScatterTransport;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
-import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.jakewharton.rxrelay2.BehaviorRelay;
 
-import java.io.InputStream;
-import java.util.Objects;
-
 import io.reactivex.Single;
-import io.reactivex.subjects.BehaviorSubject;
 
 public class ScatterRoutingService extends LifecycleService {
     public final String TAG = "ScatterRoutingService";
@@ -52,11 +44,10 @@ public class ScatterRoutingService extends LifecycleService {
         super.onCreate();
     }
 
-
     @Override
-    public IBinder onBind(Intent i) {
+    public void onStart(@Nullable Intent intent, int startId) {
+        super.onStart(intent, startId);
         try {
-            super.onBind(i);
             RoutingServiceComponent c = DaggerRoutingServiceComponent.builder()
                     .applicationContext(this)
                     .build();
@@ -86,12 +77,16 @@ public class ScatterRoutingService extends LifecycleService {
             startForeground(1, notification);
             Log.v(TAG, "called onbind");
             Log.v(TAG, "initialized datastore");
-            return mBinder;
         } catch (Exception e) {
             e.printStackTrace();
             Log.v(TAG, "exception");
-            return null;
         }
+    }
+
+    @Override
+    public IBinder onBind(Intent i) {
+        super.onBind(i);
+        return mBinder;
     }
 
     //TODO: remove this in production
