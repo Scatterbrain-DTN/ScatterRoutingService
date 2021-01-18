@@ -18,6 +18,8 @@ import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.jakewharton.rxrelay2.BehaviorRelay;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import io.reactivex.Single;
 
 public class ScatterRoutingService extends LifecycleService {
@@ -26,6 +28,7 @@ public class ScatterRoutingService extends LifecycleService {
     private RoutingServiceBackend mBackend;
     private static final BehaviorRelay<RoutingServiceComponent> component = BehaviorRelay.create();
     private static final String NOTIFICATION_CHANNEL_FOREGROUND = "foreground";
+    private final AtomicReference<Boolean> bound = new AtomicReference<>(false);
 
     public ScatterRoutingService() {
 
@@ -47,6 +50,11 @@ public class ScatterRoutingService extends LifecycleService {
     @Override
     public void onStart(@Nullable Intent intent, int startId) {
         super.onStart(intent, startId);
+    }
+
+    @Override
+    public IBinder onBind(Intent i) {
+        super.onBind(i);
         try {
             RoutingServiceComponent c = DaggerRoutingServiceComponent.builder()
                     .applicationContext(this)
@@ -80,12 +88,8 @@ public class ScatterRoutingService extends LifecycleService {
         } catch (Exception e) {
             e.printStackTrace();
             Log.v(TAG, "exception");
+            return null;
         }
-    }
-
-    @Override
-    public IBinder onBind(Intent i) {
-        super.onBind(i);
         return mBinder;
     }
 
