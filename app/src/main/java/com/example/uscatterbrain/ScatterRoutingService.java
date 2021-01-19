@@ -7,20 +7,26 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.RemoteException;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LifecycleService;
 
+import com.example.uscatterbrain.API.Identity;
+import com.example.uscatterbrain.API.ScatterMessage;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.jakewharton.rxrelay2.BehaviorRelay;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.reactivex.Observable;
 import io.reactivex.Single;
+import io.reactivex.disposables.Disposable;
 
 public class ScatterRoutingService extends LifecycleService {
     public final String TAG = "ScatterRoutingService";
@@ -29,6 +35,51 @@ public class ScatterRoutingService extends LifecycleService {
     private static final BehaviorRelay<RoutingServiceComponent> component = BehaviorRelay.create();
     private static final String NOTIFICATION_CHANNEL_FOREGROUND = "foreground";
     private final AtomicReference<Boolean> bound = new AtomicReference<>(false);
+    private final ScatterbrainAPI.Stub binder = new ScatterbrainAPI.Stub() {
+        @Override
+        public List<ScatterMessage> getByApplication(String application) throws RemoteException {
+            return mBackend.getDatastore().getApiMessages(application);
+        }
+
+        @Override
+        public List<Identity> getIdentities() throws RemoteException {
+            return null; //TODO: not implemented
+        }
+
+        @Override
+        public Identity getIdentityByFingerprint(byte[] fingerprint) throws RemoteException {
+            return null; //TODO: not implemented
+        }
+
+        @Override
+        public void sendMessage(ScatterMessage message) throws RemoteException {
+            Disposable ignored = mBackend.getDatastore().insertAndHashFileFromApi(message, ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
+                    .subscribe(
+                            () -> Log.v(TAG, "api inserted message"),
+                            err -> Log.e(TAG, "api failed to insert message")
+                    );
+        }
+
+        @Override
+        public void sendMessages(List<ScatterMessage> messages) throws RemoteException {
+            Disposable ignored = Observable.fromIterable(messages)
+                    .flatMapCompletable(m -> mBackend.getDatastore().insertAndHashFileFromApi(m, ScatterbrainDatastore.DEFAULT_BLOCKSIZE))
+                    .subscribe(
+                            () -> Log.v(TAG, "api inserted message"),
+                            err -> Log.e(TAG, "api failed to insert message")
+                    );
+        }
+
+        @Override
+        public void startDiscovery() throws RemoteException {
+            mBackend.getScheduler().start();
+        }
+
+        @Override
+        public void stopDiscovery() throws RemoteException {
+            mBackend.getScheduler().stop();
+        }
+    };
 
     public ScatterRoutingService() {
 
@@ -130,5 +181,4 @@ public class ScatterRoutingService extends LifecycleService {
             return ScatterRoutingService.this;
         }
     }
-
 }

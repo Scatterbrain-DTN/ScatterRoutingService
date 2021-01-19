@@ -34,6 +34,8 @@ import io.reactivex.Single;
 public interface ScatterbrainDatastore {
 
     String DATABASE_NAME = "scatterdb";
+    int MAX_BODY_SIZE = 1024*1024*4;
+    int DEFAULT_BLOCKSIZE = 1024*2;
 
     /**
      *  For internal use, synchronously inserts messages to database
@@ -124,6 +126,7 @@ public interface ScatterbrainDatastore {
 
     Single<ScatterMessage> getMessageByPath(String path);
 
+
     int messageCount();
 
     int deleteByPath(File path);
@@ -157,6 +160,10 @@ public interface ScatterbrainDatastore {
 
     long getFileSize(File path);
 
+    List<com.example.uscatterbrain.API.ScatterMessage> getApiMessages(String application);
+
+    Completable insertAndHashFileFromApi(com.example.uscatterbrain.API.ScatterMessage message, int blocksize);
+
     enum FileCallbackResult {
         ERR_FILE_EXISTS,
         ERR_FILE_NO_EXISTS,
@@ -174,6 +181,17 @@ public interface ScatterbrainDatastore {
 
     static String getDefaultFileNameFromHashes(List<Hashes> hashes) {
         return getDefaultFileName(HashlessScatterMessage.hashes2hash(hashes));
+    }
+
+    static String getNoFilename(byte[] body) {
+        byte[] outhash = new byte[GenericHash.BYTES];
+        byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
+        LibsodiumInterface.getSodium().crypto_generichash_init(state, null, 0, outhash.length);
+        LibsodiumInterface.getSodium().crypto_generichash_update(state, body, body.length);
+        LibsodiumInterface.getSodium().crypto_generichash_final(state, outhash, outhash.length);
+        ByteBuffer buf = ByteBuffer.wrap(outhash);
+        //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+        return new UUID(buf.getLong(), buf.getLong()).toString();
     }
 
     static String getDefaultFileName(List<ByteString> hashes) {

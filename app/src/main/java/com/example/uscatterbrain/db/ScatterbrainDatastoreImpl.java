@@ -3,8 +3,10 @@ package com.example.uscatterbrain.db;
 import android.content.Context;
 import android.net.Uri;
 import android.os.FileObserver;
+import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract.Document;
 import android.util.Log;
+import android.util.Pair;
 import android.webkit.MimeTypeMap;
 
 import androidx.annotation.Nullable;
@@ -24,11 +26,13 @@ import com.google.protobuf.ByteString;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
+import java.net.URLEncoder;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -49,6 +53,8 @@ import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.schedulers.Schedulers;
 
+import static com.example.uscatterbrain.db.ScatterbrainDatastore.DEFAULT_BLOCKSIZE;
+
 
 /**
  * Interface to the androidx room backed datastore
@@ -58,7 +64,6 @@ import io.reactivex.schedulers.Schedulers;
 public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     private static final String TAG = "ScatterbrainDatastore";
-    public static int DEFAULT_BLOCKSIZE = 1024*2;
     private final Datastore mDatastore;
     private final Context ctx;
     private final Scheduler databaseScheduler;
@@ -95,7 +100,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                             Log.v(TAG, "file closed in user directory; " + s);
                             final File f = new File(USER_FILES_DIR, s);
                             if (f.exists() && f.length() > 0) {
-                                insertAndHashLocalFile(f, DEFAULT_BLOCKSIZE);
+                                insertAndHashLocalFile(f, ScatterbrainDatastore.DEFAULT_BLOCKSIZE);
                             } else if (f.length() == 0) {
                                 Log.e(TAG, "file length was zero, not hashing");
                             } else {
@@ -478,6 +483,86 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
+    public List<com.example.uscatterbrain.API.ScatterMessage> getApiMessages(String application) {
+        return mDatastore.scatterMessageDao().getByApplication(application)
+                .map(message -> {
+                    final File f = new File(message.message.filePath);
+                    final File r;
+                    if (f.exists()) {
+                        r = f;
+                    } else {
+                        r = null;
+                    }
+                    return com.example.uscatterbrain.API.ScatterMessage.newBuilder()
+                            .setApplication(new String(message.message.application))
+                            .setBody(message.message.body)
+                            .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
+                            .setTo(message.message.to)
+                            .setFrom(message.message.from)
+                            .build();
+                })
+                .reduce(new ArrayList<com.example.uscatterbrain.API.ScatterMessage>(), (list, m) -> {
+                    list.add(m);
+                    return list;
+                }).blockingGet();
+    }
+
+    @Override
+    public Completable insertAndHashFileFromApi(final com.example.uscatterbrain.API.ScatterMessage message, int blocksize) {
+        return Single.fromCallable(() -> File.createTempFile("scatterbrain", "insert"))
+                .flatMapCompletable(file -> {
+                    if (message.getBody() == null && message.getFileDescriptor() != null) {
+                        return copyFile(message.getFileDescriptor().getFileDescriptor(), file)
+                                .andThen(hashFile(file, blocksize))
+                                .flatMapCompletable(hashes -> {
+                                    final File newFile = new File(ScatterbrainDatastore.getDefaultFileName(hashes)
+                                            + URLEncoder.encode(message.getExtension(), "UTF-8"));
+                                    if (!file.renameTo(newFile)) {
+                                        return Completable.error(new IllegalStateException("failed to rename to " + newFile));
+                                    }
+
+                                    final ScatterMessage dbmessage = new ScatterMessage();
+                                    dbmessage.messageHashes = HashlessScatterMessage.hash2hashs(hashes);
+                                    HashlessScatterMessage hm = new HashlessScatterMessage();
+                                    hm.to = message.getToFingerprint();
+                                    hm.from = message.getFromFingerprint();
+                                    hm.body = null;
+                                    hm.blocksize = blocksize;
+                                    hm.sessionid = 0;
+                                    hm.sig = null; //TODO: sign messages
+                                    hm.userFilename = URLEncoder.encode(message.getFilename(), "UTF-8");
+                                    hm.extension = URLEncoder.encode(message.getExtension(), "UTF-8");
+                                    hm.filePath = newFile.getAbsolutePath();
+                                    hm.mimeType = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString());
+                                    dbmessage.message = hm;
+                                    return insertMessageToRoom(dbmessage);
+                                }).subscribeOn(Schedulers.io());
+                    } else if (message.getBody() != null && message.getFileDescriptor() == null) {
+                        return hashData(message.getBody(), blocksize)
+                                .flatMapCompletable(hashes -> {
+                                    final ScatterMessage dbmessage = new ScatterMessage();
+                                    dbmessage.messageHashes = HashlessScatterMessage.hash2hashs(hashes);
+                                    HashlessScatterMessage hm = new HashlessScatterMessage();
+                                    hm.to = message.getToFingerprint();
+                                    hm.from = message.getFromFingerprint();
+                                    hm.body = message.getBody();
+                                    hm.blocksize = blocksize;
+                                    hm.sessionid = 0;
+                                    hm.sig = null; //TODO: sign messages
+                                    hm.userFilename = null;
+                                    hm.extension = null;
+                                    hm.filePath = ScatterbrainDatastore.getNoFilename(message.getBody());
+                                    hm.mimeType = "application/octet-stream";
+                                    dbmessage.message = hm;
+                                    return insertMessageToRoom(dbmessage);
+                                });
+                    } else {
+                        return Completable.error(new IllegalStateException("message sets both body and file"));
+                    }
+                });
+    }
+
+    @Override
     public synchronized int deleteByPath(File path) {
         return mDatastore.scatterMessageDao().deleteByPath(path.getAbsolutePath());
     }
@@ -614,6 +699,46 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 stream.getHeaderPacket(),
                 file
         ));
+    }
+
+    private Completable copyFile(FileDescriptor old, File file) {
+        return Single.just(new Pair<>(old, file))
+                .flatMapCompletable(pair -> {
+                    if (!pair.second.exists()) {
+                        pair.second.createNewFile();
+                    } else {
+                        return Completable.error(new FileAlreadyExistsException("file: " + pair.second + " already exists"));
+                    }
+                    if (!pair.first.valid()) {
+                        return Completable.error(new IllegalStateException("invalid file descriptor: " + pair.first));
+                    }
+
+                    final FileInputStream is = new FileInputStream(pair.first);
+                    final FileOutputStream os = new FileOutputStream(pair.second);
+                    return Bytes.from(is)
+                            .flatMapCompletable(bytes ->
+                                    Completable.fromAction(() -> os.write(bytes))
+                                            .subscribeOn(Schedulers.io())
+                            )
+                            .subscribeOn(Schedulers.io())
+                            .doFinally(() -> {
+                                is.close();
+                                os.close();
+                            });
+                });
+    }
+
+    private Single<List<ByteString>> hashData(byte[] data, int blocksize) {
+        return Bytes.from(new ByteArrayInputStream(data), blocksize)
+                .zipWith(getSeq(), (b, seq) -> {
+                    return BlockSequencePacket.newBuilder()
+                            .setSequenceNumber(seq)
+                            .setData(ByteString.copyFrom(b))
+                            .build().getmData();
+                }).reduce(new ArrayList<>(), (list, b) -> {
+                    list.add(b);
+                    return list;
+                });
     }
 
     @Override

@@ -39,6 +39,10 @@ public abstract class ScatterMessageDao {
     public abstract Maybe<List<ScatterMessage>> getByFilePath(String... filePaths);
 
     @Transaction
+    @Query("SELECT * FROM messages where application IN (:application)")
+    public abstract Observable<ScatterMessage> getByApplication(String application);
+
+    @Transaction
     @Query("SELECT filePath FROM messages")
     public abstract Maybe<List<String>> getAllFiles();
 
