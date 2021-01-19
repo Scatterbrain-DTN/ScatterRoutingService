@@ -6,8 +6,6 @@ import androidx.room.Insert;
 import androidx.room.Query;
 import androidx.room.Transaction;
 
-import com.goterl.lazycode.lazysodium.interfaces.Hash;
-
 import java.util.List;
 
 import io.reactivex.Completable;
@@ -28,11 +26,7 @@ public abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
-    public abstract Maybe<List<ScatterMessage>> getByID(long[] ids);
-
-    @Transaction
-    @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
-    public abstract Maybe<List<ScatterMessage>> getByID(List<Long> ids);
+    public abstract Single<ScatterMessage> getByID(long... ids);
 
     @Transaction
     @Query("SELECT * FROM messages WHERE filePath IN (:filePaths)")

@@ -164,6 +164,8 @@ public interface ScatterbrainDatastore {
 
     List<com.example.uscatterbrain.API.ScatterMessage> getApiMessages(String application);
 
+    com.example.uscatterbrain.API.ScatterMessage getApiMessages(long id);
+
     Completable insertAndHashFileFromApi(com.example.uscatterbrain.API.ScatterMessage message, int blocksize);
 
     enum FileCallbackResult {

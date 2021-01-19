@@ -36,6 +36,12 @@ public class ScatterRoutingService extends LifecycleService {
     private static final String NOTIFICATION_CHANNEL_FOREGROUND = "foreground";
     private final AtomicReference<Boolean> bound = new AtomicReference<>(false);
     private final ScatterbrainAPI.Stub binder = new ScatterbrainAPI.Stub() {
+
+        @Override
+        public ScatterMessage getById(long id) throws RemoteException {
+            return mBackend.getDatastore().getApiMessages(id);
+        }
+
         @Override
         public List<ScatterMessage> getByApplication(String application) throws RemoteException {
             return mBackend.getDatastore().getApiMessages(application);

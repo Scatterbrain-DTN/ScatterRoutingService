@@ -13,6 +13,7 @@ import androidx.annotation.Nullable;
 
 import com.example.uscatterbrain.RoutingServiceBackend;
 import com.example.uscatterbrain.RoutingServiceComponent;
+import com.example.uscatterbrain.ScatterbrainAPI;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.Keys;
@@ -479,29 +480,47 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .blockingGet();
     }
 
-    @Override
-    public List<com.example.uscatterbrain.API.ScatterMessage> getApiMessages(String application) {
-        return mDatastore.scatterMessageDao().getByApplication(application)
-                .map(message -> {
-                    final File f = new File(message.message.filePath);
-                    final File r;
-                    if (f.exists()) {
-                        r = f;
-                    } else {
-                        r = null;
-                    }
-                    return com.example.uscatterbrain.API.ScatterMessage.newBuilder()
-                            .setApplication(new String(message.message.application))
-                            .setBody(message.message.body)
-                            .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
-                            .setTo(message.message.to)
-                            .setFrom(message.message.from)
-                            .build();
-                })
-                .reduce(new ArrayList<com.example.uscatterbrain.API.ScatterMessage>(), (list, m) -> {
+    private com.example.uscatterbrain.API.ScatterMessage message2message(ScatterMessage message) {
+        final File f = new File(message.message.filePath);
+        final File r;
+        if (f.exists()) {
+            r = f;
+        } else {
+            r = null;
+        }
+        return com.example.uscatterbrain.API.ScatterMessage.newBuilder()
+                .setApplication(new String(message.message.application))
+                .setBody(message.message.body)
+                .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
+                .setTo(message.message.to)
+                .setFrom(message.message.from)
+                .build();
+    }
+
+    private Single<List<com.example.uscatterbrain.API.ScatterMessage>> getApiMessage(Observable<ScatterMessage> entities) {
+        return entities
+                .map(this::message2message)
+                .reduce(new ArrayList<>(), (list, m) -> {
                     list.add(m);
                     return list;
-                }).blockingGet();
+                });
+    }
+
+
+    private Single<com.example.uscatterbrain.API.ScatterMessage> getApiMessage(Single<ScatterMessage> entity) {
+        return entity.map(this::message2message);
+    }
+
+    @Override
+    public List<com.example.uscatterbrain.API.ScatterMessage> getApiMessages(String application) {
+        return getApiMessage(mDatastore.scatterMessageDao().getByApplication(application))
+                .blockingGet();
+    }
+
+    @Override
+    public com.example.uscatterbrain.API.ScatterMessage getApiMessages(long id) {
+        return getApiMessage(mDatastore.scatterMessageDao().getByID(id))
+                .blockingGet();
     }
 
     @Override

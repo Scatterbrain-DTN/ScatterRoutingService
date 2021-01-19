@@ -7,6 +7,8 @@ interface ScatterbrainAPI {
 
     List<ScatterMessage> getByApplication(String application);
 
+    ScatterMessage getById(long id);
+
     List<Identity> getIdentities();
 
     Identity getIdentityByFingerprint(in byte[] fingerprint);
