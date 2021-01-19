@@ -48,6 +48,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
     private BlockHeaderPacket(Builder builder) {
         this.mHashList = builder.getHashlist();
         this.endofstream = builder.endofstream;
+        this.extension = builder.extension;
         if (builder.getSig() == null) {
             this.mSignature = new byte[Sign.ED25519_BYTES];
         } else {
@@ -67,7 +68,6 @@ public class BlockHeaderPacket implements ScatterSerializable {
         this.mApplication = builder.getApplication();
         this.mSessionID = builder.getSessionid();
         this.mToDisk = builder.getToDisk();
-        this.extension = builder.extension;
         this.mBlocksize = builder.getBlockSize();
         this.mime = builder.mime;
         final ScatterProto.BlockData.Builder b = ScatterProto.BlockData.newBuilder();
@@ -171,7 +171,8 @@ public class BlockHeaderPacket implements ScatterSerializable {
     }
 
     public String getAutogenFilename() {
-        String ext  = ScatterbrainDatastore.getDefaultFileName(this) + "." + extension;
+        String ext = ScatterbrainDatastore.getDefaultFileName(this) + "." +
+                ScatterbrainDatastore.sanitizeFilename(extension);
         Log.e("debug", "getAutogenFilename: " + ext);
         return ext;
     }
@@ -370,7 +371,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
      * @return file extension
      */
     public String getExtension() {
-        return extension;
+        return ScatterbrainDatastore.sanitizeFilename(extension);
     }
 
     /**

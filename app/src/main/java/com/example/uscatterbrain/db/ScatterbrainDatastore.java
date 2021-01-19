@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Flow;
+import java.util.regex.Pattern;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -36,6 +37,7 @@ public interface ScatterbrainDatastore {
     String DATABASE_NAME = "scatterdb";
     int MAX_BODY_SIZE = 1024*1024*4;
     int DEFAULT_BLOCKSIZE = 1024*2;
+    final Pattern FILE_SANITIZE = Pattern.compile("/^[\\w.-]+$/\n");
 
     /**
      *  For internal use, synchronously inserts messages to database
@@ -181,6 +183,10 @@ public interface ScatterbrainDatastore {
 
     static String getDefaultFileNameFromHashes(List<Hashes> hashes) {
         return getDefaultFileName(HashlessScatterMessage.hashes2hash(hashes));
+    }
+
+    static String sanitizeFilename(String name) {
+        return FILE_SANITIZE.matcher(name).replaceAll("-");
     }
 
     static String getNoFilename(byte[] body) {

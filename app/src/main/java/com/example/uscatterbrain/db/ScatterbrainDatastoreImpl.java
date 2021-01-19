@@ -32,7 +32,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
-import java.net.URLEncoder;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -52,8 +51,6 @@ import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.schedulers.Schedulers;
-
-import static com.example.uscatterbrain.db.ScatterbrainDatastore.DEFAULT_BLOCKSIZE;
 
 
 /**
@@ -516,7 +513,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                 .andThen(hashFile(file, blocksize))
                                 .flatMapCompletable(hashes -> {
                                     final File newFile = new File(ScatterbrainDatastore.getDefaultFileName(hashes)
-                                            + URLEncoder.encode(message.getExtension(), "UTF-8"));
+                                            + ScatterbrainDatastore.sanitizeFilename(message.getExtension()));
                                     if (!file.renameTo(newFile)) {
                                         return Completable.error(new IllegalStateException("failed to rename to " + newFile));
                                     }
@@ -530,8 +527,8 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     hm.blocksize = blocksize;
                                     hm.sessionid = 0;
                                     hm.sig = null; //TODO: sign messages
-                                    hm.userFilename = URLEncoder.encode(message.getFilename(), "UTF-8");
-                                    hm.extension = URLEncoder.encode(message.getExtension(), "UTF-8");
+                                    hm.userFilename = ScatterbrainDatastore.sanitizeFilename(message.getFilename());
+                                    hm.extension = ScatterbrainDatastore.sanitizeFilename(message.getExtension());
                                     hm.filePath = newFile.getAbsolutePath();
                                     hm.mimeType = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString());
                                     dbmessage.message = hm;

@@ -10,11 +10,8 @@ import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
-import io.reactivex.Observable;
 import io.reactivex.Single;
-import io.reactivex.subjects.BehaviorSubject;
 import io.reactivex.subjects.CompletableSubject;
-import io.reactivex.subjects.PublishSubject;
 
 public interface WifiDirectRadioModule {
     String TAG = "WifiDirectRadioModule";
