@@ -146,7 +146,7 @@ public class ScatterRoutingService extends LifecycleService {
     @Override
     public IBinder onBind(Intent i) {
         super.onBind(i);
-        return mBinder;
+        return binder;
     }
 
     //TODO: remove this in production
