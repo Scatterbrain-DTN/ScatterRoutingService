@@ -96,7 +96,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final Context mContext;
     private final Scheduler bleScheduler;
     private final int discoverDelay = 45;
-    private final boolean discovering = true;
     private final AtomicReference<Disposable> discoveryDispoable = new AtomicReference<>();
     private final ConcurrentHashMap<String, Observable<CachedLEConnection>> connectionCache = new ConcurrentHashMap<>();
     private final ScatterbrainDatastore datastore;
@@ -121,7 +120,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final WifiDirectRadioModule wifiDirectRadioModule;
     private final RxBleServer mServer;
     private final RxBleClient mClient;
-    private AdvertisePacket mAdvertise;
 
     @Inject
     public BluetoothLERadioModuleImpl(
@@ -134,23 +132,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             ScatterbrainDatastore datastore
             ) {
         mContext = context;
-        mAdvertise = null;
         mAdvertiser = advertiser;
         this.bleScheduler = bluetoothScheduler;
         this.mServer = rxBleServer;
         this.mClient = rxBleClient;
         this.wifiDirectRadioModule = wifiDirectRadioModule;
         this.datastore = datastore;
-    }
-
-    @Override
-    public void setAdvertisePacket(AdvertisePacket advertisePacket) {
-        mAdvertise = advertisePacket;
-    }
-
-    @Override
-    public AdvertisePacket getAdvertisePacket() {
-        return mAdvertise;
     }
 
     @Override
