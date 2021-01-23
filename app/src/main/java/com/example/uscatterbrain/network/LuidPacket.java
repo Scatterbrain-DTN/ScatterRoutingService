@@ -81,6 +81,19 @@ public class LuidPacket implements ScatterSerializable {
         }
     }
 
+    public UUID getHashAsUUID() {
+        byte[] h = mLuid.getValHash().toByteArray();
+        if (h.length != GenericHash.BYTES) {
+            return null;
+        } else if (isHashed) {
+            ByteBuffer buf = ByteBuffer.wrap(h);
+            //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+            return new UUID(buf.getLong(), buf.getLong());
+        } else {
+            return null;
+        }
+    }
+
     public boolean verifyHash(LuidPacket packet) {
         if (packet.isHashed == this.isHashed) {
             return false;

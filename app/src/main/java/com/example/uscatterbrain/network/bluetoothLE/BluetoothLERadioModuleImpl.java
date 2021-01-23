@@ -50,7 +50,6 @@ import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.BehaviorSubject;
 
 @Singleton
@@ -193,12 +192,21 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 , conn -> {
                     Log.v(TAG, "gatt client luid hashed stage");
                     return conn.readLuid()
-                            .doOnSuccess(luidPacket -> {
+                            .doOnError(err -> Log.e(TAG, "error while receiving luid packet: " + err))
+                            .map(luidPacket -> {
+                                synchronized (connectedLuids) {
+                                    final UUID hashUUID = luidPacket.getHashAsUUID();
+                                    if (connectedLuids.contains(hashUUID)) {
+                                        Log.e(TAG, "device: " + device + " already connected");
+                                        return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device);
+                                    } else {
+                                        connectedLuids.add(hashUUID);
+                                    }
+                                }
                                 Log.v(TAG, "client handshake received hashed luid packet: " + luidPacket.getValCase());
                                 session.getLuidStage().addPacket(luidPacket);
-                            })
-                            .doOnError(err -> Log.e(TAG, "error while receiving luid packet: " + err))
-                            .map(luidPacket -> new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_LUID, device));
+                                return new TransactionResult<>(TransactionResult.STAGE_LUID, device);
+                            });
         });
 
 
@@ -357,7 +365,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
 
         session.setStage(TransactionResult.STAGE_LUID_HASHED);
-        return Single.just(session);
+        return Single.just(session).doFinally(() -> {
+            Log.e(TAG, "cleaning up luid cache");
+            synchronized (connectedLuids) {
+                connectedLuids.removeAll(session.getLuidStage().getHashedLuids());
+            }
+        });
     }
 
     private Completable bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {

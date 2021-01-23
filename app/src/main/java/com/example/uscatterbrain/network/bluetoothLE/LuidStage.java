@@ -8,8 +8,7 @@ import androidx.annotation.NonNull;
 import com.example.uscatterbrain.network.LuidPacket;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,6 +60,14 @@ public class LuidStage {
         } else {
             return Single.just(packet);
         }
+    }
+
+    public List<UUID> getHashedLuids() {
+        final ArrayList<UUID> result = new ArrayList<>();
+        for (LuidPacket packet : hashPackets) {
+            result.add(packet.getHashAsUUID());
+        }
+        return result;
     }
 
     public Single<LuidPacket> getSelf() {
