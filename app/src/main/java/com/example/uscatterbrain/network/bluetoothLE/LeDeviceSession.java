@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
@@ -30,9 +31,9 @@ public class LeDeviceSession {
     private final ConcurrentHashMap<String, UUID> luidMap = new ConcurrentHashMap<>();
     private String stage = TransactionResult.STAGE_START;
     private BluetoothLEModule.ConnectionRole connectionRole = BluetoothLEModule.ConnectionRole.ROLE_UKE;
-    public LeDeviceSession(BluetoothDevice device) {
+    public LeDeviceSession(BluetoothDevice device, AtomicReference<UUID> luid) {
         this.device = device;
-        this.luidStage = new LuidStage(device);
+        this.luidStage = new LuidStage(device, luid);
         this.advertiseStage = new AdvertiseStage();
         this.votingStage = new VotingStage(device);
     }

@@ -20,23 +20,19 @@ public class LuidStage {
     private final ArrayList<LuidPacket> hashPackets = new ArrayList<>();
     private final ArrayList<LuidPacket> realPackets = new ArrayList<>();
     private final AtomicReference<LuidPacket> selfhashed = new AtomicReference<>();
-    private UUID uuid;
+    private final AtomicReference<UUID> uuid;
     private final AtomicReference<LuidPacket> self = new AtomicReference<>();
     private final BluetoothDevice device;
 
-    public LuidStage(BluetoothDevice device) {
+    public LuidStage(BluetoothDevice device, AtomicReference<UUID> luid) {
         this.device = device;
-        regenerateUUID();
-    }
-
-    public void regenerateUUID() {
-        uuid = UUID.randomUUID();
+        this.uuid = luid;
     }
 
     private Single<LuidPacket> createSelf(boolean hashed) {
         return Single.fromCallable(() -> {
             LuidPacket.Builder builder = LuidPacket.newBuilder()
-                    .setLuid(uuid);
+                    .setLuid(uuid.get());
 
             if (hashed) {
                 builder.enableHashing();

@@ -103,6 +103,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final ScatterbrainDatastore datastore;
     private final PublishRelay<Boolean> transactionCompleteRelay = PublishRelay.create();
     private final Set<UUID> connectedLuids = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final AtomicReference<UUID> myLuid = new AtomicReference<>(UUID.randomUUID());
     private final PublishRelay<Throwable> transactionErrorRelay = PublishRelay.create();
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
@@ -177,7 +178,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
     private Single<LeDeviceSession> initializeProtocol(BluetoothDevice device) {
         Log.v(TAG, "initialize protocol");
-        LeDeviceSession session = new LeDeviceSession(device);
+        LeDeviceSession session = new LeDeviceSession(device, myLuid);
 
         session.addStage(
                 TransactionResult.STAGE_LUID_HASHED,
@@ -620,6 +621,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
     public void cleanup(RxBleDevice device) {
         connectionCache.remove(device.getMacAddress());
+        myLuid.set(UUID.randomUUID());
     }
 
     public void stopServer() {
