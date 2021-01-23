@@ -26,17 +26,15 @@ public class LeDeviceSession {
     private final ConcurrentHashMap<String, Pair<GattClientTransaction<TransactionResult<BootstrapRequest>>, GattServerConnectionConfig<Optional<BootstrapRequest>>>> transactionMap
             = new ConcurrentHashMap<>();
     private final BluetoothDevice device;
-    private final Scheduler scheduler;
     private final BehaviorSubject<String> stageChanges = BehaviorSubject.create();
     private final ConcurrentHashMap<String, UUID> luidMap = new ConcurrentHashMap<>();
     private String stage = TransactionResult.STAGE_START;
     private BluetoothLEModule.ConnectionRole connectionRole = BluetoothLEModule.ConnectionRole.ROLE_UKE;
-    public LeDeviceSession(BluetoothDevice device, Scheduler scheduler) {
+    public LeDeviceSession(BluetoothDevice device) {
         this.device = device;
         this.luidStage = new LuidStage(device);
         this.advertiseStage = new AdvertiseStage();
         this.votingStage = new VotingStage(device);
-        this.scheduler = scheduler;
     }
 
     public void addStage(String name, GattServerConnectionConfig<Optional<BootstrapRequest>> stage, GattClientTransaction<TransactionResult<BootstrapRequest>> transaction) {
@@ -66,7 +64,7 @@ public class LeDeviceSession {
     public Observable<String> observeStage() {
         return stageChanges
                 .takeWhile(s -> s.compareTo(TransactionResult.STAGE_EXIT) != 0)
-                .delay(0, TimeUnit.SECONDS, scheduler);
+                .delay(0, TimeUnit.SECONDS);
     }
 
     public VotingStage getVotingStage() {

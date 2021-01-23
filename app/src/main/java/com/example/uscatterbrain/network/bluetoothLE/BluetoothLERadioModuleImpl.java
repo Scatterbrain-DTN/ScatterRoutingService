@@ -31,7 +31,9 @@ import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -48,6 +50,7 @@ import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.BehaviorSubject;
 
 @Singleton
@@ -93,12 +96,14 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
     private final CompositeDisposable mGattDisposable = new CompositeDisposable();
     private final Context mContext;
-    private final Scheduler bleScheduler;
+    private final Scheduler clientScheduler;
+    private final Scheduler serverScheduler;
     private final int discoverDelay = 45;
     private final AtomicReference<Disposable> discoveryDispoable = new AtomicReference<>();
     private final ConcurrentHashMap<String, Observable<CachedLEConnection>> connectionCache = new ConcurrentHashMap<>();
     private final ScatterbrainDatastore datastore;
     private final PublishRelay<Boolean> transactionCompleteRelay = PublishRelay.create();
+    private final Set<UUID> connectedLuids = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final PublishRelay<Throwable> transactionErrorRelay = PublishRelay.create();
     private final AdvertiseCallback mAdvertiseCallback =  new AdvertiseCallback() {
         @Override
@@ -124,7 +129,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public BluetoothLERadioModuleImpl(
             Context context,
             BluetoothLeAdvertiser advertiser,
-            @Named(RoutingServiceComponent.NamedSchedulers.BLE) Scheduler bluetoothScheduler,
+            @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) Scheduler bluetoothScheduler,
+            @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) Scheduler serverScheduler,
             RxBleServer rxBleServer,
             RxBleClient rxBleClient,
             WifiDirectRadioModule wifiDirectRadioModule,
@@ -132,7 +138,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             ) {
         mContext = context;
         mAdvertiser = advertiser;
-        this.bleScheduler = bluetoothScheduler;
+        this.clientScheduler = bluetoothScheduler;
+        this.serverScheduler = serverScheduler;
         this.mServer = rxBleServer;
         this.mClient = rxBleClient;
         this.wifiDirectRadioModule = wifiDirectRadioModule;
@@ -171,7 +178,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
     private Single<LeDeviceSession> initializeProtocol(BluetoothDevice device) {
         Log.v(TAG, "initialize protocol");
-        LeDeviceSession session = new LeDeviceSession(device, bleScheduler);
+        LeDeviceSession session = new LeDeviceSession(device);
 
         session.addStage(
                 TransactionResult.STAGE_LUID_HASHED,
@@ -526,9 +533,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                                 session.singleServer(),
                                                                 (client, server) -> {
                                                                     return server.handshake(connection)
+                                                                            .subscribeOn(serverScheduler)
                                                                             .doOnSuccess(request -> Log.v(TAG, "server handshake completed"))
                                                                             .zipWith(
-                                                                                    client.handshake(clientConnection),
+                                                                                    client.handshake(clientConnection).subscribeOn(clientScheduler),
                                                                                     Pair::new
                                                                             )
                                                                             .toObservable()
