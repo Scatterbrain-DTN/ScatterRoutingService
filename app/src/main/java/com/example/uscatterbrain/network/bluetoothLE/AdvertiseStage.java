@@ -1,16 +1,15 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
-import android.bluetooth.BluetoothDevice;
+import androidx.annotation.Nullable;
 
 import com.example.uscatterbrain.network.AdvertisePacket;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AdvertiseStage {
-    private final BluetoothDevice device;
-    private final HashMap<String, AdvertisePacket> advertisePackets = new HashMap<>();
+    private final AtomicReference<AdvertisePacket> packet = new AtomicReference<>();
     private static final ArrayList<AdvertisePacket.Provides> provides =
             new ArrayList<AdvertisePacket.Provides>() {
         {
@@ -22,8 +21,8 @@ public class AdvertiseStage {
             .setProvides(provides)
             .build();
 
-    public AdvertiseStage(BluetoothDevice device) {
-        this.device = device;
+    public AdvertiseStage() {
+
     }
 
 
@@ -32,10 +31,11 @@ public class AdvertiseStage {
     }
 
     public void addPacket(AdvertisePacket packet) {
-        advertisePackets.put(device.getAddress(), packet);
+        this.packet.set(packet);
     }
 
-    public Map<String, AdvertisePacket> getPackets() {
-        return advertisePackets;
+    @Nullable
+    public AdvertisePacket getPackets() {
+        return packet.get();
     }
 }

@@ -41,7 +41,6 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
         this.mPacket = AdvertisePacket.newBuilder()
                 .setProvides(Collections.singletonList(AdvertisePacket.Provides.BLE))
                 .build();
-        this.bluetoothLeRadioModule.setAdvertisePacket(mPacket);
     }
 
     @Override

@@ -34,7 +34,7 @@ public class LeDeviceSession {
     public LeDeviceSession(BluetoothDevice device, Scheduler scheduler) {
         this.device = device;
         this.luidStage = new LuidStage(device);
-        this.advertiseStage = new AdvertiseStage(device);
+        this.advertiseStage = new AdvertiseStage();
         this.votingStage = new VotingStage(device);
         this.scheduler = scheduler;
     }
