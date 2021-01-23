@@ -31,7 +31,6 @@ import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -606,12 +605,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         mServer.closeServer();
         stopAdvertise();
     }
-
-    @Override
-    public List<UUID> getPeers() {
-        return null;
-    }
-
 
     public static class DeviceConnection {
         public final CachedLEConnection connection;
