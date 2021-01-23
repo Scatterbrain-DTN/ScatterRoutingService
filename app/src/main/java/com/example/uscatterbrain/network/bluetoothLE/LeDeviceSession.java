@@ -6,6 +6,7 @@ import android.util.Pair;
 
 import com.example.uscatterbrain.network.AdvertisePacket;
 
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -15,14 +16,14 @@ import io.reactivex.Scheduler;
 import io.reactivex.Single;
 import io.reactivex.subjects.BehaviorSubject;
 
-public class LeDeviceSession<T,U> {
+public class LeDeviceSession {
     public static final String TAG = "LeDeviceSession";
 
     private final LuidStage luidStage;
     private final AdvertiseStage advertiseStage;
     private final VotingStage votingStage;
     private UpgradeStage upgradeStage;
-    private final ConcurrentHashMap<String, Pair<GattClientTransaction<T>, GattServerConnectionConfig<U>>> transactionMap
+    private final ConcurrentHashMap<String, Pair<GattClientTransaction<TransactionResult<BootstrapRequest>>, GattServerConnectionConfig<Optional<BootstrapRequest>>>> transactionMap
             = new ConcurrentHashMap<>();
     private final BluetoothDevice device;
     private final Scheduler scheduler;
@@ -38,17 +39,17 @@ public class LeDeviceSession<T,U> {
         this.scheduler = scheduler;
     }
 
-    public void addStage(String name, GattServerConnectionConfig<U> stage, GattClientTransaction<T> transaction) {
+    public void addStage(String name, GattServerConnectionConfig<Optional<BootstrapRequest>> stage, GattClientTransaction<TransactionResult<BootstrapRequest>> transaction) {
         transactionMap.put(name, new Pair<>(transaction, stage));
     }
 
-    public Single<GattServerConnectionConfig<U>> singleServer() {
+    public Single<GattServerConnectionConfig<Optional<BootstrapRequest>>> singleServer() {
         return Single.fromCallable(() -> transactionMap.get(stage).second)
                 .doOnError(err -> Log.e(TAG, "failed to get single server for stage " + stage + ": " + err))
                 .onErrorResumeNext(Single.never());
     }
 
-    public Single<GattClientTransaction<T>> singleClient() {
+    public Single<GattClientTransaction<TransactionResult<BootstrapRequest>>> singleClient() {
         return Single.fromCallable(() -> transactionMap.get(stage).first)
                 .doOnError(err -> Log.e(TAG, "failed to get single client for stage " + stage + ": "+ err))
                 .onErrorResumeNext(Single.never());
@@ -96,11 +97,11 @@ public class LeDeviceSession<T,U> {
         return luidMap;
     }
 
-    public GattServerConnectionConfig<U> getServer() {
+    public GattServerConnectionConfig<Optional<BootstrapRequest>> getServer() {
         return transactionMap.get(stage).second;
     }
 
-    public GattClientTransaction<T> getClient() {
+    public GattClientTransaction<TransactionResult<BootstrapRequest>> getClient() {
         return transactionMap.get(stage).first;
     }
 

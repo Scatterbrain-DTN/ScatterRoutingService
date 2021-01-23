@@ -93,8 +93,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
 
     private final CompositeDisposable mGattDisposable = new CompositeDisposable();
-    private final ConcurrentHashMap<String, LeDeviceSession<TransactionResult<BootstrapRequest>, Optional<BootstrapRequest>>> protocolSpec
-            = new ConcurrentHashMap<>();
     private final Context mContext;
     private final Scheduler bleScheduler;
     private final int discoverDelay = 45;
@@ -185,9 +183,9 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         mAdvertiser.stopAdvertising(mAdvertiseCallback);
     }
 
-    private void initializeProtocol(BluetoothDevice device) {
+    private Single<LeDeviceSession> initializeProtocol(BluetoothDevice device) {
         Log.v(TAG, "initialize protocol");
-        LeDeviceSession<TransactionResult<BootstrapRequest>, Optional<BootstrapRequest>> session = new LeDeviceSession<>(device, bleScheduler);
+        LeDeviceSession session = new LeDeviceSession(device, bleScheduler);
 
         session.addStage(
                 TransactionResult.STAGE_LUID_HASHED,
@@ -366,7 +364,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
 
         session.setStage(TransactionResult.STAGE_LUID_HASHED);
-        protocolSpec.put(device.getAddress(), session);
+        return Single.just(session);
     }
 
     private Completable bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {
@@ -528,69 +526,59 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                         return Observable.error(new IllegalStateException("device was null"));
                     }
 
-                    // only attempt to feed protocol to reverse connection if this is our first time
-                    if (!protocolSpec.containsKey(device.getBluetoothDevice().getAddress())) {
-                        initializeProtocol(device.getBluetoothDevice());
-                    }
-
-                    final LeDeviceSession<TransactionResult<BootstrapRequest>, Optional<BootstrapRequest>> session = protocolSpec.get(device.getMacAddress());
-
-                    if (session == null) {
-                        Log.e(TAG, "gatt session was null. Somethig is wrong");
-                        return Observable.error(new IllegalStateException("session was null"));
-                    }
-
                     Log.d(TAG, "gatt server connection from " + connection.getConnection().getDevice().getAddress());
-                    return establishConnection(device, new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS))
-                            .onErrorResumeNext(Observable.never())
-                            .flatMap(clientConnection -> {
-                                return session.observeStage()
-                                        .doOnNext(stage -> Log.v(TAG, "handling stage: " + stage))
-                                        .flatMapSingle(stage -> {
-                                            return Single.zip(
-                                                    session.singleClient(),
-                                                    session.singleServer(),
-                                                    (client, server) -> {
-                                                                return server.handshake(connection)
-                                                                        .doOnSuccess(request -> Log.v(TAG, "server handshake completed"))
-                                                                        .zipWith(
-                                                                                client.handshake(clientConnection),
-                                                                                Pair::new
-                                                                        )
-                                                                        .toObservable()
-                                                                .doOnSubscribe(disposable -> Log.v("debug", "client handshake subscribed"));
-                                                    }
-                                            );
-                                        })
-                                        .concatMap(result -> result)
+                    return initializeProtocol(connection.getConnection().getDevice())
+                            .flatMapObservable(session -> {
+                                return establishConnection(device, new Timeout(CLIENT_CONNECT_TIMEOUT, TimeUnit.SECONDS))
                                         .onErrorResumeNext(Observable.never())
-                                        .doOnError(err -> {
-                                            Log.e(TAG, "stage " + session.getStage() + " error " + err);
-                                            err.printStackTrace();
-                                        })
-                                        .doOnNext(transactionResult -> {
-                                            if (transactionResult.second.nextStage.equals(TransactionResult.STAGE_EXIT)) {
-                                                cleanup(device);
-                                            }
-                                            session.setStage(transactionResult.second.nextStage);
+                                        .flatMap(clientConnection -> {
+                                            return session.observeStage()
+                                                    .doOnNext(stage -> Log.v(TAG, "handling stage: " + stage))
+                                                    .flatMapSingle(stage -> {
+                                                        return Single.zip(
+                                                                session.singleClient(),
+                                                                session.singleServer(),
+                                                                (client, server) -> {
+                                                                    return server.handshake(connection)
+                                                                            .doOnSuccess(request -> Log.v(TAG, "server handshake completed"))
+                                                                            .zipWith(
+                                                                                    client.handshake(clientConnection),
+                                                                                    Pair::new
+                                                                            )
+                                                                            .toObservable()
+                                                                            .doOnSubscribe(disposable -> Log.v("debug", "client handshake subscribed"));
+                                                                }
+                                                        );
+                                                    })
+                                                    .concatMap(result -> result)
+                                                    .onErrorResumeNext(Observable.never())
+                                                    .doOnError(err -> {
+                                                        Log.e(TAG, "stage " + session.getStage() + " error " + err);
+                                                        err.printStackTrace();
+                                                    })
+                                                    .doOnNext(transactionResult -> {
+                                                        if (transactionResult.second.nextStage.equals(TransactionResult.STAGE_EXIT)) {
+                                                            cleanup(device);
+                                                        }
+                                                        session.setStage(transactionResult.second.nextStage);
+                                                    })
+                                                    .takeUntil(result -> {
+                                                        return result.second.nextStage.equals(TransactionResult.STAGE_EXIT);
+                                                    })
+                                                    .doFinally(() -> {
+                                                        Log.v(TAG, "stages complete, cleaning up");
+
+                                                    });
+
                                         })
                                         .takeUntil(result -> {
                                             return result.second.nextStage.equals(TransactionResult.STAGE_EXIT);
                                         })
                                         .doFinally(() -> {
-                                            Log.v(TAG, "stages complete, cleaning up");
-
+                                            Log.v(TAG, "session finished, cleaning up");
+                                            cleanup(device);
                                         });
-
-                            })
-                            .takeUntil(result -> {
-                                return result.second.nextStage.equals(TransactionResult.STAGE_EXIT);
-                            })
-                            .doFinally(() -> {
-                                Log.v(TAG, "session finished, cleaning up");
-                                cleanup(device);
                             });
-
 
                 })
                 .doOnDispose(() -> {
@@ -624,7 +612,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     }
 
     public void cleanup(RxBleDevice device) {
-        protocolSpec.remove(device.getMacAddress());
         connectionCache.remove(device.getMacAddress());
     }
 
