@@ -1,4 +1,4 @@
-package com.example.uscatterbrain.identity;
+package com.example.uscatterbrain.network;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -9,10 +9,6 @@ import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKeys;
 
 import com.example.uscatterbrain.ScatterProto;
-import com.example.uscatterbrain.network.InputStreamFlowableSubscriber;
-import com.example.uscatterbrain.network.InputStreamObserver;
-import com.example.uscatterbrain.network.LibsodiumInterface;
-import com.example.uscatterbrain.network.ScatterSerializable;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
@@ -41,7 +37,7 @@ import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 
-public class Identity implements Map<String, ByteString>, ScatterSerializable {
+public class IdentityPacket implements Map<String, ByteString>, ScatterSerializable {
     private Map<String, ByteString>  mPubKeymap = new TreeMap<>();
     private SharedPreferences mKeystorePrefs;
     private final Context mCtx;
@@ -53,7 +49,7 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     private static final String PROTOBUF_PRIVKEY_KEY = "scatterbrain";
     private static final String KEYSTORE_ID = "scatterbrainkeystore";
 
-    private Identity(Builder builder) throws GeneralSecurityException, IOException {
+    private IdentityPacket(Builder builder) throws GeneralSecurityException, IOException {
         this.mCtx = builder.getContext();
         byte[] sig  = builder.getSig();
         if (sig != null) {
@@ -114,7 +110,7 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
         return mIdentity.get().getMessageCase().equals(ScatterProto.Identity.MessageCase.END);
     }
 
-    private Identity(InputStream is, Context mCtx) throws IOException, GeneralSecurityException {
+    private IdentityPacket(InputStream is, Context mCtx) throws IOException, GeneralSecurityException {
         ScatterProto.Identity identity = ScatterProto.Identity.parseDelimitedFrom(is);
         this.mCtx = mCtx;
         if (!isEnd()) {
@@ -135,20 +131,20 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     }
 
 
-    public static Single<Identity> parseFrom(InputStream is, Context ctx) {
-        return Single.fromCallable(() -> new Identity(is, ctx));
+    public static Single<IdentityPacket> parseFrom(InputStream is, Context ctx) {
+        return Single.fromCallable(() -> new IdentityPacket(is, ctx));
     }
 
-    public static Single<Identity> parseFrom(Observable<byte[]> flowable, Context ctx) {
+    public static Single<IdentityPacket> parseFrom(Observable<byte[]> flowable, Context ctx) {
         InputStreamObserver observer = new InputStreamObserver();
         flowable.subscribe(observer);
-        return Identity.parseFrom(observer, ctx).doFinally(observer::close);
+        return IdentityPacket.parseFrom(observer, ctx).doFinally(observer::close);
     }
 
-    public static Single<Identity> parseFrom(Flowable<byte[]> flowable, Context ctx) {
+    public static Single<IdentityPacket> parseFrom(Flowable<byte[]> flowable, Context ctx) {
         InputStreamFlowableSubscriber observer = new InputStreamFlowableSubscriber();
         flowable.subscribe(observer);
-        return Identity.parseFrom(observer, ctx).doFinally(observer::close);
+        return IdentityPacket.parseFrom(observer, ctx).doFinally(observer::close);
     }
 
     public ByteString sumBytes() {
@@ -355,7 +351,7 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
             return this;
         }
 
-        public Identity build() {
+        public IdentityPacket build() {
 
             if (mScatterbrainPubkey == null && ! mGenerateKeypair) {
                 return null;
@@ -370,7 +366,7 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
             }
 
             try {
-                return new Identity(this);
+                return new IdentityPacket(this);
             } catch (Exception e) {
                 e.printStackTrace();
                 return null;

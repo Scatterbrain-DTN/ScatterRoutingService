@@ -7,6 +7,7 @@ import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.db.entities.Identity;
+import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
@@ -24,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Flow;
 import java.util.regex.Pattern;
 
 import io.reactivex.Completable;
@@ -118,9 +118,9 @@ public interface ScatterbrainDatastore {
      */
     Observable<ScatterMessage> getMessagesByIdentity(Identity id);
 
-    Completable insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity);
+    Completable insertIdentity(List<IdentityPacket> identity);
 
-    Observable<com.example.uscatterbrain.identity.Identity> getIdentity(List<Long> ids);
+    Observable<IdentityPacket> getIdentity(List<Long> ids);
 
     Map<String, Serializable> getFileMetadataSync(File path);
 

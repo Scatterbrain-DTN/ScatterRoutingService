@@ -13,12 +13,12 @@ import androidx.annotation.Nullable;
 
 import com.example.uscatterbrain.RoutingServiceBackend;
 import com.example.uscatterbrain.RoutingServiceComponent;
-import com.example.uscatterbrain.ScatterbrainAPI;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
+import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
@@ -377,11 +377,11 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public Completable insertIdentity(List<com.example.uscatterbrain.identity.Identity> identity) {
+    public Completable insertIdentity(List<IdentityPacket> identity) {
         return Observable.fromCallable(() -> {
             List<Identity> idlist = new ArrayList<>();
             List<Keys> keysList = new ArrayList<>();
-            for (com.example.uscatterbrain.identity.Identity identity1 : identity) {
+            for (IdentityPacket identity1 : identity) {
                 Identity id = new Identity();
                 id.setGivenName(identity1.getName());
                 id.setPublicKey(identity1.getPubkey());
@@ -396,7 +396,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         }
 
                         for (int i=0;i<identity.size();i++) {
-                            com.example.uscatterbrain.identity.Identity identity1 = identity.get(i);
+                            IdentityPacket identity1 = identity.get(i);
                             for (Map.Entry<String, ByteString> entry : identity1.getKeymap().entrySet()) {
                                 Keys k = new Keys();
                                 k.setKey(entry.getKey());
@@ -411,7 +411,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         }).ignoreElements();
      }
 
-     public Observable<com.example.uscatterbrain.identity.Identity> getIdentity(List<Long> ids) {
+     public Observable<IdentityPacket> getIdentity(List<Long> ids) {
             return mDatastore.identityDao().getIdentitiesWithRelations(ids)
                     .toObservable()
                         .flatMap(idlist -> {
@@ -421,7 +421,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                         for (Keys keys : relation.keys) {
                                             keylist.put(keys.getKey(), ByteString.copyFrom(keys.getValue()));
                                         }
-                                        com.example.uscatterbrain.identity.Identity identity = com.example.uscatterbrain.identity.Identity.newBuilder(ctx)
+                                        IdentityPacket identity = IdentityPacket.newBuilder(ctx)
                                                 .setName(relation.identity.getGivenName())
                                                 .setScatterbrainPubkey(ByteString.copyFrom(relation.identity.getPublicKey()))
                                                 .setSig(relation.identity.getSignature())
