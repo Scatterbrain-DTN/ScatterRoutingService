@@ -62,7 +62,10 @@ public class ScatterRoutingService extends LifecycleService {
             Disposable ignored = mBackend.getDatastore().insertAndHashFileFromApi(message, ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
                     .subscribe(
                             () -> Log.v(TAG, "api inserted message"),
-                            err -> Log.e(TAG, "api failed to insert message: " + err)
+                            err -> {
+                                Log.e(TAG, "api failed to insert message: " + err);
+                                err.printStackTrace();
+                            }
                     );
         }
 
@@ -72,7 +75,10 @@ public class ScatterRoutingService extends LifecycleService {
                     .flatMapCompletable(m -> mBackend.getDatastore().insertAndHashFileFromApi(m, ScatterbrainDatastore.DEFAULT_BLOCKSIZE))
                     .subscribe(
                             () -> Log.v(TAG, "api inserted message"),
-                            err -> Log.e(TAG, "api failed to insert message: " + err)
+                            err -> {
+                                Log.e(TAG, "api failed to insert message: " + err);
+                                err.printStackTrace();
+                            }
                     );
         }
 

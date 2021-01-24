@@ -531,8 +531,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         return copyFile(message.getFileDescriptor().getFileDescriptor(), file)
                                 .andThen(hashFile(file, blocksize))
                                 .flatMapCompletable(hashes -> {
-                                    final File newFile = new File(ScatterbrainDatastore.getDefaultFileName(hashes)
+                                    final File newFile = new File(getUserDir(),ScatterbrainDatastore.getDefaultFileName(hashes)
                                             + ScatterbrainDatastore.sanitizeFilename(message.getExtension()));
+                                    Log.v(TAG, "filepath from api: " + newFile.getAbsolutePath());
                                     if (!file.renameTo(newFile)) {
                                         return Completable.error(new IllegalStateException("failed to rename to " + newFile));
                                     }
@@ -720,11 +721,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     private Completable copyFile(FileDescriptor old, File file) {
         return Single.just(new Pair<>(old, file))
                 .flatMapCompletable(pair -> {
-                    if (!pair.second.exists()) {
-                        pair.second.createNewFile();
-                    } else {
-                        return Completable.error(new FileAlreadyExistsException("file: " + pair.second + " already exists"));
+                    if (!pair.second.createNewFile()) {
+                        Log.w(TAG, "copyFile overwriting existing file");
                     }
+
                     if (!pair.first.valid()) {
                         return Completable.error(new IllegalStateException("invalid file descriptor: " + pair.first));
                     }
