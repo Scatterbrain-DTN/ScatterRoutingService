@@ -45,7 +45,7 @@ public class CachedLEServerConnection implements Disposable {
                                                 .toSingleDefault(packet)
                                 )
                                 .concatMapSingle(packet -> packet)
-                        .flatMapCompletable(packet -> {
+                        .concatMapCompletable(packet -> {
                     Log.v(TAG, "server received timing characteristic write");
                     return connection.setupIndication(characteristic.getUuid(), packet.writeToStream(20))
                             .doOnError(session.errorRelay)
