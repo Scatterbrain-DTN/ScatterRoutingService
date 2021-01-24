@@ -34,6 +34,7 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
@@ -42,37 +43,48 @@ import io.reactivex.Single;
 
 public class Identity implements Map<String, ByteString>, ScatterSerializable {
     private Map<String, ByteString>  mPubKeymap = new TreeMap<>();
-    private byte[] mScatterbrainPubKey;
-    private byte[] mSig;
     private SharedPreferences mKeystorePrefs;
     private final Context mCtx;
-    private final String mGivenName;
-    private ScatterProto.Identity mIdentity;
+    private final AtomicReference<ScatterProto.Identity> mIdentity = new AtomicReference<>();
+    private final String givenname;
+    private final AtomicReference<ByteString> sig = new AtomicReference<>(ByteString.EMPTY);
+    private final byte[] mScatterbrainPubKey;
     private UUID luidtag;
     private static final String PROTOBUF_PRIVKEY_KEY = "scatterbrain";
     private static final String KEYSTORE_ID = "scatterbrainkeystore";
 
     private Identity(Builder builder) throws GeneralSecurityException, IOException {
         this.mCtx = builder.getContext();
-        this.mGivenName = builder.getName();
-        this.mSig = builder.getSig();
-        ByteString sigbytestring = ByteString.EMPTY;
-        if (mSig != null) {
-            sigbytestring = ByteString.copyFrom(mSig);
+        byte[] sig  = builder.getSig();
+        if (sig != null) {
+            this.sig.set(ByteString.copyFrom(sig));
         }
+        mScatterbrainPubKey = builder.getScatterbrainPubkey();
+        givenname = builder.mGivenName;
         initKeyStore();
         if (builder.ismGenerateKeypair()) {
             generateKeyPair();
-        } else {
-            this.mScatterbrainPubKey = builder.getScatterbrainPubkey();
-            this.mPubKeymap.put(PROTOBUF_PRIVKEY_KEY, ByteString.copyFrom(mScatterbrainPubKey));
-            this.mIdentity = ScatterProto.Identity.newBuilder()
-                    .setGivennameBytes(ByteString.copyFromUtf8(mGivenName))
-                    .setSig(ByteString.EMPTY)
-                    .putAllKeys(mPubKeymap)
-                    .setSig(sigbytestring)
-                    .build();
         }
+        this.mPubKeymap.put(PROTOBUF_PRIVKEY_KEY, ByteString.copyFrom(mScatterbrainPubKey));
+        if (builder.gone) {
+            regenIdentity();
+        } else {
+            this.mIdentity.set(ScatterProto.Identity.newBuilder()
+                    .setEnd(true)
+                    .build());
+        }
+    }
+
+    private void regenIdentity() {
+        ScatterProto.Identity.Body body = ScatterProto.Identity.Body.newBuilder()
+                .setGivenname(givenname)
+                .setSig(this.sig.get())
+                .putAllKeys(mPubKeymap)
+                .build();
+        this.mIdentity.set(ScatterProto.Identity.newBuilder()
+                .setVal(body)
+                .setEnd(false)
+                .build());
     }
 
     private void initKeyStore() throws GeneralSecurityException, IOException {
@@ -98,19 +110,28 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
         return null;
     }
 
-    private Identity(InputStream is, Context mCtx) throws IOException, GeneralSecurityException {
-        this.mIdentity = ScatterProto.Identity.parseDelimitedFrom(is);
-        this.mCtx = mCtx;
-        initKeyStore();
-        String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
-        this.mGivenName = mIdentity.getGivenname();
-        this.mPubKeymap = mIdentity.getKeysMap();
+    public boolean isEnd() {
+        return mIdentity.get().getMessageCase().equals(ScatterProto.Identity.MessageCase.END);
+    }
 
-        ByteString scatterbrainKey = mPubKeymap.get(PROTOBUF_PRIVKEY_KEY);
-        if (scatterbrainKey == null) {
-            throw new ProtocolException("scatterbrain key not in map");
+    private Identity(InputStream is, Context mCtx) throws IOException, GeneralSecurityException {
+        ScatterProto.Identity identity = ScatterProto.Identity.parseDelimitedFrom(is);
+        this.mCtx = mCtx;
+        if (!isEnd()) {
+            initKeyStore();
+            this.mPubKeymap = identity.getVal().getKeysMap();
+            this.sig.set(identity.getVal().getSig());
+            this.givenname = identity.getVal().getGivenname();
+            ByteString scatterbrainKey = mPubKeymap.get(PROTOBUF_PRIVKEY_KEY);
+            if (scatterbrainKey == null) {
+                throw new ProtocolException("scatterbrain key not in map");
+            }
+            this.mScatterbrainPubKey = scatterbrainKey.toByteArray();
+        } else {
+            this.mScatterbrainPubKey = null;
+            this.givenname = null;
+            this.sig.set(null);
         }
-        this.mScatterbrainPubKey = scatterbrainKey.toByteArray();
     }
 
 
@@ -131,8 +152,11 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     }
 
     public ByteString sumBytes() {
+        if (isEnd()) {
+            return null;
+        }
         ByteString result = ByteString.EMPTY;
-        result = result.concat(ByteString.copyFromUtf8(mGivenName));
+        result = result.concat(ByteString.copyFromUtf8(givenname));
         SortedSet<String> sortedKeys= new TreeSet<>(mPubKeymap.keySet());
         for (String key : sortedKeys) {
             result = result.concat(ByteString.copyFromUtf8(key));
@@ -152,11 +176,14 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
      * @return the boolean
      */
     public boolean verifyed25519(byte[] pubkey) {
+        if (isEnd()) {
+            return false;
+        }
         if (pubkey.length != Sign.PUBLICKEYBYTES)
             return false;
 
         ByteString messagebytes = sumBytes();
-        return LibsodiumInterface.getSodium().crypto_sign_verify_detached(this.mIdentity.getSig().toByteArray(),
+        return LibsodiumInterface.getSodium().crypto_sign_verify_detached(sig.get().toByteArray(),
                 messagebytes.toByteArray(),
                 messagebytes.size(),
                 pubkey) == 0;
@@ -183,22 +210,18 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
      * @param secretkey the secretkey
      * @return the boolean
      */
-    public boolean signEd25519(byte[] secretkey) {
+    public synchronized boolean signEd25519(byte[] secretkey) {
         if (secretkey.length != Sign.SECRETKEYBYTES)
             return false;
 
         ByteString messagebytes = sumBytes();
 
-        this.mSig = new byte[Sign.ED25519_BYTES];
+        byte[] sig = new byte[Sign.ED25519_BYTES];
         Pointer p = new PointerByReference(Pointer.NULL).getPointer();
-        if (LibsodiumInterface.getSodium().crypto_sign_detached(this.mSig,
+        if (LibsodiumInterface.getSodium().crypto_sign_detached(sig,
                 p, messagebytes.toByteArray(), messagebytes.size(), secretkey) == 0) {
-            this.mIdentity = ScatterProto.Identity.newBuilder()
-                    .setGivennameBytes(ByteString.copyFromUtf8(mGivenName))
-                    .setSig(ByteString.copyFrom(mSig))
-                    .putAllKeys(mPubKeymap)
-                    .build();
-
+            this.sig.set(ByteString.copyFrom(sig));
+            regenIdentity();
             return true;
         } else {
             return false;
@@ -210,7 +233,7 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            this.mIdentity.writeDelimitedTo(os);
+            this.mIdentity.get().writeDelimitedTo(os);
             return os.toByteArray();
         } catch (IOException e) {
             return null;
@@ -224,7 +247,7 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> mIdentity.writeDelimitedTo(os));
+        return Completable.fromAction(() -> mIdentity.get().writeDelimitedTo(os));
     }
 
     @Override
@@ -234,12 +257,14 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
 
     @Override
     public GeneratedMessageLite getMessage() {
-        return mIdentity;
+        return mIdentity.get();
     }
 
     private void generateKeyPair() throws GeneralSecurityException, IOException {
         byte[] privkey = new byte[Sign.ED25519_SECRETKEYBYTES];
-        this.mScatterbrainPubKey = new byte[Sign.ED25519_PUBLICKEYBYTES];
+        if (mScatterbrainPubKey.length != Sign.ED25519_PUBLICKEYBYTES) {
+            throw new IOException("public key length mismatch");
+        }
 
         LibsodiumInterface.getSodium().crypto_sign_keypair(mScatterbrainPubKey, privkey);
 
@@ -262,11 +287,11 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
     }
 
     public byte[] getSig() {
-        return mSig;
+        return sig.get().toByteArray();
     }
 
     public String getName() {
-        return mGivenName;
+        return givenname;
     }
 
     public static Builder newBuilder(Context ctx) {
@@ -279,10 +304,12 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
         private boolean mGenerateKeypair;
         private String mGivenName;
         private byte[] mSig;
+        boolean gone;
 
         private Builder(Context ctx) {
             this.mCtx = ctx;
             this.mGenerateKeypair = false;
+            this.gone = false;
         }
 
         public Context getContext() {
@@ -302,6 +329,11 @@ public class Identity implements Map<String, ByteString>, ScatterSerializable {
         }
 
         public byte[] getSig() { return mSig; }
+
+        public Builder setEnd() {
+            this.gone = true;
+            return this;
+        }
 
         public Builder generateKeypair() {
             this.mGenerateKeypair = true;

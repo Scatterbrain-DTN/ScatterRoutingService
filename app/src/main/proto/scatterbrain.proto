@@ -90,9 +90,15 @@ message Upgrade {
 
 // a user identity with name and one or more keys
 message Identity {
-    string givenname = 1;
-    map<string, bytes> keys = 2;
-    bytes sig = 3;
+    message Body {
+        string givenname = 1;
+        map<string, bytes> keys = 2;
+        bytes sig = 3;
+    }
+    oneof message {
+        bool end = 1;
+        Body val = 2;
+    }
 }
 
 // arbitrary metadata about the network
