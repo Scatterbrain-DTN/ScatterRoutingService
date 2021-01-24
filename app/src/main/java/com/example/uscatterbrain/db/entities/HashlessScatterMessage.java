@@ -2,8 +2,6 @@ package com.example.uscatterbrain.db.entities;
 
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
-import androidx.room.ForeignKey;
-import androidx.room.Ignore;
 import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
@@ -15,17 +13,18 @@ import java.util.List;
 
 @Entity(
         tableName = "messages",
-        indices = {@Index(value =  {"filepath"}, unique = true)}
+        indices = {
+                @Index(value =  {"filepath"}, unique = true),
+                @Index(value = {"identity_fingerprint"}, unique = true)
+        }
         )
 public class HashlessScatterMessage {
 
     public HashlessScatterMessage() {
-        this.identity = null;
         this.body = null;
     }
 
     public HashlessScatterMessage(Identity identity, byte[] body) {
-        this.identity = identity;
         this.body = body;
     }
 
@@ -54,8 +53,7 @@ public class HashlessScatterMessage {
     public byte[] body;
 
     @ColumnInfo
-    @ForeignKey(entity = Identity.class, parentColumns = "identityID", childColumns = "identityID")
-    public Long identityID;
+    public Long identity_fingerprint;
 
     @ColumnInfo
     public byte[] to;
@@ -86,7 +84,4 @@ public class HashlessScatterMessage {
 
     @ColumnInfo
     public String mimeType;
-
-    @Ignore
-    public Identity identity;
 }

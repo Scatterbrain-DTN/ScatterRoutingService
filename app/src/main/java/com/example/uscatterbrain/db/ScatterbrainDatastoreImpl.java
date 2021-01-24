@@ -127,11 +127,13 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         userDirectoryObserver.startWatching();
     }
 
-    private Completable insertMessageWithoutIdentity(ScatterMessage message, Long identityid) {
+
+
+    @Override
+    public Completable insertMessagesSync(ScatterMessage message) {
         return this.mDatastore.scatterMessageDao().insertHashes(message.messageHashes)
                 .subscribeOn(Schedulers.io())
                 .flatMap(hashids -> {
-                    message.message.identityID = identityid;
                     return mDatastore.scatterMessageDao()._insertMessages(message.message)
                             .subscribeOn(Schedulers.io())
                             .flatMap(messageid -> {
@@ -146,22 +148,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                         .subscribeOn(Schedulers.io());
                             });
                 }).ignoreElement();
-    }
-
-    /**
-     *  For internal use, synchronously inserts messages to database
-     * @param message room entity for message to insert
-     * @return primary keys of message inserted
-     */
-    @Override
-    public Completable insertMessagesSync(ScatterMessage message) {
-        if (message.message.identity != null) {
-            return this.mDatastore.scatterMessageDao().insertIdentity(message.message.identity)
-                    .subscribeOn(Schedulers.io())
-                    .flatMapCompletable(identityid -> insertMessageWithoutIdentity(message, identityid));
-        } else {
-            return insertMessageWithoutIdentity(message, null);
-        }
     }
 
     /**
@@ -352,7 +338,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      */
     @Override
     public Observable<ScatterMessage> getMessagesByIdentity(Identity id) {
-        return this.mDatastore.scatterMessageDao().getByIdentity(id.identityID)
+        return this.mDatastore.scatterMessageDao().getByIdentity(id.fingerprint)
                 .toObservable()
                 .flatMap(Observable::fromIterable);
     }

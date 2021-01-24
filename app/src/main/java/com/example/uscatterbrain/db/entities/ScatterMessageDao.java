@@ -41,8 +41,8 @@ public abstract class ScatterMessageDao {
     public abstract Maybe<List<String>> getAllFiles();
 
     @Transaction
-    @Query("SELECT * FROM messages WHERE identityID IN (:ids)")
-    public abstract Maybe<List<ScatterMessage>> getByIdentity(long ids);
+    @Query("SELECT * FROM messages WHERE identity_fingerprint IN (:ids)")
+    public abstract Maybe<List<ScatterMessage>> getByIdentity(String ids);
 
     @Transaction
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
