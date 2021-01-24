@@ -366,7 +366,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                             return end;
                         }) //TODO: timeout here
                         .subscribeOn(Schedulers.io())
-                        .mergeWith(packets.flatMapCompletable(p -> p.writeToStream(sock.getOutputStream())
+                        .mergeWith(packets.concatMapCompletable(p -> p.writeToStream(sock.getOutputStream())
                                 .subscribeOn(Schedulers.io())
                         )));
     }
@@ -381,17 +381,17 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 .flatMap(sock -> IdentityPacket.parseFrom(sock.getInputStream(), mContext)
                         .toObservable()
                         .repeat()
+                        .subscribeOn(Schedulers.io())
+                        .mergeWith(packets.concatMapCompletable(p -> p.writeToStream(sock.getOutputStream())
+                                .subscribeOn(Schedulers.io())
+                        )))
                         .takeUntil(identityPacket -> {
                             final boolean end = identityPacket.isEnd();
                             if (end) {
                                 Log.v(TAG, "identitypacket seme end of stream");
                             }
                             return end;
-                        }) //TODO: timeout here
-                        .subscribeOn(Schedulers.io())
-                        .mergeWith(packets.flatMapCompletable(p -> p.writeToStream(sock.getOutputStream())
-                                .subscribeOn(Schedulers.io())
-                        )));
+                        });
     }
 
     public Completable awaitPeersChanged(int timeout, TimeUnit unit) {
@@ -431,8 +431,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
             ),10, 1)
                     .andThen(routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build())).ignoreElements())
-                 //   .ignoreElements()
-                  //  .andThen(identityPacketUke(Flowable.just(IdentityPacket.newBuilder(mContext).setEnd().build())))
+                    .andThen(identityPacketUke(Flowable.just(IdentityPacket.newBuilder(mContext).setEnd().build())).ignoreElements())
                     .andThen(declareHashesUke().ignoreElement())
                     .andThen(readBlockDataUke()
                             .mergeWith(writeBlockDataUke(streamObservable)));
@@ -446,10 +445,10 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     .flatMapCompletable(info -> getTcpSocket(info.groupOwnerAddress)
                             .flatMapCompletable(socket ->
                                     routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
-                                         //   .ignoreElements()
-                                          //  .andThen(identityPacketSeme(socket, Flowable.just(
-                                           //         IdentityPacket.newBuilder(mContext).setEnd().build()))
-                                            //)
+                                            .ignoreElements()
+                                            .andThen(identityPacketSeme(socket, Flowable.just(
+                                                    IdentityPacket.newBuilder(mContext).setEnd().build()))
+                                            )
                                             .ignoreElements()
                                             .andThen(declareHashesSeme(socket))
                                             .ignoreElement()
