@@ -549,6 +549,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     hm.sig = null; //TODO: sign messages
                                     hm.userFilename = ScatterbrainDatastore.sanitizeFilename(message.getFilename());
                                     hm.extension = ScatterbrainDatastore.sanitizeFilename(message.getExtension());
+                                    hm.application = ByteString.copyFromUtf8(message.getApplication()).toByteArray();
                                     hm.filePath = newFile.getAbsolutePath();
                                     hm.mimeType = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString());
                                     dbmessage.message = hm;
@@ -563,6 +564,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     hm.to = message.getToFingerprint();
                                     hm.from = message.getFromFingerprint();
                                     hm.body = message.getBody();
+                                    hm.application = ByteString.copyFromUtf8(message.getApplication()).toByteArray();
                                     hm.blocksize = blocksize;
                                     hm.sessionid = 0;
                                     hm.sig = null; //TODO: sign messages

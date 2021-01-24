@@ -430,10 +430,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
             ),10, 1)
-                    .andThen(routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build())))
-                    .ignoreElements()
-                    .andThen(identityPacketUke(Flowable.just(IdentityPacket.newBuilder(mContext).setEnd().build())))
-                    .ignoreElements()
+                    .andThen(routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build())).ignoreElements())
+                 //   .ignoreElements()
+                  //  .andThen(identityPacketUke(Flowable.just(IdentityPacket.newBuilder(mContext).setEnd().build())))
                     .andThen(declareHashesUke().ignoreElement())
                     .andThen(readBlockDataUke()
                             .mergeWith(writeBlockDataUke(streamObservable)));
@@ -447,10 +446,10 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     .flatMapCompletable(info -> getTcpSocket(info.groupOwnerAddress)
                             .flatMapCompletable(socket ->
                                     routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
-                                            .ignoreElements()
-                                            .andThen(identityPacketSeme(socket, Flowable.just(
-                                                    IdentityPacket.newBuilder(mContext).setEnd().build()))
-                                            )
+                                         //   .ignoreElements()
+                                          //  .andThen(identityPacketSeme(socket, Flowable.just(
+                                           //         IdentityPacket.newBuilder(mContext).setEnd().build()))
+                                            //)
                                             .ignoreElements()
                                             .andThen(declareHashesSeme(socket))
                                             .ignoreElement()

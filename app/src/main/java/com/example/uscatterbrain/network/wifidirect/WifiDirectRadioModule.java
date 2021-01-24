@@ -32,6 +32,9 @@ public interface WifiDirectRadioModule {
                     .doOnComplete(sequenceCompletable::onComplete)
                     .doOnError(sequenceCompletable::onError);
             this.headerPacket = headerPacket;
+            if (this.headerPacket == null) {
+                throw new IllegalStateException("header packet was null");
+            }
             messageEntity = new ScatterMessage();
             messageEntity.message = new HashlessScatterMessage();
             messageEntity.message.to = headerPacket.getToFingerprint().toByteArray();
@@ -75,6 +78,9 @@ public interface WifiDirectRadioModule {
             this.sequencePackets = packetFlowable
                     .doOnComplete(sequenceCompletable::onComplete)
                     .doOnError(sequenceCompletable::onError);
+            if (this.headerPacket == null) {
+                throw new IllegalStateException("header packet was null");
+            }
         }
 
         public Completable awaitSequencePackets() {

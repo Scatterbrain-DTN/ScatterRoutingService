@@ -539,11 +539,11 @@ public class BlockHeaderPacket implements ScatterSerializable {
          */
         public BlockHeaderPacket build() {
             if (hashlist == null)
-                return null;
+                throw new IllegalArgumentException("hashlist was null");
 
             // fingerprints and application are required
             if (application == null) {
-                return null;
+                throw new IllegalArgumentException("application was null");
             }
 
             if (extension == null) {
