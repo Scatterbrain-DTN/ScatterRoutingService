@@ -61,13 +61,15 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
         if (builder.ismGenerateKeypair()) {
             generateKeyPair();
         }
-        this.mPubKeymap.put(PROTOBUF_PRIVKEY_KEY, ByteString.copyFrom(mScatterbrainPubKey));
+
+
         if (builder.gone) {
-            regenIdentity();
-        } else {
             this.mIdentity.set(ScatterProto.Identity.newBuilder()
                     .setEnd(true)
                     .build());
+        } else {
+            this.mPubKeymap.put(PROTOBUF_PRIVKEY_KEY, ByteString.copyFrom(mScatterbrainPubKey));
+            regenIdentity();
         }
     }
 
@@ -113,7 +115,7 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
     private IdentityPacket(InputStream is, Context mCtx) throws IOException, GeneralSecurityException {
         ScatterProto.Identity identity = ScatterProto.Identity.parseDelimitedFrom(is);
         this.mCtx = mCtx;
-        if (!isEnd()) {
+        if (identity.getMessageCase().equals(ScatterProto.Identity.MessageCase.VAL)) {
             initKeyStore();
             this.mPubKeymap = identity.getVal().getKeysMap();
             this.sig.set(identity.getVal().getSig());
@@ -123,10 +125,14 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
                 throw new ProtocolException("scatterbrain key not in map");
             }
             this.mScatterbrainPubKey = scatterbrainKey.toByteArray();
+            regenIdentity();
         } else {
             this.mScatterbrainPubKey = null;
             this.givenname = null;
             this.sig.set(null);
+            this.mIdentity.set(ScatterProto.Identity.newBuilder()
+                    .setEnd(true)
+                    .build());
         }
     }
 

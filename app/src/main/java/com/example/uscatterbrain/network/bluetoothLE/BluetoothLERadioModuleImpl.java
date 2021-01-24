@@ -96,7 +96,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final CompositeDisposable mGattDisposable = new CompositeDisposable();
     private final Context mContext;
     private final Scheduler clientScheduler;
-    private final Scheduler serverScheduler;
     private final int discoverDelay = 45;
     private final AtomicReference<Disposable> discoveryDispoable = new AtomicReference<>();
     private final ConcurrentHashMap<String, Observable<CachedLEConnection>> connectionCache = new ConcurrentHashMap<>();
@@ -130,7 +129,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             Context context,
             BluetoothLeAdvertiser advertiser,
             @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) Scheduler bluetoothScheduler,
-            @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) Scheduler serverScheduler,
             RxBleServer rxBleServer,
             RxBleClient rxBleClient,
             WifiDirectRadioModule wifiDirectRadioModule,
@@ -139,7 +137,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         mContext = context;
         mAdvertiser = advertiser;
         this.clientScheduler = bluetoothScheduler;
-        this.serverScheduler = serverScheduler;
         this.mServer = rxBleServer;
         this.mClient = rxBleClient;
         this.wifiDirectRadioModule = wifiDirectRadioModule;
@@ -383,6 +380,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                ).doOnComplete(() -> transactionCompleteRelay.accept(true))
                 .doOnError(err -> {
                     Log.e(TAG, "wifi p2p upgrade failed: " + err);
+                    err.printStackTrace();
                     transactionCompleteRelay.accept(false);
                 })
                 .onErrorComplete();
@@ -547,10 +545,9 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                                 session.singleServer(),
                                                                 (client, server) -> {
                                                                     return server.handshake(connection)
-                                                                            .subscribeOn(serverScheduler)
                                                                             .doOnSuccess(request -> Log.v(TAG, "server handshake completed"))
                                                                             .zipWith(
-                                                                                    client.handshake(clientConnection).subscribeOn(clientScheduler),
+                                                                                    client.handshake(clientConnection),
                                                                                     Pair::new
                                                                             )
                                                                             .toObservable()

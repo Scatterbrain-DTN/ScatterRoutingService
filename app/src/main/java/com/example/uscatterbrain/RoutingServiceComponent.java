@@ -41,7 +41,6 @@ public interface RoutingServiceComponent {
     class NamedSchedulers {
         public static final String DATABASE = "executor_database";
         public static final String BLE_CLIENT = "scheduler-ble-client";
-        public static final String BLE_SERVER = "scheduler-ble-server";
         public static final String WIFI_DIRECT_READ = "wifi-direct-read";
         public static final String WIFI_DIRECT_WRITE = "wifi-direct-write";
         public static final String WIFI_DIRECT_OPERATIONS = "wifi-direct-operations";
@@ -114,12 +113,6 @@ public interface RoutingServiceComponent {
         @Provides
         @Named(NamedSchedulers.BLE_CLIENT)
         static Scheduler provideBleClientScheduler() {
-            return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
-        }
-
-        @Provides
-        @Named(NamedSchedulers.BLE_SERVER)
-        static Scheduler provideBleServerScheduler() {
             return RxJavaPlugins.createSingleScheduler(new ScatterbrainThreadFactory());
         }
 
