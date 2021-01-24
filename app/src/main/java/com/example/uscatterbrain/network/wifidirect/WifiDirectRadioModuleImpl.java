@@ -16,6 +16,7 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.DeclareHashesPacket;
+import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.RoutingMetadataPacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
@@ -370,6 +371,29 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                         )));
     }
 
+    public Observable<IdentityPacket> identityPacketUke(Flowable<IdentityPacket> packets) {
+        return getServerSocket()
+                .flatMapObservable(sock -> identityPacketSeme(sock, packets));
+    }
+
+    public Observable<IdentityPacket> identityPacketSeme(Socket socket, Flowable<IdentityPacket> packets) {
+        return Observable.just(socket)
+                .flatMap(sock -> IdentityPacket.parseFrom(sock.getInputStream(), mContext)
+                        .toObservable()
+                        .repeat()
+                        .takeUntil(identityPacket -> {
+                            final boolean end = identityPacket.isEnd();
+                            if (end) {
+                                Log.v(TAG, "identitypacket seme end of stream");
+                            }
+                            return end;
+                        }) //TODO: timeout here
+                        .subscribeOn(Schedulers.io())
+                        .mergeWith(packets.flatMapCompletable(p -> p.writeToStream(sock.getOutputStream())
+                                .subscribeOn(Schedulers.io())
+                        )));
+    }
+
     public Completable awaitPeersChanged(int timeout, TimeUnit unit) {
         return mBroadcastReceiver.observePeers()
                 .firstOrError()
@@ -408,6 +432,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
             ),10, 1)
                     .andThen(routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build())))
                     .ignoreElements()
+                    .andThen(identityPacketUke(Flowable.just(IdentityPacket.newBuilder(mContext).setEnd().build())))
+                    .ignoreElements()
                     .andThen(declareHashesUke().ignoreElement())
                     .andThen(readBlockDataUke()
                             .mergeWith(writeBlockDataUke(streamObservable)));
@@ -421,12 +447,16 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     .flatMapCompletable(info -> getTcpSocket(info.groupOwnerAddress)
                             .flatMapCompletable(socket ->
                                     routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
-                                    .ignoreElements()
-                                    .andThen(declareHashesSeme(socket))
-                                    .ignoreElement()
-                                    .andThen(
-                            writeBlockDataSeme(socket, streamObservable)
-                            .mergeWith(readBlockDataSeme(socket)))))
+                                            .ignoreElements()
+                                            .andThen(identityPacketSeme(socket, Flowable.just(
+                                                    IdentityPacket.newBuilder(mContext).setEnd().build()))
+                                            )
+                                            .ignoreElements()
+                                            .andThen(declareHashesSeme(socket))
+                                            .ignoreElement()
+                                            .andThen(
+                                                    writeBlockDataSeme(socket, streamObservable)
+                                                            .mergeWith(readBlockDataSeme(socket)))))
                     .doOnSubscribe(disp -> Log.v(TAG, "subscribed to writeBlockData"));
         } else {
             return Completable.error(new IllegalStateException("invalid role"));

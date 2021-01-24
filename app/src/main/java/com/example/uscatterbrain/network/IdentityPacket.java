@@ -353,16 +353,18 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
 
         public IdentityPacket build() {
 
-            if (mScatterbrainPubkey == null && ! mGenerateKeypair) {
-                return null;
-            }
+            if (!gone) {
+                if (mScatterbrainPubkey == null && !mGenerateKeypair) {
+                    return null;
+                }
 
-            if (mScatterbrainPubkey != null && mGenerateKeypair) {
-                return null;
-            }
+                if (mScatterbrainPubkey != null && mGenerateKeypair) {
+                    return null;
+                }
 
-            if (this.mGivenName == null) {
-                return null;
+                if (this.mGivenName == null) {
+                    return null;
+                }
             }
 
             try {
