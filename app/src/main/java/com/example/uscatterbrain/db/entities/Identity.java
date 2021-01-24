@@ -12,42 +12,16 @@ public class Identity {
     }
 
     @PrimaryKey(autoGenerate = true)
-    private long identityID;
+    public long identityID;
 
     @ColumnInfo(name = "givenname")
-    private String givenName;
+    public String givenName;
 
     @ColumnInfo(name = "publickey")
-    private byte[] publicKey;
+    public byte[] publicKey;
 
     @ColumnInfo(name = "signature")
-    private byte[] signature;
+    public byte[] signature;
 
-    public long getIdentityID() {
-        return identityID;
-    }
-
-    public void setIdentityID(long identityID) {
-        this.identityID = identityID;
-    }
-
-    public byte[] getPublicKey() {
-        return publicKey;
-    }
-
-    public void setPublicKey(byte[] publicKey) {
-        this.publicKey = publicKey;
-    }
-
-    public String getGivenName() {
-        return givenName;
-    }
-
-    public void setSignature(byte[] signature) { this.signature = signature; }
-
-    public byte[] getSignature() { return signature; }
-
-    public void setGivenName(String givenName) {
-        this.givenName = givenName;
-    }
+    public String fingerprint;
 }

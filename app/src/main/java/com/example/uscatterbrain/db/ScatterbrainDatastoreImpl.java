@@ -352,7 +352,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      */
     @Override
     public Observable<ScatterMessage> getMessagesByIdentity(Identity id) {
-        return this.mDatastore.scatterMessageDao().getByIdentity(id.getIdentityID())
+        return this.mDatastore.scatterMessageDao().getByIdentity(id.identityID)
                 .toObservable()
                 .flatMap(Observable::fromIterable);
     }
@@ -383,9 +383,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
             List<Keys> keysList = new ArrayList<>();
             for (IdentityPacket identity1 : identity) {
                 Identity id = new Identity();
-                id.setGivenName(identity1.getName());
-                id.setPublicKey(identity1.getPubkey());
-                id.setSignature(identity1.getSig());
+                id.givenName = identity1.getName();
+                id.publicKey = identity1.getPubkey();
+                id.signature = identity1.getSig();
+                id.fingerprint = identity1.getFingerprint();
 
                 idlist.add(id);
             }
@@ -422,9 +423,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                             keylist.put(keys.getKey(), ByteString.copyFrom(keys.getValue()));
                                         }
                                         IdentityPacket identity = IdentityPacket.newBuilder(ctx)
-                                                .setName(relation.identity.getGivenName())
-                                                .setScatterbrainPubkey(ByteString.copyFrom(relation.identity.getPublicKey()))
-                                                .setSig(relation.identity.getSignature())
+                                                .setName(relation.identity.givenName)
+                                                .setScatterbrainPubkey(ByteString.copyFrom(relation.identity.publicKey))
+                                                .setSig(relation.identity.signature)
                                                 .build();
 
                                         identity.putAll(keylist);

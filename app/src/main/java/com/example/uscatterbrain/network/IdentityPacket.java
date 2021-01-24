@@ -12,6 +12,7 @@ import com.example.uscatterbrain.ScatterProto;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.GeneratedMessageLite;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
@@ -110,6 +111,21 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
 
     public boolean isEnd() {
         return mIdentity.get().getMessageCase().equals(ScatterProto.Identity.MessageCase.END);
+    }
+
+
+    public String getFingerprint() {
+        byte[] fingeprint = new byte[GenericHash.BYTES];
+        LibsodiumInterface.getSodium().crypto_generichash(
+                fingeprint,
+                fingeprint.length,
+                mScatterbrainPubKey,
+                mScatterbrainPubKey.length,
+                null,
+                0
+        );
+
+        return LibsodiumInterface.base64enc(fingeprint);
     }
 
     private IdentityPacket(InputStream is, Context mCtx) throws IOException, GeneralSecurityException {
