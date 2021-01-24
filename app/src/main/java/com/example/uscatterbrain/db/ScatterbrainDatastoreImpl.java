@@ -531,7 +531,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         return copyFile(message.getFileDescriptor().getFileDescriptor(), file)
                                 .andThen(hashFile(file, blocksize))
                                 .flatMapCompletable(hashes -> {
-                                    final File newFile = new File(getUserDir(),ScatterbrainDatastore.getDefaultFileName(hashes)
+                                    final File newFile = new File(getCacheDir(),ScatterbrainDatastore.getDefaultFileName(hashes)
                                             + ScatterbrainDatastore.sanitizeFilename(message.getExtension()));
                                     Log.v(TAG, "filepath from api: " + newFile.getAbsolutePath());
                                     if (!file.renameTo(newFile)) {
