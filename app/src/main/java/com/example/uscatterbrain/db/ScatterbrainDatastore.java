@@ -8,9 +8,9 @@ import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.db.entities.KeylessIdentity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.google.protobuf.ByteString;
@@ -113,6 +113,7 @@ public interface ScatterbrainDatastore {
 
     Completable insertApiIdentities(List<Identity> identities);
 
+    com.example.uscatterbrain.API.Identity getApiIdentityByFingerprint(String fingerprint);
 
     int messageCount();
 

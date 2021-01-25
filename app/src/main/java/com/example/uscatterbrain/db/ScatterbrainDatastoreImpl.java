@@ -13,6 +13,7 @@ import androidx.annotation.Nullable;
 
 import com.example.uscatterbrain.RoutingServiceBackend;
 import com.example.uscatterbrain.RoutingServiceComponent;
+import com.example.uscatterbrain.db.entities.ApiIdentity;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.KeylessIdentity;
@@ -431,6 +432,14 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         return res;
     }
 
+    private Map<String, byte[]> keys2map(List<Keys> keys) {
+        final HashMap<String, byte[]> res = new HashMap<>();
+        for (Keys k : keys) {
+            res.put(k.key, k.value);
+        }
+        return res;
+    }
+
     @Override
     public Completable insertIdentityPacket(List<IdentityPacket> ids) {
         return Observable.fromIterable(ids)
@@ -477,6 +486,20 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                         return identity;
                                     });
                         });
+    }
+
+
+    @Override
+    public com.example.uscatterbrain.API.Identity getApiIdentityByFingerprint(String fingerprint) {
+        return mDatastore.identityDao().getIdentityByFingerprint(fingerprint)
+                .subscribeOn(databaseScheduler)
+                .map(identity -> {
+                    return ApiIdentity.newBuilder()
+                            .setName(identity.identity.givenName)
+                            .addKeys(keys2map(identity.keys))
+                            .sign(identity.identity.signature)
+                            .build();
+                }).blockingGet();
     }
 
     @Override

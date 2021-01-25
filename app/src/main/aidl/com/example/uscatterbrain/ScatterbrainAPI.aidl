@@ -11,7 +11,7 @@ interface ScatterbrainAPI {
 
     List<Identity> getIdentities();
 
-    Identity getIdentityByFingerprint(in byte[] fingerprint);
+    Identity getIdentityByFingerprint(in String fingerprint);
 
     void insertIdentity(in Identity identity);
 

@@ -22,6 +22,10 @@ public interface IdentityDao {
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
     Maybe<List<Identity>> getIdentitiesWithRelations(List<Long> ids);
 
+    @Transaction
+    @Query("SELECT * FROM identities WHERE fingerprint IN (:fingerprint)")
+    Maybe<Identity> getIdentityByFingerprint(String fingerprint);
+
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
     Maybe<List<KeylessIdentity>> getByID(List<Long> ids);
 

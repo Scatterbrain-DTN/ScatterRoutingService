@@ -22,10 +22,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class Identity implements Parcelable {
 
-    private final Map<String, byte[]> mPubKeymap;
-    private final byte[] mScatterbrainPubKey;
-    private final String givenname;
-    private final AtomicReference<ByteString> sig = new AtomicReference<>(ByteString.EMPTY);
+    protected final Map<String, byte[]> mPubKeymap;
+    protected final byte[] mScatterbrainPubKey;
+    protected final String givenname;
+    protected final AtomicReference<ByteString> sig = new AtomicReference<>(ByteString.EMPTY);
 
     private int validatePubkey(int pubkey) {
         if (pubkey != Sign.PUBLICKEYBYTES) {
@@ -70,7 +70,7 @@ public class Identity implements Parcelable {
         return map;
     }
 
-    private Identity(Builder builder) {
+    protected Identity(Builder builder) {
         this.mPubKeymap = builder.mPubKeymap;
         this.mScatterbrainPubKey = builder.mPubKeymap.get(IdentityPacket.PROTOBUF_PRIVKEY_KEY);
         this.givenname = builder.name;
@@ -192,12 +192,12 @@ public class Identity implements Parcelable {
     }
 
     public static class Builder {
-        private Map<String, byte[]> mPubKeymap = new HashMap<>();
-        private String name;
-        private byte[] pubkey;
-        private byte[] privkey;
+        protected Map<String, byte[]> mPubKeymap = new HashMap<>();
+        protected String name;
+        protected byte[] pubkey;
+        protected byte[] privkey;
 
-        private Builder() {
+        protected Builder() {
         }
 
         public Builder setName(String name) {

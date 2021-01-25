@@ -65,8 +65,8 @@ public class ScatterRoutingService extends LifecycleService {
         }
 
         @Override
-        public Identity getIdentityByFingerprint(byte[] fingerprint) throws RemoteException {
-            return null; //TODO: not implemented
+        public Identity getIdentityByFingerprint(String fingerprint) throws RemoteException {
+            return mBackend.getDatastore().getApiIdentityByFingerprint(fingerprint); //TODO: not implemented
         }
 
         @Override
