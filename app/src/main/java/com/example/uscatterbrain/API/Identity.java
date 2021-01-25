@@ -151,6 +151,22 @@ public class Identity implements Parcelable {
         }
     }
 
+    public Map<String, byte[]> getmPubKeymap() {
+        return mPubKeymap;
+    }
+
+    public byte[] getmScatterbrainPubKey() {
+        return mScatterbrainPubKey;
+    }
+
+    public String getGivenname() {
+        return givenname;
+    }
+
+    public ByteString getSig() {
+        return sig.get();
+    }
+
     public static Builder newBuilder() {
         return new Builder();
     }

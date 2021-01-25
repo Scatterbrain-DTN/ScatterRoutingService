@@ -22,9 +22,11 @@ import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
 import com.example.uscatterbrain.network.IdentityPacket;
+import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -361,6 +363,55 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                            );
                 });
 
+    }
+
+    private String getFingerprint(com.example.uscatterbrain.API.Identity identity) {
+        byte[] fingeprint = new byte[GenericHash.BYTES];
+        LibsodiumInterface.getSodium().crypto_generichash(
+                fingeprint,
+                fingeprint.length,
+                identity.getmScatterbrainPubKey(),
+                identity.getmScatterbrainPubKey().length,
+                null,
+                0
+        );
+
+        return LibsodiumInterface.base64enc(fingeprint);
+    }
+
+    @Override
+    public Completable insertApiIdentity(com.example.uscatterbrain.API.Identity identity) {
+        return null;
+    }
+
+    @Override
+    public Completable insertApiIdentities(List<com.example.uscatterbrain.API.Identity> identities) {
+        return Observable.fromIterable(identities)
+                .map(identity -> {
+                    final Identity id = new Identity();
+                    final KeylessIdentity kid = new KeylessIdentity();
+                    kid.fingerprint = getFingerprint(identity);
+                    kid.givenName = identity.getGivenname();
+                    kid.publicKey = identity.getmScatterbrainPubKey();
+                    kid.signature = identity.getSig().toByteArray();
+                    id.keys = keys2keysBytes(identity.getmPubKeymap());
+                    id.identity = kid;
+                    return id;
+                }).reduce(new ArrayList<Identity>(), (list, id) -> {
+                    list.add(id);
+                    return list;
+                }).flatMapCompletable(id -> insertIdentity(id));
+    }
+
+    private List<Keys> keys2keysBytes(Map<String, byte[]> k) {
+        final List<Keys> res = new ArrayList<>();
+        for (Map.Entry<String, byte[]> e : k.entrySet()) {
+            final Keys keys = new Keys();
+            keys.value = e.getValue();
+            keys.key = e.getKey();
+            res.add(keys);
+        }
+        return res;
     }
 
     private List<Keys> keys2keys(Map<String, ByteString> k) {

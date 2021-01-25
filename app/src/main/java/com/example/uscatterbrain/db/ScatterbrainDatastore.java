@@ -3,6 +3,7 @@ package com.example.uscatterbrain.db;
 import android.provider.DocumentsContract;
 import android.webkit.MimeTypeMap;
 
+import com.example.uscatterbrain.API.Identity;
 import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.db.entities.KeylessIdentity;
@@ -107,6 +108,10 @@ public interface ScatterbrainDatastore {
     Map<String, Serializable> insertAndHashLocalFile(File path, int blocksize);
 
     Single<ScatterMessage> getMessageByPath(String path);
+
+    Completable insertApiIdentity(Identity identity);
+
+    Completable insertApiIdentities(List<Identity> identities);
 
 
     int messageCount();
