@@ -1,27 +1,17 @@
 package com.example.uscatterbrain.db.entities;
 
-import androidx.room.ColumnInfo;
-import androidx.room.Entity;
-import androidx.room.PrimaryKey;
+import androidx.room.Embedded;
+import androidx.room.Relation;
 
-@Entity(tableName = "identities")
+import java.util.List;
+
 public class Identity {
+    @Embedded
+    public KeylessIdentity identity;
 
-    public Identity() {
-
-    }
-
-    @PrimaryKey(autoGenerate = true)
-    public long identityID;
-
-    @ColumnInfo(name = "givenname")
-    public String givenName;
-
-    @ColumnInfo(name = "publickey")
-    public byte[] publicKey;
-
-    @ColumnInfo(name = "signature")
-    public byte[] signature;
-
-    public String fingerprint;
+    @Relation(
+            parentColumn = "identityID",
+            entityColumn = "identityFK"
+    )
+    public List<Keys> keys;
 }

@@ -24,7 +24,7 @@ public class HashlessScatterMessage {
         this.body = null;
     }
 
-    public HashlessScatterMessage(Identity identity, byte[] body) {
+    public HashlessScatterMessage(KeylessIdentity identity, byte[] body) {
         this.body = body;
     }
 

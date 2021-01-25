@@ -14,7 +14,7 @@ import androidx.annotation.Nullable;
 import com.example.uscatterbrain.RoutingServiceBackend;
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
-import com.example.uscatterbrain.db.entities.Identity;
+import com.example.uscatterbrain.db.entities.KeylessIdentity;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
@@ -248,7 +248,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      * @return future returning list of row ids inserted
      */
     @Override
-    public Completable insertIdentity(Identity[] identities) {
+    public Completable insertIdentity(KeylessIdentity[] identities) {
         return mDatastore.identityDao().insertAll(identities).ignoreElement();
     }
 
@@ -260,7 +260,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      * @return future returning row id inserted
      */
     @Override
-    public Completable insertIdentity(Identity identity) {
+    public Completable insertIdentity(KeylessIdentity identity) {
         return mDatastore.identityDao().insertAll(identity).ignoreElement();
     }
 
@@ -335,7 +335,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      * @return livedata representation of list of messages
      */
     @Override
-    public Observable<ScatterMessage> getMessagesByIdentity(Identity id) {
+    public Observable<ScatterMessage> getMessagesByIdentity(KeylessIdentity id) {
         return this.mDatastore.scatterMessageDao().getByIdentity(id.fingerprint)
                 .toObservable()
                 .flatMap(Observable::fromIterable);
@@ -363,10 +363,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     @Override
     public Completable insertIdentity(List<IdentityPacket> identity) {
         return Observable.fromCallable(() -> {
-            List<Identity> idlist = new ArrayList<>();
+            List<KeylessIdentity> idlist = new ArrayList<>();
             List<Keys> keysList = new ArrayList<>();
             for (IdentityPacket identity1 : identity) {
-                Identity id = new Identity();
+                KeylessIdentity id = new KeylessIdentity();
                 id.givenName = identity1.getName();
                 id.publicKey = identity1.getPubkey();
                 id.signature = identity1.getSig();

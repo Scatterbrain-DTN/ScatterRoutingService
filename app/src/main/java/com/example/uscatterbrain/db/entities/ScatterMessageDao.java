@@ -62,10 +62,10 @@ public abstract class ScatterMessageDao {
     public abstract Single<List<Long>> insertHashes(List<Hashes> h);
 
     @Insert
-    public abstract  Single<Long> insertIdentity(Identity identity);
+    public abstract  Single<Long> insertIdentity(KeylessIdentity identity);
 
     @Insert
-    public abstract Single<List<Long>> insertIdentities(List<Identity> ids);
+    public abstract Single<List<Long>> insertIdentities(List<KeylessIdentity> ids);
 
     @Delete
     public abstract Completable delete(HashlessScatterMessage message);

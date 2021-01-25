@@ -15,26 +15,26 @@ import io.reactivex.Single;
 @Dao
 public interface IdentityDao {
     @Query("SELECT * FROM identities")
-    Maybe<List<Identity>> getAll();
+    Maybe<List<KeylessIdentity>> getAll();
 
     @Transaction
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
-    Maybe<List<IdentityRelations>> getIdentitiesWithRelations(List<Long> ids);
+    Maybe<List<Identity>> getIdentitiesWithRelations(List<Long> ids);
 
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
-    Maybe<List<Identity>> getByID(List<Long> ids);
+    Maybe<List<KeylessIdentity>> getByID(List<Long> ids);
 
     @Query("SELECT * FROM identities WHERE givenname IN (:names)")
-    Maybe<List<Identity>> getByGivenName(String[] names);
+    Maybe<List<KeylessIdentity>> getByGivenName(String[] names);
 
     @Query("SELECT * FROM keys WHERE keyID IN (:ids)")
     Maybe<List<Keys>> getKeys(List<Long> ids);
 
     @Insert
-    Single<List<Long>> insertAll(Identity... identities);
+    Single<List<Long>> insertAll(KeylessIdentity... identities);
 
     @Insert
-    Single<List<Long>> insertAll(List<Identity> identities);
+    Single<List<Long>> insertAll(List<KeylessIdentity> identities);
 
     @Insert
     Single<List<Long>> insertHashes(List<Hashes> hashes);
@@ -43,5 +43,5 @@ public interface IdentityDao {
     Single<List<Long>> insertKeys(List<Keys> keys);
 
     @Delete
-    Completable delete(Identity identity);
+    Completable delete(KeylessIdentity identity);
 }

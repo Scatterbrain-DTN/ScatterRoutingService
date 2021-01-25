@@ -5,8 +5,8 @@ import android.webkit.MimeTypeMap;
 
 import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
+import com.example.uscatterbrain.db.entities.KeylessIdentity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
@@ -81,7 +81,7 @@ public interface ScatterbrainDatastore {
      * @param identities list of room entities to insert
      * @return future returning list of row ids inserted
      */
-    Completable insertIdentity(Identity[] identities);
+    Completable insertIdentity(KeylessIdentity[] identities);
 
     /**
      * Asynchronously inserts an identity into the datastore, allows tracking result
@@ -90,7 +90,7 @@ public interface ScatterbrainDatastore {
      * @param identity room entity to insert
      * @return future returning row id inserted
      */
-    Completable insertIdentity(Identity identity);
+    Completable insertIdentity(KeylessIdentity identity);
 
 
 
@@ -116,7 +116,7 @@ public interface ScatterbrainDatastore {
      * @param id room entity to search by
      * @return livedata representation of list of messages
      */
-    Observable<ScatterMessage> getMessagesByIdentity(Identity id);
+    Observable<ScatterMessage> getMessagesByIdentity(KeylessIdentity id);
 
     Completable insertIdentity(List<IdentityPacket> identity);
 

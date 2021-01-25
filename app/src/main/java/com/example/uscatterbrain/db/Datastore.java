@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase;
 
 import com.example.uscatterbrain.db.entities.Hashes;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
-import com.example.uscatterbrain.db.entities.Identity;
+import com.example.uscatterbrain.db.entities.KeylessIdentity;
 import com.example.uscatterbrain.db.entities.IdentityDao;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
@@ -13,7 +13,7 @@ import com.example.uscatterbrain.db.entities.ScatterMessageDao;
 
 @Database(entities = {
             HashlessScatterMessage.class,
-            Identity.class,
+            KeylessIdentity.class,
             Hashes.class,
             MessageHashCrossRef.class,
             Keys.class,
