@@ -327,7 +327,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .flatMap(Observable::fromIterable)
                 .firstOrError();
     }
-    
+
     private Completable insertIdentity(Observable<Identity> identityObservable) {
        return identityObservable
         .flatMapCompletable(singleid ->
@@ -592,6 +592,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     hm.body = null;
                                     hm.blocksize = blocksize;
                                     hm.sessionid = 0;
+                                    if (message.hasIdentity()) {
+                                        hm.identity_fingerprint = message.getIdentityFingerprint();
+                                    }
                                     hm.sig = null; //TODO: sign messages
                                     hm.userFilename = ScatterbrainDatastore.sanitizeFilename(message.getFilename());
                                     hm.extension = ScatterbrainDatastore.sanitizeFilename(message.getExtension());
@@ -611,6 +614,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     hm.from = message.getFromFingerprint();
                                     hm.body = message.getBody();
                                     hm.application = ByteString.copyFromUtf8(message.getApplication()).toByteArray();
+                                    if (message.hasIdentity()) {
+                                        hm.identity_fingerprint = message.getIdentityFingerprint();
+                                    }
                                     hm.blocksize = blocksize;
                                     hm.sessionid = 0;
                                     hm.sig = null; //TODO: sign messages

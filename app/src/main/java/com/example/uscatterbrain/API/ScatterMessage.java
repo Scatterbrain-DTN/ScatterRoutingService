@@ -16,6 +16,7 @@ public class ScatterMessage implements Parcelable {
     protected final byte[] body;
     protected final byte[] fromFingerprint;
     protected final byte[] toFingerprint;
+    protected final String fingerprint;
     protected final String application;
     protected final String extension;
     protected final String mime;
@@ -41,6 +42,7 @@ public class ScatterMessage implements Parcelable {
         this.mime = in.readString();
         this.filename = in.readString();
         this.fileDescriptor = in.readFileDescriptor();
+        this.fingerprint = in.readString();
     }
 
     private ScatterMessage(Builder builder) {
@@ -52,6 +54,7 @@ public class ScatterMessage implements Parcelable {
         this.mime = builder.mime;
         this.filename = builder.filename;
         this.fileDescriptor = builder.fileDescriptor;
+        this.fingerprint = builder.fingerprint;
     }
 
     public static final Creator<ScatterMessage> CREATOR = new Creator<ScatterMessage>() {
@@ -84,6 +87,7 @@ public class ScatterMessage implements Parcelable {
         parcel.writeString(mime);
         parcel.writeString(filename);
         parcel.writeFileDescriptor(fileDescriptor.getFileDescriptor());
+        parcel.writeString(fingerprint);
     }
 
     public byte[] getBody() {
@@ -114,6 +118,14 @@ public class ScatterMessage implements Parcelable {
         return filename;
     }
 
+    public boolean hasIdentity() {
+        return this.fingerprint.equals("");
+    }
+
+    public String getIdentityFingerprint() {
+        return this.fingerprint;
+    }
+
     public ParcelFileDescriptor getFileDescriptor() {
         return fileDescriptor;
     }
@@ -131,10 +143,11 @@ public class ScatterMessage implements Parcelable {
         private String mime;
         private String filename;
         private ParcelFileDescriptor fileDescriptor;
+        private String fingerprint = "";
         private boolean fileNotFound = false;
 
         private Builder() {
-
+            this.fingerprint = "";
         }
 
         public Builder setBody(byte[] body) {
@@ -154,6 +167,11 @@ public class ScatterMessage implements Parcelable {
 
         public Builder setApplication(String application) {
             this.application = application;
+            return this;
+        }
+
+        public Builder setIdentity(String fingerprint) {
+            this.fingerprint = fingerprint;
             return this;
         }
 

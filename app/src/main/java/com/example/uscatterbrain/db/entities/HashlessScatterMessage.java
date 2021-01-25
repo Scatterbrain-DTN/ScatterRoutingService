@@ -53,7 +53,7 @@ public class HashlessScatterMessage {
     public byte[] body;
 
     @ColumnInfo
-    public Long identity_fingerprint;
+    public String identity_fingerprint;
 
     @ColumnInfo
     public byte[] to;
