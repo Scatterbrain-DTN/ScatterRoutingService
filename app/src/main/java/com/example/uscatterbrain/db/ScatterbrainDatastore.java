@@ -75,26 +75,6 @@ public interface ScatterbrainDatastore {
 
 
     /**
-     * Asynchronously inserts a list of identities into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param identities list of room entities to insert
-     * @return future returning list of row ids inserted
-     */
-    Completable insertIdentity(KeylessIdentity[] identities);
-
-    /**
-     * Asynchronously inserts an identity into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param identity room entity to insert
-     * @return future returning row id inserted
-     */
-    Completable insertIdentity(KeylessIdentity identity);
-
-
-
-    /**
      * gets a randomized list of messages from the datastore. Needs to be observed
      * to get async result
      *
@@ -118,7 +98,7 @@ public interface ScatterbrainDatastore {
      */
     Observable<ScatterMessage> getMessagesByIdentity(KeylessIdentity id);
 
-    Completable insertIdentity(List<IdentityPacket> identity);
+    Completable insertIdentityPacket(List<IdentityPacket> identity);
 
     Observable<IdentityPacket> getIdentity(List<Long> ids);
 

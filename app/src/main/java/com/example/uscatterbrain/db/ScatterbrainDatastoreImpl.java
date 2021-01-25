@@ -14,6 +14,7 @@ import androidx.annotation.Nullable;
 import com.example.uscatterbrain.RoutingServiceBackend;
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
+import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.KeylessIdentity;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
@@ -240,30 +241,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 });
     }
 
-    /**
-     * Asynchronously inserts a list of identities into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param identities list of room entities to insert
-     * @return future returning list of row ids inserted
-     */
-    @Override
-    public Completable insertIdentity(KeylessIdentity[] identities) {
-        return mDatastore.identityDao().insertAll(identities).ignoreElement();
-    }
-
-    /**
-     * Asynchronously inserts an identity into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param identity room entity to insert
-     * @return future returning row id inserted
-     */
-    @Override
-    public Completable insertIdentity(KeylessIdentity identity) {
-        return mDatastore.identityDao().insertAll(identity).ignoreElement();
-    }
-
     @Override
     public Flowable<BlockSequencePacket> readBody(byte[] body, int blocksize) {
         return Bytes.from(new ByteArrayInputStream(body), blocksize)
@@ -360,40 +337,66 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         }
     }
 
+    private Completable insertIdentity(List<Identity> ids) {
+        return Single.just(ids)
+                .flatMapCompletable(identities -> {
+                   return Observable.fromIterable(identities)
+                           .flatMapCompletable(singleid ->
+                                   mDatastore.identityDao().insert(singleid.identity)
+                                           .flatMapCompletable(result -> {
+                                               return Observable.fromIterable(singleid.keys)
+                                                       .map(key -> {
+                                                           key.identityFK = result;
+                                                           return key;
+                                                       })
+                                                       .reduce(new ArrayList<Keys>(), (list, key) -> {
+                                                           list.add(key);
+                                                           return list;
+                                                       })
+                                                       .flatMapCompletable(l -> mDatastore.identityDao().insertKeys(l)
+                                                               .ignoreElement());
+                                           })
+
+
+                           );
+                });
+
+    }
+
+    private List<Keys> keys2keys(Map<String, ByteString> k) {
+        final List<Keys> res = new ArrayList<>();
+        for (Map.Entry<String, ByteString> e : k.entrySet()) {
+            final Keys keys = new Keys();
+            keys.value = e.getValue().toByteArray();
+            keys.key = e.getKey();
+            res.add(keys);
+        }
+        return res;
+    }
+
     @Override
-    public Completable insertIdentity(List<IdentityPacket> identity) {
-        return Observable.fromCallable(() -> {
-            List<KeylessIdentity> idlist = new ArrayList<>();
-            List<Keys> keysList = new ArrayList<>();
-            for (IdentityPacket identity1 : identity) {
-                KeylessIdentity id = new KeylessIdentity();
-                id.givenName = identity1.getName();
-                id.publicKey = identity1.getPubkey();
-                id.signature = identity1.getSig();
-                id.fingerprint = identity1.getFingerprint();
-
-                idlist.add(id);
-            }
-            return mDatastore.identityDao().insertAll(idlist)
-                    .flatMap(identityidlist -> {
-                        if(identityidlist.size() != identity.size()) {
-                            return Single.error(new IllegalStateException("identity list sizes do not match"));
-                        }
-
-                        for (int i=0;i<identity.size();i++) {
-                            IdentityPacket identity1 = identity.get(i);
-                            for (Map.Entry<String, ByteString> entry : identity1.getKeymap().entrySet()) {
-                                Keys k = new Keys();
-                                k.key = entry.getKey();
-                                k.value = entry.getValue().toByteArray();
-                                k.identityFK = identityidlist.get(i);
-                                keysList.add(k);
-                            }
-                        }
-                        return mDatastore.identityDao().insertKeys(keysList);
-                    });
-
-        }).ignoreElements();
+    public Completable insertIdentityPacket(List<IdentityPacket> ids) {
+        return Observable.fromIterable(ids)
+                .flatMap(identity -> {
+                    final KeylessIdentity id = new KeylessIdentity();
+                    final Identity finalIdentity = new Identity();
+                    if (!identity.verifyed25519(identity.getPubkey())) {
+                        Log.e(TAG, "identity " + identity.getName() + " " + identity.getFingerprint() + " failed sig check");
+                        return Observable.never();
+                    }
+                    id.givenName = identity.getName();
+                    id.publicKey = identity.getPubkey();
+                    id.signature = identity.getSig();
+                    id.fingerprint = identity.getFingerprint();
+                    finalIdentity.identity = id;
+                    finalIdentity.keys = keys2keys(identity.getKeymap());
+                    return Observable.just(finalIdentity);
+                })
+                .reduce(new ArrayList<Identity>(), (list, identity) -> {
+                    list.add(identity);
+                    return list;
+                })
+                .flatMapCompletable(this::insertIdentity);
      }
 
      public Observable<IdentityPacket> getIdentity(List<Long> ids) {

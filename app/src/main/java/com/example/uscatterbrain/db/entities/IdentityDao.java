@@ -10,6 +10,7 @@ import java.util.List;
 
 import io.reactivex.Completable;
 import io.reactivex.Maybe;
+import io.reactivex.Observable;
 import io.reactivex.Single;
 
 @Dao
@@ -29,6 +30,9 @@ public interface IdentityDao {
 
     @Query("SELECT * FROM keys WHERE keyID IN (:ids)")
     Maybe<List<Keys>> getKeys(List<Long> ids);
+
+    @Insert
+    Single<Long> insert(KeylessIdentity identity);
 
     @Insert
     Single<List<Long>> insertAll(KeylessIdentity... identities);
