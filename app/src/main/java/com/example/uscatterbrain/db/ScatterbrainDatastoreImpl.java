@@ -327,18 +327,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .flatMap(Observable::fromIterable)
                 .firstOrError();
     }
-
-
-    public ScatterMessage getMessageByPathSync(String path) {
-        //note: this has unique constraint so it is safe, I am terribly sorry for this horrible code
-        final List<ScatterMessage> result = this.mDatastore.scatterMessageDao().getByFilePath(path).blockingGet();
-        if (result.size() == 0) {
-            return null;
-        } else {
-            return result.get(0);
-        }
-    }
-
+    
     private Completable insertIdentity(Observable<Identity> identityObservable) {
        return identityObservable
         .flatMapCompletable(singleid ->
