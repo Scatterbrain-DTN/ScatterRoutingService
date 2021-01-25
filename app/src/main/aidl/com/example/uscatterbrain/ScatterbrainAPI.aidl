@@ -13,6 +13,8 @@ interface ScatterbrainAPI {
 
     Identity getIdentityByFingerprint(in byte[] fingerprint);
 
+    void insertIdentity(in Identity identity);
+
     void sendMessage(in ScatterMessage message);
 
     void sendMessages(in List<ScatterMessage> messages);
