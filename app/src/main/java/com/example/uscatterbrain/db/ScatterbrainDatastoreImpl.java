@@ -339,30 +339,36 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         }
     }
 
+    private Completable insertIdentity(Observable<Identity> identityObservable) {
+       return identityObservable
+        .flatMapCompletable(singleid ->
+                mDatastore.identityDao().insert(singleid.identity)
+                        .subscribeOn(databaseScheduler)
+                        .flatMapCompletable(result -> {
+                            return Observable.fromIterable(singleid.keys)
+                                    .map(key -> {
+                                        key.identityFK = result;
+                                        return key;
+                                    })
+                                    .reduce(new ArrayList<Keys>(), (list, key) -> {
+                                        list.add(key);
+                                        return list;
+                                    })
+                                    .flatMapCompletable(l -> mDatastore.identityDao().insertKeys(l)
+                                            .subscribeOn(databaseScheduler)
+                                            .ignoreElement());
+                        })
+        );
+    }
+
+    private Completable insertIdentity(Identity... ids) {
+        return Single.just(ids)
+                .flatMapCompletable(identities -> insertIdentity(Observable.fromArray(identities)));
+    }
+
     private Completable insertIdentity(List<Identity> ids) {
         return Single.just(ids)
-                .flatMapCompletable(identities -> {
-                   return Observable.fromIterable(identities)
-                           .flatMapCompletable(singleid ->
-                                   mDatastore.identityDao().insert(singleid.identity)
-                                           .flatMapCompletable(result -> {
-                                               return Observable.fromIterable(singleid.keys)
-                                                       .map(key -> {
-                                                           key.identityFK = result;
-                                                           return key;
-                                                       })
-                                                       .reduce(new ArrayList<Keys>(), (list, key) -> {
-                                                           list.add(key);
-                                                           return list;
-                                                       })
-                                                       .flatMapCompletable(l -> mDatastore.identityDao().insertKeys(l)
-                                                               .ignoreElement());
-                                           })
-
-
-                           );
-                });
-
+                .flatMapCompletable(identities -> insertIdentity(Observable.fromIterable(identities)));
     }
 
     private String getFingerprint(com.example.uscatterbrain.API.Identity identity) {
@@ -380,8 +386,19 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public Completable insertApiIdentity(com.example.uscatterbrain.API.Identity identity) {
-        return null;
+    public Completable insertApiIdentity(com.example.uscatterbrain.API.Identity ids) {
+        return Single.just(ids)
+                .map(identity -> {
+                    final Identity id = new Identity();
+                    final KeylessIdentity kid = new KeylessIdentity();
+                    kid.fingerprint = getFingerprint(identity);
+                    kid.givenName = identity.getGivenname();
+                    kid.publicKey = identity.getmScatterbrainPubKey();
+                    kid.signature = identity.getSig().toByteArray();
+                    id.keys = keys2keysBytes(identity.getmPubKeymap());
+                    id.identity = kid;
+                    return id;
+                }).flatMapCompletable(this::insertIdentity);
     }
 
     @Override
@@ -400,7 +417,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 }).reduce(new ArrayList<Identity>(), (list, id) -> {
                     list.add(id);
                     return list;
-                }).flatMapCompletable(id -> insertIdentity(id));
+                }).flatMapCompletable(this::insertIdentity);
     }
 
     private List<Keys> keys2keysBytes(Map<String, byte[]> k) {
@@ -452,6 +469,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
      public Observable<IdentityPacket> getIdentity(List<Long> ids) {
             return mDatastore.identityDao().getIdentitiesWithRelations(ids)
+                    .subscribeOn(databaseScheduler)
                     .toObservable()
                         .flatMap(idlist -> {
                             return Observable.fromIterable(idlist)

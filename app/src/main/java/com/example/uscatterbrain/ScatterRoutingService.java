@@ -47,7 +47,10 @@ public class ScatterRoutingService extends LifecycleService {
             Disposable ignored = mBackend.getDatastore().insertApiIdentity(identity)
                     .subscribe(
                             () -> Log.v(TAG, "successfully inserted identity"),
-                            err -> Log.v(TAG, "failed to insert identity: " + identity.getGivenname())
+                            err -> {
+                                Log.v(TAG, "failed to insert identity: " + identity.getGivenname() + ": " + err);
+                                err.printStackTrace();
+                            }
                     );
         }
 

@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class Identity implements Parcelable {
 
-    private Map<String, byte[]> mPubKeymap;
+    private final Map<String, byte[]> mPubKeymap;
     private final byte[] mScatterbrainPubKey;
     private final String givenname;
     private final AtomicReference<ByteString> sig = new AtomicReference<>(ByteString.EMPTY);
@@ -71,6 +71,7 @@ public class Identity implements Parcelable {
     }
 
     private Identity(Builder builder) {
+        this.mPubKeymap = builder.mPubKeymap;
         this.mScatterbrainPubKey = builder.mPubKeymap.get(IdentityPacket.PROTOBUF_PRIVKEY_KEY);
         this.givenname = builder.name;
     }
