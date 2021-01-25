@@ -32,7 +32,7 @@ public class HashlessScatterMessage {
         final ArrayList<Hashes> result = new ArrayList<>();
         for (ByteString hash : hashes) {
             Hashes h = new Hashes();
-            h.setHash(hash.toByteArray());
+            h.hash = hash.toByteArray();
             result.add(h);
         }
         return result;
@@ -41,7 +41,7 @@ public class HashlessScatterMessage {
     public static List<ByteString> hashes2hash(List<Hashes> hashes) {
         final ArrayList<ByteString> result = new ArrayList<>();
         for (Hashes hash : hashes) {
-            result.add(ByteString.copyFrom(hash.getHash()));
+            result.add(ByteString.copyFrom(hash.hash));
         }
         return result;
     }

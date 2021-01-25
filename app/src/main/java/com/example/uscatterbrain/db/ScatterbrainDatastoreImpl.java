@@ -384,9 +384,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                             IdentityPacket identity1 = identity.get(i);
                             for (Map.Entry<String, ByteString> entry : identity1.getKeymap().entrySet()) {
                                 Keys k = new Keys();
-                                k.setKey(entry.getKey());
-                                k.setValue(entry.getValue().toByteArray());
-                                k.setIdentityFK(identityidlist.get(i));
+                                k.key = entry.getKey();
+                                k.value = entry.getValue().toByteArray();
+                                k.identityFK = identityidlist.get(i);
                                 keysList.add(k);
                             }
                         }
@@ -404,7 +404,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     .map(relation -> {
                                         Map<String, ByteString> keylist = new HashMap<>(relation.keys.size());
                                         for (Keys keys : relation.keys) {
-                                            keylist.put(keys.getKey(), ByteString.copyFrom(keys.getValue()));
+                                            keylist.put(keys.key, ByteString.copyFrom(keys.value));
                                         }
                                         IdentityPacket identity = IdentityPacket.newBuilder(ctx)
                                                 .setName(relation.identity.givenName)
