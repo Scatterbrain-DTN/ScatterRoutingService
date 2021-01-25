@@ -21,6 +21,7 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class Identity implements Parcelable {
+
     private Map<String, byte[]> mPubKeymap;
     private final byte[] mScatterbrainPubKey;
     private final String givenname;
@@ -167,6 +168,24 @@ public class Identity implements Parcelable {
         return sig.get();
     }
 
+    public static class KeyPair {
+        public final byte[] secretkey;
+        public final byte[] publickey;
+        private KeyPair(byte[] sec, byte[] pub) {
+            this.publickey = pub;
+            this.secretkey = sec;
+        }
+    }
+
+    public static KeyPair newPrivateKey() {
+        byte[] sec = new byte[Sign.SECRETKEYBYTES];
+        byte[] pub = new byte[Sign.PUBLICKEYBYTES];
+
+        LibsodiumInterface.getSodium().crypto_sign_keypair(pub, sec);
+
+        return new KeyPair(sec, pub);
+    }
+
     public static Builder newBuilder() {
         return new Builder();
     }
@@ -185,9 +204,9 @@ public class Identity implements Parcelable {
             return this;
         }
 
-        public Builder sign(byte[] pubkey, byte[] privkey) {
-            this.privkey = privkey;
-            this.pubkey = pubkey;
+        public Builder sign(KeyPair keyPair) {
+            this.privkey = keyPair.secretkey;
+            this.pubkey = keyPair.publickey;
             return this;
         }
 
