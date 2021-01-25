@@ -18,9 +18,9 @@ import com.example.uscatterbrain.db.entities.Identity;
 import com.example.uscatterbrain.db.entities.Keys;
 import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
-import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
@@ -126,8 +126,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         };
         userDirectoryObserver.startWatching();
     }
-
-
 
     @Override
     public Completable insertMessagesSync(ScatterMessage message) {

@@ -47,8 +47,8 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
     private final AtomicReference<ByteString> sig = new AtomicReference<>(ByteString.EMPTY);
     private final byte[] mScatterbrainPubKey;
     private UUID luidtag;
-    private static final String PROTOBUF_PRIVKEY_KEY = "scatterbrain";
-    private static final String KEYSTORE_ID = "scatterbrainkeystore";
+    public static final String PROTOBUF_PRIVKEY_KEY = "scatterbrain";
+    public static final String KEYSTORE_ID = "scatterbrainkeystore";
 
     private IdentityPacket(Builder builder) throws GeneralSecurityException, IOException {
         this.mCtx = builder.getContext();
