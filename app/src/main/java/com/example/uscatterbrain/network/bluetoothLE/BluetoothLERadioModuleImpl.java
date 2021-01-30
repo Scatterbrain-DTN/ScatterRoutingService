@@ -141,6 +141,15 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         this.mClient = rxBleClient;
         this.wifiDirectRadioModule = wifiDirectRadioModule;
         this.datastore = datastore;
+        observeTransactionComplete();
+    }
+
+    private void observeTransactionComplete() {
+        Disposable d = this.transactionCompleteRelay.subscribe(
+                next -> myLuid.set(UUID.randomUUID()),
+                err -> Log.e(TAG, "error in transactionCompleteRelay " + err)
+        );
+        mGattDisposable.add(d);
     }
 
     @Override
@@ -611,7 +620,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
     public void cleanup(RxBleDevice device) {
         connectionCache.remove(device.getMacAddress());
-        myLuid.set(UUID.randomUUID());
     }
 
     public void stopServer() {
