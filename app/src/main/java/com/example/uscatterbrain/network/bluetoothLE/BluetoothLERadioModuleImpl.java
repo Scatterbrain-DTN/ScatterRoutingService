@@ -575,10 +575,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                         })
                                         .takeUntil(result -> {
                                             return result.second.nextStage.equals(TransactionResult.STAGE_EXIT);
-                                        })
-                                        .doFinally(() -> {
-                                            Log.v(TAG, "session finished, cleaning up");
-                                            cleanup(device);
                                         });
                             });
 
