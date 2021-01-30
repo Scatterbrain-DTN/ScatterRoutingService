@@ -499,7 +499,11 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public Flowable<IdentityPacket> getTopRandomIdentities(int count) {
         final int num = Math.min(count, mDatastore.identityDao().getIdentityCount());
         return mDatastore.identityDao().getTopRandom(count)
+                .flatMapObservable(Observable::fromIterable)
+                .doOnComplete(() -> Log.v(TAG, "datastore retrieved identities"))
+                .doOnNext(id -> Log.v(TAG, "retrieved single identity"))
                 .toFlowable(BackpressureStrategy.BUFFER)
+                .subscribeOn(databaseScheduler)
                 .zipWith(getSeq(), (identity, seq) -> IdentityPacket.newBuilder(ctx)
                         .setName(identity.identity.givenName)
                         .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
@@ -512,7 +516,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     @Override
     public Single<DeclareHashesPacket> getDeclareHashesPacket() {
         return mDatastore.scatterMessageDao().getTopHashes(4096) //TODO: configure this
-                        .map(hash -> DeclareHashesPacket.newBuilder().setHashesByte(hash).build());
+                        .map(hash -> DeclareHashesPacket.newBuilder().setHashesByte(hash).build())
+                .subscribeOn(databaseScheduler)
+                .doOnSuccess(p -> Log.v(TAG, "retrieved declareHashesPacket from datastore"));
     }
 
     @Override

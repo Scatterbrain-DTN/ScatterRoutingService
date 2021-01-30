@@ -38,7 +38,7 @@ public interface IdentityDao {
 
     @Transaction
     @Query("SELECT * FROM identities ORDER BY RANDOM() LIMIT :count")
-    Observable<Identity> getTopRandom(int count);
+    Single<List<Identity>> getTopRandom(int count);
 
     @Query("SELECT COUNT(*) FROM identities")
     int getIdentityCount();
