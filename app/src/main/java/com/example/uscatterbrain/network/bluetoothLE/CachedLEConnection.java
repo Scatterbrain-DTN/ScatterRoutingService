@@ -45,6 +45,7 @@ public class CachedLEConnection implements Disposable {
     private Observable<byte[]> cachedNotification(UUID uuid) {
         final CompositeDisposable notificationDisposable = new CompositeDisposable();
         return connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                .retry(10)
                 .doOnSubscribe(disposable -> Log.v(TAG, "client subscribed to notifications for " + uuid))
                 .flatMap(observable -> observable)
                 .doOnComplete(() -> Log.e(TAG, "notifications completed for some reason"))
