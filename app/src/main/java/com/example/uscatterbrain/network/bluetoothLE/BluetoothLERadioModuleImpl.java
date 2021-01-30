@@ -191,7 +191,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     Log.v(TAG, "gatt client luid hashed stage");
                     return conn.readLuid()
                             .doOnError(err -> Log.e(TAG, "error while receiving luid packet: " + err))
-                            .subscribeOn(clientScheduler)
+                            .observeOn(clientScheduler)
                             .map(luidPacket -> {
                                 synchronized (connectedLuids) {
                                     final UUID hashUUID = luidPacket.getHashAsUUID();
