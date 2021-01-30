@@ -446,9 +446,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                             .flatMapCompletable(socket ->
                                     routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
                                             .ignoreElements()
-                                            .andThen(identityPacketSeme(socket, Flowable.just(
-                                                    IdentityPacket.newBuilder(mContext).setEnd().build()))
-                                            )
+                                            .andThen(identityPacketSeme(socket, datastore.getTopRandomIdentities(20))) //TODO: configure count
                                             .ignoreElements()
                                             .andThen(declareHashesSeme(socket))
                                             .ignoreElement()

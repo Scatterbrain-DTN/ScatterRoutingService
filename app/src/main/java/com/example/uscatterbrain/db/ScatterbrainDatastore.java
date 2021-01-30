@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Flow;
 import java.util.regex.Pattern;
 
 import io.reactivex.Completable;
@@ -152,7 +153,7 @@ public interface ScatterbrainDatastore {
 
     List<com.example.uscatterbrain.API.ScatterMessage> getApiMessages(String application);
 
-    Observable<IdentityPacket> getTopRandomIdentities(int count);
+    Flowable<IdentityPacket> getTopRandomIdentities(int count);
 
     com.example.uscatterbrain.API.ScatterMessage getApiMessages(long id);
 

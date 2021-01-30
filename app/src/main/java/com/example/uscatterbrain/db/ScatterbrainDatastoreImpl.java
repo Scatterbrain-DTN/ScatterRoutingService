@@ -489,7 +489,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public Observable<IdentityPacket> getTopRandomIdentities(int count) {
+    public Flowable<IdentityPacket> getTopRandomIdentities(int count) {
         final int num = Math.min(count, mDatastore.identityDao().getIdentityCount());
         return mDatastore.identityDao().getTopRandom(count)
                 .toFlowable(BackpressureStrategy.BUFFER)
@@ -498,8 +498,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
                         .setSig(identity.identity.signature)
                         .setEnd(seq < num - 1)
-                        .build())
-                .toObservable();
+                        .build());
     }
 
     @Override
