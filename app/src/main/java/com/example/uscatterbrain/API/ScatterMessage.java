@@ -119,7 +119,7 @@ public class ScatterMessage implements Parcelable {
     }
 
     public boolean hasIdentity() {
-        return this.fingerprint.equals("");
+        return !this.fingerprint.equals("");
     }
 
     public String getIdentityFingerprint() {
