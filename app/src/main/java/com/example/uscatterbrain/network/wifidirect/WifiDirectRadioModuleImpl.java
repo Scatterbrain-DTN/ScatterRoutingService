@@ -330,8 +330,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                         .subscribeOn(Schedulers.io())
                         .mergeWith(datastore.getDeclareHashesPacket()
                                 .flatMapCompletable(declareHashesPacket ->
-                                declareHashesPacket.writeToStream(sock.getOutputStream()))
-                                .subscribeOn(Schedulers.io()))
+                                declareHashesPacket.writeToStream(sock.getOutputStream())
+                                        .subscribeOn(Schedulers.io())
+                                ))
                 )
                 .firstOrError();
     }
@@ -343,8 +344,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                         .subscribeOn(Schedulers.io())
                         .mergeWith(datastore.getDeclareHashesPacket()
                                 .flatMapCompletable(declareHashesPacket ->
-                        declareHashesPacket.writeToStream(sock.getOutputStream()))
-                                .subscribeOn(Schedulers.io())).firstOrError()
+                        declareHashesPacket.writeToStream(sock.getOutputStream()).subscribeOn(Schedulers.io())
+                                )).firstOrError()
                 );
     }
 
@@ -429,7 +430,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
             ),10, 1)
                     .andThen(routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build())).ignoreElements())
                     .andThen(identityPacketUke(Flowable.just(IdentityPacket.newBuilder(mContext).setEnd().build())).ignoreElements())
-                    .andThen(declareHashesUke().flatMapCompletable(
+                    .andThen(declareHashesUke()
+                            .doOnSuccess(p -> Log.v(TAG, "received declare hashes packet uke"))
+                            .flatMapCompletable(
                             declareHashesPacket -> readBlockDataUke()
                                     .mergeWith(
                                             writeBlockDataUke(
@@ -455,6 +458,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             })
                                             .flatMapCompletable(datastore::insertIdentityPacket)
                                             .andThen(declareHashesSeme(socket)
+                                                    .doOnSuccess(p -> Log.v(TAG, "received declare hashes packet seme"))
                                                     .flatMapCompletable(declareHashesPacket ->
                                                             writeBlockDataSeme(socket, datastore.getTopRandomMessages(32, declareHashesPacket)
                                                                     .toFlowable(BackpressureStrategy.BUFFER))

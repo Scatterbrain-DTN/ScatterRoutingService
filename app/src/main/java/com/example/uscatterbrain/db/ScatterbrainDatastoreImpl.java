@@ -448,6 +448,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public Completable insertIdentityPacket(List<IdentityPacket> ids) {
         return Observable.fromIterable(ids)
                 .flatMap(identity -> {
+                    if (identity.isEnd() || identity.isEmpty()) {
+                        return Observable.never();
+                    }
                     final KeylessIdentity id = new KeylessIdentity();
                     final Identity finalIdentity = new Identity();
                     if (!identity.verifyed25519(identity.getPubkey())) {
