@@ -6,6 +6,7 @@ import androidx.room.Insert;
 import androidx.room.Query;
 import androidx.room.Transaction;
 
+import java.net.PortUnreachableException;
 import java.util.List;
 
 import io.reactivex.Completable;
@@ -47,6 +48,16 @@ public abstract class ScatterMessageDao {
     @Transaction
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
     public abstract Observable<ScatterMessage> getTopRandom(int count);
+
+    @Transaction
+    @Query(
+            "SELECT * FROM messages WHERE globalhash NOT IN (:globalhashes)" +
+                    "ORDER BY RANDOM() LIMIT :count"
+    )
+    public abstract Observable<ScatterMessage> getTopRandomExclusingHash(int count, List<byte[]> globalhashes);
+
+    @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")
+    public abstract Single<List<byte[]>> getTopHashes(int count);
 
     @Transaction
     @Insert

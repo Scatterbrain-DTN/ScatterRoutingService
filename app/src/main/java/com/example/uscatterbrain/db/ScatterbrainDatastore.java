@@ -10,6 +10,7 @@ import com.example.uscatterbrain.db.entities.KeylessIdentity;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.DeclareHashesPacket;
 import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
@@ -83,7 +84,10 @@ public interface ScatterbrainDatastore {
      * @param count how many messages to retrieve
      * @return livedata representation of list of messages
      */
-    Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(int count);
+    Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(
+            int count,
+            final DeclareHashesPacket delareHashes
+    );
 
 
     /**
@@ -159,6 +163,8 @@ public interface ScatterbrainDatastore {
 
     Completable insertAndHashFileFromApi(com.example.uscatterbrain.API.ScatterMessage message, int blocksize);
 
+    Single<DeclareHashesPacket> getDeclareHashesPacket();
+
     enum FileCallbackResult {
         ERR_FILE_EXISTS,
         ERR_FILE_NO_EXISTS,
@@ -193,7 +199,7 @@ public interface ScatterbrainDatastore {
         return new UUID(buf.getLong(), buf.getLong()).toString();
     }
 
-    static String getDefaultFileName(List<ByteString> hashes) {
+    static byte[] getGlobalHash(List<ByteString> hashes) {
         byte[] outhash = new byte[GenericHash.BYTES];
         byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
         LibsodiumInterface.getSodium().crypto_generichash_init(state, null, 0, outhash.length);
@@ -201,7 +207,23 @@ public interface ScatterbrainDatastore {
             LibsodiumInterface.getSodium().crypto_generichash_update(state, bytes.toByteArray(), bytes.size());
         }
         LibsodiumInterface.getSodium().crypto_generichash_final(state, outhash, outhash.length);
-        ByteBuffer buf = ByteBuffer.wrap(outhash);
+        return outhash;
+    }
+
+    static byte[] getGlobalHashDb(List<Hashes> hashes) {
+        byte[] outhash = new byte[GenericHash.BYTES];
+        byte[] state = new byte[LibsodiumInterface.getSodium().crypto_generichash_statebytes()];
+        LibsodiumInterface.getSodium().crypto_generichash_init(state, null, 0, outhash.length);
+        for (Hashes bytes : hashes) {
+            LibsodiumInterface.getSodium().crypto_generichash_update(state, bytes.hash, bytes.hash.length);
+        }
+        LibsodiumInterface.getSodium().crypto_generichash_final(state, outhash, outhash.length);
+        return outhash;
+    }
+
+
+    static String getDefaultFileName(List<ByteString> hashes) {
+        ByteBuffer buf = ByteBuffer.wrap(getGlobalHash(hashes));
         //note: this only is safe because crypto_generichash_BYTES_MIN is 16
         return new UUID(buf.getLong(), buf.getLong()).toString();
     }

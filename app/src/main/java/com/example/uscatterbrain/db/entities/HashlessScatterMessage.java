@@ -3,6 +3,7 @@ package com.example.uscatterbrain.db.entities;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.Index;
+import androidx.room.Insert;
 import androidx.room.PrimaryKey;
 
 import com.google.protobuf.ByteString;
@@ -15,7 +16,8 @@ import java.util.List;
         tableName = "messages",
         indices = {
                 @Index(value =  {"filepath"}, unique = true),
-                @Index(value = {"identity_fingerprint"}, unique = true)
+                @Index(value = {"identity_fingerprint"}, unique = true),
+                @Index(value = {"globalhash"}, unique = true)
         }
         )
 public class HashlessScatterMessage {
@@ -78,6 +80,9 @@ public class HashlessScatterMessage {
 
     @ColumnInfo(name = "filepath")
     public String filePath;
+
+    @ColumnInfo(name = "globalhash")
+    public byte[] globalhash;
 
     @ColumnInfo
     public String userFilename;

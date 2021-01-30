@@ -2,6 +2,7 @@ package com.example.uscatterbrain.network.wifidirect;
 
 import android.net.wifi.p2p.WifiP2pInfo;
 
+import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.entities.HashlessScatterMessage;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
@@ -16,10 +17,7 @@ import io.reactivex.subjects.CompletableSubject;
 public interface WifiDirectRadioModule {
     String TAG = "WifiDirectRadioModule";
     Single<WifiP2pInfo> connectToGroup(String name, String passphrase, int timeout);
-    Completable bootstrapFromUpgrade(
-            BootstrapRequest upgradeRequest,
-            Flowable<BlockDataStream> streamObservable
-    );
+    Completable bootstrapFromUpgrade(BootstrapRequest upgradeRequest);
 
     class BlockDataStream {
         private final Flowable<BlockSequencePacket> sequencePackets;
@@ -45,6 +43,7 @@ public interface WifiDirectRadioModule {
             messageEntity.message.blocksize = headerPacket.getBlockSize();
             messageEntity.message.mimeType =  headerPacket.getMime();
             messageEntity.message.extension = headerPacket.getExtension();
+            messageEntity.message.globalhash = ScatterbrainDatastore.getGlobalHash(headerPacket.getHashList());
             messageEntity.messageHashes = HashlessScatterMessage.hash2hashs(headerPacket.getHashList());
         }
 

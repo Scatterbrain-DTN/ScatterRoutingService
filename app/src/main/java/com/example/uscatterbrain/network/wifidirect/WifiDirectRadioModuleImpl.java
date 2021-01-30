@@ -31,6 +31,7 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+import io.reactivex.BackpressureStrategy;
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import io.reactivex.Observable;
@@ -327,10 +328,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 .flatMapObservable(sock -> DeclareHashesPacket.parseFrom(sock.getInputStream())
                         .toObservable()
                         .subscribeOn(Schedulers.io())
-                        .mergeWith(DeclareHashesPacket.newBuilder()
-                                .optOut()
-                                .build()
-                                .writeToStream(sock.getOutputStream())
+                        .mergeWith(datastore.getDeclareHashesPacket()
+                                .flatMapCompletable(declareHashesPacket ->
+                                declareHashesPacket.writeToStream(sock.getOutputStream()))
                                 .subscribeOn(Schedulers.io()))
                 )
                 .firstOrError();
@@ -341,10 +341,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 .flatMap(sock -> DeclareHashesPacket.parseFrom(sock.getInputStream())
                         .toObservable()
                         .subscribeOn(Schedulers.io())
-                        .mergeWith(DeclareHashesPacket.newBuilder()
-                        .optOut()
-                        .build()
-                        .writeToStream(sock.getOutputStream())
+                        .mergeWith(datastore.getDeclareHashesPacket()
+                                .flatMapCompletable(declareHashesPacket ->
+                        declareHashesPacket.writeToStream(sock.getOutputStream()))
                                 .subscribeOn(Schedulers.io())).firstOrError()
                 );
     }
@@ -416,10 +415,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     }
 
     @Override
-    public Completable bootstrapFromUpgrade(
-            BootstrapRequest upgradeRequest,
-            Flowable<BlockDataStream> streamObservable
-            ) {
+    public Completable bootstrapFromUpgrade(BootstrapRequest upgradeRequest) {
 
         Log.v(TAG, "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
                 + " " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE) + " "
@@ -433,9 +429,14 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
             ),10, 1)
                     .andThen(routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build())).ignoreElements())
                     .andThen(identityPacketUke(Flowable.just(IdentityPacket.newBuilder(mContext).setEnd().build())).ignoreElements())
-                    .andThen(declareHashesUke().ignoreElement())
-                    .andThen(readBlockDataUke()
-                            .mergeWith(writeBlockDataUke(streamObservable)));
+                    .andThen(declareHashesUke().flatMapCompletable(
+                            declareHashesPacket -> readBlockDataUke()
+                                    .mergeWith(
+                                            writeBlockDataUke(
+                                                    datastore.getTopRandomMessages(32, declareHashesPacket) //TODO: configure this
+                                                            .toFlowable(BackpressureStrategy.BUFFER)
+                                            ))
+                    ));
         } else if(upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                 == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
             return retryDelay(connectToGroup(
@@ -453,11 +454,12 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                 return list;
                                             })
                                             .flatMapCompletable(datastore::insertIdentityPacket)
-                                            .andThen(declareHashesSeme(socket))
-                                            .ignoreElement()
-                                            .andThen(
-                                                    writeBlockDataSeme(socket, streamObservable)
-                                                            .mergeWith(readBlockDataSeme(socket)))))
+                                            .andThen(declareHashesSeme(socket)
+                                                    .flatMapCompletable(declareHashesPacket ->
+                                                            writeBlockDataSeme(socket, datastore.getTopRandomMessages(32, declareHashesPacket)
+                                                                    .toFlowable(BackpressureStrategy.BUFFER))
+                                                                    .mergeWith(readBlockDataSeme(socket)))
+                                                            )))
                     .doOnSubscribe(disp -> Log.v(TAG, "subscribed to writeBlockData"));
         } else {
             return Completable.error(new IllegalStateException("invalid role"));

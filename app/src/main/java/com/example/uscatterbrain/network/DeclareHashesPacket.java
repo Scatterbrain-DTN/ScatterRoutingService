@@ -79,7 +79,15 @@ public class DeclareHashesPacket implements ScatterSerializable {
     public UUID getLuid() {
         return luid;
     }
-    
+
+    public List<byte[]> getHashes() {
+        final ArrayList<byte[]> r = new ArrayList<>();
+        for (final ByteString b : declareHashes.getHashesList()) {
+            r.add(b.toByteArray());
+        }
+        return r;
+    }
+
     public static Builder newBuilder() {
         return new Builder();
     }

@@ -22,6 +22,7 @@ import com.example.uscatterbrain.db.entities.MessageHashCrossRef;
 import com.example.uscatterbrain.db.entities.ScatterMessage;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
 import com.example.uscatterbrain.network.BlockSequencePacket;
+import com.example.uscatterbrain.network.DeclareHashesPacket;
 import com.example.uscatterbrain.network.IdentityPacket;
 import com.example.uscatterbrain.network.LibsodiumInterface;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
@@ -263,11 +264,14 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
      * @return livedata representation of list of messages
      */
     @Override
-    public Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(int count) {
+    public Observable<WifiDirectRadioModule.BlockDataStream> getTopRandomMessages(
+            int count,
+            final DeclareHashesPacket declareHashes
+    ) {
         Log.v(TAG, "called getTopRandomMessages");
         final int num = Math.min(count, mDatastore.scatterMessageDao().messageCount());
 
-        return this.mDatastore.scatterMessageDao().getTopRandom(count)
+        return this.mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, declareHashes.getHashes())
                 .doOnSubscribe(disp -> Log.v(TAG, "subscribed to getTopRandoMessages"))
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .doOnNext(message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size()))
@@ -501,6 +505,13 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         .build());
     }
 
+
+    @Override
+    public Single<DeclareHashesPacket> getDeclareHashesPacket() {
+        return mDatastore.scatterMessageDao().getTopHashes(4096) //TODO: configure this
+                        .map(hash -> DeclareHashesPacket.newBuilder().setHashesByte(hash).build());
+    }
+
     @Override
     public com.example.uscatterbrain.API.Identity getApiIdentityByFingerprint(String fingerprint) {
         return mDatastore.identityDao().getIdentityByFingerprint(fingerprint)
@@ -565,6 +576,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     message.sig = null;
                     message.sessionid = 0;
                     message.blocksize = blocksize;
+                    message.globalhash = ScatterbrainDatastore.getGlobalHash(hashes);
                     message.userFilename = path.getName();
                     message.extension = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString());
                     message.filePath = path.getAbsolutePath();
@@ -647,6 +659,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                         hm.identity_fingerprint = message.getIdentityFingerprint();
                                     }
                                     hm.sig = null; //TODO: sign messages
+                                    hm.globalhash = ScatterbrainDatastore.getGlobalHash(hashes);
                                     hm.userFilename = ScatterbrainDatastore.sanitizeFilename(message.getFilename());
                                     hm.extension = ScatterbrainDatastore.sanitizeFilename(message.getExtension());
                                     hm.application = ByteString.copyFromUtf8(message.getApplication()).toByteArray();
@@ -670,6 +683,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     }
                                     hm.blocksize = blocksize;
                                     hm.sessionid = 0;
+                                    hm.globalhash = ScatterbrainDatastore.getGlobalHash(hashes);
                                     hm.sig = null; //TODO: sign messages
                                     hm.userFilename = null;
                                     hm.extension = null;

@@ -373,12 +373,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     }
 
     private Completable bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {
-        return wifiDirectRadioModule.bootstrapFromUpgrade(
-                bootstrapRequest,
-                datastore.getTopRandomMessages(10)
-                        .toFlowable(BackpressureStrategy.BUFFER)
-                        .doOnComplete(() -> Log.v("debug", "getTopRandomMessages oncomplete"))
-               ).doOnComplete(() -> transactionCompleteRelay.accept(true))
+        return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest)
+                .doOnComplete(() -> transactionCompleteRelay.accept(true))
                 .doOnError(err -> {
                     Log.e(TAG, "wifi p2p upgrade failed: " + err);
                     err.printStackTrace();
