@@ -23,6 +23,7 @@ import com.example.uscatterbrain.network.bluetoothLE.BootstrapRequest;
 
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -447,7 +448,11 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                     routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
                                             .ignoreElements()
                                             .andThen(identityPacketSeme(socket, datastore.getTopRandomIdentities(20))) //TODO: configure count
-                                            .ignoreElements()
+                                            .reduce(new ArrayList<IdentityPacket>(), (list, packet) -> {
+                                                list.add(packet);
+                                                return list;
+                                            })
+                                            .flatMapCompletable(datastore::insertIdentityPacket)
                                             .andThen(declareHashesSeme(socket))
                                             .ignoreElement()
                                             .andThen(
