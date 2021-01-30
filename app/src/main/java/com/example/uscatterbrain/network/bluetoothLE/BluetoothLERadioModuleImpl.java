@@ -373,12 +373,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
 
         session.setStage(TransactionResult.STAGE_LUID_HASHED);
-        return Single.just(session).doFinally(() -> {
-            Log.e(TAG, "cleaning up luid cache");
-            synchronized (connectedLuids) {
-                connectedLuids.removeAll(session.getLuidStage().getHashedLuids());
-            }
-        });
+        return Single.just(session);
     }
 
     private Completable bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {
