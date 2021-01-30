@@ -526,7 +526,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 .flatMapCompletable(socket ->
                         stream.doOnSubscribe(disp -> Log.v(TAG, "subscribed to BlockDataStream observable"))
                                 .doOnNext(p -> Log.v(TAG, "writeBlockData processing BlockDataStream"))
-                                .flatMapCompletable(blockDataStream ->
+                                .concatMapCompletable(blockDataStream ->
                                         blockDataStream.getHeaderPacket().writeToStream(socket.getOutputStream())
                                                 .subscribeOn(writeScheduler)
                                                 .doOnComplete(() -> Log.v(TAG, "server wrote header packet"))
