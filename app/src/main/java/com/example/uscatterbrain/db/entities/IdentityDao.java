@@ -36,6 +36,13 @@ public interface IdentityDao {
     @Query("SELECT * FROM keys WHERE keyID IN (:ids)")
     Maybe<List<Keys>> getKeys(List<Long> ids);
 
+    @Transaction
+    @Query("SELECT * FROM identities ORDER BY RANDOM() LIMIT :count")
+    Observable<Identity> getTopRandom(int count);
+
+    @Query("SELECT COUNT(*) FROM identities")
+    int getIdentityCount();
+
     @Insert
     Single<Long> insert(KeylessIdentity identity);
 

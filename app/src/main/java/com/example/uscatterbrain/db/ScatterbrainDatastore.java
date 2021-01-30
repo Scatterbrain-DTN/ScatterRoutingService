@@ -152,6 +152,8 @@ public interface ScatterbrainDatastore {
 
     List<com.example.uscatterbrain.API.ScatterMessage> getApiMessages(String application);
 
+    Observable<IdentityPacket> getTopRandomIdentities(int count);
+
     com.example.uscatterbrain.API.ScatterMessage getApiMessages(long id);
 
     Completable insertAndHashFileFromApi(com.example.uscatterbrain.API.ScatterMessage message, int blocksize);

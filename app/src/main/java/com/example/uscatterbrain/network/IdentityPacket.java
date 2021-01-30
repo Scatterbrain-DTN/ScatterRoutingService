@@ -353,6 +353,11 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
             return this;
         }
 
+        public Builder setEnd(boolean end) {
+            this.gone = end;
+            return this;
+        }
+
         public Builder generateKeypair() {
             this.mGenerateKeypair = true;
             return this;
