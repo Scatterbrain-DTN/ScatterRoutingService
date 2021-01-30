@@ -502,6 +502,22 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 }).blockingGet();
     }
 
+
+    @Override
+    public List<com.example.uscatterbrain.API.Identity> getAllIdentities() {
+        return mDatastore.identityDao().getAll()
+                .subscribeOn(databaseScheduler)
+                .map(identity -> ApiIdentity.newBuilder()
+                        .setName(identity.identity.givenName)
+                        .addKeys(keys2map(identity.keys))
+                        .sign(identity.identity.signature)
+                        .build()
+                ).reduce(new ArrayList<com.example.uscatterbrain.API.Identity>(), (list, id) -> {
+                    list.add(id);
+                    return list;
+                }).blockingGet();
+    }
+
     @Override
     public Map<String, Serializable> getFileMetadataSync(File path) {
         return getMessageByPath(path.getAbsolutePath())

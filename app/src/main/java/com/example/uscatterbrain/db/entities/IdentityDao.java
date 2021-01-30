@@ -15,8 +15,9 @@ import io.reactivex.Single;
 
 @Dao
 public interface IdentityDao {
+    @Transaction
     @Query("SELECT * FROM identities")
-    Maybe<List<KeylessIdentity>> getAll();
+    Observable<Identity> getAll();
 
     @Transaction
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")

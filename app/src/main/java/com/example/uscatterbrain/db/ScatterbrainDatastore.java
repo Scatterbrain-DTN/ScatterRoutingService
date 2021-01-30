@@ -148,6 +148,8 @@ public interface ScatterbrainDatastore {
 
     long getFileSize(File path);
 
+    List<Identity> getAllIdentities();
+
     List<com.example.uscatterbrain.API.ScatterMessage> getApiMessages(String application);
 
     com.example.uscatterbrain.API.ScatterMessage getApiMessages(long id);

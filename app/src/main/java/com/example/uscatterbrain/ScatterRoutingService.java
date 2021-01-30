@@ -61,12 +61,12 @@ public class ScatterRoutingService extends LifecycleService {
 
         @Override
         public List<Identity> getIdentities() throws RemoteException {
-            return null; //TODO: not implemented
+            return mBackend.getDatastore().getAllIdentities();
         }
 
         @Override
         public Identity getIdentityByFingerprint(String fingerprint) throws RemoteException {
-            return mBackend.getDatastore().getApiIdentityByFingerprint(fingerprint); //TODO: not implemented
+            return mBackend.getDatastore().getApiIdentityByFingerprint(fingerprint);
         }
 
         @Override
