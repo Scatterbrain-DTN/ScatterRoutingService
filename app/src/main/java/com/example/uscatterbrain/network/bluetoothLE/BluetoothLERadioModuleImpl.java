@@ -604,7 +604,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                         return Completable.never();
                     }
                 })
-                .doFinally(() -> transactionErrorRelay.accept(new IllegalStateException("gatt server shut down")))
+                .retry()
+                .repeat()
                 .subscribe(
                         () -> Log.e(TAG, "gatt server completed. This should not happen"),
                         err -> {
