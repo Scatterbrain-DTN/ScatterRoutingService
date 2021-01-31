@@ -43,7 +43,6 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
-import io.reactivex.BackpressureStrategy;
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
@@ -563,26 +562,35 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                         );
                                                     })
                                                     .concatMap(result -> result)
-                                                    .onErrorResumeNext(Observable.never())
-                                                    .doOnError(err -> {
-                                                        Log.e(TAG, "stage " + session.getStage() + " error " + err);
-                                                        err.printStackTrace();
-                                                    })
-                                                    .doOnNext(transactionResult -> {
-                                                        session.setStage(transactionResult.second.nextStage);
-                                                    })
                                                     .takeUntil(result -> {
                                                         return result.second.nextStage.equals(TransactionResult.STAGE_EXIT);
                                                     })
-                                                    .doFinally(() -> {
-                                                        Log.v(TAG, "stages complete, cleaning up");
-                                                        connection.dispose();
-                                                        cleanup(device);
+                                                    .doOnNext(transactionResult -> {
+                                                        session.setStage(transactionResult.second.nextStage);
                                                     });
 
                                         })
                                         .takeUntil(result -> {
                                             return result.second.nextStage.equals(TransactionResult.STAGE_EXIT);
+                                        })
+                                        .filter(pair -> pair.second.hasResult() || pair.first.isPresent())
+                                        .map(pair -> {
+                                            if (pair.second.hasResult()) {
+                                                return pair.second.getResult();
+                                            } else if (pair.first.isPresent()) {
+                                                return pair.first.get();
+                                            } else {
+                                                throw new IllegalStateException("this should never happen");
+                                            }
+                                        })
+                                        .doOnError(err -> {
+                                            Log.e(TAG, "stage " + session.getStage() + " error " + err);
+                                            err.printStackTrace();
+                                        })
+                                        .doFinally(() -> {
+                                            Log.v(TAG, "stages complete, cleaning up");
+                                            connection.dispose();
+                                            cleanup(device);
                                         });
                             });
 
@@ -592,16 +600,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     transactionErrorRelay.accept(new IllegalStateException("gatt server disposed"));
                     stopServer();
                 })
-                .flatMapCompletable(resultPair -> {
-                    if (resultPair.second.hasResult()) {
-                        return bootstrapWifiP2p(resultPair.second.getResult());
-                    } else if (resultPair.first.isPresent()) {
-                        return bootstrapWifiP2p(resultPair.first.get());
-                    } else {
-                        Log.e(TAG, "handshake failed, no result received");
-                        return Completable.never();
-                    }
-                })
+                .doOnNext(req -> Log.v(TAG, "handling bootstrap request: " + req.toString()))
+                .flatMapCompletable(this::bootstrapWifiP2p)
                 .retry()
                 .repeat()
                 .subscribe(
