@@ -589,6 +589,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                         })
                                         .doFinally(() -> {
                                             Log.v(TAG, "stages complete, cleaning up");
+                                            connectionRaw.disconnect();
                                             connection.dispose();
                                             cleanup(device);
                                         });
