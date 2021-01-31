@@ -30,6 +30,8 @@ import com.polidea.rxandroidble2.Timeout;
 import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
@@ -56,21 +58,25 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public static final String TAG = "BluetoothLE";
     public static final int CLIENT_CONNECT_TIMEOUT = 10;
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_ADVERTISE = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_LUID = UUID.fromString("9a25e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_ELECTIONLEADER = UUID.fromString("9a26e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_BLOCKDATA = UUID.fromString("9a27e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_BLOCKSEQUENCE = UUID.fromString("9a28e79f-4a6d-4e28-95c6-257f5e47fd90");
+    public static final UUID CHANNEL_ONE = incrementUUID(SERVICE_UUID, 1);
     public static final UUID UUID_CLK_DESCRIPTOR = UUID.fromString("cb882be2-d3ee-40e1-a40c-f485a598389f");
 
     public static final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
-    public static final BluetoothGattCharacteristic ADVERTISE_CHARACTERISTIC = makeCharacteristic(UUID_ADVERTISE);
-    public static final BluetoothGattCharacteristic UPGRADE_CHARACTERISTIC = makeCharacteristic(UUID_UPGRADE);
-    public static final BluetoothGattCharacteristic LUID_CHARACTERISTIC = makeCharacteristic(UUID_LUID);
-    public static final BluetoothGattCharacteristic ELECTION_CHARACTERISTIC = makeCharacteristic(UUID_ELECTIONLEADER);
-    public static final BluetoothGattCharacteristic BOCKDATA_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKDATA);
-    public static final BluetoothGattCharacteristic BLOCKSEQUENCE_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKSEQUENCE);
+
+    static {
+        makeCharacteristic(CHANNEL_ONE);
+    }
+
+    public static UUID incrementUUID(UUID uuid, int i) {
+        final ByteBuffer buffer = ByteBuffer.allocate(16);
+        buffer.putLong(uuid.getMostSignificantBits());
+        buffer.putLong(uuid.getLeastSignificantBits());
+        final BigInteger b = new BigInteger(buffer.array()).add(BigInteger.valueOf(i));
+        final ByteBuffer out = ByteBuffer.wrap(b.toByteArray());
+        final Long high = out.getLong();
+        final Long low = out.getLong();
+        return new UUID(high, low);
+    }
 
     public static BluetoothGattCharacteristic makeCharacteristic(UUID uuid) {
         final BluetoothGattCharacteristic characteristic = new BluetoothGattCharacteristic(
@@ -195,7 +201,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     return session.getLuidStage().getSelfHashed()
                             .flatMapCompletable(luidpacket -> {
                                 session.getLuidStage().addPacket(luidpacket);
-                                return serverConn.serverNotify(luidpacket, UUID_LUID);
+                                return serverConn.serverNotify(luidpacket, CHANNEL_ONE);
                             }).toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -227,7 +233,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     return session.getLuidStage().getSelf()
                             .flatMapCompletable(luidpacket -> {
                                 session.getLuidStage().addPacket(luidpacket);
-                                return serverConn.serverNotify(luidpacket, UUID_LUID);
+                                return serverConn.serverNotify(luidpacket, CHANNEL_ONE);
                             }).toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -252,7 +258,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 TransactionResult.STAGE_ADVERTISE,
                 serverConn -> {
                     Log.v(TAG, "gatt server advertise stage");
-                    return serverConn.serverNotify(AdvertiseStage.getSelf(), UUID_ADVERTISE)
+                    return serverConn.serverNotify(AdvertiseStage.getSelf(), CHANNEL_ONE)
                             .toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -272,7 +278,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     Log.v(TAG, "gatt server election hashed stage");
                     ElectLeaderPacket packet = session.getVotingStage().getSelf(true);
                     session.getVotingStage().addPacket(packet);
-                    return serverConn.serverNotify(packet, UUID_ELECTIONLEADER)
+                    return serverConn.serverNotify(packet, CHANNEL_ONE)
                             .toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -295,7 +301,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                 ElectLeaderPacket packet = session.getVotingStage().getSelf(false);
                                 packet.tagLuid(luidPacket.getLuid());
                                 session.getVotingStage().addPacket(packet);
-                                return serverConn.serverNotify(packet, UUID_ELECTIONLEADER);
+                                return serverConn.serverNotify(packet, CHANNEL_ONE);
                             }).toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -346,7 +352,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                     upgradePacket,
                                                     ConnectionRole.ROLE_SEME
                                             );
-                                    return serverConn.serverNotify(upgradePacket, UUID_UPGRADE)
+                                    return serverConn.serverNotify(upgradePacket, CHANNEL_ONE)
                                             .toSingleDefault(Optional.of(request));
                                 });
 

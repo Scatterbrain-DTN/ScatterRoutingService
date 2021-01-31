@@ -19,14 +19,10 @@ import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 
+import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.CHANNEL_ONE;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.SERVICE_UUID;
-import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_ADVERTISE;
-import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_BLOCKDATA;
-import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_BLOCKSEQUENCE;
 import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_CLK_DESCRIPTOR;
-import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_ELECTIONLEADER;
-import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_LUID;
-import static com.example.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.UUID_UPGRADE;
+
 
 public class CachedLEConnection implements Disposable {
 
@@ -63,27 +59,27 @@ public class CachedLEConnection implements Disposable {
     }
 
     public Single<AdvertisePacket> readAdvertise() {
-        return AdvertisePacket.parseFrom(cachedNotification(UUID_ADVERTISE));
+        return AdvertisePacket.parseFrom(cachedNotification(CHANNEL_ONE));
     }
 
     public Single<UpgradePacket> readUpgrade() {
-        return UpgradePacket.parseFrom(cachedNotification(UUID_UPGRADE));
+        return UpgradePacket.parseFrom(cachedNotification(CHANNEL_ONE));
     }
 
     public Single<BlockHeaderPacket> readBlockHeader() {
-        return BlockHeaderPacket.parseFrom(cachedNotification(UUID_BLOCKDATA));
+        return BlockHeaderPacket.parseFrom(cachedNotification(CHANNEL_ONE));
     }
 
     public Single<BlockSequencePacket> readBlockSequence() {
-        return BlockSequencePacket.parseFrom(cachedNotification(UUID_BLOCKSEQUENCE));
+        return BlockSequencePacket.parseFrom(cachedNotification(CHANNEL_ONE));
     }
 
     public Single<ElectLeaderPacket> readElectLeader() {
-        return ElectLeaderPacket.parseFrom(cachedNotification(UUID_ELECTIONLEADER));
+        return ElectLeaderPacket.parseFrom(cachedNotification(CHANNEL_ONE));
     }
 
     public Single<LuidPacket> readLuid() {
-        return LuidPacket.parseFrom(cachedNotification(UUID_LUID));
+        return LuidPacket.parseFrom(cachedNotification(CHANNEL_ONE));
     }
 
     @Override
