@@ -103,6 +103,16 @@ public class ScatterRoutingService extends LifecycleService {
         public void stopDiscovery() throws RemoteException {
             mBackend.getScheduler().stop();
         }
+
+        @Override
+        public void startPassive() throws RemoteException {
+            mBackend.getRadioModule().startServer();
+        }
+
+        @Override
+        public void stopPassive() throws RemoteException {
+            mBackend.getRadioModule().stopServer();
+        }
     };
 
     public ScatterRoutingService() {

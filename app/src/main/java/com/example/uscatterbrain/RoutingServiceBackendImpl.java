@@ -7,6 +7,7 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.example.uscatterbrain.scheduler.ScatterbrainScheduler;
+import com.polidea.rxandroidble2.internal.RxBleLog;
 
 import java.util.Collections;
 
@@ -34,6 +35,7 @@ public class RoutingServiceBackendImpl implements RoutingServiceBackend {
             Log.e(TAG, "received an unhandled exception: " + e);
             e.printStackTrace();
         });
+        RxBleLog.setLogLevel(RxBleLog.DEBUG);
         this.bluetoothLeRadioModule = bluetoothLeRadioModule;
         this.datastore = datastore;
         this.scheduler = scheduler;

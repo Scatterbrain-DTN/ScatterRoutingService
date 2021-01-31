@@ -22,4 +22,8 @@ interface ScatterbrainAPI {
     void startDiscovery();
 
     void stopDiscovery();
+
+    void startPassive();
+
+    void stopPassive();
 }
