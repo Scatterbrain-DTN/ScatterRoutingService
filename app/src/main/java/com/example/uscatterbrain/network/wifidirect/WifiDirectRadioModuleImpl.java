@@ -332,8 +332,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                         .mergeWith(datastore.getDeclareHashesPacket()
                                 .flatMapCompletable(declareHashesPacket ->
                                 declareHashesPacket.writeToStream(sock.getOutputStream())
-                                        .subscribeOn(writeScheduler)
-                                ))
+                                ).subscribeOn(writeScheduler)
+                        )
                 )
                 .firstOrError();
     }
@@ -346,8 +346,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                         .toObservable()
                         .mergeWith(datastore.getDeclareHashesPacket()
                                 .flatMapCompletable(declareHashesPacket ->
-                        declareHashesPacket.writeToStream(sock.getOutputStream()).subscribeOn(writeScheduler)
-                                ))
+                        declareHashesPacket.writeToStream(sock.getOutputStream())
+                                )).subscribeOn(writeScheduler)
                         .firstOrError()
                 );
     }
@@ -370,9 +370,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                             }
                             return end;
                         }) //TODO: timeout here
-                        .mergeWith(packets.concatMapCompletable(p -> p.writeToStream(sock.getOutputStream())
+                        .mergeWith(packets.concatMapCompletable(p -> p.writeToStream(sock.getOutputStream()))
                                 .subscribeOn(writeScheduler)
-                        )));
+                        ));
     }
 
     public Observable<IdentityPacket> identityPacketUke(Flowable<IdentityPacket> packets) {
@@ -383,8 +383,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     public Observable<IdentityPacket> identityPacketSeme(Socket socket, Flowable<IdentityPacket> packets) {
         return Single.just(socket)
                 .flatMapObservable(sock -> IdentityPacket.parseFrom(sock.getInputStream(), mContext)
-                        .subscribeOn(readScheduler)
                         .toObservable()
+                        .subscribeOn(readScheduler)
                         .repeat()
                         .takeWhile(identityPacket -> {
                             final boolean end = !identityPacket.isEnd();
@@ -394,9 +394,10 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                             return end;
                         })
                         .mergeWith(packets.concatMapCompletable(p -> p.writeToStream(sock.getOutputStream())
-                                .subscribeOn(writeScheduler)
                                 .doOnComplete(() -> Log.v(TAG, "wrote single identity packet"))
-                        ).doOnComplete(() -> Log.v(TAG, "identity packets complete"))));
+                        )
+                                .subscribeOn(writeScheduler)
+                                .doOnComplete(() -> Log.v(TAG, "identity packets complete"))));
     }
 
     public Completable awaitPeersChanged(int timeout, TimeUnit unit) {
@@ -447,7 +448,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                     datastore.getTopRandomMessages(32, declareHashesPacket) //TODO: configure this
                                                             .toFlowable(BackpressureStrategy.BUFFER)
                                             ))
-                    ));
+                    ))
+                    .subscribeOn(operationsScheduler);
         } else if(upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                 == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
             return retryDelay(connectToGroup(
@@ -513,8 +515,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                 blockDataStream.getSequencePackets()
                                         .doOnNext(packet -> Log.v(TAG, "seme writing sequence packet: " + packet.getmData().size()))
                                         .concatMapCompletable(sequencePacket -> sequencePacket.writeToStream(socket.getOutputStream())
-                                                .subscribeOn(writeScheduler)
-                                        ).doOnComplete(() -> Log.v(TAG, "wrote sequence packets to client socket"))
+                                        )
+                                        .subscribeOn(writeScheduler)
+                                        .doOnComplete(() -> Log.v(TAG, "wrote sequence packets to client socket"))
                         ));
     }
 
@@ -534,8 +537,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                         .doOnNext(packet -> Log.v(TAG, "uke writing sequence packet: " + packet.getmData().size()))
                                                         .concatMapCompletable(blockSequencePacket ->
                                                                 blockSequencePacket.writeToStream(socket.getOutputStream())
-                                                                        .subscribeOn(writeScheduler)
                                                         )
+                                                        .subscribeOn(writeScheduler)
                                                         .doOnComplete(() -> Log.v(TAG, "server wrote sequence packets"))
                                                 )));
     }
@@ -577,9 +580,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     private Completable readBlockDataSeme(
             Socket socket
     ) {
-        return Single.fromCallable(() -> BlockHeaderPacket.parseFrom(socket.getInputStream())
-                .subscribeOn(readScheduler))
+        return Single.fromCallable(() -> BlockHeaderPacket.parseFrom(socket.getInputStream()))
                 .flatMap(obs -> obs)
+                .subscribeOn(readScheduler)
                 .repeat()
                 .doOnNext(packet -> Log.v(TAG, "client read header packet: " + packet.getHashList().size()))
                 .map(header -> new BlockDataStream(
