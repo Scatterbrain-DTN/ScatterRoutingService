@@ -438,6 +438,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 .doOnSubscribe(disp -> {
                     mGattDisposable.add(disp);
                     Disposable d = discoverOnce()
+                            .repeat()
+                            .retry()
                             .doOnError(err -> Log.e(TAG, "error with initial handshake: " + err))
                             .subscribe(
                                     complete -> {
@@ -577,7 +579,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                     })
                                                     .doFinally(() -> {
                                                         Log.v(TAG, "stages complete, cleaning up");
-
+                                                        connection.dispose();
                                                     });
 
                                         })
