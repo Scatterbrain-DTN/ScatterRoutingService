@@ -522,7 +522,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
         Disposable d = mServer.openServer(config)
                 .doOnError(err -> Log.e(TAG, "failed to open server"))
-                .flatMap(connectionRaw -> {
+                .observeOn(clientScheduler)
+                .concatMap(connectionRaw -> {
                     final CachedLEServerConnection connection = new CachedLEServerConnection(connectionRaw);
                     RxBleDevice device = mClient.getBleDevice(connection.getConnection().getDevice().getAddress());
 
