@@ -1,22 +1,21 @@
 package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
 import android.util.Log;
 
 import com.example.uscatterbrain.network.ScatterSerializable;
 import com.jakewharton.rxrelay2.PublishRelay;
 import com.polidea.rxandroidble2.RxBleServerConnection;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.reactivex.BackpressureStrategy;
 import io.reactivex.Completable;
 import io.reactivex.Observable;
+import io.reactivex.Single;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 
@@ -25,43 +24,57 @@ public class CachedLEServerConnection implements Disposable {
 
     private final RxBleServerConnection connection;
     private final CompositeDisposable disposable = new CompositeDisposable();
-    private final Map<UUID, NotificationSession> sessions = new HashMap<>();
+    private final PublishRelay<ScatterSerializable> packetQueue = PublishRelay.create();
+    private final PublishRelay<Integer> sizeRelay = PublishRelay.create();
+    private final PublishRelay<Throwable> errorRelay = PublishRelay.create(); //TODO: handle errors
+    private final AtomicReference<Integer> size = new AtomicReference<>(0);
+    private final ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic> channels;
 
-    public CachedLEServerConnection(RxBleServerConnection connection) {
+    public CachedLEServerConnection(RxBleServerConnection connection, ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic> notif) {
         this.connection = connection;
-        for (BluetoothGattCharacteristic characteristic : BluetoothLERadioModuleImpl.mService.getCharacteristics()) {
-            NotificationSession oldSession = sessions.get(characteristic.getUuid());
-            if (oldSession == null) {
-                final NotificationSession session = new NotificationSession();
-                Disposable d =
-                        connection.getOnDescriptorWriteRequest(
-                                characteristic.getUuid(), BluetoothLERadioModuleImpl.UUID_CLK_DESCRIPTOR
-                        )
-                                .doOnNext(req -> Log.v(TAG, "received timing characteristic write request"))
-                                .toFlowable(BackpressureStrategy.BUFFER)
-                                .zipWith(
-                                        session.packetQueue.toFlowable(BackpressureStrategy.BUFFER),
-                                        (req, packet) -> req.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null)
-                                                .toSingleDefault(packet)
-                                )
-                                .concatMapSingle(packet -> packet)
-                        .concatMapCompletable(packet -> {
-                    Log.v(TAG, "server received timing characteristic write");
-                    return connection.setupIndication(characteristic.getUuid(), packet.writeToStream(20))
-                            .doOnError(session.errorRelay)
-                            .doFinally(() -> session.sizeRelay.accept(session.decrementSize()));
-                })
+        this.channels = notif;
+        Disposable d =
+                connection.getOnCharacteristicReadRequest(
+                        BluetoothLERadioModuleImpl.UUID_SEMAPHOR
+                )
+                        .doOnNext(req -> Log.v(TAG, "received timing characteristic write request"))
+                        .toFlowable(BackpressureStrategy.BUFFER)
+                        .flatMapSingle(req -> {
+                            return selectCharacteristic()
+                                    .flatMap(characteristic ->
+                                            req.sendReply(BluetoothGatt.GATT_SUCCESS, 0,
+                                                    BluetoothLERadioModuleImpl.uuid2bytes(characteristic.getUuid()))
+                                            .toSingleDefault(characteristic)
+                                    )
+                                    .timeout(2, TimeUnit.SECONDS)
+                                    .doOnError(err -> req.sendReply(BluetoothGatt.GATT_FAILURE, 0, null));
+                        })
+                        .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER), (ch, packet) -> {
+                            Log.v(TAG, "server received timing characteristic write");
+                            return connection.setupIndication(ch.getUuid(), packet.writeToStream(20))
+                                    .doOnError(errorRelay)
+                                    .doFinally(() -> {
+                                        sizeRelay.accept(decrementSize());
+                                        ch.release();
+                                    });
+                        })
+                        .flatMapCompletable(completable -> completable)
+                        .repeat()
+                        .retry()
                         .subscribe(
                                 () -> Log.v(TAG, "timing characteristic write handler completed"),
                                 err -> Log.e(TAG, "timing characteristic handler error: " + err)
                         );
-                disposable.add(d);
-                sessions.putIfAbsent(characteristic.getUuid(), session);
-            } else {
-                Log.e(TAG, "oldSession was null");
-                throw new IllegalStateException("oldSession was null");
-            }
-        }
+        disposable.add(d);
+    }
+
+    public Single<BluetoothLERadioModuleImpl.OwnedCharacteristic> selectCharacteristic() {
+        return Observable.mergeDelayError(
+                Observable.fromIterable(channels.values())
+                        .map(lockedCharactersitic -> lockedCharactersitic.awaitCharacteristic().toObservable())
+        )
+                .firstOrError()
+                .doOnSuccess(ch -> Log.v(TAG, "selected characteristic: " + ch.getCharacteristic()));
     }
 
     public Disposable setDefaultReply(UUID characteristic, int reply) {
@@ -75,38 +88,45 @@ public class CachedLEServerConnection implements Disposable {
         return d;
     }
 
-    private synchronized <T extends ScatterSerializable> Completable enqueuePacket(NotificationSession session, T packet) {
-        session.incrementSize();
-       return session.sizeRelay
+    private synchronized <T extends ScatterSerializable> Completable enqueuePacket(T packet) {
+        incrementSize();
+       return sizeRelay
                 .mergeWith(
-                        session.errorRelay
+                        errorRelay
                                 .flatMap(Observable::error)
                 )
                 .takeWhile(s -> s > 0)
                 .ignoreElements()
                 .doOnSubscribe(disposable -> {
                     Log.v(TAG, "packet queue accepted packet " + packet.getType());
-                    session.packetQueue.accept(packet);
+                    packetQueue.accept(packet);
                 });
     }
 
+
+    private int getSize() {
+        return size.get();
+    }
+
+    private int decrementSize() {
+        return size.updateAndGet(size -> --size);
+    }
+
+    private int incrementSize() {
+        return size.updateAndGet(size -> ++size);
+    }
+
     public synchronized <T extends ScatterSerializable> Completable serverNotify(
-            T packet,
-            UUID characteristic
+            T packet
     ) {
         Log.v(TAG, "serverNotify for packet " + packet.getType());
-        NotificationSession session = sessions.get(characteristic);
-        if (session == null) {
-            return Completable.error(new IllegalStateException("invalid uuid"));
-        }
-
-        if (session.size.get() <= 0) {
-            return enqueuePacket(session, packet);
+        if (size.get() <= 0) {
+            return enqueuePacket(packet);
         } else {
-            return session.sizeRelay
+            return sizeRelay
                     .takeWhile(s -> s > 0)
                     .ignoreElements()
-                    .andThen(enqueuePacket(session, packet))
+                    .andThen(enqueuePacket(packet))
                     .timeout(BluetoothLEModule.TIMEOUT, TimeUnit.SECONDS);
         }
     }
@@ -123,28 +143,5 @@ public class CachedLEServerConnection implements Disposable {
     @Override
     public boolean isDisposed() {
         return disposable.isDisposed();
-    }
-
-    private static class NotificationSession {
-        private final PublishRelay<ScatterSerializable> packetQueue = PublishRelay.create();
-        private final PublishRelay<Integer> sizeRelay = PublishRelay.create();
-        private final PublishRelay<Throwable> errorRelay = PublishRelay.create(); //TODO: handle errors
-        private final AtomicReference<Integer> size = new AtomicReference<>();
-
-        public NotificationSession() {
-            size.set(0);
-        }
-
-        public int getSize() {
-            return size.get();
-        }
-
-        public int decrementSize() {
-            return size.updateAndGet(size -> --size);
-        }
-
-        public int incrementSize() {
-            return size.updateAndGet(size -> ++size);
-        }
     }
 }
