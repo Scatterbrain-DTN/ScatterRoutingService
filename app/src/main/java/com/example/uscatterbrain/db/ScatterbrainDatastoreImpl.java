@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Flow;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -137,6 +138,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         return this.mDatastore.scatterMessageDao().insertHashes(message.messageHashes)
                 .subscribeOn(Schedulers.io())
                 .flatMap(hashids -> {
+                    message.message.globalhash = ScatterbrainDatastore.getGlobalHashDb(message.messageHashes);
                     return mDatastore.scatterMessageDao()._insertMessages(message.message)
                             .subscribeOn(Schedulers.io())
                             .flatMap(messageid -> {
@@ -234,7 +236,13 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         return discardStream(stream);
                     } else {
                         return stream.getSequencePackets()
-                                .map(BlockSequencePacket::getmData)
+                                .flatMap(packet -> {
+                                    if (packet.verifyHash(stream.getHeaderPacket())) {
+                                        return Flowable.just(packet.getmData());
+                                    } else {
+                                        return Flowable.error(new SecurityException("failed to verify hash"));
+                                    }
+                                })
                                 .reduce(ByteString::concat)
                                 .flatMapCompletable(val -> {
                                     stream.getEntity().message.body = val.toByteArray();
@@ -587,7 +595,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     message.sig = null;
                     message.sessionid = 0;
                     message.blocksize = blocksize;
-                    message.globalhash = ScatterbrainDatastore.getGlobalHash(hashes);
                     message.userFilename = path.getName();
                     message.extension = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString());
                     message.filePath = path.getAbsolutePath();
@@ -672,7 +679,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                         hm.identity_fingerprint = message.getIdentityFingerprint();
                                     }
                                     hm.sig = null; //TODO: sign messages
-                                    hm.globalhash = ScatterbrainDatastore.getGlobalHash(hashes);
                                     hm.userFilename = ScatterbrainDatastore.sanitizeFilename(message.getFilename());
                                     hm.extension = ScatterbrainDatastore.sanitizeFilename(message.getExtension());
                                     hm.application = ByteString.copyFromUtf8(message.getApplication()).toByteArray();
@@ -696,7 +702,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     }
                                     hm.blocksize = blocksize;
                                     hm.sessionid = 0;
-                                    hm.globalhash = ScatterbrainDatastore.getGlobalHash(hashes);
                                     hm.sig = null; //TODO: sign messages
                                     hm.userFilename = null;
                                     hm.extension = null;
