@@ -35,7 +35,7 @@ public abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT * FROM messages where application IN (:application)")
-    public abstract Observable<ScatterMessage> getByApplication(String application);
+    public abstract Single<List<ScatterMessage>> getByApplication(String application);
 
     @Transaction
     @Query("SELECT filePath FROM messages")
@@ -47,14 +47,14 @@ public abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
-    public abstract Observable<ScatterMessage> getTopRandom(int count);
+    public abstract Single<List<ScatterMessage>> getTopRandom(int count);
 
     @Transaction
     @Query(
             "SELECT * FROM messages WHERE globalhash NOT IN (:globalhashes)" +
                     "ORDER BY RANDOM() LIMIT :count"
     )
-    public abstract Observable<ScatterMessage> getTopRandomExclusingHash(int count, List<byte[]> globalhashes);
+    public abstract Single<List<ScatterMessage>> getTopRandomExclusingHash(int count, List<byte[]> globalhashes);
 
     @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")
     public abstract Single<List<byte[]>> getTopHashes(int count);

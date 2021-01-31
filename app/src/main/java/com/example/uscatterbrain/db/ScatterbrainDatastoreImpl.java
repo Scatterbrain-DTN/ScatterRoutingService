@@ -273,7 +273,8 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
         return this.mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, declareHashes.getHashes())
                 .doOnSubscribe(disp -> Log.v(TAG, "subscribed to getTopRandoMessages"))
-                .toFlowable(BackpressureStrategy.BUFFER)
+                .toFlowable()
+                .flatMap(Flowable::fromIterable)
                 .doOnNext(message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size()))
                 .zipWith(getSeq(), (message, s) -> {
                     if (message.message.body == null) {
@@ -539,6 +540,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public List<com.example.uscatterbrain.API.Identity> getAllIdentities() {
         return mDatastore.identityDao().getAll()
                 .subscribeOn(databaseScheduler)
+                .flatMapObservable(Observable::fromIterable)
                 .map(identity -> ApiIdentity.newBuilder()
                         .setName(identity.identity.givenName)
                         .addKeys(keys2map(identity.keys))
@@ -631,7 +633,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     @Override
     public List<com.example.uscatterbrain.API.ScatterMessage> getApiMessages(String application) {
-        return getApiMessage(mDatastore.scatterMessageDao().getByApplication(application))
+        return getApiMessage(mDatastore.scatterMessageDao()
+                .getByApplication(application)
+                .flatMapObservable(Observable::fromIterable))
                 .blockingGet();
     }
 

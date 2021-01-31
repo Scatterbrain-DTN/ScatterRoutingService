@@ -146,7 +146,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
     private void observeTransactionComplete() {
         Disposable d = this.transactionCompleteRelay.subscribe(
-                next -> myLuid.set(UUID.randomUUID()),
+                next -> {
+                    Log.v(TAG, "transaction complete, randomizing luid");
+                    myLuid.set(UUID.randomUUID());
+                },
                 err -> Log.e(TAG, "error in transactionCompleteRelay " + err)
         );
         mGattDisposable.add(d);
