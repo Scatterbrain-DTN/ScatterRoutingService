@@ -569,9 +569,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                         err.printStackTrace();
                                                     })
                                                     .doOnNext(transactionResult -> {
-                                                        if (transactionResult.second.nextStage.equals(TransactionResult.STAGE_EXIT)) {
-                                                            cleanup(device);
-                                                        }
                                                         session.setStage(transactionResult.second.nextStage);
                                                     })
                                                     .takeUntil(result -> {
@@ -580,6 +577,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                     .doFinally(() -> {
                                                         Log.v(TAG, "stages complete, cleaning up");
                                                         connection.dispose();
+                                                        cleanup(device);
                                                     });
 
                                         })
