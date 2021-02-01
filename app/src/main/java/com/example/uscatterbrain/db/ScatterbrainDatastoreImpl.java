@@ -240,6 +240,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     if (packet.verifyHash(stream.getHeaderPacket())) {
                                         return Flowable.just(packet.getmData());
                                     } else {
+                                        Log.e(TAG, "invalid hash");
                                         return Flowable.error(new SecurityException("failed to verify hash"));
                                     }
                                 })

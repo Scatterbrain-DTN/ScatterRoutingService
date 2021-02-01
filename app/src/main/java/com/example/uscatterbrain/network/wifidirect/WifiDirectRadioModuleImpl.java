@@ -360,9 +360,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     public Observable<RoutingMetadataPacket> routingMetadataSeme(Socket socket, Flowable<RoutingMetadataPacket> packets) {
         return Observable.just(socket)
                 .flatMap(sock -> RoutingMetadataPacket.parseFrom(sock.getInputStream())
-                        .subscribeOn(readScheduler)
                         .toObservable()
                         .repeat()
+                        .subscribeOn(readScheduler)
                         .takeWhile(routingMetadataPacket -> {
                             final boolean end = !routingMetadataPacket.isEmpty();
                             if (!end) {
@@ -384,8 +384,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         return Single.just(socket)
                 .flatMapObservable(sock -> IdentityPacket.parseFrom(sock.getInputStream(), mContext)
                         .toObservable()
-                        .subscribeOn(readScheduler)
                         .repeat()
+                        .subscribeOn(readScheduler)
                         .takeWhile(identityPacket -> {
                             final boolean end = !identityPacket.isEnd();
                             if (!end) {
@@ -441,8 +441,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                         }).flatMapCompletable(datastore::insertIdentityPacket))
                     .andThen(declareHashesUke()
                             .doOnSuccess(p -> Log.v(TAG, "received declare hashes packet uke"))
-                            .flatMapCompletable(
-                            declareHashesPacket -> readBlockDataUke()
+                            .flatMapCompletable(declareHashesPacket -> readBlockDataUke()
                                     .mergeWith(
                                             writeBlockDataUke(
                                                     datastore.getTopRandomMessages(32, declareHashesPacket) //TODO: configure this
@@ -543,22 +542,22 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                 )));
     }
 
-
     private Completable readBlockDataUke() {
         return getServerSocket()
                         .toFlowable()
                         .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
                                 .subscribeOn(readScheduler)
-                                .repeat()
-                                .doOnNext(packet -> Log.v(TAG, "server read header packet"))
-                                .map(headerPacket -> new BlockDataStream(
+                                .toFlowable()
+                                .flatMap(headerPacket -> Flowable.range(0, headerPacket.getHashList().size())
+                                        .map(i -> new BlockDataStream(
                                         headerPacket,
                                         BlockSequencePacket.parseFrom(socket.getInputStream())
-                                                .subscribeOn(readScheduler)
                                                 .repeat(headerPacket.getHashList().size())
+                                                .subscribeOn(readScheduler)
                                                 .doOnNext(packet -> Log.v(TAG, "uke reading sequence packet: " + packet.getmData().size()))
                                                 .doOnComplete(() -> Log.v(TAG, "server read sequence packets"))
-                                )))
+                                ))
+                        ))
                 .takeUntil(stream -> {
                     final boolean end = stream.getHeaderPacket().isEndOfStream();
                     if (end) {
@@ -566,7 +565,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     }
                     return end;
                 }) //TODO: timeout here
-                .concatMapCompletable(datastore::insertMessage);
+                .concatMapCompletable(m -> datastore.insertMessage(m).andThen(m.await()));
     }
 
     private Single<Socket> getServerSocket() {
@@ -580,19 +579,18 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     private Completable readBlockDataSeme(
             Socket socket
     ) {
-        return Single.fromCallable(() -> BlockHeaderPacket.parseFrom(socket.getInputStream()))
+        return Single.fromCallable(() -> BlockHeaderPacket.parseFrom(socket.getInputStream()).subscribeOn(readScheduler))
                 .flatMap(obs -> obs)
-                .subscribeOn(readScheduler)
-                .repeat()
-                .doOnNext(packet -> Log.v(TAG, "client read header packet: " + packet.getHashList().size()))
-                .map(header -> new BlockDataStream(
-                        header,
-                        BlockSequencePacket.parseFrom(socket.getInputStream())
-                                .subscribeOn(readScheduler)
-                                .repeat(header.getHashList().size())
-                                .doOnNext(packet -> Log.v(TAG, "seme reading sequence packet: " + packet.getmData().size()))
-                                .doOnComplete(() -> Log.v(TAG, "seme complete read sequence packets"))
-                ))
+                .toFlowable()
+                .flatMap(header -> Flowable.range(0, header.getHashList().size())
+                        .map(i -> new BlockDataStream(
+                                header,
+                                BlockSequencePacket.parseFrom(socket.getInputStream())
+                                        .repeat(header.getHashList().size())
+                                        .subscribeOn(readScheduler)
+                                        .doOnNext(packet -> Log.v(TAG, "seme reading sequence packet: " + packet.getmData().size()))
+                                        .doOnComplete(() -> Log.v(TAG, "seme complete read sequence packets"))
+                        )))
                 .takeUntil(stream -> {
                     final boolean end = stream.getHeaderPacket().isEndOfStream();
                     if (end) {
@@ -600,6 +598,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     }
                     return end;
                 })
-                .concatMapCompletable(datastore::insertMessage);
+                .concatMapCompletable(m -> datastore.insertMessage(m).andThen(m.await()));
     }
 }

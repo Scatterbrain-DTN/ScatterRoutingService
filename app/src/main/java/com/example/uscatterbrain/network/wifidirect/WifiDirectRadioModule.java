@@ -47,6 +47,10 @@ public interface WifiDirectRadioModule {
             messageEntity.messageHashes = HashlessScatterMessage.hash2hashs(headerPacket.getHashList());
         }
 
+        public Completable await() {
+            return sequencePackets.ignoreElements();
+        }
+
         public BlockDataStream(ScatterMessage message, Flowable<BlockSequencePacket> packetFlowable) {
             this(message, packetFlowable, false, true);
         }
