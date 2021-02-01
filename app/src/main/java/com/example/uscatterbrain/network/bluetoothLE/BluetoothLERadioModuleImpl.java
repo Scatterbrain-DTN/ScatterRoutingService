@@ -2,7 +2,6 @@ package com.example.uscatterbrain.network.bluetoothLE;
 
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseCallback;
@@ -21,6 +20,7 @@ import com.example.uscatterbrain.network.AdvertisePacket;
 import com.example.uscatterbrain.network.ElectLeaderPacket;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
 import com.example.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
+import com.jakewharton.rxrelay2.BehaviorRelay;
 import com.jakewharton.rxrelay2.PublishRelay;
 import com.polidea.rxandroidble2.RxBleClient;
 import com.polidea.rxandroidble2.RxBleDevice;
@@ -30,8 +30,11 @@ import com.polidea.rxandroidble2.Timeout;
 import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.ConcurrentModificationException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -55,22 +58,47 @@ import io.reactivex.subjects.BehaviorSubject;
 public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public static final String TAG = "BluetoothLE";
     public static final int CLIENT_CONNECT_TIMEOUT = 10;
+    public static final int NUM_CHANNELS = 8;
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_ADVERTISE = UUID.fromString("9a22e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_UPGRADE =  UUID.fromString("9a24e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_LUID = UUID.fromString("9a25e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_ELECTIONLEADER = UUID.fromString("9a26e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_BLOCKDATA = UUID.fromString("9a27e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_BLOCKSEQUENCE = UUID.fromString("9a28e79f-4a6d-4e28-95c6-257f5e47fd90");
-    public static final UUID UUID_CLK_DESCRIPTOR = UUID.fromString("cb882be2-d3ee-40e1-a40c-f485a598389f");
+    public static final UUID UUID_SEMAPHOR = UUID.fromString("3429e76d-242a-4966-b4b3-301f28ac3ef2");
+    public static final ConcurrentHashMap<UUID, LockedCharactersitic> channels = new ConcurrentHashMap<>();
+
 
     public static final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
-    public static final BluetoothGattCharacteristic ADVERTISE_CHARACTERISTIC = makeCharacteristic(UUID_ADVERTISE);
-    public static final BluetoothGattCharacteristic UPGRADE_CHARACTERISTIC = makeCharacteristic(UUID_UPGRADE);
-    public static final BluetoothGattCharacteristic LUID_CHARACTERISTIC = makeCharacteristic(UUID_LUID);
-    public static final BluetoothGattCharacteristic ELECTION_CHARACTERISTIC = makeCharacteristic(UUID_ELECTIONLEADER);
-    public static final BluetoothGattCharacteristic BOCKDATA_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKDATA);
-    public static final BluetoothGattCharacteristic BLOCKSEQUENCE_CHARACTERISTIC = makeCharacteristic(UUID_BLOCKSEQUENCE);
+
+    static {
+        makeCharacteristic(UUID_SEMAPHOR);
+        for (int i=0;i<NUM_CHANNELS;i++) {
+            final UUID channel = incrementUUID(SERVICE_UUID, i+1);
+            channels.put(channel, new LockedCharactersitic(makeCharacteristic(channel), i));
+        }
+    }
+
+    public static UUID incrementUUID(UUID uuid, int i) {
+        final ByteBuffer buffer = ByteBuffer.allocate(16);
+        buffer.putLong(uuid.getMostSignificantBits());
+        buffer.putLong(uuid.getLeastSignificantBits());
+        final BigInteger b = new BigInteger(buffer.array()).add(BigInteger.valueOf(i));
+        final ByteBuffer out = ByteBuffer.wrap(b.toByteArray());
+        final long high = out.getLong();
+        final long low = out.getLong();
+        return new UUID(high, low);
+    }
+
+
+    public static byte[] uuid2bytes(UUID uuid) {
+        final ByteBuffer buffer = ByteBuffer.allocate(16);
+        buffer.putLong(uuid.getMostSignificantBits());
+        buffer.putLong(uuid.getLeastSignificantBits());
+        return buffer.array();
+    }
+
+    public static UUID bytes2uuid(byte[] bytes) {
+        final ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        final long high = buffer.getLong();
+        final long low = buffer.getLong();
+        return new UUID(high, low);
+    }
 
     public static BluetoothGattCharacteristic makeCharacteristic(UUID uuid) {
         final BluetoothGattCharacteristic characteristic = new BluetoothGattCharacteristic(
@@ -81,12 +109,6 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 BluetoothGattCharacteristic.PERMISSION_WRITE |
                         BluetoothGattCharacteristic.PERMISSION_READ
         );
-        BluetoothGattDescriptor descriptor = new BluetoothGattDescriptor(
-                UUID_CLK_DESCRIPTOR,
-                BluetoothGattDescriptor.PERMISSION_WRITE
-        );
-
-        characteristic.addDescriptor(descriptor);
         mService.addCharacteristic(characteristic);
         return characteristic;
     }
@@ -195,7 +217,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     return session.getLuidStage().getSelfHashed()
                             .flatMapCompletable(luidpacket -> {
                                 session.getLuidStage().addPacket(luidpacket);
-                                return serverConn.serverNotify(luidpacket, UUID_LUID);
+                                return serverConn.serverNotify(luidpacket);
                             }).toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -227,7 +249,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     return session.getLuidStage().getSelf()
                             .flatMapCompletable(luidpacket -> {
                                 session.getLuidStage().addPacket(luidpacket);
-                                return serverConn.serverNotify(luidpacket, UUID_LUID);
+                                return serverConn.serverNotify(luidpacket);
                             }).toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -252,7 +274,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 TransactionResult.STAGE_ADVERTISE,
                 serverConn -> {
                     Log.v(TAG, "gatt server advertise stage");
-                    return serverConn.serverNotify(AdvertiseStage.getSelf(), UUID_ADVERTISE)
+                    return serverConn.serverNotify(AdvertiseStage.getSelf())
                             .toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -272,7 +294,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     Log.v(TAG, "gatt server election hashed stage");
                     ElectLeaderPacket packet = session.getVotingStage().getSelf(true);
                     session.getVotingStage().addPacket(packet);
-                    return serverConn.serverNotify(packet, UUID_ELECTIONLEADER)
+                    return serverConn.serverNotify(packet)
                             .toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -295,7 +317,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                 ElectLeaderPacket packet = session.getVotingStage().getSelf(false);
                                 packet.tagLuid(luidPacket.getLuid());
                                 session.getVotingStage().addPacket(packet);
-                                return serverConn.serverNotify(packet, UUID_ELECTIONLEADER);
+                                return serverConn.serverNotify(packet);
                             }).toSingleDefault(Optional.empty());
                 }
                 , conn -> {
@@ -346,7 +368,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                                     upgradePacket,
                                                     ConnectionRole.ROLE_SEME
                                             );
-                                    return serverConn.serverNotify(upgradePacket, UUID_UPGRADE)
+                                    return serverConn.serverNotify(upgradePacket)
                                             .toSingleDefault(Optional.of(request));
                                 });
 
@@ -400,7 +422,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         return device.establishConnection(false, timeout)
                 .doOnDispose(() -> connectionCache.remove(device.getMacAddress()))
                 .doOnError(err -> connectionCache.remove(device.getMacAddress()))
-                .map(CachedLEConnection::new)
+                .map(d -> new CachedLEConnection(d, channels))
                 .doOnNext(connection -> {
                     Log.v(TAG, "successfully established connection");
                     subject.onNext(connection);
@@ -526,9 +548,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
         Disposable d = mServer.openServer(config)
                 .doOnError(err -> Log.e(TAG, "failed to open server"))
-                .observeOn(clientScheduler)
                 .concatMap(connectionRaw -> {
-                    final CachedLEServerConnection connection = new CachedLEServerConnection(connectionRaw);
+                    final CachedLEServerConnection connection = new CachedLEServerConnection(connectionRaw, channels);
                     RxBleDevice device = mClient.getBleDevice(connection.getConnection().getDevice().getAddress());
 
                     //don't attempt to initiate a reverse connection when we already initiated the outgoing connection
@@ -634,6 +655,78 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         public DeviceConnection(BluetoothDevice device, CachedLEConnection connection) {
             this.device = device;
             this.connection = connection;
+        }
+    }
+
+
+
+    public static class LockedCharactersitic {
+        protected final BluetoothGattCharacteristic characteristic;
+        private final BehaviorRelay<Boolean> lockState = BehaviorRelay.create();
+        private final int channel;
+
+        public LockedCharactersitic(BluetoothGattCharacteristic characteristic, int channel) {
+            this.characteristic = characteristic;
+            this.channel = channel;
+            lockState.accept(false);
+        }
+
+        public Single<OwnedCharacteristic> awaitCharacteristic() {
+            return Single.just(asUnlocked())
+                    .zipWith(lockState.filter(p -> !p).firstOrError(), (ch, lockstate) -> ch)
+                    .map(ch -> {
+                        lock();
+                        return ch;
+                    });
+        }
+
+        private OwnedCharacteristic asUnlocked() {
+            return new OwnedCharacteristic(this);
+        }
+
+        public int getChannel() {
+            return channel;
+        }
+
+        public UUID getUuid() {
+            return characteristic.getUuid();
+        }
+
+        public synchronized void lock() {
+            lockState.accept(true);
+        }
+
+        public synchronized void release() {
+            lockState.accept(false);
+        }
+
+        private synchronized BluetoothGattCharacteristic getCharacteristic() {
+            return characteristic;
+        }
+
+    }
+
+    public static class OwnedCharacteristic {
+        private final LockedCharactersitic lockedCharactersitic;
+        private boolean released = false;
+        private OwnedCharacteristic(LockedCharactersitic lock) {
+            this.lockedCharactersitic = lock;
+        }
+
+        public synchronized void release() {
+            released = true;
+        }
+
+        public synchronized BluetoothGattCharacteristic getCharacteristic() {
+            if (released) {
+                throw new ConcurrentModificationException();
+            }
+            lockedCharactersitic.release();;
+            return lockedCharactersitic.getCharacteristic();
+        }
+
+        public UUID getUuid() {
+            return lockedCharactersitic.getUuid();
         }
     }
 }
