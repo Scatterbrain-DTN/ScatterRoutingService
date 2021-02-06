@@ -44,6 +44,7 @@ public interface RoutingServiceComponent {
         public static final String WIFI_DIRECT_READ = "wifi-direct-read";
         public static final String WIFI_DIRECT_WRITE = "wifi-direct-write";
         public static final String WIFI_DIRECT_OPERATIONS = "wifi-direct-operations";
+        public static final String DEFAULT_SCHEDULER = "default";
         private NamedSchedulers() {
 
         }
@@ -98,6 +99,12 @@ public interface RoutingServiceComponent {
         @Named(NamedSchedulers.WIFI_DIRECT_OPERATIONS)
         static Scheduler provideWifiDirectOperationsScheduler() {
             return RxJavaPlugins.createIoScheduler(new ScatterbrainThreadFactory());
+        }
+
+        @Provides
+        @Named(NamedSchedulers.DEFAULT_SCHEDULER)
+        static Scheduler provideDefaultScheduler() {
+            return RxJavaPlugins.createComputationScheduler(new ScatterbrainThreadFactory());
         }
 
         @Provides

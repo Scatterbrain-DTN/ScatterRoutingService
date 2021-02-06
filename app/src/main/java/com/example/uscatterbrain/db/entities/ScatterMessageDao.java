@@ -56,8 +56,9 @@ public abstract class ScatterMessageDao {
     )
     public abstract Single<List<ScatterMessage>> getTopRandomExclusingHash(int count, List<byte[]> globalhashes);
 
+    @Transaction
     @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")
-    public abstract Single<List<byte[]>> getTopHashes(int count);
+    public abstract Maybe<List<byte[]>> getTopHashes(int count);
 
     @Transaction
     @Insert

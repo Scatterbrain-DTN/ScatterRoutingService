@@ -86,19 +86,19 @@ public class WifiDirectBroadcastReceiver extends BroadcastReceiver {
 
 
     public Observable<P2pState> observeP2pState() {
-        return p2pStateSubject.delay(0, TimeUnit.SECONDS);
+        return p2pStateSubject;
     }
 
     public Observable<WifiP2pDevice> observeThisDevice() {
-        return thisDeviceChangedSubject.delay(0, TimeUnit.SECONDS);
+        return thisDeviceChangedSubject;
     }
 
     public Observable<WifiP2pInfo> observeConnectionInfo() {
-        return connectionSubject.delay(0, TimeUnit.SECONDS);
+        return connectionSubject;
     }
 
     public Observable<WifiP2pDeviceList> observePeers() {
-        return deviceListSubject.delay(0, TimeUnit.SECONDS);
+        return deviceListSubject;
     }
 
     public BroadcastReceiver asReceiver() {

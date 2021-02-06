@@ -608,11 +608,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                             Log.e(TAG, "stage " + session.getStage() + " error " + err);
                                             err.printStackTrace();
                                         })
+                                        .onErrorResumeNext(Observable.never())
                                         .doFinally(() -> {
                                             Log.v(TAG, "stages complete, cleaning up");
-                                            connectionRaw.disconnect();
                                             connection.dispose();
-                                            cleanup(device);
                                         });
                             });
 

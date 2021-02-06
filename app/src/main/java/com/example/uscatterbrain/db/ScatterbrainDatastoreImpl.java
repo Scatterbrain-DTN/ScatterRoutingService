@@ -45,7 +45,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Flow;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -136,11 +135,11 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     @Override
     public Completable insertMessagesSync(ScatterMessage message) {
         return this.mDatastore.scatterMessageDao().insertHashes(message.messageHashes)
-                .subscribeOn(Schedulers.io())
+                .subscribeOn(databaseScheduler)
                 .flatMap(hashids -> {
                     message.message.globalhash = ScatterbrainDatastore.getGlobalHashDb(message.messageHashes);
                     return mDatastore.scatterMessageDao()._insertMessages(message.message)
-                            .subscribeOn(Schedulers.io())
+                            .subscribeOn(databaseScheduler)
                             .flatMap(messageid -> {
                                 List<MessageHashCrossRef> hashes = new ArrayList<>();
                                 for (Long hashID : hashids) {
@@ -150,7 +149,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     hashes.add(xref);
                                 }
                                 return this.mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes)
-                                        .subscribeOn(Schedulers.io());
+                                        .subscribeOn(databaseScheduler);
                             });
                 }).ignoreElement();
     }
@@ -226,7 +225,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         return insertMessageToRoom(stream.getEntity())
                                 .andThen(insertFile(stream));
                     }
-                }).subscribeOn(Schedulers.io());
+                }).subscribeOn(databaseScheduler);
     }
 
     private Completable insertMessagesWithoutDisk(WifiDirectRadioModule.BlockDataStream stream) {
@@ -248,7 +247,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                 .flatMapCompletable(val -> {
                                     stream.getEntity().message.body = val.toByteArray();
                                     return insertMessageToRoom(stream.getEntity());
-                                }).subscribeOn(Schedulers.io());
+                                }).subscribeOn(databaseScheduler);
 
                     }
                 });
@@ -525,10 +524,22 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     @Override
     public Single<DeclareHashesPacket> getDeclareHashesPacket() {
-        return mDatastore.scatterMessageDao().getTopHashes(4096) //TODO: configure this
-                        .map(hash -> DeclareHashesPacket.newBuilder().setHashesByte(hash).build())
+        return mDatastore.scatterMessageDao().getTopHashes(512) //TODO: configure this
                 .subscribeOn(databaseScheduler)
-                .doOnSuccess(p -> Log.v(TAG, "retrieved declareHashesPacket from datastore"));
+                .doOnSuccess(p -> Log.v(TAG, "retrieved declareHashesPacket from datastore: " + p.size()))
+                .flatMapObservable(Observable::fromIterable)
+                .reduce(new ArrayList<byte[]>(), (list, hash) -> {
+                    list.add(hash);
+                    return list;
+                })
+                .map(hash -> {
+                    if (hash.size() == 0) {
+                        return DeclareHashesPacket.newBuilder().optOut().build();
+                    } else {
+                        return DeclareHashesPacket.newBuilder().setHashesByte(hash).build();
+                    }
+                })
+                .doOnSubscribe(d -> Log.e(TAG, "SUB"));
     }
 
     @Override
@@ -687,7 +698,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     hm.mimeType = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString());
                                     dbmessage.message = hm;
                                     return insertMessageToRoom(dbmessage);
-                                }).subscribeOn(Schedulers.io());
+                                }).subscribeOn(databaseScheduler);
                     } else if (message.getBody() != null && message.getFileDescriptor() == null) {
                         return hashData(message.getBody(), blocksize)
                                 .flatMapCompletable(hashes -> {
@@ -836,7 +847,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                 return Completable.error(new IllegalStateException("failed to verify hash"));
                             }
                             return Completable.fromAction(() -> blockSequencePacket.getmData().writeTo(fileOutputStream))
-                                    .subscribeOn(Schedulers.io());
+                                    .subscribeOn(databaseScheduler);
                         }));
     }
 
@@ -872,9 +883,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     return Bytes.from(is)
                             .flatMapCompletable(bytes ->
                                     Completable.fromAction(() -> os.write(bytes))
-                                            .subscribeOn(Schedulers.io())
+                                            .subscribeOn(databaseScheduler)
                             )
-                            .subscribeOn(Schedulers.io())
+                            .subscribeOn(databaseScheduler)
                             .doFinally(() -> {
                                 is.close();
                                 os.close();
@@ -918,7 +929,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 Log.e("debug", "hashing "+ read);
             }
             return r;
-        }).subscribeOn(Schedulers.io());
+        }).subscribeOn(databaseScheduler);
     }
 
     @Override
@@ -939,7 +950,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                         .setSequenceNumber(seqnum)
                                         .setData(ByteString.copyFrom(bytes))
                                         .build();
-                            }).subscribeOn(Schedulers.io());
+                            }).subscribeOn(databaseScheduler);
                 }).doOnComplete(() -> Log.v(TAG, "readfile completed"));
     }
 }
