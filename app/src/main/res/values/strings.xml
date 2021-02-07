@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">uScatterbrain</string>
+    <string name="permission_access">net.ballmerlabs.scatterbrain.permission.ACCESS</string>
+    <string name="permission_admin">net.ballmerlabs.scatterbrain.permission.ADMIN</string>
+    <string name="permission_superuser">net.ballmerlabs.scatterbrain.permission.SUPERUSER</string>
+    <string name="permission_group">net.ballmerlabs.scatterbrain.SCATTERBRAIN</string>
+    <string name="description_group">Permissions to control the scatterbrain router</string>
 </resources>

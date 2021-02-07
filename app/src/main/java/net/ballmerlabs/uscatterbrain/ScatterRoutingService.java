@@ -4,9 +4,12 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.Parcel;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -35,31 +38,76 @@ public class ScatterRoutingService extends LifecycleService {
     private RoutingServiceBackend mBackend;
     private static final BehaviorRelay<RoutingServiceComponent> component = BehaviorRelay.create();
     private static final String NOTIFICATION_CHANNEL_FOREGROUND = "foreground";
+    public static final String PERMISSION_DENIED_STR = "permission denied";
     private final AtomicReference<Boolean> bound = new AtomicReference<>(false);
+
+
     private final ScatterbrainAPI.Stub binder = new ScatterbrainAPI.Stub() {
+
+        private boolean checkPermission(String permName) {
+            PackageManager pm = getApplicationContext().getPackageManager();
+            return PackageManager.PERMISSION_GRANTED == pm.checkPermission(permName, getPackageName());
+        }
+
+        private String getPackageName() {
+            // permission check
+            String packageName = null;
+            String[] packages = getPackageManager().getPackagesForUid(getCallingUid());
+            if (packages != null && packages.length > 0) {
+                packageName = packages[0];
+            }
+            if (packageName == null) {
+                return "";
+            }
+
+            return packageName;
+        }
+
+        private void checkAccessPermission() throws RemoteException {
+            if (!checkPermission(getString(R.string.permission_access))) {
+                throw new RemoteException(PERMISSION_DENIED_STR);
+            }
+        }
+
+        private void checkAdminPermission() throws RemoteException {
+            if (!checkPermission(getString(R.string.permission_admin))) {
+                throw new RemoteException(PERMISSION_DENIED_STR);
+            }
+        }
+
+        private void checkSuperuserPermission() throws RemoteException {
+            if (!checkPermission(getString(R.string.permission_superuser))) {
+                throw new RemoteException(PERMISSION_DENIED_STR);
+            }
+        }
 
         @Override
         public ScatterMessage getById(long id) throws RemoteException {
+            checkAccessPermission();
             return mBackend.getDatastore().getApiMessages(id);
         }
 
         @Override
         public List<ScatterMessage> getByApplication(String application) throws RemoteException {
+            checkAccessPermission();
             return mBackend.getDatastore().getApiMessages(application);
         }
 
         @Override
         public List<Identity> getIdentities() throws RemoteException {
-            return mBackend.getDatastore().getAllIdentities();
+            checkAccessPermission();
+                return mBackend.getDatastore().getAllIdentities();
         }
 
         @Override
         public Identity getIdentityByFingerprint(String fingerprint) throws RemoteException {
+            checkAccessPermission();
             return mBackend.getDatastore().getApiIdentityByFingerprint(fingerprint);
         }
 
         @Override
         public void sendMessage(ScatterMessage message) throws RemoteException {
+            checkAccessPermission();
             Disposable ignored = mBackend.getDatastore().insertAndHashFileFromApi(message, ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
                     .subscribe(
                             () -> Log.v(TAG, "api inserted message"),
@@ -72,6 +120,7 @@ public class ScatterRoutingService extends LifecycleService {
 
         @Override
         public void sendMessages(List<ScatterMessage> messages) throws RemoteException {
+            checkAccessPermission();
             Disposable ignored = Observable.fromIterable(messages)
                     .flatMapCompletable(m -> mBackend.getDatastore().insertAndHashFileFromApi(m, ScatterbrainDatastore.DEFAULT_BLOCKSIZE))
                     .subscribe(
@@ -85,21 +134,25 @@ public class ScatterRoutingService extends LifecycleService {
 
         @Override
         public void startDiscovery() throws RemoteException {
+            checkAdminPermission();
             mBackend.getScheduler().start();
         }
 
         @Override
         public void stopDiscovery() throws RemoteException {
+            checkAdminPermission();
             mBackend.getScheduler().stop();
         }
 
         @Override
         public void startPassive() throws RemoteException {
+            checkAdminPermission();
             mBackend.getRadioModule().startServer();
         }
 
         @Override
         public void stopPassive() throws RemoteException {
+            checkAdminPermission();
             mBackend.getRadioModule().stopServer();
         }
     };
