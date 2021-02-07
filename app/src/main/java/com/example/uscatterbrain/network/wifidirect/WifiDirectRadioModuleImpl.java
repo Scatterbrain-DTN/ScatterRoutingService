@@ -11,6 +11,7 @@ import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 
+import com.example.uscatterbrain.RouterPreferences;
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.network.BlockHeaderPacket;
@@ -53,6 +54,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     private final Scheduler operationsScheduler;
     private final ScatterbrainDatastore datastore;
     private final Context mContext;
+    private final RouterPreferences preferences;
     private static final int SCATTERBRAIN_PORT = 7575;
     private static final InterceptableServerSocket.InterceptableServerSocketFactory socketFactory =
             new InterceptableServerSocket.InterceptableServerSocketFactory();
@@ -67,6 +69,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
             WifiP2pManager manager,
             Context context,
             ScatterbrainDatastore datastore,
+            RouterPreferences preferences,
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_READ) Scheduler readScheduler,
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_WRITE) Scheduler writeScheduler,
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_OPERATIONS) Scheduler operationsScheduler
@@ -79,6 +82,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         this.writeScheduler = writeScheduler;
         this.operationsScheduler = operationsScheduler;
         this.datastore = datastore;
+        this.preferences = preferences;
         groupOperationInProgress.set(false);
         groupConnectInProgress.set(false);
         Disposable d = mBroadcastReceiver.observeConnectionInfo()
@@ -440,7 +444,10 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                     .flatMapCompletable(declareHashesPacket -> readBlockDataUke()
                                             .mergeWith(
                                                     writeBlockDataUke(
-                                                            datastore.getTopRandomMessages(32, declareHashesPacket) //TODO: configure this
+                                                            datastore.getTopRandomMessages(
+                                                                    preferences.getInt(RouterPreferences.BLOCKDATA_CAP, 100),
+                                                                    declareHashesPacket
+                                                            )
                                                                     .toFlowable(BackpressureStrategy.BUFFER)
                                                     ))
                     ));
@@ -456,8 +463,11 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                     routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
                                             .ignoreElements()
                                             .andThen(
-                                                    identityPacketSeme(socket, datastore.getTopRandomIdentities(20))
-                                            ) //TODO: configure count
+                                                    identityPacketSeme(
+                                                            socket,
+                                                            datastore.getTopRandomIdentities(preferences.getInt(RouterPreferences.IDENTITY_CAP, 200))
+                                                    )
+                                            )
                                             .reduce(new ArrayList<IdentityPacket>(), (list, packet) -> {
                                                 list.add(packet);
                                                 return list;

@@ -11,6 +11,7 @@ import android.webkit.MimeTypeMap;
 
 import androidx.annotation.Nullable;
 
+import com.example.uscatterbrain.RouterPreferences;
 import com.example.uscatterbrain.RoutingServiceBackend;
 import com.example.uscatterbrain.RoutingServiceComponent;
 import com.example.uscatterbrain.db.entities.ApiIdentity;
@@ -73,6 +74,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     private final File USER_FILES_DIR;
     private final File CACHE_FILES_DIR;
     private final FileObserver userDirectoryObserver;
+    private final RouterPreferences preferences;
     /**
      * constructor
      * @param ctx  application or service context
@@ -81,11 +83,13 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     public ScatterbrainDatastoreImpl(
             Context ctx,
             Datastore datastore,
-            @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) Scheduler databaseScheduler
+            @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) Scheduler databaseScheduler,
+            RouterPreferences preferences
     ) {
         mDatastore = datastore;
         this.ctx = ctx;
         this.databaseScheduler = databaseScheduler;
+        this.preferences = preferences;
 
         mOpenFiles = new ConcurrentHashMap<>();
         USER_FILES_DIR =  new File(ctx.getFilesDir(), USER_FILES_PATH);
@@ -523,7 +527,9 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
 
     @Override
     public Single<DeclareHashesPacket> getDeclareHashesPacket() {
-        return mDatastore.scatterMessageDao().getTopHashes(512) //TODO: configure this
+        return mDatastore.scatterMessageDao().getTopHashes(
+                preferences.getInt(RouterPreferences.DECLARE_HASHES_CAP, 512)
+        )
                 .subscribeOn(databaseScheduler)
                 .doOnSuccess(p -> Log.v(TAG, "retrieved declareHashesPacket from datastore: " + p.size()))
                 .flatMapObservable(Observable::fromIterable)

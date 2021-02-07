@@ -4,11 +4,13 @@ package com.example.uscatterbrain;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.wifi.p2p.WifiP2pManager;
 
 import androidx.room.Room;
 
 import com.example.uscatterbrain.db.Datastore;
+import com.example.uscatterbrain.db.RouterPreferencesImpl;
 import com.example.uscatterbrain.db.ScatterbrainDatastore;
 import com.example.uscatterbrain.db.ScatterbrainDatastoreImpl;
 import com.example.uscatterbrain.db.file.DatastoreImportProvider;
@@ -37,6 +39,8 @@ import io.reactivex.schedulers.Schedulers;
 @Singleton
 @Component(modules = RoutingServiceComponent.RoutingServiceModule.class)
 public interface RoutingServiceComponent {
+
+    String SHARED_PREFS = "scatterbrainprefs";
 
     class NamedSchedulers {
         public static final String DATABASE = "executor_database";
@@ -128,6 +132,11 @@ public interface RoutingServiceComponent {
             return BluetoothAdapter.getDefaultAdapter().getBluetoothLeAdvertiser();
         }
 
+        @Provides
+        static SharedPreferences providesSharedPreferences(Context context) {
+            return context.getSharedPreferences(SHARED_PREFS, Context.MODE_PRIVATE);
+        }
+
         @Binds
         @Singleton
         abstract RoutingServiceBackend bindsRoutingServiceBackend(RoutingServiceBackendImpl impl);
@@ -143,6 +152,10 @@ public interface RoutingServiceComponent {
         @Binds
         @Singleton
         abstract WifiDirectRadioModule bindWifiDirectRadioModule(WifiDirectRadioModuleImpl impl);
+
+        @Binds
+        @Singleton
+        abstract RouterPreferences bindRouterPreferences(RouterPreferencesImpl impl);
 
         @Binds
         @Singleton
