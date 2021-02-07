@@ -43,18 +43,6 @@ public class ScatterRoutingService extends LifecycleService {
         }
 
         @Override
-        public void insertIdentity(Identity identity) throws RemoteException {
-            Disposable ignored = mBackend.getDatastore().insertApiIdentity(identity)
-                    .subscribe(
-                            () -> Log.v(TAG, "successfully inserted identity"),
-                            err -> {
-                                Log.v(TAG, "failed to insert identity: " + identity.getGivenname() + ": " + err);
-                                err.printStackTrace();
-                            }
-                    );
-        }
-
-        @Override
         public List<ScatterMessage> getByApplication(String application) throws RemoteException {
             return mBackend.getDatastore().getApiMessages(application);
         }

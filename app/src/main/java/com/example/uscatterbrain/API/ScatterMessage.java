@@ -11,11 +11,13 @@ import com.example.uscatterbrain.db.ScatterbrainDatastore;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ScatterMessage implements Parcelable {
     protected final byte[] body;
     protected final byte[] fromFingerprint;
     protected final byte[] toFingerprint;
+    protected final AtomicReference<byte[]> sig = new AtomicReference<>();
     protected final String fingerprint;
     protected final String application;
     protected final String extension;

@@ -2,14 +2,19 @@ package com.example.uscatterbrain.db.entities;
 
 import com.example.uscatterbrain.API.Identity;
 import com.example.uscatterbrain.network.IdentityPacket;
-import com.google.protobuf.ByteString;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class ApiIdentity extends Identity {
 
     protected ApiIdentity(Builder builder) {
-        super(builder);
+        super(
+                builder.mPubKeymap,
+                builder.mPubKeymap.get(IdentityPacket.PROTOBUF_PRIVKEY_KEY),
+                builder.name,
+                builder.sig
+        );
     }
 
 
@@ -17,12 +22,12 @@ public class ApiIdentity extends Identity {
         return new Builder();
     }
 
-    protected void setSig(byte[] sig) {
-        this.sig.set(ByteString.copyFrom(sig));
-    }
-
-    public static class Builder extends Identity.Builder {
+    public static class Builder {
         private byte[] sig;
+        private Map<String, byte[]> mPubKeymap = new HashMap<>();
+        private String name;
+        private byte[] pubkey;
+        private byte[] privkey;
         private Builder() {
             super();
         }
@@ -52,9 +57,7 @@ public class ApiIdentity extends Identity {
             }
 
             mPubKeymap.put(IdentityPacket.PROTOBUF_PRIVKEY_KEY, pubkey);
-            final ApiIdentity identity = new ApiIdentity(this);
-            identity.setSig(sig);
-            return identity;
+            return new ApiIdentity(this);
         }
     }
 }

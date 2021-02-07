@@ -400,7 +400,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     kid.fingerprint = getFingerprint(identity);
                     kid.givenName = identity.getGivenname();
                     kid.publicKey = identity.getmScatterbrainPubKey();
-                    kid.signature = identity.getSig().toByteArray();
+                    kid.signature = identity.getSig();
                     id.keys = keys2keysBytes(identity.getmPubKeymap());
                     id.identity = kid;
                     return id;
@@ -416,7 +416,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     kid.fingerprint = getFingerprint(identity);
                     kid.givenName = identity.getGivenname();
                     kid.publicKey = identity.getmScatterbrainPubKey();
-                    kid.signature = identity.getSig().toByteArray();
+                    kid.signature = identity.getSig();
                     id.keys = keys2keysBytes(identity.getmPubKeymap());
                     id.identity = kid;
                     return id;
