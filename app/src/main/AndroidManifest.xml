@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.example.uscatterbrain">
+    package="net.ballmerlabs.uscatterbrain">
 
     <uses-permission android:name="android.permission.BLUETOOTH"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
@@ -22,12 +22,12 @@
         android:targetSdkVersion="23">
 
         <service
-            android:name=".ScatterRoutingService"
+            android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService"
             android:exported="true"/>
 
         <provider
-            android:authorities="com.example.uscatterbrain.documents"
-            android:name=".db.file.DatastoreImportProviderImpl"
+            android:authorities="net.ballmerlabs.uscatterbrain.documents"
+            android:name="net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl"
             android:grantUriPermissions="true"
             android:exported="true"
             android:permission="android.permission.MANAGE_DOCUMENTS">

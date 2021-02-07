@@ -1,5 +1,5 @@
 syntax = "proto3";
-option java_package = "com.example.uscatterbrain";
+option java_package = "net.ballmerlabs.uscatterbrain";
 option java_outer_classname = "ScatterProto";
 
 
