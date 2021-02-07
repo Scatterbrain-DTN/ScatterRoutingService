@@ -42,7 +42,7 @@ public class UpgradePacket implements ScatterSerializable {
     }
 
     private UpgradePacket(InputStream is) throws IOException {
-        this.mUpgrade = ScatterProto.Upgrade.parseDelimitedFrom(is);
+        this.mUpgrade = CRCProtobuf.parseFromCRC(ScatterProto.Upgrade.parser(), is);
         this.mSessionID = this.mUpgrade.getSessionid();
         this.mProvides = AdvertisePacket.valToProvides(this.mUpgrade.getProvides());
         this.mMetadata = this.mUpgrade.getMetadataMap();
@@ -74,7 +74,7 @@ public class UpgradePacket implements ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            mUpgrade.writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(mUpgrade, os);
             return os.toByteArray();
         } catch (IOException e) {
             return null;
@@ -88,7 +88,7 @@ public class UpgradePacket implements ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> mUpgrade.writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(mUpgrade, os));
     }
 
     @Override

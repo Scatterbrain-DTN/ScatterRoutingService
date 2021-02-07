@@ -129,7 +129,7 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
     }
 
     private IdentityPacket(InputStream is, Context mCtx) throws IOException, GeneralSecurityException {
-        ScatterProto.Identity identity = ScatterProto.Identity.parseDelimitedFrom(is);
+        ScatterProto.Identity identity = CRCProtobuf.parseFromCRC(ScatterProto.Identity.parser(), is);
         this.mCtx = mCtx;
         if (identity.getMessageCase().equals(ScatterProto.Identity.MessageCase.VAL)) {
             initKeyStore();
@@ -251,7 +251,7 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            this.mIdentity.get().writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(mIdentity.get(), os);
             return os.toByteArray();
         } catch (IOException e) {
             return null;
@@ -265,7 +265,7 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> mIdentity.get().writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(mIdentity.get(), os));
     }
 
     @Override

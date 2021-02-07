@@ -61,13 +61,9 @@ public abstract class InputStreamCallback extends InputStream {
             throw new IOException("closed");
         }
 
-        if (complete && buf.size() == 0) {
-            return -1;
-        }
-
         synchronized (buf) {
             try {
-                while (buf.size() == 0) {
+                while ((buf.size() < len) && !complete) {
                     readLock.acquire();
                 }
                 int l = Math.min(len, buf.size());
@@ -137,16 +133,16 @@ public abstract class InputStreamCallback extends InputStream {
             throw new IOException("closed");
         }
 
-        if (complete && buf.size() == 0) {
-            return -1;
-        }
-
         synchronized (buf) {
             try {
-                while (buf.size() == 0) {
+                while ((buf.size() == 0) && !complete) {
                     readLock.acquire();
                 }
-                return buf.get();
+                if (complete) {
+                    return -1;
+                } else {
+                    return buf.get();
+                }
             } catch (InterruptedException ignored) {
                 return -1;
             }

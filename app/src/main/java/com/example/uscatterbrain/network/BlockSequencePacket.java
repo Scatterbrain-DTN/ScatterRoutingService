@@ -97,7 +97,7 @@ public class BlockSequencePacket implements ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            this.mBlockSequence.writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(mBlockSequence, os);
             return os.toByteArray();
         } catch (IOException e) {
             return null;
@@ -111,7 +111,7 @@ public class BlockSequencePacket implements ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> mBlockSequence.writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(mBlockSequence, os));
     }
 
     @Override
@@ -135,7 +135,7 @@ public class BlockSequencePacket implements ScatterSerializable {
     }
 
     private BlockSequencePacket(InputStream is) throws IOException {
-        this.mBlockSequence = ScatterProto.BlockSequence.parseDelimitedFrom(is);
+        this.mBlockSequence = CRCProtobuf.parseFromCRC(ScatterProto.BlockSequence.parser(), is);
         if (mBlockSequence.getDataCase() == ScatterProto.BlockSequence.DataCase.DATA_CONTENTS) {
             this.mData = mBlockSequence.getDataContents();
             this.dataNative = false;

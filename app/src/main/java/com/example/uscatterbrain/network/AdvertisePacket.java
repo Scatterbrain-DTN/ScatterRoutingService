@@ -84,7 +84,7 @@ public class AdvertisePacket implements ScatterSerializable {
     }
 
     private AdvertisePacket(InputStream is) throws IOException {
-        mAdvertise =  ScatterProto.Advertise.parseDelimitedFrom(is);
+        mAdvertise =  CRCProtobuf.parseFromCRC(ScatterProto.Advertise.parser(), is);
         mProvides = valToProvidesArray(mAdvertise.getProvidesList());
     }
 
@@ -123,7 +123,7 @@ public class AdvertisePacket implements ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            this.mAdvertise.writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(mAdvertise, os);
             return os.toByteArray();
         } catch (IOException e) {
             return null;
@@ -137,7 +137,7 @@ public class AdvertisePacket implements ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> mAdvertise.writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(mAdvertise, os));
     }
 
     @Override

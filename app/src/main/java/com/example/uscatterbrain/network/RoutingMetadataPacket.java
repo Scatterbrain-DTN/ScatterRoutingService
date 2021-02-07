@@ -30,7 +30,7 @@ public class RoutingMetadataPacket implements ScatterSerializable {
 
     private UUID luid;
     private RoutingMetadataPacket(InputStream inputStream) throws IOException {
-        this.routingMetadata = ScatterProto.RoutingMetadata.parseDelimitedFrom(inputStream);
+        this.routingMetadata = CRCProtobuf.parseFromCRC(ScatterProto.RoutingMetadata.parser(), inputStream);
         addMap(this.routingMetadata.getKeyvalMap());
     }
 
@@ -75,7 +75,7 @@ public class RoutingMetadataPacket implements ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            routingMetadata.writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(routingMetadata, os);
             return os.toByteArray();
         } catch (IOException ignored) {
             return null;
@@ -89,7 +89,7 @@ public class RoutingMetadataPacket implements ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> routingMetadata.writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(routingMetadata, os));
     }
 
     @Override

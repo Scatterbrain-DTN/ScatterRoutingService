@@ -24,7 +24,7 @@ public class DeclareHashesPacket implements ScatterSerializable {
     private UUID luid;
 
     private DeclareHashesPacket(InputStream inputStream) throws IOException {
-        this.declareHashes = ScatterProto.DeclareHashes.parseDelimitedFrom(inputStream);
+        this.declareHashes = CRCProtobuf.parseFromCRC(ScatterProto.DeclareHashes.parser(), inputStream);
     }
 
     private DeclareHashesPacket(Builder builder) {
@@ -38,7 +38,7 @@ public class DeclareHashesPacket implements ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            declareHashes.writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(declareHashes, os);
             return os.toByteArray();
         } catch (IOException ignored) {
             return null;
@@ -52,7 +52,7 @@ public class DeclareHashesPacket implements ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> declareHashes.writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(declareHashes, os));
     }
 
     @Override

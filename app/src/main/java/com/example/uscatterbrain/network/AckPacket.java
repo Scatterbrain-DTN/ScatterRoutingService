@@ -42,7 +42,7 @@ public class AckPacket implements ScatterSerializable {
     }
 
     private AckPacket(InputStream inputStream) throws IOException {
-        this.mAck = ScatterProto.Ack.parseDelimitedFrom(inputStream);
+        this.mAck = CRCProtobuf.parseFromCRC(ScatterProto.Ack.parser(), inputStream);
     }
 
     public static Single<AckPacket> parseFrom(InputStream inputStream) {
@@ -106,7 +106,7 @@ public class AckPacket implements ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            mAck.writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(mAck, os);
             return os.toByteArray();
         } catch (IOException ignored) {
             return null;
@@ -120,7 +120,7 @@ public class AckPacket implements ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> mAck.writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(mAck, os));
     }
 
     @Override

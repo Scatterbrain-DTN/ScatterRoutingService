@@ -123,7 +123,7 @@ public class ElectLeaderPacket implements ScatterSerializable {
     }
 
     private ElectLeaderPacket(InputStream inputStream) throws IOException {
-        this.mElectLeader = ScatterProto.ElectLeader.parseDelimitedFrom(inputStream);
+        this.mElectLeader = CRCProtobuf.parseFromCRC(ScatterProto.ElectLeader.parser(), inputStream);
         if (this.mElectLeader.getValCase().compareTo(ScatterProto.ElectLeader.ValCase.VAL_BODY) == 0) {
             this.salt = mElectLeader.getValBody().getSalt().toByteArray();
         } else {
@@ -172,7 +172,7 @@ public class ElectLeaderPacket implements ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            mElectLeader.writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(mElectLeader, os);
             return os.toByteArray();
         } catch (IOException ignored) {
             return null;
@@ -186,7 +186,7 @@ public class ElectLeaderPacket implements ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> mElectLeader.writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(mElectLeader, os));
     }
 
     @Override

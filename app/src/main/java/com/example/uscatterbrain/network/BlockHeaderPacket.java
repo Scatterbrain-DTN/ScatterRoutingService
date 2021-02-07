@@ -178,7 +178,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
     }
 
     private BlockHeaderPacket(InputStream in) throws IOException {
-        this.blockdata = ScatterProto.BlockData.parseDelimitedFrom(in);
+        this.blockdata = CRCProtobuf.parseFromCRC(ScatterProto.BlockData.parser(), in);
         this.mApplication = blockdata.getApplicationBytes().toByteArray();
         Log.e("debug ", "header nexthashes count" + blockdata.getNexthashesList().size());
         Log.e("debug", "header nexthashes raw count " + blockdata.getNexthashesCount());
@@ -235,7 +235,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            this.blockdata.writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(blockdata, os);
             return os.toByteArray();
         } catch (IOException e) {
             return null;
@@ -249,7 +249,7 @@ public class BlockHeaderPacket implements ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> blockdata.writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(blockdata, os));
     }
 
     @Override

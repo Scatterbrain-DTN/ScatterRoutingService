@@ -40,7 +40,7 @@ public class LuidPacket implements ScatterSerializable {
     }
 
     private LuidPacket(InputStream is) throws IOException {
-        mLuid = ScatterProto.Luid.parseDelimitedFrom(is);
+        mLuid = CRCProtobuf.parseFromCRC(ScatterProto.Luid.parser(), is);
         isHashed = mLuid.getValCase() == ScatterProto.Luid.ValCase.VAL_HASH;
     }
 
@@ -130,7 +130,7 @@ public class LuidPacket implements ScatterSerializable {
     public byte[] getBytes() {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try {
-            mLuid.writeDelimitedTo(os);
+            CRCProtobuf.writeToCRC(mLuid, os);
             return os.toByteArray();
         } catch (IOException ignored) {
             return null;
@@ -144,7 +144,7 @@ public class LuidPacket implements ScatterSerializable {
 
     @Override
     public Completable writeToStream(OutputStream os) {
-        return Completable.fromAction(() -> mLuid.writeDelimitedTo(os));
+        return Completable.fromAction(() -> CRCProtobuf.writeToCRC(mLuid, os));
     }
 
     @Override
