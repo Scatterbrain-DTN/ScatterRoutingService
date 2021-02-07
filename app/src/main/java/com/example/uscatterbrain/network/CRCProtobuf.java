@@ -14,6 +14,7 @@ import java.util.zip.CRC32;
 public class CRCProtobuf {
 
     private static final long MASK = 0xFFFFFFFFL;
+    private static final int MESSAGE_SIZE_CAP = 1024*1024;
 
     public static long bytes2long(byte[] payload) {
         ByteBuffer buffer = ByteBuffer.wrap(payload);
@@ -35,6 +36,11 @@ public class CRCProtobuf {
             throw new IOException("end of stream");
         }
         int s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).getInt();
+        
+        if (s > MESSAGE_SIZE_CAP) {
+            throw new IOException("invalid message size");
+        }
+
         CodedInputStream co = CodedInputStream.newInstance(inputStream, s+1);
         byte[] messageBytes = co.readRawBytes(s);
         T message = parser.parseFrom(messageBytes);
