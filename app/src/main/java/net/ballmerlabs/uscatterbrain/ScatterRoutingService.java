@@ -16,11 +16,13 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LifecycleService;
 
+import com.google.protobuf.Api;
 import com.jakewharton.rxrelay2.BehaviorRelay;
 
 import net.ballmerlabs.uscatterbrain.API.Identity;
 import net.ballmerlabs.uscatterbrain.API.ScatterMessage;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
+import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity;
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
@@ -154,6 +156,30 @@ public class ScatterRoutingService extends LifecycleService {
         public void stopPassive() throws RemoteException {
             checkAdminPermission();
             mBackend.getRadioModule().stopServer();
+        }
+
+        @Override
+        public Identity generateIdentity(String name) throws RemoteException {
+            checkAdminPermission();
+            ApiIdentity identity = ApiIdentity.newBuilder()
+                    .setName(name)
+                    .sign(ApiIdentity.newPrivateKey())
+                    .build();
+            return mBackend.getDatastore().insertApiIdentity(identity)
+                    .toSingleDefault(identity)
+                    .blockingGet();
+        }
+
+        @Override
+        public void authorizeApp(String identity, String packagename) throws RemoteException {
+            checkSuperuserPermission();
+            //TODO:
+        }
+
+        @Override
+        public void deauthorizeApp(String identity, String packagename) throws RemoteException {
+            checkSuperuserPermission();
+            //TODO:
         }
     };
 

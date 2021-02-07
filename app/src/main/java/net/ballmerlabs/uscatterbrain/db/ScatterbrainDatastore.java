@@ -3,7 +3,11 @@ package net.ballmerlabs.uscatterbrain.db;
 import android.provider.DocumentsContract;
 import android.webkit.MimeTypeMap;
 
+import com.google.protobuf.ByteString;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
+
 import net.ballmerlabs.uscatterbrain.API.Identity;
+import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity;
 import net.ballmerlabs.uscatterbrain.db.entities.Hashes;
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage;
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity;
@@ -14,8 +18,6 @@ import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket;
 import net.ballmerlabs.uscatterbrain.network.IdentityPacket;
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface;
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
-import com.google.protobuf.ByteString;
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
 import java.io.Closeable;
 import java.io.File;
@@ -113,7 +115,7 @@ public interface ScatterbrainDatastore {
 
     Single<ScatterMessage> getMessageByPath(String path);
 
-    Completable insertApiIdentity(Identity identity);
+    Completable insertApiIdentity(ApiIdentity identity);
 
     Completable insertApiIdentities(List<Identity> identities);
 

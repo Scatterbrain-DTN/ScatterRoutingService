@@ -31,4 +31,7 @@ public class KeylessIdentity {
 
     @ColumnInfo(name = "fingerprint")
     public String fingerprint;
+
+    @ColumnInfo(name = "privatekey")
+    public byte[] privatekey;
 }

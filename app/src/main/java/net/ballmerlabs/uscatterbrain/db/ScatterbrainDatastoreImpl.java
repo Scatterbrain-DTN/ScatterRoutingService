@@ -392,7 +392,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public Completable insertApiIdentity(net.ballmerlabs.uscatterbrain.API.Identity ids) {
+    public Completable insertApiIdentity(ApiIdentity ids) {
         return Single.just(ids)
                 .map(identity -> {
                     final Identity id = new Identity();
@@ -401,6 +401,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     kid.givenName = identity.getGivenname();
                     kid.publicKey = identity.getmScatterbrainPubKey();
                     kid.signature = identity.getSig();
+                    kid.privatekey = identity.getPrivateKey();
                     id.keys = keys2keysBytes(identity.getmPubKeymap());
                     id.identity = kid;
                     return id;
@@ -555,7 +556,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     return ApiIdentity.newBuilder()
                             .setName(identity.identity.givenName)
                             .addKeys(keys2map(identity.keys))
-                            .sign(identity.identity.signature)
+                            .setSig(identity.identity.signature)
                             .build();
                 }).blockingGet();
     }
@@ -569,7 +570,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .map(identity -> ApiIdentity.newBuilder()
                         .setName(identity.identity.givenName)
                         .addKeys(keys2map(identity.keys))
-                        .sign(identity.identity.signature)
+                        .setSig(identity.identity.signature)
                         .build()
                 ).reduce(new ArrayList<net.ballmerlabs.uscatterbrain.API.Identity>(), (list, id) -> {
                     list.add(id);

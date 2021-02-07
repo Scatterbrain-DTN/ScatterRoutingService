@@ -24,4 +24,10 @@ interface ScatterbrainAPI {
     void startPassive();
 
     void stopPassive();
+
+    Identity generateIdentity(in String name);
+
+    void authorizeApp(in String identity, in String packagename);
+
+    void deauthorizeApp(in String identity, in String packagename);
 }

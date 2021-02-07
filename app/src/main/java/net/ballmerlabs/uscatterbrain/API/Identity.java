@@ -6,15 +6,13 @@ import android.os.Parcelable;
 
 import androidx.annotation.NonNull;
 
-import net.ballmerlabs.uscatterbrain.network.IdentityPacket;
-import com.google.protobuf.ByteString;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
+
+import net.ballmerlabs.uscatterbrain.network.IdentityPacket;
 
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 public class Identity implements Parcelable {
 
@@ -112,21 +110,6 @@ public class Identity implements Parcelable {
         parcel.writeString(givenname);
         parcel.writeInt(sig.length);
         parcel.writeByteArray(sig);
-    }
-
-    public ByteString sumBytes() {
-        ByteString result = ByteString.EMPTY;
-        result = result.concat(ByteString.copyFromUtf8(givenname));
-        SortedSet<String> sortedKeys= new TreeSet<>(mPubKeymap.keySet());
-        for (String key : sortedKeys) {
-            result = result.concat(ByteString.copyFromUtf8(key));
-            ByteString val = ByteString.copyFrom(mPubKeymap.get(key));
-            if (val == null) {
-                return null;
-            }
-            result = result.concat(val);
-        }
-        return result;
     }
 
     public Map<String, byte[]> getmPubKeymap() {
