@@ -11,6 +11,7 @@ import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.os.Build;
 import android.os.ParcelUuid;
+import android.os.PowerManager;
 import android.util.Log;
 import android.util.Pair;
 
@@ -61,7 +62,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     public static final int NUM_CHANNELS = 8;
     public static final UUID SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90");
     public static final UUID UUID_SEMAPHOR = UUID.fromString("3429e76d-242a-4966-b4b3-301f28ac3ef2");
+    public static final String WAKE_LOCK_TAG = "com.example.uscatterbrain::scatterbrainwakelock";
     public static final ConcurrentHashMap<UUID, LockedCharactersitic> channels = new ConcurrentHashMap<>();
+    private final PowerManager powerManager;
+    private final AtomicReference<PowerManager.WakeLock> wakeLock = new AtomicReference<>();
 
 
     public static final BluetoothGattService mService = new BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY);
@@ -153,11 +157,13 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             RxBleServer rxBleServer,
             RxBleClient rxBleClient,
             WifiDirectRadioModule wifiDirectRadioModule,
-            ScatterbrainDatastore datastore
+            ScatterbrainDatastore datastore,
+            PowerManager powerManager
             ) {
         mContext = context;
         mAdvertiser = advertiser;
         this.clientScheduler = bluetoothScheduler;
+        this.powerManager = powerManager;
         this.mServer = rxBleServer;
         this.mClient = rxBleClient;
         this.wifiDirectRadioModule = wifiDirectRadioModule;
@@ -169,11 +175,31 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         Disposable d = this.transactionCompleteRelay.subscribe(
                 next -> {
                     Log.v(TAG, "transaction complete, randomizing luid");
+                    releaseWakeLock();
                     myLuid.set(UUID.randomUUID());
                 },
                 err -> Log.e(TAG, "error in transactionCompleteRelay " + err)
         );
         mGattDisposable.add(d);
+    }
+
+    protected void acquireWakelock() {
+        wakeLock.updateAndGet(w -> {
+            final PowerManager.WakeLock wake;
+            if (w == null) {
+                wake = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG);
+            } else {
+                wake = w;
+            }
+            return wake;
+        }).acquire(10*60*1000L /*10 minutes*/);
+    }
+
+    protected void releaseWakeLock() {
+       final PowerManager.WakeLock w = wakeLock.getAndUpdate(wl -> null);
+       if (w != null) {
+           w.release();
+       }
     }
 
     @Override
@@ -558,6 +584,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                         return Observable.error(new IllegalStateException("device was null"));
                     }
 
+                    acquireWakelock();
+
                     Log.d(TAG, "gatt server connection from " + connection.getConnection().getDevice().getAddress());
                     return initializeProtocol(connection.getConnection().getDevice())
                             .flatMapObservable(session -> {
@@ -628,6 +656,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 .subscribe(
                         () -> Log.e(TAG, "gatt server completed. This should not happen"),
                         err -> {
+                            releaseWakeLock();
                             Log.e(TAG, "gatt server shut down with error: " + err);
                             err.printStackTrace();
                         });

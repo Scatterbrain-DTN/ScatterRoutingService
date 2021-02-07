@@ -36,7 +36,7 @@ public class CRCProtobuf {
             throw new IOException("end of stream");
         }
         int s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).getInt();
-        
+
         if (s > MESSAGE_SIZE_CAP) {
             throw new IOException("invalid message size");
         }

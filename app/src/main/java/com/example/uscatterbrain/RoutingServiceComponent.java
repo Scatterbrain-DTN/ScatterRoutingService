@@ -6,6 +6,7 @@ import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.wifi.p2p.WifiP2pManager;
+import android.os.PowerManager;
 
 import androidx.room.Room;
 
@@ -135,6 +136,11 @@ public interface RoutingServiceComponent {
         @Provides
         static SharedPreferences providesSharedPreferences(Context context) {
             return context.getSharedPreferences(SHARED_PREFS, Context.MODE_PRIVATE);
+        }
+
+        @Provides
+        static PowerManager providesPowerManager(Context context) {
+            return (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         }
 
         @Binds
