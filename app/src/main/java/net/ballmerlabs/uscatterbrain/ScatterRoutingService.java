@@ -110,28 +110,16 @@ public class ScatterRoutingService extends LifecycleService {
         @Override
         public void sendMessage(ScatterMessage message) throws RemoteException {
             checkAccessPermission();
-            Disposable ignored = mBackend.getDatastore().insertAndHashFileFromApi(message, ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
-                    .subscribe(
-                            () -> Log.v(TAG, "api inserted message"),
-                            err -> {
-                                Log.e(TAG, "api failed to insert message: " + err);
-                                err.printStackTrace();
-                            }
-                    );
+            mBackend.getDatastore().insertAndHashFileFromApi(message, ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
+                    .blockingAwait();
         }
 
         @Override
         public void sendMessages(List<ScatterMessage> messages) throws RemoteException {
             checkAccessPermission();
-            Disposable ignored = Observable.fromIterable(messages)
+            Observable.fromIterable(messages)
                     .flatMapCompletable(m -> mBackend.getDatastore().insertAndHashFileFromApi(m, ScatterbrainDatastore.DEFAULT_BLOCKSIZE))
-                    .subscribe(
-                            () -> Log.v(TAG, "api inserted message"),
-                            err -> {
-                                Log.e(TAG, "api failed to insert message: " + err);
-                                err.printStackTrace();
-                            }
-                    );
+                    .blockingAwait();
         }
 
         @Override
