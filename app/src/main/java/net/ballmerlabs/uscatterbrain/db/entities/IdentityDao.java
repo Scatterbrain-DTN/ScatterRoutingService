@@ -8,6 +8,8 @@ import androidx.room.Transaction;
 
 import java.util.List;
 
+import javax.inject.Inject;
+
 import io.reactivex.Completable;
 import io.reactivex.Maybe;
 import io.reactivex.Single;
@@ -46,6 +48,12 @@ public interface IdentityDao {
     Single<Long> insert(KeylessIdentity identity);
 
     @Insert
+    Single<List<Long>> insertClientApps(List<ClientApp> clientApps);
+
+    @Insert
+    Completable insertClientApp(ClientApp... apps);
+
+    @Insert
     Single<List<Long>> insertAll(KeylessIdentity... identities);
 
     @Insert
@@ -59,4 +67,7 @@ public interface IdentityDao {
 
     @Delete
     Completable delete(KeylessIdentity identity);
+
+    @Delete
+    Completable deleteClientApps(ClientApp... apps);
 }

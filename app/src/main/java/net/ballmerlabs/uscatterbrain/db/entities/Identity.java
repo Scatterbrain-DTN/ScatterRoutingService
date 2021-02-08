@@ -14,4 +14,10 @@ public class Identity {
             entityColumn = "identityFK"
     )
     public List<Keys> keys;
+
+    @Relation(
+            parentColumn = "identityID",
+            entityColumn = "identityFK"
+    )
+    public List<ClientApp> clientACL;
 }

@@ -11,10 +11,15 @@ import android.webkit.MimeTypeMap;
 
 import androidx.annotation.Nullable;
 
+import com.github.davidmoten.rx2.Bytes;
+import com.google.protobuf.ByteString;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
+
 import net.ballmerlabs.uscatterbrain.RouterPreferences;
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackend;
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity;
+import net.ballmerlabs.uscatterbrain.db.entities.ClientApp;
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage;
 import net.ballmerlabs.uscatterbrain.db.entities.Identity;
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity;
@@ -27,9 +32,6 @@ import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket;
 import net.ballmerlabs.uscatterbrain.network.IdentityPacket;
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface;
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
-import com.github.davidmoten.rx2.Bytes;
-import com.google.protobuf.ByteString;
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -362,7 +364,27 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     })
                                     .flatMapCompletable(l -> mDatastore.identityDao().insertKeys(l)
                                             .subscribeOn(databaseScheduler)
-                                            .ignoreElement());
+                                            .ignoreElement()
+                                    )
+                                    .andThen(
+                                            Observable.fromCallable(
+                                                    () -> singleid.clientACL != null ? singleid.clientACL : new ArrayList<ClientApp>()
+                                            )
+                                            .flatMap(Observable::fromIterable)
+                                            .map(acl -> {
+                                                acl.identityFK = result;
+                                                return acl;
+                                            })
+                                            .reduce(new ArrayList<ClientApp>(), (list, acl) -> {
+                                                list.add(acl);
+                                                return list;
+                                            })
+                                            .flatMapCompletable(a ->
+                                                    mDatastore.identityDao().insertClientApps(a)
+                                                    .subscribeOn(databaseScheduler)
+                                                    .ignoreElement()
+                                            )
+                                    );
                         })
         );
     }
@@ -389,6 +411,30 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         );
 
         return LibsodiumInterface.base64enc(fingeprint);
+    }
+
+    @Override
+    public Completable addACLs(String identityFingerprint, String packagename, String appsig) {
+        return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
+                .flatMapCompletable(identity -> {
+                    ClientApp app = new ClientApp();
+                    app.identityFK = identity.identity.identityID;
+                    app.packageName = packagename;
+                    app.packageSignature = appsig;
+                    return mDatastore.identityDao().insertClientApp(app);
+                });
+    }
+
+    @Override
+    public Completable deleteACLs(String identityFingerprint, String packageName, String appsig) {
+        return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
+                .flatMapCompletable(identity -> {
+                    ClientApp app = new ClientApp();
+                    app.identityFK = identity.identity.identityID;
+                    app.packageName = packageName;
+                    app.packageSignature = appsig;
+                    return mDatastore.identityDao().deleteClientApps(app);
+                });
     }
 
     @Override

@@ -121,6 +121,10 @@ public interface ScatterbrainDatastore {
 
     Identity getApiIdentityByFingerprint(String fingerprint);
 
+    Completable addACLs(String identityFingerprint, String packagename, String appsig);
+
+    Completable deleteACLs(String identityFingerprint, String packageName, String appsig);
+
     int messageCount();
 
     int deleteByPath(File path);

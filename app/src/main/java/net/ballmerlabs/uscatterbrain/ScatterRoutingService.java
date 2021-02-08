@@ -6,17 +6,22 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.os.Binder;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.lifecycle.LifecycleService;
 
 import com.google.protobuf.Api;
+import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.jakewharton.rxrelay2.BehaviorRelay;
 
 import net.ballmerlabs.uscatterbrain.API.Identity;
@@ -27,6 +32,8 @@ import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 
+import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -158,16 +165,36 @@ public class ScatterRoutingService extends LifecycleService {
                     .blockingGet();
         }
 
+        @RequiresApi(api = Build.VERSION_CODES.P)
         @Override
         public void authorizeApp(String identity, String packagename) throws RemoteException {
             checkSuperuserPermission();
-            //TODO:
+            try {
+                PackageInfo info = getPackageManager().getPackageInfo(packagename, PackageManager.GET_SIGNING_CERTIFICATES);
+                for (Signature signature : info.signingInfo.getSigningCertificateHistory()) {
+                    final String sig = signature.toCharsString();
+                    mBackend.getDatastore().addACLs(identity, packagename, sig).blockingAwait();
+                }
+            } catch (PackageManager.NameNotFoundException e) {
+                throw new RemoteException("invalid package name");
+            }
+
         }
 
+        @RequiresApi(api = Build.VERSION_CODES.P)
         @Override
         public void deauthorizeApp(String identity, String packagename) throws RemoteException {
             checkSuperuserPermission();
-            //TODO:
+            try {
+                PackageInfo info = getPackageManager().getPackageInfo(packagename, PackageManager.GET_SIGNING_CERTIFICATES);
+                for (Signature signature : info.signingInfo.getSigningCertificateHistory()) {
+                    final String sig = signature.toCharsString();
+                    mBackend.getDatastore().deleteACLs(identity, packagename, sig).blockingAwait();
+                }
+
+            } catch (PackageManager.NameNotFoundException e) {
+                throw new RemoteException("invalid package name");
+            }
         }
     };
 
