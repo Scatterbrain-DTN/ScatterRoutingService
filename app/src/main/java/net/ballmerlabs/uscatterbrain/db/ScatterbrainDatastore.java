@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
 
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
+import io.reactivex.Maybe;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 
@@ -119,11 +120,13 @@ public interface ScatterbrainDatastore {
 
     Completable insertApiIdentities(List<Identity> identities);
 
-    Identity getApiIdentityByFingerprint(String fingerprint);
+    ApiIdentity getApiIdentityByFingerprint(String fingerprint);
 
     Completable addACLs(String identityFingerprint, String packagename, String appsig);
 
     Completable deleteACLs(String identityFingerprint, String packageName, String appsig);
+
+    Maybe<ApiIdentity.KeyPair> getIdentityKey(String identity);
 
     int messageCount();
 
@@ -166,9 +169,11 @@ public interface ScatterbrainDatastore {
 
     net.ballmerlabs.uscatterbrain.API.ScatterMessage getApiMessages(long id);
 
-    Completable insertAndHashFileFromApi(net.ballmerlabs.uscatterbrain.API.ScatterMessage message, int blocksize);
+    Completable insertAndHashFileFromApi(ApiScatterMessage message, int blocksize);
 
     Single<DeclareHashesPacket> getDeclareHashesPacket();
+
+    Single<List<ACL>> getACLs(String identity);
 
     enum FileCallbackResult {
         ERR_FILE_EXISTS,
@@ -191,6 +196,16 @@ public interface ScatterbrainDatastore {
 
     static String sanitizeFilename(String name) {
         return FILE_SANITIZE.matcher(name).replaceAll("-");
+    }
+
+    class ACL {
+        public final String packageName;
+        public final String appsig;
+
+        public ACL(String packageName, String appsig) {
+            this.packageName = packageName;
+            this.appsig = appsig;
+        }
     }
 
     static String getNoFilename(byte[] body) {

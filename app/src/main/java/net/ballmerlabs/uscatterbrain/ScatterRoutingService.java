@@ -4,7 +4,6 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -12,7 +11,6 @@ import android.content.pm.Signature;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
-import android.os.Parcel;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -20,26 +18,22 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.lifecycle.LifecycleService;
 
-import com.google.protobuf.Api;
-import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.jakewharton.rxrelay2.BehaviorRelay;
 
 import net.ballmerlabs.uscatterbrain.API.Identity;
 import net.ballmerlabs.uscatterbrain.API.ScatterMessage;
+import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity;
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 
-import java.security.MessageDigest;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
-import io.reactivex.disposables.Disposable;
 
 public class ScatterRoutingService extends LifecycleService {
     public final String TAG = "ScatterRoutingService";
@@ -55,10 +49,10 @@ public class ScatterRoutingService extends LifecycleService {
 
         private boolean checkPermission(String permName) {
             PackageManager pm = getApplicationContext().getPackageManager();
-            return PackageManager.PERMISSION_GRANTED == pm.checkPermission(permName, getPackageName());
+            return PackageManager.PERMISSION_GRANTED == pm.checkPermission(permName, getCallingPackageName());
         }
 
-        private String getPackageName() {
+        private synchronized String getCallingPackageName() {
             // permission check
             String packageName = null;
             String[] packages = getPackageManager().getPackagesForUid(getCallingUid());
@@ -70,6 +64,31 @@ public class ScatterRoutingService extends LifecycleService {
             }
 
             return packageName;
+        }
+
+        @RequiresApi(api = Build.VERSION_CODES.P)
+        private synchronized void verifyCallingSig(ScatterbrainDatastore.ACL acl) throws RemoteException {
+            try {
+                final String name = getCallingPackageName();
+                if (!name.equals(acl.packageName)) {
+                    throw new RemoteException("invalid packagename, access denied");
+                }
+
+                PackageInfo info = getPackageManager().getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES);
+                boolean failed = true;
+                for (Signature signature : info.signingInfo.getSigningCertificateHistory()) {
+                    final String sigtoverify = signature.toCharsString();
+                    if (sigtoverify.equals(acl.appsig)) {
+                        failed = false;
+                    }
+                }
+
+                if (failed) {
+                    throw new RemoteException("invalid signature, access denied");
+                }
+            } catch (PackageManager.NameNotFoundException e) {
+                throw new RemoteException("invalid package name");
+            }
         }
 
         private void checkAccessPermission() throws RemoteException {
@@ -117,7 +136,7 @@ public class ScatterRoutingService extends LifecycleService {
         @Override
         public void sendMessage(ScatterMessage message) throws RemoteException {
             checkAccessPermission();
-            mBackend.getDatastore().insertAndHashFileFromApi(message, ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
+            mBackend.getDatastore().insertAndHashFileFromApi(ApiScatterMessage.fromApi(message), ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
                     .blockingAwait();
         }
 
@@ -125,8 +144,25 @@ public class ScatterRoutingService extends LifecycleService {
         public void sendMessages(List<ScatterMessage> messages) throws RemoteException {
             checkAccessPermission();
             Observable.fromIterable(messages)
-                    .flatMapCompletable(m -> mBackend.getDatastore().insertAndHashFileFromApi(m, ScatterbrainDatastore.DEFAULT_BLOCKSIZE))
+                    .flatMapCompletable(m -> mBackend.getDatastore().insertAndHashFileFromApi(
+                            ApiScatterMessage.fromApi(m),
+                            ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
+                    )
                     .blockingAwait();
+        }
+
+
+        @RequiresApi(api = Build.VERSION_CODES.P)
+        @Override
+        public void sendAndSignMessage(ScatterMessage message, String identity) throws RemoteException {
+            final List<ScatterbrainDatastore.ACL> acls = mBackend.getDatastore().getACLs(identity).blockingGet();
+            for (ScatterbrainDatastore.ACL acl : acls) {
+                verifyCallingSig(acl);
+            }
+            mBackend.getDatastore().getIdentityKey(identity)
+                    .flatMapCompletable(id -> mBackend.getDatastore().insertAndHashFileFromApi(
+                            ApiScatterMessage.fromApi(message, id),
+                            ScatterbrainDatastore.DEFAULT_BLOCKSIZE)).blockingAwait();
         }
 
         @Override

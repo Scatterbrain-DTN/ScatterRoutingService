@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.db.entities;
 import androidx.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
@@ -25,7 +26,8 @@ public class ApiIdentity extends Identity {
                 builder.mPubKeymap,
                 builder.mPubKeymap.get(IdentityPacket.PROTOBUF_PRIVKEY_KEY),
                 builder.name,
-                builder.sig
+                builder.sig,
+                builder.fingerprint
         );
 
         this.privatekey = builder.privkey;
@@ -39,7 +41,7 @@ public class ApiIdentity extends Identity {
     public static class KeyPair {
         public final byte[] secretkey;
         public final byte[] publickey;
-        private KeyPair(byte[] sec, byte[] pub) {
+        public KeyPair(byte[] sec, byte[] pub) {
             this.publickey = pub;
             this.secretkey = sec;
         }
@@ -65,6 +67,7 @@ public class ApiIdentity extends Identity {
         private byte[] pubkey;
         private byte[] privkey;
         private KeyPair signPair;
+        private String fingerprint;
         private Builder() {
             super();
         }
@@ -82,6 +85,20 @@ public class ApiIdentity extends Identity {
                 result = result.concat(ByteString.copyFrom(k));
             }
             return result;
+        }
+
+        public String getFingerprint() {
+            byte[] fingeprint = new byte[GenericHash.BYTES];
+            LibsodiumInterface.getSodium().crypto_generichash(
+                    fingeprint,
+                    fingeprint.length,
+                    pubkey,
+                    pubkey.length,
+                    null,
+                    0
+            );
+
+            return LibsodiumInterface.base64enc(fingeprint);
         }
 
         /**
@@ -151,6 +168,7 @@ public class ApiIdentity extends Identity {
 
                 pubkey = mPubKeymap.get(IdentityPacket.PROTOBUF_PRIVKEY_KEY);
             }
+            this.fingerprint = getFingerprint();
             return new ApiIdentity(this);
         }
     }

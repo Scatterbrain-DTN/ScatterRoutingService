@@ -24,8 +24,11 @@ public class ScatterMessage implements Parcelable {
     protected final String mime;
     protected final String filename;
     protected final ParcelFileDescriptor fileDescriptor;
+    protected final int toDisk;
+    public static final int DISK = 1;
+    public static final int NODISK = 0;
 
-    private int validateBody(int val) {
+    protected int validateBody(int val) {
         if (val > ScatterbrainDatastore.MAX_BODY_SIZE) {
             throw new BadParcelableException("invalid array size");
         }
@@ -45,9 +48,10 @@ public class ScatterMessage implements Parcelable {
         this.filename = in.readString();
         this.fileDescriptor = in.readFileDescriptor();
         this.fingerprint = in.readString();
+        this.toDisk = in.readInt();
     }
 
-    private ScatterMessage(Builder builder) {
+    protected ScatterMessage(Builder builder) {
         this.body = builder.body;
         this.fromFingerprint = builder.fromFingerprint;
         this.toFingerprint = builder.toFingerprint;
@@ -57,6 +61,7 @@ public class ScatterMessage implements Parcelable {
         this.filename = builder.filename;
         this.fileDescriptor = builder.fileDescriptor;
         this.fingerprint = builder.fingerprint;
+        this.toDisk = builder.todisk;
     }
 
     public static final Creator<ScatterMessage> CREATOR = new Creator<ScatterMessage>() {
@@ -76,6 +81,10 @@ public class ScatterMessage implements Parcelable {
         return Parcelable.CONTENTS_FILE_DESCRIPTOR;
     }
 
+    public boolean toDisk() {
+        return toDisk == DISK;
+    }
+
     @Override
     public void writeToParcel(Parcel parcel, int i) {
         parcel.writeInt(body.length);
@@ -90,6 +99,7 @@ public class ScatterMessage implements Parcelable {
         parcel.writeString(filename);
         parcel.writeFileDescriptor(fileDescriptor.getFileDescriptor());
         parcel.writeString(fingerprint);
+        parcel.writeInt(toDisk);
     }
 
     public byte[] getBody() {
@@ -132,28 +142,34 @@ public class ScatterMessage implements Parcelable {
         return fileDescriptor;
     }
 
+    public byte[] getSig() {
+        return sig.get();
+    }
+
     public static Builder newBuilder() {
         return new Builder();
     }
 
     public static class Builder {
-        private byte[] body;
-        private byte[] fromFingerprint;
-        private byte[] toFingerprint;
-        private String application;
-        private String extension;
-        private String mime;
-        private String filename;
-        private ParcelFileDescriptor fileDescriptor;
-        private String fingerprint = "";
-        private boolean fileNotFound = false;
+        protected byte[] body;
+        protected byte[] fromFingerprint;
+        protected byte[] toFingerprint;
+        protected String application;
+        protected String extension;
+        protected String mime;
+        protected String filename;
+        protected ParcelFileDescriptor fileDescriptor;
+        protected String fingerprint = "";
+        protected boolean fileNotFound = false;
+        protected int todisk = NODISK;
 
-        private Builder() {
+        protected Builder() {
             this.fingerprint = "";
         }
 
         public Builder setBody(byte[] body) {
             this.body = body;
+            this.todisk = NODISK;
             return this;
         }
 
@@ -172,11 +188,6 @@ public class ScatterMessage implements Parcelable {
             return this;
         }
 
-        public Builder setIdentity(String fingerprint) {
-            this.fingerprint = fingerprint;
-            return this;
-        }
-
         public Builder setFile(File file, int mode) {
            if (file != null) {
                try {
@@ -184,6 +195,7 @@ public class ScatterMessage implements Parcelable {
                    this.extension = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(file).toString());
                    this.mime = ScatterbrainDatastore.getMimeType(file);
                    this.filename = file.getName();
+                   this.todisk = DISK;
                } catch (FileNotFoundException e) {
                    this.fileDescriptor = null;
                    this.mime = null;
@@ -195,8 +207,16 @@ public class ScatterMessage implements Parcelable {
             return this;
         }
 
+        public Builder setFile(ParcelFileDescriptor descriptor, String ext, String mime, String name) {
+            this.fileDescriptor = descriptor;
+            this.extension = ext;
+            this.mime = mime;
+            this.filename = name;
+            this.todisk = DISK;
+            return this;
+        }
 
-        public ScatterMessage build() {
+        protected void verify() {
             if (body != null && fileDescriptor != null) {
                 throw new IllegalArgumentException("must set one of body or file");
             }
@@ -212,7 +232,10 @@ public class ScatterMessage implements Parcelable {
             if (fileNotFound) {
                 throw new IllegalStateException("file not found");
             }
+        }
 
+        public ScatterMessage build() {
+            verify();
             return new ScatterMessage(this);
         }
     }

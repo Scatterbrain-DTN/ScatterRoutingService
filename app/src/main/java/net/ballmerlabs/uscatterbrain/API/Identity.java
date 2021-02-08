@@ -20,6 +20,7 @@ public class Identity implements Parcelable {
     protected final byte[] mScatterbrainPubKey;
     protected final String givenname;
     protected final byte[] sig;
+    protected final String fingerprint;
     private int validatePubkey(int pubkey) {
         if (pubkey != Sign.PUBLICKEYBYTES) {
             throw new BadParcelableException("invalid pubkey size");
@@ -27,11 +28,12 @@ public class Identity implements Parcelable {
         return pubkey;
     }
 
-    protected Identity(Map<String, byte[]> map, byte[] pub, String name, byte[] sig) {
+    protected Identity(Map<String, byte[]> map, byte[] pub, String name, byte[] sig, String fingerprint) {
         this.mPubKeymap = map;
         this.mScatterbrainPubKey = pub;
         this.givenname = name;
         this.sig = sig;
+        this.fingerprint = fingerprint;
     }
 
     @FunctionalInterface
@@ -81,6 +83,7 @@ public class Identity implements Parcelable {
         givenname = in.readString();
         sig = new byte[in.readInt()];
         in.readByteArray(sig);
+        fingerprint = in.readString();
     }
 
     public static final Creator<Identity> CREATOR = new Creator<Identity>() {
@@ -110,6 +113,7 @@ public class Identity implements Parcelable {
         parcel.writeString(givenname);
         parcel.writeInt(sig.length);
         parcel.writeByteArray(sig);
+        parcel.writeString(fingerprint);
     }
 
     public Map<String, byte[]> getmPubKeymap() {
@@ -126,5 +130,9 @@ public class Identity implements Parcelable {
 
     public byte[] getSig() {
         return sig;
+    }
+
+    public String getFingerprint() {
+        return fingerprint;
     }
 }

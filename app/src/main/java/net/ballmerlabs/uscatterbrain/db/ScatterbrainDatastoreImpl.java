@@ -56,6 +56,7 @@ import javax.inject.Singleton;
 import io.reactivex.BackpressureStrategy;
 import io.reactivex.Completable;
 import io.reactivex.Flowable;
+import io.reactivex.Maybe;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
@@ -595,7 +596,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public net.ballmerlabs.uscatterbrain.API.Identity getApiIdentityByFingerprint(String fingerprint) {
+    public ApiIdentity getApiIdentityByFingerprint(String fingerprint) {
         return mDatastore.identityDao().getIdentityByFingerprint(fingerprint)
                 .subscribeOn(databaseScheduler)
                 .map(identity -> {
@@ -607,6 +608,34 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 }).blockingGet();
     }
 
+    @Override
+    public Maybe<ApiIdentity.KeyPair> getIdentityKey(String identity) {
+        return mDatastore.identityDao().getIdentityByFingerprint(identity)
+                .subscribeOn(databaseScheduler)
+                .map(id -> {
+                    if (id.identity.privatekey == null) {
+                        throw new IllegalStateException("private key not found");
+                    }
+                    return new ApiIdentity.KeyPair(id.identity.publicKey, id.identity.privatekey);
+                });
+    }
+
+    @Override
+    public Single<List<ACL>> getACLs(String identity) {
+        return mDatastore.identityDao().getClientApps(identity)
+                .subscribeOn(databaseScheduler)
+                .flatMapObservable(Observable::fromIterable)
+                .map(clientApp -> {
+                    return new ACL(
+                            clientApp.packageName,
+                            clientApp.packageSignature
+                    );
+                })
+                .reduce(new ArrayList<ACL>(), (list, acl) -> {
+                    list.add(acl);
+                    return list;
+                });
+    }
 
     @Override
     public List<net.ballmerlabs.uscatterbrain.API.Identity> getAllIdentities() {
@@ -717,10 +746,10 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public Completable insertAndHashFileFromApi(final net.ballmerlabs.uscatterbrain.API.ScatterMessage message, int blocksize) {
+    public Completable insertAndHashFileFromApi(final ApiScatterMessage message, int blocksize) {
         return Single.fromCallable(() -> File.createTempFile("scatterbrain", "insert"))
                 .flatMapCompletable(file -> {
-                    if (message.getBody() == null && message.getFileDescriptor() != null) {
+                    if (message.toDisk()) {
                         return copyFile(message.getFileDescriptor().getFileDescriptor(), file)
                                 .andThen(hashFile(file, blocksize))
                                 .flatMapCompletable(hashes -> {
@@ -742,7 +771,12 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     if (message.hasIdentity()) {
                                         hm.identity_fingerprint = message.getIdentityFingerprint();
                                     }
-                                    hm.sig = null; //TODO: sign messages
+                                    if (message.signable()) {
+                                        message.signEd25519(hashes);
+                                        hm.sig = message.getSig();
+                                    } else {
+                                        hm.sig = null;
+                                    }
                                     hm.userFilename = ScatterbrainDatastore.sanitizeFilename(message.getFilename());
                                     hm.extension = ScatterbrainDatastore.sanitizeFilename(message.getExtension());
                                     hm.application = ByteString.copyFromUtf8(message.getApplication()).toByteArray();
@@ -751,7 +785,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     dbmessage.message = hm;
                                     return insertMessageToRoom(dbmessage);
                                 }).subscribeOn(databaseScheduler);
-                    } else if (message.getBody() != null && message.getFileDescriptor() == null) {
+                    } else {
                         return hashData(message.getBody(), blocksize)
                                 .flatMapCompletable(hashes -> {
                                     final ScatterMessage dbmessage = new ScatterMessage();
@@ -766,7 +800,12 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     }
                                     hm.blocksize = blocksize;
                                     hm.sessionid = 0;
-                                    hm.sig = null; //TODO: sign messages
+                                    if (message.signable()) {
+                                        message.signEd25519(hashes);
+                                        hm.sig = message.getSig();
+                                    } else {
+                                        hm.sig = null;
+                                    }
                                     hm.userFilename = null;
                                     hm.extension = null;
                                     hm.filePath = ScatterbrainDatastore.getNoFilename(message.getBody());
@@ -774,8 +813,6 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                                     dbmessage.message = hm;
                                     return insertMessageToRoom(dbmessage);
                                 });
-                    } else {
-                        return Completable.error(new IllegalStateException("message sets both body and file"));
                     }
                 });
     }

@@ -17,7 +17,4 @@ public class ClientApp {
 
     @ColumnInfo
     public String packageSignature;
-
-    @ColumnInfo
-    public String packageAlgorithm;
 }

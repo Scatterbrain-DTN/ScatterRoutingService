@@ -6,6 +6,8 @@ import androidx.room.Insert;
 import androidx.room.Query;
 import androidx.room.Transaction;
 
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
+
 import java.util.List;
 
 import javax.inject.Inject;
@@ -40,6 +42,10 @@ public interface IdentityDao {
     @Transaction
     @Query("SELECT * FROM identities ORDER BY RANDOM() LIMIT :count")
     Single<List<Identity>> getTopRandom(int count);
+
+    @Query("SELECT * FROM clientapp WHERE identityFK = (" +
+            "SELECT identityID FROM identities WHERE fingerprint = :fp)")
+    Single<List<ClientApp>> getClientApps(String fp);
 
     @Query("SELECT COUNT(*) FROM identities")
     int getIdentityCount();
