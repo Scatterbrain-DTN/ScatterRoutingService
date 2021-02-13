@@ -101,4 +101,8 @@ public interface ScatterbrainScheduler {
     void start();
 
     boolean stop();
+
+    boolean isDiscovering();
+
+    boolean isPassive();
 }

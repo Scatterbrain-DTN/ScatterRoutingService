@@ -20,6 +20,8 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler {
     private final BluetoothLEModule bluetoothLEModule;
     private final WifiDirectRadioModule wifiDirectRadioModule;
     private final ScatterbrainDatastore datastore;
+    private boolean isDiscovering = false;
+    private boolean isAdvertising = false;
     private final AtomicReference<Disposable> globalDisposable = new AtomicReference<>();
 
     @Inject
@@ -43,7 +45,10 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler {
     public void start() {
         bluetoothLEModule.startAdvertise();
         bluetoothLEModule.startServer();
+        isAdvertising = true;
         final Disposable d = bluetoothLEModule.discoverForever()
+                .doOnSubscribe(disp -> isDiscovering = true)
+                .doOnDispose(() -> isDiscovering = false)
                 .subscribe(
                         res -> Log.v(TAG, "finished transaction: " + res),
                         err -> Log.e(TAG, "error in transaction: " + err)
@@ -62,6 +67,7 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler {
     public boolean stop() {
         bluetoothLEModule.stopAdvertise();
         bluetoothLEModule.stopServer();
+        isAdvertising = false;
         globalDisposable.getAndUpdate(disp -> {
             if (disp != null) {
                 disp.dispose();
@@ -69,5 +75,15 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler {
             return null;
         });
         return true;
+    }
+
+    @Override
+    public boolean isDiscovering() {
+        return isDiscovering;
+    }
+
+    @Override
+    public boolean isPassive() {
+        return isAdvertising && !isDiscovering;
     }
 }

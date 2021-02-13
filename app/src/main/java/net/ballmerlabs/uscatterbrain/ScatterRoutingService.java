@@ -238,6 +238,18 @@ public class ScatterRoutingService extends LifecycleService {
                 throw new RemoteException("invalid package name");
             }
         }
+
+        @Override
+        public boolean isDiscovering() throws RemoteException {
+            checkAccessPermission();
+            return mBackend.getScheduler().isDiscovering();
+        }
+
+        @Override
+        public boolean isPassive() throws RemoteException {
+            checkAccessPermission();
+            return mBackend.getScheduler().isPassive();
+        }
     };
 
     public ScatterRoutingService() {
