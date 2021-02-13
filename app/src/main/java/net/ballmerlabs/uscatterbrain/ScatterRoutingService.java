@@ -335,6 +335,8 @@ public class ScatterRoutingService extends LifecycleService {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        mBackend.getRadioModule().stopDiscover();
+        mBackend.getScheduler().stop();
         mBackend.getWifiDirect().unregisterReceiver();
     }
 
