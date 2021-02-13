@@ -42,10 +42,13 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler {
     }
 
     @Override
-    public void start() {
+    public synchronized void start() {
+        if (isAdvertising) {
+            return;
+        }
+        isAdvertising = true;
         bluetoothLEModule.startAdvertise();
         bluetoothLEModule.startServer();
-        isAdvertising = true;
         final Disposable d = bluetoothLEModule.discoverForever()
                 .doOnSubscribe(disp -> isDiscovering = true)
                 .doOnDispose(() -> isDiscovering = false)
@@ -64,10 +67,13 @@ public class ScatterbrainSchedulerImpl implements ScatterbrainScheduler {
     }
 
     @Override
-    public boolean stop() {
+    public synchronized boolean stop() {
+        if (!isAdvertising) {
+            return false;
+        }
+        isAdvertising = false;
         bluetoothLEModule.stopAdvertise();
         bluetoothLEModule.stopServer();
-        isAdvertising = false;
         globalDisposable.getAndUpdate(disp -> {
             if (disp != null) {
                 disp.dispose();
