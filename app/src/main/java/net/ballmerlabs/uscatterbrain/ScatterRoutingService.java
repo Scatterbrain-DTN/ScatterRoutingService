@@ -92,12 +92,18 @@ public class ScatterRoutingService extends LifecycleService {
         }
 
         private void checkAccessPermission() throws RemoteException {
+            if (checkPermission(getString(R.string.permission_superuser))) {
+                return;
+            }
             if (!checkPermission(getString(R.string.permission_access))) {
                 throw new RemoteException(PERMISSION_DENIED_STR);
             }
         }
 
         private void checkAdminPermission() throws RemoteException {
+            if (checkPermission(getString(R.string.permission_superuser))) {
+                return;
+            }
             if (!checkPermission(getString(R.string.permission_admin))) {
                 throw new RemoteException(PERMISSION_DENIED_STR);
             }
