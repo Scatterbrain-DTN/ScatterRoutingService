@@ -11,6 +11,7 @@ import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 
+import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
 import net.ballmerlabs.uscatterbrain.RouterPreferences;
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
@@ -21,6 +22,7 @@ import net.ballmerlabs.uscatterbrain.network.IdentityPacket;
 import net.ballmerlabs.uscatterbrain.network.RoutingMetadataPacket;
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule;
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest;
+import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler;
 
 import java.net.InetAddress;
 import java.net.Socket;
@@ -418,7 +420,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     }
 
     @Override
-    public Completable bootstrapFromUpgrade(BootstrapRequest upgradeRequest) {
+    public Single<HandshakeResult> bootstrapFromUpgrade(BootstrapRequest upgradeRequest) {
 
         Log.v(TAG, "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
                 + " " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE) + " "
@@ -439,20 +441,26 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                     .reduce(new ArrayList<IdentityPacket>(), (list, packet) -> {
                                         list.add(packet);
                                         return list;
-                                    }).flatMapCompletable(datastore::insertIdentityPacket)
-                    )
-                    .andThen(
+                                    }).flatMap(p -> datastore.insertIdentityPacket(p).toSingleDefault(
+                                            new HandshakeResult(
+                                                    p.size(),
+                                                    0,
+                                                    ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS
+                                            )
+                            ))
+                    ).flatMap(stats ->
                             declareHashesUke()
                                     .doOnSuccess(p -> Log.v(TAG, "received declare hashes packet uke"))
-                                    .flatMapCompletable(declareHashesPacket -> readBlockDataUke()
+                                    .flatMap(declareHashesPacket -> readBlockDataUke()
+                                            .toObservable()
                                             .mergeWith(
                                                     writeBlockDataUke(
                                                             datastore.getTopRandomMessages(
                                                                     preferences.getInt(RouterPreferences.BLOCKDATA_CAP, 100),
                                                                     declareHashesPacket
-                                                            )
-                                                                    .toFlowable(BackpressureStrategy.BUFFER)
+                                                            ).toFlowable(BackpressureStrategy.BUFFER)
                                                     ))
+                                            .reduce(stats, HandshakeResult::from)
                     ));
         } else if(upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                 == BluetoothLEModule.ConnectionRole.ROLE_SEME) {
@@ -461,8 +469,8 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
                     120
             ), 20, 1)
-                    .flatMapCompletable(info -> getTcpSocket(info.groupOwnerAddress)
-                            .flatMapCompletable(socket ->
+                    .flatMap(info -> getTcpSocket(info.groupOwnerAddress)
+                            .flatMap(socket ->
                                     routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
                                             .ignoreElements()
                                             .andThen(
@@ -475,18 +483,26 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                 list.add(packet);
                                                 return list;
                                             })
-                                            .flatMapCompletable(datastore::insertIdentityPacket)
-                                            .andThen(
+                                            .flatMap(p -> datastore.insertIdentityPacket(p).toSingleDefault(
+                                                    new HandshakeResult(
+                                                            p.size(),
+                                                            0,
+                                                            ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS
+                                                    )
+                                            ))
+                                            .flatMap(stats ->
                                                     declareHashesSeme(socket)
                                                             .doOnSuccess(p -> Log.v(TAG, "received declare hashes packet seme"))
-                                                            .flatMapCompletable(declareHashesPacket ->
-                                                                    writeBlockDataSeme(socket, datastore.getTopRandomMessages(32, declareHashesPacket)
-                                                                            .toFlowable(BackpressureStrategy.BUFFER))
-                                                                            .mergeWith(readBlockDataSeme(socket)))
+                                                            .flatMapObservable(declareHashesPacket ->
+                                                                            readBlockDataSeme(socket)
+                                                                                    .toObservable()
+                                                                            .mergeWith(writeBlockDataSeme(socket, datastore.getTopRandomMessages(32, declareHashesPacket)
+                                                                                    .toFlowable(BackpressureStrategy.BUFFER))))
+                                                    .reduce(stats, HandshakeResult::from)
                                             )))
                     .doOnSubscribe(disp -> Log.v(TAG, "subscribed to writeBlockData"));
         } else {
-            return Completable.error(new IllegalStateException("invalid role"));
+            return Single.error(new IllegalStateException("invalid role"));
         }
     }
 
@@ -552,7 +568,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                 )));
     }
 
-    private Completable readBlockDataUke() {
+    private Single<HandshakeResult> readBlockDataUke() {
         return getServerSocket()
                         .toFlowable()
                         .flatMap(socket -> BlockHeaderPacket.parseFrom(socket.getInputStream())
@@ -575,7 +591,10 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     }
                     return end;
                 }) //TODO: timeout here
-                .concatMapCompletable(m -> datastore.insertMessage(m).andThen(m.await()));
+                .concatMapSingle(m -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0))
+                .reduce(Integer::sum)
+                .map(i -> new HandshakeResult(0, i, ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS))
+                .toSingle();
     }
 
     private Single<Socket> getServerSocket() {
@@ -586,7 +605,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 .doOnSuccess(n -> Log.v(TAG, "accepted server socket"));
     }
 
-    private Completable readBlockDataSeme(
+    private Single<HandshakeResult> readBlockDataSeme(
             Socket socket
     ) {
         return Single.fromCallable(() ->
@@ -611,6 +630,9 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                     }
                     return end;
                 })
-                .concatMapCompletable(m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler));
+                .concatMapSingle(m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0))
+                .reduce(Integer::sum)
+                .map(i -> new HandshakeResult(0, i, ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS))
+                .toSingle();
     }
 }

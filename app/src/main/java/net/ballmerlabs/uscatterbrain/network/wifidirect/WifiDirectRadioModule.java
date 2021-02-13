@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect;
 
 import android.net.wifi.p2p.WifiP2pInfo;
 
+import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage;
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage;
@@ -17,7 +18,7 @@ import io.reactivex.subjects.CompletableSubject;
 public interface WifiDirectRadioModule {
     String TAG = "WifiDirectRadioModule";
     Single<WifiP2pInfo> connectToGroup(String name, String passphrase, int timeout);
-    Completable bootstrapFromUpgrade(BootstrapRequest upgradeRequest);
+    Single<HandshakeResult> bootstrapFromUpgrade(BootstrapRequest upgradeRequest);
     void unregisterReceiver();
     void registerReceiver();
 

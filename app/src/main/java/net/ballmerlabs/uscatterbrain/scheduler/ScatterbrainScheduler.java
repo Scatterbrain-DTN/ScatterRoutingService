@@ -1,5 +1,10 @@
 package net.ballmerlabs.uscatterbrain.scheduler;
 
+import android.os.Parcel;
+import android.os.Parcelable;
+
+import androidx.annotation.NonNull;
+
 public interface ScatterbrainScheduler {
 
     enum RoutingServiceState {
@@ -105,4 +110,11 @@ public interface ScatterbrainScheduler {
     boolean isDiscovering();
 
     boolean isPassive();
+
+
+
+    enum TransactionStatus {
+        STATUS_SUCCESS,
+        STATUS_FAIL
+    }
 }

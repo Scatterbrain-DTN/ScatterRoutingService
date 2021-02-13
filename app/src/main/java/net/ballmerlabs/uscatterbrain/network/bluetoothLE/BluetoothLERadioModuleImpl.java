@@ -15,12 +15,6 @@ import android.os.PowerManager;
 import android.util.Log;
 import android.util.Pair;
 
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
-import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
-import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket;
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
 import com.jakewharton.rxrelay2.BehaviorRelay;
 import com.jakewharton.rxrelay2.PublishRelay;
 import com.polidea.rxandroidble2.RxBleClient;
@@ -30,6 +24,15 @@ import com.polidea.rxandroidble2.ServerConfig;
 import com.polidea.rxandroidble2.Timeout;
 import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
+
+import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
+import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
+import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket;
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
+import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -125,7 +128,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final AtomicReference<Disposable> discoveryDispoable = new AtomicReference<>();
     private final ConcurrentHashMap<String, Observable<CachedLEConnection>> connectionCache = new ConcurrentHashMap<>();
     private final ScatterbrainDatastore datastore;
-    private final PublishRelay<Boolean> transactionCompleteRelay = PublishRelay.create();
+    private final PublishRelay<HandshakeResult> transactionCompleteRelay = PublishRelay.create();
     private final Set<UUID> connectedLuids = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final AtomicReference<UUID> myLuid = new AtomicReference<>(UUID.randomUUID());
     private final PublishRelay<Throwable> transactionErrorRelay = PublishRelay.create();
@@ -426,15 +429,19 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         return Single.just(session);
     }
 
-    private Completable bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {
+    private Single<HandshakeResult> bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {
         return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest)
-                .doOnComplete(() -> transactionCompleteRelay.accept(true))
                 .doOnError(err -> {
                     Log.e(TAG, "wifi p2p upgrade failed: " + err);
                     err.printStackTrace();
-                    transactionCompleteRelay.accept(false);
-                })
-                .onErrorComplete();
+                    transactionCompleteRelay.accept(
+                            new HandshakeResult(
+                                    0,
+                                    0,
+                                    ScatterbrainScheduler.TransactionStatus.STATUS_FAIL
+                            )
+                    );
+                });
     }
 
     private Observable<CachedLEConnection> establishConnection(RxBleDevice device, Timeout timeout) {
@@ -480,7 +487,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 .doOnSubscribe(discoveryDispoable::set);
     }
 
-    private Observable<Boolean> discover(final int timeout, final boolean forever) {
+    private Observable<HandshakeResult> discover(final int timeout, final boolean forever) {
         return observeTransactions()
                 .doOnSubscribe(disp -> {
                     mGattDisposable.add(disp);
@@ -524,7 +531,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     }
 
     @Override
-    public Observable<Boolean> discoverForever() {
+    public Observable<HandshakeResult> discoverForever() {
         return discover(0, true);
     }
 
@@ -548,7 +555,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
 
 
     @Override
-    public Observable<Boolean> observeTransactions() {
+    public Observable<HandshakeResult> observeTransactions() {
         return Observable.merge(
                 transactionCompleteRelay,
                 transactionErrorRelay.flatMap(Observable::error)
@@ -650,16 +657,15 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     stopServer();
                 })
                 .doOnNext(req -> Log.v(TAG, "handling bootstrap request: " + req.toString()))
-                .flatMapCompletable(this::bootstrapWifiP2p)
+                .flatMapSingle(this::bootstrapWifiP2p)
                 .retry()
                 .repeat()
-                .subscribe(
-                        () -> Log.e(TAG, "gatt server completed. This should not happen"),
-                        err -> {
-                            releaseWakeLock();
-                            Log.e(TAG, "gatt server shut down with error: " + err);
-                            err.printStackTrace();
-                        });
+                .doOnNext(s -> releaseWakeLock())
+                .doOnError(err -> {
+                    Log.e(TAG, "gatt server shut down with error: " + err);
+                    err.printStackTrace();
+                })
+                .subscribe(transactionCompleteRelay);
 
         mGattDisposable.add(d);
 

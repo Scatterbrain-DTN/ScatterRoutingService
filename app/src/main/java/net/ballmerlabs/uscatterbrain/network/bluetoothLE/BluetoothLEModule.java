@@ -1,5 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE;
 
+import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
+
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.disposables.Disposable;
@@ -13,9 +15,9 @@ public interface BluetoothLEModule {
     boolean startServer();
     void stopServer();
     Completable awaitTransaction();
-    Observable<Boolean> observeTransactions();
+    Observable<HandshakeResult> observeTransactions();
     Completable discoverWithTimeout(final int timeout);
-    Observable<Boolean> discoverForever();
+    Observable<HandshakeResult> discoverForever();
 
     enum discoveryOptions {
         OPT_DISCOVER_ONCE,
