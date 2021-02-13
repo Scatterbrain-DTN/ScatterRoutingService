@@ -290,6 +290,8 @@ public class ScatterRoutingService extends LifecycleService {
             startForeground(1, notification);
             Log.v(TAG, "called onbind");
             Log.v(TAG, "initialized datastore");
+
+            mBackend.getWifiDirect().registerReceiver();
         } catch (Exception e) {
             e.printStackTrace();
             Log.v(TAG, "exception");
@@ -333,6 +335,7 @@ public class ScatterRoutingService extends LifecycleService {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        mBackend.getWifiDirect().unregisterReceiver();
     }
 
     public class ScatterBinder extends Binder {

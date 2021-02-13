@@ -127,9 +127,6 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
         wifidirectDisposable.add(d3);
         wifidirectDisposable.add(d4);
 
-        //TODO: unregister this when appropriate
-        registerBroadcastReceiver();
-
         Disposable tcpserverdisposable = socketFactory.create(SCATTERBRAIN_PORT)
                 .subscribeOn(operationsScheduler)
                 .flatMapObservable(InterceptableServerSocket::acceptLoop)
@@ -143,7 +140,13 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
     }
 
 
-    private void registerBroadcastReceiver() {
+    @Override
+    public void unregisterReceiver() {
+        mContext.unregisterReceiver(mBroadcastReceiver.asReceiver());
+    }
+
+    @Override
+    public void registerReceiver() {
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
 

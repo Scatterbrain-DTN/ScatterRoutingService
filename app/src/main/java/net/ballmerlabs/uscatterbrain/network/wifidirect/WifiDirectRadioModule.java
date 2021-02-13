@@ -18,6 +18,8 @@ public interface WifiDirectRadioModule {
     String TAG = "WifiDirectRadioModule";
     Single<WifiP2pInfo> connectToGroup(String name, String passphrase, int timeout);
     Completable bootstrapFromUpgrade(BootstrapRequest upgradeRequest);
+    void unregisterReceiver();
+    void registerReceiver();
 
     class BlockDataStream {
         private final Flowable<BlockSequencePacket> sequencePackets;
