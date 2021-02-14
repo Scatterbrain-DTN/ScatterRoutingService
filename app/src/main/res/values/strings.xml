@@ -6,4 +6,11 @@
     <string name="permission_group">net.ballmerlabs.scatterbrain.SCATTERBRAIN</string>
     <string name="description_group">Permissions to control the scatterbrain router</string>
     <string name="broadcast_message">net.ballmerlabs.scatterbrain.broadcast.NETWORK_EVENT</string>
+
+
+    <!-- preferences -->
+    <string name="pref_declarehashescap">declarehashescap</string>
+    <string name="pref_identitycap">identitycap</string>
+    <string name="pref_blockdatacap">blockdatacap</string>
+
 </resources>

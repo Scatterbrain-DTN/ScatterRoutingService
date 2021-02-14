@@ -4,11 +4,6 @@ import java.util.Map;
 import java.util.Set;
 
 public interface RouterPreferences {
-
-    String DECLARE_HASHES_CAP = "declarehashescap";
-    String IDENTITY_CAP = "identitycap";
-    String BLOCKDATA_CAP = "blockdatacap";
-
     boolean getBoolean(String key, boolean def);
     float getFloat(String key, Float def);
     public long GetLong(String key, Long def);

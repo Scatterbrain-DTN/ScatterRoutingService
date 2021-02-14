@@ -12,6 +12,7 @@ import android.util.Log;
 import androidx.annotation.RequiresApi;
 
 import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
+import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.RouterPreferences;
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
@@ -456,7 +457,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             .mergeWith(
                                                     writeBlockDataUke(
                                                             datastore.getTopRandomMessages(
-                                                                    preferences.getInt(RouterPreferences.BLOCKDATA_CAP, 100),
+                                                                    preferences.getInt(mContext.getString(R.string.pref_blockdatacap), 100),
                                                                     declareHashesPacket
                                                             ).toFlowable(BackpressureStrategy.BUFFER)
                                                     ))
@@ -476,7 +477,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             .andThen(
                                                     identityPacketSeme(
                                                             socket,
-                                                            datastore.getTopRandomIdentities(preferences.getInt(RouterPreferences.IDENTITY_CAP, 200))
+                                                            datastore.getTopRandomIdentities(preferences.getInt(mContext.getString(R.string.pref_identitycap), 200))
                                                     )
                                             )
                                             .reduce(new ArrayList<IdentityPacket>(), (list, packet) -> {

@@ -15,6 +15,7 @@ import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
+import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.RouterPreferences;
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackend;
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
@@ -576,7 +577,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     @Override
     public Single<DeclareHashesPacket> getDeclareHashesPacket() {
         return mDatastore.scatterMessageDao().getTopHashes(
-                preferences.getInt(RouterPreferences.DECLARE_HASHES_CAP, 512)
+                preferences.getInt(ctx.getString(R.string.pref_declarehashescap), 512)
         )
                 .subscribeOn(databaseScheduler)
                 .doOnSuccess(p -> Log.v(TAG, "retrieved declareHashesPacket from datastore: " + p.size()))
