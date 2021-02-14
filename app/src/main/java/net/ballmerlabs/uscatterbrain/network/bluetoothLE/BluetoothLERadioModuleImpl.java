@@ -26,6 +26,8 @@ import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
 import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
+import net.ballmerlabs.uscatterbrain.R;
+import net.ballmerlabs.uscatterbrain.RouterPreferences;
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
@@ -151,6 +153,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private final WifiDirectRadioModule wifiDirectRadioModule;
     private final RxBleServer mServer;
     private final RxBleClient mClient;
+    private final RouterPreferences preferences;
 
     @Inject
     public BluetoothLERadioModuleImpl(
@@ -161,10 +164,12 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
             RxBleClient rxBleClient,
             WifiDirectRadioModule wifiDirectRadioModule,
             ScatterbrainDatastore datastore,
-            PowerManager powerManager
+            PowerManager powerManager,
+            RouterPreferences preferences
             ) {
         mContext = context;
         mAdvertiser = advertiser;
+        this.preferences = preferences;
         this.clientScheduler = bluetoothScheduler;
         this.powerManager = powerManager;
         this.mServer = rxBleServer;
@@ -203,6 +208,24 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
        if (w != null) {
            w.release();
        }
+    }
+
+    private String getPowerSave() {
+        return preferences.getString(
+                mContext.getString(R.string.pref_powersave),
+                mContext.getString(R.string.powersave_active)
+        );
+    }
+
+    private int parseScanMode() {
+        final String scanMode = getPowerSave();
+        if (scanMode.equals(mContext.getString(R.string.powersave_active))) {
+            return ScanSettings.SCAN_MODE_LOW_POWER;
+        } else if (scanMode.equals(mContext.getString(R.string.powersave_opportunistic))) {
+            return ScanSettings.SCAN_MODE_OPPORTUNISTIC;
+        } else {
+            return -1; //scan disabled
+        }
     }
 
     @Override
@@ -466,7 +489,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         Log.d(TAG, "discover once called");
         return mClient.scanBleDevices(
                 new ScanSettings.Builder()
-                        .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+                        .setScanMode(parseScanMode())
                         .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                         .setShouldCheckLocationServicesState(true)
                         .build(),
@@ -490,36 +513,38 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
     private Observable<HandshakeResult> discover(final int timeout, final boolean forever) {
         return observeTransactions()
                 .doOnSubscribe(disp -> {
-                    mGattDisposable.add(disp);
-                    Disposable d = discoverOnce()
-                            .repeat()
-                            .retry()
-                            .doOnError(err -> Log.e(TAG, "error with initial handshake: " + err))
-                            .subscribe(
-                                    complete -> {
-                                        Log.v(TAG, "handshake completed: " + complete);
-                                    },
-                                    err -> Log.e(TAG, "handshake failed: " + err + '\n' + Arrays.toString(err.getStackTrace()))
-                            );
-                    if (!forever) {
-                        Disposable timeoutDisp = Completable.fromAction(() -> {
-                        })
-                                .delay(timeout, TimeUnit.SECONDS)
+                    if (!getPowerSave().equals(mContext.getString(R.string.powersave_passive))) {
+                        mGattDisposable.add(disp);
+                        Disposable d = discoverOnce()
+                                .repeat()
+                                .retry()
+                                .doOnError(err -> Log.e(TAG, "error with initial handshake: " + err))
                                 .subscribe(
-                                        () -> {
-                                            Log.v(TAG, "scan timed out");
-                                            discoveryDispoable.getAndUpdate(compositeDisposable -> {
-                                                if (compositeDisposable != null) {
-                                                    compositeDisposable.dispose();
-                                                }
-                                                return null;
-                                            });
+                                        complete -> {
+                                            Log.v(TAG, "handshake completed: " + complete);
                                         },
-                                        err -> Log.e(TAG, "error while timing out scan: " + err)
+                                        err -> Log.e(TAG, "handshake failed: " + err + '\n' + Arrays.toString(err.getStackTrace()))
                                 );
-                        mGattDisposable.add(timeoutDisp);
+                        if (!forever) {
+                            Disposable timeoutDisp = Completable.fromAction(() -> {
+                            })
+                                    .delay(timeout, TimeUnit.SECONDS)
+                                    .subscribe(
+                                            () -> {
+                                                Log.v(TAG, "scan timed out");
+                                                discoveryDispoable.getAndUpdate(compositeDisposable -> {
+                                                    if (compositeDisposable != null) {
+                                                        compositeDisposable.dispose();
+                                                    }
+                                                    return null;
+                                                });
+                                            },
+                                            err -> Log.e(TAG, "error while timing out scan: " + err)
+                                    );
+                            mGattDisposable.add(timeoutDisp);
+                        }
+                        mGattDisposable.add(d);
                     }
-                    mGattDisposable.add(d);
                 });
     }
 
