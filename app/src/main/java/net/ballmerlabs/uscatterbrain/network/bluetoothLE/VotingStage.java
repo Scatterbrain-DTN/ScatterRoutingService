@@ -58,7 +58,6 @@ public class VotingStage {
         for (ElectLeaderPacket packet : unhashedPackets) {
             BigInteger newval = new BigInteger(ElectLeaderPacket.uuidToBytes(packet.getTieBreak()));
             val = val.multiply(newval);
-            val = newval;
         }
         byte[] hash = new byte[GenericHash.BYTES];
         LibsodiumInterface.getSodium().crypto_generichash(
