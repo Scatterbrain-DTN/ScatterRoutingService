@@ -10,9 +10,9 @@ public interface RouterPreferences {
     String BLOCKDATA_CAP = "blockdatacap";
 
     boolean getBoolean(String key, boolean def);
-    float getFloat(String key, float def);
-    public long getLog(String key, long def);
-    public int getInt(String key, int def);
+    float getFloat(String key, Float def);
+    public long GetLong(String key, Long def);
+    public int getInt(String key, Integer def);
     String getString(String key, String def);
     Set<String> getStringSet(String key, Set<String> def);
     Map<String, ?> getAll();

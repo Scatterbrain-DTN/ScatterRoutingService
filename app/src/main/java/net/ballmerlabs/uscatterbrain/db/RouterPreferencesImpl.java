@@ -27,8 +27,8 @@ public class RouterPreferencesImpl implements RouterPreferences {
     }
 
     @Override
-    public float getFloat(String key, float def) {
-        return preferences.getFloat(key, def);
+    public float getFloat(String key, Float def) {
+        return Float.parseFloat(preferences.getString(key, def.toString()));
     }
 
     @Override
@@ -47,13 +47,13 @@ public class RouterPreferencesImpl implements RouterPreferences {
     }
 
     @Override
-    public long getLog(String key, long def) {
-        return preferences.getLong(key, def);
+    public long GetLong(String key, Long def) {
+        return Long.parseLong(preferences.getString(key, def.toString()));
     }
 
     @Override
-    public int getInt(String key, int def) {
-        return preferences.getInt(key, def);
+    public int getInt(String key, Integer def) {
+        return Integer.parseInt(preferences.getString(key, def.toString()));
     }
 
     @Override
