@@ -14,6 +14,8 @@ public class TransactionResult<T> {
     public static final String STAGE_ELECTION = "election";
     public static final String STAGE_UPGRADE = "upgrade";
     public static final String STAGE_BLOCKDATA = "blockdata";
+    public static final String STAGE_DECLARE_HASHES = "declarehashes";
+    public static final String STAGE_IDENTITY = "identity";
     public final String nextStage;
     public final BluetoothDevice device;
     final T result;

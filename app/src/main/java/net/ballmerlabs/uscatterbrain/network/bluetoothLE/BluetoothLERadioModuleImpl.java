@@ -53,6 +53,7 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 
 import io.reactivex.Completable;
+import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.Single;
@@ -406,8 +407,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                                     Log.e(TAG, "received invalid provides");
                                     return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device);
                                 } else if (provides.equals(AdvertisePacket.Provides.BLE)) {
-                                    Log.v(TAG, "blockdata not implemented, exiting");
-                                    return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device);
+                                    //we should do everything in BLE. slowwwww ;(
+                                    return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_IDENTITY, device);
                                 } else if (provides.equals(AdvertisePacket.Provides.WIFIP2P)){
                                     return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_UPGRADE, device);
                                 } else {
@@ -423,20 +424,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 TransactionResult.STAGE_UPGRADE,
                 serverConn -> {
                     Log.v(TAG, "gatt server upgrade stage");
-                    if (session.getRole().equals(ConnectionRole.ROLE_SEME)) {
-                        return session.getUpgradeStage().getUpgrade()
-                                .flatMap(upgradePacket -> {
-                                    final BootstrapRequest request = WifiDirectBootstrapRequest.create(
-                                                    upgradePacket,
-                                                    ConnectionRole.ROLE_SEME
-                                            );
-                                    return serverConn.serverNotify(upgradePacket)
-                                            .toSingleDefault(Optional.of(request));
-                                });
-
-                    } else {
-                        return Single.just(Optional.empty());
-                    }
+                    return serverBootstrapWifiDirect(session, serverConn);
                 }
                 , conn -> {
                     Log.v(TAG, "gatt client upgrade stage");
@@ -456,10 +444,116 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     }
                 });
 
+        session.addStage(
+                TransactionResult.STAGE_IDENTITY,
+                serverConn -> {
+                    return datastore.getTopRandomIdentities(
+                            preferences.getInt(mContext.getString(R.string.pref_identitycap), 32)
+                    )
+                            .concatMapCompletable(serverConn::serverNotify)
+                            .toSingleDefault(Optional.empty());
+                },
+                conn -> {
+                    return conn.readIdentityPacket(mContext)
+                            .repeat()
+                            .takeWhile(identityPacket -> {
+                                final boolean end = !identityPacket.isEnd();
+                                if (!end) {
+                                    Log.v(TAG, "identitypacket end of stream");
+                                }
+                                return end;
+                            })
+                            .ignoreElements()
+                            .toSingleDefault(new TransactionResult<>(TransactionResult.STAGE_DECLARE_HASHES, device));
+                }
+        );
 
+        session.addStage(
+                TransactionResult.STAGE_DECLARE_HASHES,
+                serverConn -> {
+                    Log.v(TAG, "gatt server declareHashes stage");
+                    return datastore.getDeclareHashesPacket()
+                            .flatMapCompletable(serverConn::serverNotify)
+                            .toSingleDefault(Optional.empty());
+                },
+                conn -> {
+                    return conn.readDeclareHashes()
+                            .doOnSuccess(declareHashesPacket -> Log.v(TAG, "client handshake received declareHashes: " +
+                                    declareHashesPacket.getHashes().size()))
+                            .doOnError(err -> Log.e(TAG, "error while receiving declareHashes packet: " + err))
+                            .map(declareHashesPacket -> {
+                                session.setDeclareHashesPacket(declareHashesPacket);
+                                return new TransactionResult<>(TransactionResult.STAGE_BLOCKDATA, device);
+                            });
+                });
+
+        session.addStage(
+                TransactionResult.STAGE_BLOCKDATA,
+                serverConn -> {
+                   Log.v(TAG, "gatt server blockdata stage");
+                   return session.getDeclareHashes()
+                           .flatMapCompletable(declareHashesPacket ->
+                                   datastore.getTopRandomMessages(
+                                           preferences.getInt(mContext.getString(R.string.pref_blockdatacap), 30),
+                                           declareHashesPacket
+                                   )
+                                   .concatMapCompletable(message ->
+                                           serverConn.serverNotify(message.getHeaderPacket())
+                                           .andThen(message.getSequencePackets().concatMapCompletable(serverConn::serverNotify))
+
+                                   )
+                           ).toSingleDefault(Optional.empty());
+
+
+                },
+                conn -> {
+                    return conn.readBlockHeader()
+                            .toFlowable()
+                            .flatMap(blockHeaderPacket -> {
+                                return Flowable.range(0, blockHeaderPacket.getHashList().size())
+                                        .map(i -> new WifiDirectRadioModule.BlockDataStream(
+                                                blockHeaderPacket,
+                                                conn.readBlockSequence()
+                                                        .repeat(blockHeaderPacket.getHashList().size())
+                                        ));
+                            })
+                            .takeUntil(stream -> {
+                                final boolean end = stream.getHeaderPacket().isEndOfStream();
+                                if (end) {
+                                    Log.v(TAG, "uke end of stream");
+                                }
+                                return end;
+                            })
+                            .concatMapSingle(m -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0))
+                            .reduce(Integer::sum)
+                            .toSingle()
+                            .map(i -> new HandshakeResult(0, i, ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS))
+                            .map(res -> {
+                                transactionCompleteRelay.accept(res);
+                                return new TransactionResult<>(TransactionResult.STAGE_EXIT, device);
+                            });
+
+                });
 
         session.setStage(TransactionResult.STAGE_LUID_HASHED);
         return Single.just(session);
+    }
+
+    private Single<Optional<BootstrapRequest>> serverBootstrapWifiDirect(LeDeviceSession session, CachedLEServerConnection serverConn) {
+        if (session.getRole().equals(ConnectionRole.ROLE_SEME)) {
+            return session.getUpgradeStage().getUpgrade()
+                    .flatMap(upgradePacket -> {
+                        final BootstrapRequest request = WifiDirectBootstrapRequest.create(
+                                upgradePacket,
+                                ConnectionRole.ROLE_SEME
+                        );
+                        return serverConn.serverNotify(upgradePacket)
+                                .toSingleDefault(Optional.of(request));
+                    });
+
+        } else {
+            return Single.just(Optional.empty());
+        }
     }
 
     private Single<HandshakeResult> bootstrapWifiP2p(BootstrapRequest bootstrapRequest) {

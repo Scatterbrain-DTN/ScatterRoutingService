@@ -1,11 +1,14 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE;
 
+import android.content.Context;
 import android.util.Log;
 
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket;
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket;
+import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket;
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket;
+import net.ballmerlabs.uscatterbrain.network.IdentityPacket;
 import net.ballmerlabs.uscatterbrain.network.LuidPacket;
 import net.ballmerlabs.uscatterbrain.network.UpgradePacket;
 import com.polidea.rxandroidble2.NotificationSetupMode;
@@ -79,8 +82,16 @@ public class CachedLEConnection implements Disposable {
         return BlockSequencePacket.parseFrom(cachedNotification());
     }
 
+    public Single<DeclareHashesPacket> readDeclareHashes() {
+        return DeclareHashesPacket.parseFrom(cachedNotification());
+    }
+
     public Single<ElectLeaderPacket> readElectLeader() {
         return ElectLeaderPacket.parseFrom(cachedNotification());
+    }
+
+    public Single<IdentityPacket> readIdentityPacket(Context context) {
+        return IdentityPacket.parseFrom(cachedNotification(), context);
     }
 
     public Single<LuidPacket> readLuid() {

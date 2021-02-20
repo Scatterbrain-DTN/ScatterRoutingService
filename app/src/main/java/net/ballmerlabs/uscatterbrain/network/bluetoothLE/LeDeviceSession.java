@@ -5,6 +5,7 @@ import android.util.Log;
 import android.util.Pair;
 
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
+import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +31,7 @@ public class LeDeviceSession {
     private final ConcurrentHashMap<String, UUID> luidMap = new ConcurrentHashMap<>();
     private String stage = TransactionResult.STAGE_START;
     private BluetoothLEModule.ConnectionRole connectionRole = BluetoothLEModule.ConnectionRole.ROLE_UKE;
+    private DeclareHashesPacket declareHashesPacket = DeclareHashesPacket.newBuilder().build();
     public LeDeviceSession(BluetoothDevice device, AtomicReference<UUID> luid) {
         this.device = device;
         this.luidStage = new LuidStage(device, luid);
@@ -77,6 +79,14 @@ public class LeDeviceSession {
 
     public void setUpgradeStage(AdvertisePacket.Provides provides) {
         upgradeStage = new UpgradeStage(provides);
+    }
+
+    public void setDeclareHashesPacket(DeclareHashesPacket packet) {
+        this.declareHashesPacket = packet;
+    }
+
+    public Single<DeclareHashesPacket> getDeclareHashes() {
+        return Single.just(declareHashesPacket);
     }
 
     public UpgradeStage getUpgradeStage() {
