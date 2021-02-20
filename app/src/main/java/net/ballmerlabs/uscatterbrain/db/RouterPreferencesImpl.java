@@ -22,8 +22,8 @@ public class RouterPreferencesImpl implements RouterPreferences {
     }
 
     @Override
-    public boolean getBoolean(String key, boolean def) {
-        return preferences.getBoolean(key, def);
+    public boolean getBoolean(String key, Boolean def) {
+        return Boolean.parseBoolean(preferences.getString(key, def.toString()));
     }
 
     @Override

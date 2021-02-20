@@ -258,6 +258,15 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
         mAdvertiser.stopAdvertising(mAdvertiseCallback);
     }
 
+    private AdvertisePacket.Provides selectProvides() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return AdvertisePacket.Provides.BLE;
+        } else {
+            return preferences.getBoolean(mContext.getString(R.string.pref_incognito), false)
+                    ? AdvertisePacket.Provides.BLE : AdvertisePacket.Provides.WIFIP2P;
+        }
+    }
+
     private Single<LeDeviceSession> initializeProtocol(BluetoothDevice device) {
         Log.v(TAG, "initialize protocol");
         LeDeviceSession session = new LeDeviceSession(device, myLuid);
@@ -344,7 +353,8 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                 TransactionResult.STAGE_ELECTION_HASHED,
                 serverConn -> {
                     Log.v(TAG, "gatt server election hashed stage");
-                    ElectLeaderPacket packet = session.getVotingStage().getSelf(true);
+
+                    ElectLeaderPacket packet = session.getVotingStage().getSelf(true, selectProvides());
                     session.getVotingStage().addPacket(packet);
                     return serverConn.serverNotify(packet)
                             .toSingleDefault(Optional.empty());
@@ -366,7 +376,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                     Log.v(TAG, "gatt server election stage");
                     return session.getLuidStage().getSelf()
                             .flatMapCompletable(luidPacket -> {
-                                ElectLeaderPacket packet = session.getVotingStage().getSelf(false);
+                                ElectLeaderPacket packet = session.getVotingStage().getSelf(false, selectProvides());
                                 packet.tagLuid(luidPacket.getLuid());
                                 session.getVotingStage().addPacket(packet);
                                 return serverConn.serverNotify(packet);

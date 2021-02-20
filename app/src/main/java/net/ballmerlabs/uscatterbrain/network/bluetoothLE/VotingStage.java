@@ -30,16 +30,15 @@ public class VotingStage {
         this.device = device;
     }
 
-    public ElectLeaderPacket getSelf(boolean hashed) {
+    public ElectLeaderPacket getSelf(boolean hashed, AdvertisePacket.Provides provides) {
         ElectLeaderPacket.Builder builder = ElectLeaderPacket.newBuilder();
 
         if (hashed) {
             builder.enableHashing();
         }
 
-        //TODO: add ability to change this
         return builder
-                .setProvides(AdvertisePacket.Provides.WIFIP2P)
+                .setProvides(provides)
                 .setTiebreaker(tiebreaker)
                 .build();
     }
