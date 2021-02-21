@@ -28,8 +28,12 @@ public class LuidPacket implements ScatterSerializable {
     private LuidPacket(Builder builder) {
         this.isHashed = builder.enablehash;
         if (builder.enablehash) {
+            final ScatterProto.Luid.hashed hashed = ScatterProto.Luid.hashed.newBuilder()
+                    .setHash(ByteString.copyFrom(calculateHashFromUUID(builder.uuid)))
+                    .setProtoversion(builder.version)
+                    .build();
             mLuid = ScatterProto.Luid.newBuilder()
-                    .setValHash(ByteString.copyFrom(calculateHashFromUUID(builder.uuid)))
+                    .setValHash(hashed)
                     .build();
         } else {
             ScatterProto.UUID u = protoUUIDfromUUID(builder.uuid);
@@ -78,6 +82,14 @@ public class LuidPacket implements ScatterSerializable {
             return mLuid.getValHash().toByteArray();
         } else {
             return new byte[0];
+        }
+    }
+
+    public int getProtoVersion() {
+        if (!isHashed) {
+            return -1;
+        } else {
+            return mLuid.getValHash().getProtoversion();
         }
     }
 
@@ -182,13 +194,15 @@ public class LuidPacket implements ScatterSerializable {
     public static class Builder {
         private UUID uuid;
         private boolean enablehash;
+        private int version = -1;
 
         private Builder() {
             enablehash = false;
         }
 
-        public Builder enableHashing() {
+        public Builder enableHashing(int protoversion) {
             this.enablehash = true;
+            this.version = protoversion;
             return this;
         }
 

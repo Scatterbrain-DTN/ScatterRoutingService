@@ -5,6 +5,7 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import net.ballmerlabs.uscatterbrain.ScatterRoutingService;
 import net.ballmerlabs.uscatterbrain.network.LuidPacket;
 
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ public class LuidStage {
                     .setLuid(uuid.get());
 
             if (hashed) {
-                builder.enableHashing();
+                builder.enableHashing(ScatterRoutingService.PROTO_VERSION);
             }
             return builder.build();
         })

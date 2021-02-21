@@ -29,6 +29,7 @@ import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
 import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.RouterPreferences;
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
+import net.ballmerlabs.uscatterbrain.ScatterRoutingService;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket;
@@ -288,6 +289,10 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .doOnError(err -> Log.e(TAG, "error while receiving luid packet: " + err))
                             .observeOn(clientScheduler)
                             .map(luidPacket -> {
+                                if (luidPacket.getProtoVersion() != ScatterRoutingService.PROTO_VERSION) {
+                                    Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.getProtoVersion());
+                                    return new TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device);
+                                }
                                 synchronized (connectedLuids) {
                                     final UUID hashUUID = luidPacket.getHashAsUUID();
                                     if (connectedLuids.contains(hashUUID)) {

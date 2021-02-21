@@ -36,6 +36,7 @@ import io.reactivex.Observable;
 import io.reactivex.Single;
 
 public class ScatterRoutingService extends LifecycleService {
+    public static final int PROTO_VERSION = 0;
     public final String TAG = "ScatterRoutingService";
     private final IBinder mBinder = new ScatterBinder();
     private RoutingServiceBackend mBackend;

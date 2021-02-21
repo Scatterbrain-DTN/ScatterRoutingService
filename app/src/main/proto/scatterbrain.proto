@@ -48,9 +48,13 @@ message BlockSequence {
 }
 
 message Luid {
+    message hashed {
+        uint32 protoversion = 1;
+        bytes hash = 2;
+    }
     oneof val {
-        UUID val_uuid = 1;
-        bytes val_hash = 2;
+        UUID val_uuid = 3;
+        hashed val_hash = 4;
     }
 }
 
