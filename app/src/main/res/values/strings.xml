@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">uScatterbrain</string>
+    <string name="app_name">ScatterRoutingService</string>
     <string name="permission_access">net.ballmerlabs.scatterbrain.permission.ACCESS</string>
     <string name="permission_admin">net.ballmerlabs.scatterbrain.permission.ADMIN</string>
     <string name="permission_superuser">net.ballmerlabs.scatterbrain.permission.SUPERUSER</string>

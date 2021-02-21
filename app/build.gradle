@@ -57,7 +57,7 @@ sourceSets{
 }
 
 dependencies {
-    implementation project(path: ':uScatterbrain:scatterbrainSDK')
+    implementation project(path: ':ScatterRoutingService:scatterbrainSDK')
     def lifecycle_version = "2.2.0"
     implementation 'androidx.appcompat:appcompat:1.2.0'
     implementation 'com.google.protobuf:protobuf-javalite:3.11.1'
