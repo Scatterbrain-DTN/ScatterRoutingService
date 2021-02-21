@@ -1,0 +1,3 @@
+[submodule "scatterbrainSDK"]
+	path = scatterbrainSDK
+	url = git@github.com:Scatterbrain-DTN/ScatterbrainSDK.git
