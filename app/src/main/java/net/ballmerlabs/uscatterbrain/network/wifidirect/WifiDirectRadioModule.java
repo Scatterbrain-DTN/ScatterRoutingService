@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect;
 
 import android.net.wifi.p2p.WifiP2pInfo;
 
-import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage;
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage;

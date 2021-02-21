@@ -8,8 +8,8 @@ import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
-import net.ballmerlabs.uscatterbrain.API.Identity;
-import net.ballmerlabs.uscatterbrain.network.IdentityPacket;
+import net.ballmerlabs.scatterbrainsdk.Identity;
+import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi;
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface;
 
 import java.util.ConcurrentModificationException;
@@ -24,7 +24,7 @@ public class ApiIdentity extends Identity {
     protected ApiIdentity(Builder builder) {
         super(
                 builder.mPubKeymap,
-                builder.mPubKeymap.get(IdentityPacket.PROTOBUF_PRIVKEY_KEY),
+                builder.mPubKeymap.get(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY),
                 builder.name,
                 builder.sig,
                 builder.fingerprint
@@ -159,14 +159,14 @@ public class ApiIdentity extends Identity {
 
             if (signPair != null) {
                 signEd25519(signPair.secretkey);
-                mPubKeymap.put(IdentityPacket.PROTOBUF_PRIVKEY_KEY, signPair.publickey);
+                mPubKeymap.put(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY, signPair.publickey);
                 this.pubkey = signPair.publickey;
             } else {
-                if (!mPubKeymap.containsKey(IdentityPacket.PROTOBUF_PRIVKEY_KEY)) {
+                if (!mPubKeymap.containsKey(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY)) {
                     throw new IllegalArgumentException("key map does not contain scatterbrain pubkey");
                 }
 
-                pubkey = mPubKeymap.get(IdentityPacket.PROTOBUF_PRIVKEY_KEY);
+                pubkey = mPubKeymap.get(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY);
             }
             this.fingerprint = getFingerprint();
             return new ApiIdentity(this);

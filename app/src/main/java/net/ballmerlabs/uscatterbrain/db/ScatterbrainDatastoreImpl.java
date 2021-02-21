@@ -15,6 +15,7 @@ import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
+import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi;
 import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.RouterPreferences;
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackend;
@@ -401,7 +402,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .flatMapCompletable(identities -> insertIdentity(Observable.fromIterable(identities)));
     }
 
-    private String getFingerprint(net.ballmerlabs.uscatterbrain.API.Identity identity) {
+    private String getFingerprint(net.ballmerlabs.scatterbrainsdk.Identity identity) {
         byte[] fingeprint = new byte[GenericHash.BYTES];
         LibsodiumInterface.getSodium().crypto_generichash(
                 fingeprint,
@@ -457,7 +458,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public Completable insertApiIdentities(List<net.ballmerlabs.uscatterbrain.API.Identity> identities) {
+    public Completable insertApiIdentities(List<net.ballmerlabs.scatterbrainsdk.Identity> identities) {
         return Observable.fromIterable(identities)
                 .map(identity -> {
                     final Identity id = new Identity();
@@ -639,7 +640,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public List<net.ballmerlabs.uscatterbrain.API.Identity> getAllIdentities() {
+    public List<net.ballmerlabs.scatterbrainsdk.Identity> getAllIdentities() {
         return mDatastore.identityDao().getAll()
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable(Observable::fromIterable)
@@ -648,7 +649,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                         .addKeys(keys2map(identity.keys))
                         .setSig(identity.identity.signature)
                         .build()
-                ).reduce(new ArrayList<net.ballmerlabs.uscatterbrain.API.Identity>(), (list, id) -> {
+                ).reduce(new ArrayList<net.ballmerlabs.scatterbrainsdk.Identity>(), (list, id) -> {
                     list.add(id);
                     return list;
                 }).blockingGet();
@@ -692,7 +693,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                     message.userFilename = path.getName();
                     message.extension = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString());
                     message.filePath = path.getAbsolutePath();
-                    message.mimeType = ScatterbrainDatastore.getMimeType(path);
+                    message.mimeType = ScatterbrainApi.getMimeType(path);
                     ScatterMessage hashedMessage = new ScatterMessage();
                     hashedMessage.message = message;
                     hashedMessage.messageHashes = HashlessScatterMessage.hash2hashs(hashes);
@@ -701,7 +702,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .blockingGet();
     }
 
-    private net.ballmerlabs.uscatterbrain.API.ScatterMessage message2message(ScatterMessage message) {
+    private net.ballmerlabs.scatterbrainsdk.ScatterMessage message2message(ScatterMessage message) {
         final File f = new File(message.message.filePath);
         final File r;
         if (f.exists()) {
@@ -709,7 +710,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
         } else {
             r = null;
         }
-        return net.ballmerlabs.uscatterbrain.API.ScatterMessage.newBuilder()
+        return net.ballmerlabs.scatterbrainsdk.ScatterMessage.newBuilder()
                 .setApplication(new String(message.message.application))
                 .setBody(message.message.body)
                 .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
@@ -718,7 +719,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
                 .build();
     }
 
-    private Single<List<net.ballmerlabs.uscatterbrain.API.ScatterMessage>> getApiMessage(Observable<ScatterMessage> entities) {
+    private Single<List<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> getApiMessage(Observable<ScatterMessage> entities) {
         return entities
                 .map(this::message2message)
                 .reduce(new ArrayList<>(), (list, m) -> {
@@ -728,12 +729,12 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
 
-    private Single<net.ballmerlabs.uscatterbrain.API.ScatterMessage> getApiMessage(Single<ScatterMessage> entity) {
+    private Single<net.ballmerlabs.scatterbrainsdk.ScatterMessage> getApiMessage(Single<ScatterMessage> entity) {
         return entity.map(this::message2message);
     }
 
     @Override
-    public List<net.ballmerlabs.uscatterbrain.API.ScatterMessage> getApiMessages(String application) {
+    public List<net.ballmerlabs.scatterbrainsdk.ScatterMessage> getApiMessages(String application) {
         return getApiMessage(mDatastore.scatterMessageDao()
                 .getByApplication(application)
                 .flatMapObservable(Observable::fromIterable))
@@ -741,7 +742,7 @@ public class ScatterbrainDatastoreImpl implements ScatterbrainDatastore {
     }
 
     @Override
-    public net.ballmerlabs.uscatterbrain.API.ScatterMessage getApiMessages(long id) {
+    public net.ballmerlabs.scatterbrainsdk.ScatterMessage getApiMessages(long id) {
         return getApiMessage(mDatastore.scatterMessageDao().getByID(id))
                 .blockingGet();
     }

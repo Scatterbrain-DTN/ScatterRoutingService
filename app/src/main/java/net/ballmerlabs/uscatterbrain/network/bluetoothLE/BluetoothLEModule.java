@@ -1,6 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE;
 
-import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult;
 
 import io.reactivex.Completable;
 import io.reactivex.Observable;

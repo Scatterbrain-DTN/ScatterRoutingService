@@ -25,7 +25,7 @@ import com.polidea.rxandroidble2.Timeout;
 import com.polidea.rxandroidble2.scan.ScanFilter;
 import com.polidea.rxandroidble2.scan.ScanSettings;
 
-import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult;
 import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.RouterPreferences;
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
@@ -35,7 +35,6 @@ import net.ballmerlabs.uscatterbrain.network.AdvertisePacket;
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket;
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest;
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule;
-import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -532,7 +531,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             .concatMapSingle(m -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0))
                             .reduce(Integer::sum)
                             .toSingle()
-                            .map(i -> new HandshakeResult(0, i, ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS))
+                            .map(i -> new HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
                             .map(res -> {
                                 transactionCompleteRelay.accept(res);
                                 return new TransactionResult<>(TransactionResult.STAGE_EXIT, device);
@@ -570,7 +569,7 @@ public class BluetoothLERadioModuleImpl implements BluetoothLEModule {
                             new HandshakeResult(
                                     0,
                                     0,
-                                    ScatterbrainScheduler.TransactionStatus.STATUS_FAIL
+                                    HandshakeResult.TransactionStatus.STATUS_FAIL
                             )
                     );
                 });

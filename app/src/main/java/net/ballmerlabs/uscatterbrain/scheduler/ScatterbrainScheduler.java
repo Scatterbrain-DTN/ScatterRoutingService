@@ -110,11 +110,4 @@ public interface ScatterbrainScheduler {
     boolean isDiscovering();
 
     boolean isPassive();
-
-
-
-    enum TransactionStatus {
-        STATUS_SUCCESS,
-        STATUS_FAIL
-    }
 }

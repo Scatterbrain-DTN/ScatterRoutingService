@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKeys;
 
+import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi;
 import net.ballmerlabs.uscatterbrain.ScatterProto;
 import com.github.davidmoten.rx2.Bytes;
 import com.google.protobuf.ByteString;
@@ -47,8 +48,6 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
     private final AtomicReference<ByteString> sig = new AtomicReference<>(ByteString.EMPTY);
     private final byte[] mScatterbrainPubKey;
     private UUID luidtag;
-    public static final String PROTOBUF_PRIVKEY_KEY = "scatterbrain";
-    public static final String KEYSTORE_ID = "scatterbrainkeystore";
 
     private IdentityPacket(Builder builder) throws GeneralSecurityException, IOException {
         this.mCtx = builder.getContext();
@@ -69,7 +68,7 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
                     .setEnd(true)
                     .build());
         } else {
-            this.mPubKeymap.put(PROTOBUF_PRIVKEY_KEY, ByteString.copyFrom(mScatterbrainPubKey));
+            this.mPubKeymap.put(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY, ByteString.copyFrom(mScatterbrainPubKey));
             regenIdentity();
         }
     }
@@ -89,7 +88,7 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
     private void initKeyStore() throws GeneralSecurityException, IOException {
         String masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
         this.mKeystorePrefs = EncryptedSharedPreferences.create(
-                KEYSTORE_ID,
+                ScatterbrainApi.KEYSTORE_ID,
                 masterKeyAlias,
                 this.mCtx,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
@@ -136,7 +135,7 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
             this.mPubKeymap = identity.getVal().getKeysMap();
             this.sig.set(identity.getVal().getSig());
             this.givenname = identity.getVal().getGivenname();
-            ByteString scatterbrainKey = mPubKeymap.get(PROTOBUF_PRIVKEY_KEY);
+            ByteString scatterbrainKey = mPubKeymap.get(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY);
             if (scatterbrainKey == null) {
                 throw new ProtocolException("scatterbrain key not in map");
             }
@@ -286,7 +285,7 @@ public class IdentityPacket implements Map<String, ByteString>, ScatterSerializa
 
         LibsodiumInterface.getSodium().crypto_sign_keypair(mScatterbrainPubKey, privkey);
 
-        this.mPubKeymap.put(PROTOBUF_PRIVKEY_KEY, ByteString.copyFrom(mScatterbrainPubKey));
+        this.mPubKeymap.put(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY, ByteString.copyFrom(mScatterbrainPubKey));
         String secretKeyBase64 = LibsodiumInterface.base64enc(privkey);
         String fingerprint = LibsodiumInterface.base64enc(mScatterbrainPubKey);
 

@@ -1,13 +1,11 @@
 package net.ballmerlabs.uscatterbrain.db;
 
-import android.os.ParcelFileDescriptor;
-
 import com.google.protobuf.ByteString;
 import com.goterl.lazycode.lazysodium.interfaces.Sign;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
-import net.ballmerlabs.uscatterbrain.API.ScatterMessage;
+import net.ballmerlabs.scatterbrainsdk.ScatterMessage;
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity;
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface;
 

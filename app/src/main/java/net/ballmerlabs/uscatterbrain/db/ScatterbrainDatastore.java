@@ -1,12 +1,9 @@
 package net.ballmerlabs.uscatterbrain.db;
 
-import android.provider.DocumentsContract;
-import android.webkit.MimeTypeMap;
-
 import com.google.protobuf.ByteString;
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash;
 
-import net.ballmerlabs.uscatterbrain.API.Identity;
+import net.ballmerlabs.scatterbrainsdk.Identity;
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity;
 import net.ballmerlabs.uscatterbrain.db.entities.Hashes;
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage;
@@ -40,7 +37,6 @@ import io.reactivex.Single;
 public interface ScatterbrainDatastore {
 
     String DATABASE_NAME = "scatterdb";
-    int MAX_BODY_SIZE = 1024*1024*4;
     int DEFAULT_BLOCKSIZE = 1024*2;
     final Pattern FILE_SANITIZE = Pattern.compile("/^[\\w.-]+$/\n");
 
@@ -163,11 +159,11 @@ public interface ScatterbrainDatastore {
 
     List<Identity> getAllIdentities();
 
-    List<net.ballmerlabs.uscatterbrain.API.ScatterMessage> getApiMessages(String application);
+    List<net.ballmerlabs.scatterbrainsdk.ScatterMessage> getApiMessages(String application);
 
     Flowable<IdentityPacket> getTopRandomIdentities(int count);
 
-    net.ballmerlabs.uscatterbrain.API.ScatterMessage getApiMessages(long id);
+    net.ballmerlabs.scatterbrainsdk.ScatterMessage getApiMessages(long id);
 
     Completable insertAndHashFileFromApi(ApiScatterMessage message, int blocksize);
 
@@ -250,21 +246,6 @@ public interface ScatterbrainDatastore {
 
     static String getDefaultFileName(BlockHeaderPacket packet) {
         return getDefaultFileName(packet.getHashList());
-    }
-
-    static String getMimeType(File file) {
-        if (file.isDirectory()) {
-            return DocumentsContract.Document.MIME_TYPE_DIR;
-        } else {
-            final String name = file.getName();
-            final int lastDot = name.lastIndexOf('.');
-            if (lastDot >= 0) {
-                final String extension = name.substring(lastDot + 1).toLowerCase();
-                final String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
-                if (mime != null) return mime;
-            }
-            return "application/octet-stream";
-        }
     }
 
     class OpenFile implements Closeable {

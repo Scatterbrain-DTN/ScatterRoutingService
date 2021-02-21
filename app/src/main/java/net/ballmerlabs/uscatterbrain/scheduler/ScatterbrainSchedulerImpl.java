@@ -4,8 +4,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
-import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
-import net.ballmerlabs.uscatterbrain.API.ScatterbrainApi;
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult;
+import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi;
 import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule;

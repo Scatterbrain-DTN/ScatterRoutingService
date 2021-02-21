@@ -11,7 +11,7 @@ import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 
-import net.ballmerlabs.uscatterbrain.API.HandshakeResult;
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult;
 import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.RouterPreferences;
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent;
@@ -446,7 +446,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                             new HandshakeResult(
                                                     p.size(),
                                                     0,
-                                                    ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS
+                                                    HandshakeResult.TransactionStatus.STATUS_SUCCESS
                                             )
                             ))
                     ).flatMap(stats ->
@@ -488,7 +488,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                                                     new HandshakeResult(
                                                             p.size(),
                                                             0,
-                                                            ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS
+                                                            HandshakeResult.TransactionStatus.STATUS_SUCCESS
                                                     )
                                             ))
                                             .flatMap(stats ->
@@ -594,7 +594,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 }) //TODO: timeout here
                 .concatMapSingle(m -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0))
                 .reduce(Integer::sum)
-                .map(i -> new HandshakeResult(0, i, ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS))
+                .map(i -> new HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
                 .toSingle();
     }
 
@@ -633,7 +633,7 @@ public class WifiDirectRadioModuleImpl implements WifiDirectRadioModule {
                 })
                 .concatMapSingle(m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0))
                 .reduce(Integer::sum)
-                .map(i -> new HandshakeResult(0, i, ScatterbrainScheduler.TransactionStatus.STATUS_SUCCESS))
+                .map(i -> new HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
                 .toSingle();
     }
 }

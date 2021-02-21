@@ -14,10 +14,11 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
+import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi;
+import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.ScatterRoutingService;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
 
-import net.ballmerlabs.uscatterbrain.R;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -69,7 +70,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     private Map<String, Serializable> getDefaultFileMetadata(File path) {
         final HashMap<String, Serializable> result = new HashMap<>();
         result.put(Document.COLUMN_DOCUMENT_ID, path.getAbsolutePath());
-        result.put(Document.COLUMN_MIME_TYPE, ScatterbrainDatastore.getMimeType(path));
+        result.put(Document.COLUMN_MIME_TYPE, ScatterbrainApi.getMimeType(path));
         result.put(Document.COLUMN_DISPLAY_NAME, path.getName());
         result.put(Document.COLUMN_FLAGS, Document.FLAG_SUPPORTS_DELETE); //TODO: is this enough?
         result.put(Document.COLUMN_SIZE, path.length());

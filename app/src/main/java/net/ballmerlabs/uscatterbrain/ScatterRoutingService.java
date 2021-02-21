@@ -20,8 +20,9 @@ import androidx.lifecycle.LifecycleService;
 
 import com.jakewharton.rxrelay2.BehaviorRelay;
 
-import net.ballmerlabs.uscatterbrain.API.Identity;
-import net.ballmerlabs.uscatterbrain.API.ScatterMessage;
+import net.ballmerlabs.scatterbrainsdk.Identity;
+import net.ballmerlabs.scatterbrainsdk.ScatterMessage;
+import net.ballmerlabs.scatterbrainsdk.ScatterbrainAPI;
 import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity;
@@ -34,6 +35,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import io.reactivex.Observable;
 import io.reactivex.Single;
+
+import static android.os.Binder.getCallingUid;
 
 public class ScatterRoutingService extends LifecycleService {
     public static final int PROTO_VERSION = 0;
