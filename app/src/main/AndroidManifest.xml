@@ -46,6 +46,7 @@
 
         <service
             android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService"
+            android:foregroundServiceType="location"
             android:exported="true"/>
 
         <provider
