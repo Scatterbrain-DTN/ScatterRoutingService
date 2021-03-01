@@ -60,7 +60,7 @@ class LuidPacket : ScatterSerializable {
     //note: this only is safe because crypto_generichash_BYTES_MIN is 16
     val hashAsUUID: UUID?
         get() {
-            val h = mLuid!!.valHash.toByteArray()
+            val h = mLuid.valHash.toByteArray()
             return if (h.size != GenericHash.BYTES) {
                 null
             } else if (isHashed) {

@@ -4,7 +4,7 @@ import java.nio.BufferOverflowException
 import java.nio.ByteBuffer
 
 class CircularBuffer(private val writeBuffer: ByteBuffer) {
-    private val readBuffer: ByteBuffer
+    private val readBuffer: ByteBuffer = writeBuffer.duplicate()
     fun size(): Int {
         return Math.floorMod(writeBuffer.position() - readBuffer.position(), writeBuffer.capacity())
     }
@@ -16,31 +16,31 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
         return readBuffer.get()
     }
 
-    operator fun get(`val`: ByteArray?, offset: Int, length: Int) {
+    operator fun get(buf: ByteArray, offset: Int, length: Int) {
         if (length > size()) {
             throw BufferOverflowException()
         }
         var l = length
         val read = Math.min(length, readBuffer.remaining())
-        readBuffer[`val`, offset, read]
+        readBuffer[buf, offset, read]
         l -= read
         if (l > 0) {
             readBuffer.position(0)
-            readBuffer[`val`, offset + read, l]
+            readBuffer[buf, offset + read, l]
         }
     }
 
-    fun put(`val`: ByteArray, offset: Int, len: Int) {
-        var l = Math.min(`val`.size, len)
+    fun put(buf: ByteArray, offset: Int, len: Int) {
+        var l = Math.min(buf.size, len)
         if (l > remaining()) {
             throw BufferOverflowException()
         }
         val write = Math.min(l, writeBuffer.remaining())
-        writeBuffer.put(`val`, offset, write)
+        writeBuffer.put(buf, offset, write)
         l -= write
         if (l > 0) {
             writeBuffer.position(0)
-            writeBuffer.put(`val`, offset + write, l)
+            writeBuffer.put(buf, offset + write, l)
         }
     }
 
@@ -55,7 +55,4 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
         return (readBuffer.position() - p).toLong()
     }
 
-    init {
-        readBuffer = writeBuffer.duplicate()
-    }
 }

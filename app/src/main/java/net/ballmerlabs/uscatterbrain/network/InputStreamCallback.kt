@@ -23,11 +23,11 @@ abstract class InputStreamCallback(capacity: Int) : InputStream() {
     private val lock = java.lang.Object()
     private val readLock = Semaphore(1, true)
     private var complete = false
-    protected fun acceptBytes(`val`: ByteArray) {
-        if (`val`.size >= buf.remaining()) {
+    protected fun acceptBytes(buf: ByteArray) {
+        if (buf.size >= this.buf.remaining()) {
             throw BufferOverflowException()
         }
-        buf.put(`val`, 0, `val`.size)
+        this.buf.put(buf, 0, buf.size)
         readLock.release()
     }
 
