@@ -19,8 +19,8 @@ import java.util.*
  */
 class BlockSequencePacket private constructor(builder: Builder) : ScatterSerializable {
     private val mSequenceNumber: Int
-    private val mData: ByteString
-    private val mDataOnDisk: File
+    private val mData: ByteString?
+    private val mDataOnDisk: File?
     private val mBlockSequence: BlockSequence?
     var isNative = false
         private set
@@ -31,7 +31,7 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
     init {
         mSequenceNumber = builder.getmSequenceNumber()
         val d = builder.getmData()
-        mDataOnDisk = builder.getmDataOnDisk()!!
+        mDataOnDisk = builder.getmDataOnDisk()
         val tmpbuilder = BlockSequence.newBuilder()
         if (d != null) {
             tmpbuilder.dataContents = d
