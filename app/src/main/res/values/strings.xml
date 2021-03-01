@@ -18,4 +18,7 @@
     <string name="powersave_passive">passive</string>
     <string name="powersave_opportunistic">opportunistic</string>
 
+    <!-- wakelock -->
+    <string name="wakelock_tag">net.ballmerlabs.scatterbrain.WAKE</string>
+
 </resources>

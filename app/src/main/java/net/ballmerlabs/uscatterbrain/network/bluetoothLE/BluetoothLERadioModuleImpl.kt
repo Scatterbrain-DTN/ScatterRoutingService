@@ -35,7 +35,6 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.discoveryOptions
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.TransactionResult
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -61,7 +60,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         private val powerManager: PowerManager,
         private val preferences: RouterPreferences
 ) : BluetoothLEModule {
-    private val wakeLock = AtomicReference<WakeLock>()
+    private val wakeLock = AtomicReference<WakeLock?>()
 
     companion object {
         const val TAG = "BluetoothLE"
@@ -152,14 +151,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     protected fun acquireWakelock() {
-        wakeLock.updateAndGet { w: WakeLock ->
-            w
-        }!!.acquire(10 * 60 * 1000L /*10 minutes*/)
+        wakeLock.updateAndGet {
+            powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, mContext.getString(R.string.wakelock_tag))
+                    .apply { acquire(10*60*1000) }
+        }
     }
 
     protected fun releaseWakeLock() {
-        val w = wakeLock.getAndUpdate { wl: WakeLock -> null }
-        w.release()
+        wakeLock.getAndUpdate { null }?.release()
     }
 
     private val powerSave: String?
@@ -623,6 +622,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val config = ServerConfig.newInstance(Timeout(5, TimeUnit.SECONDS))
                 .addService(mService)
         val d = mServer.openServer(config)
+                .doOnSubscribe { Log.v(TAG, "gatt server subscribed") }
                 .doOnError { _: Throwable -> Log.e(TAG, "failed to open server") }
                 .concatMap { connectionRaw: RxBleServerConnection ->
                     val connection = CachedLEServerConnection(connectionRaw, channels)
@@ -634,25 +634,26 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         return@concatMap Observable.error<BootstrapRequest>(IllegalStateException("device was null"))
                     }
                     acquireWakelock()
-                    Log.d(TAG, "gatt server connection from " + connection.connection.device.address)
+                    Log.d(TAG, "gatt server connection from " + connectionRaw.device.address)
                     initializeProtocol(connection.connection.device)
                             .flatMapObservable { session: LeDeviceSession ->
                                 establishConnection(device, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
-                                        .onErrorResumeNext(Observable.never())
+                                        .doOnError { err: Throwable -> Log.e(TAG, "error establishing reverse connection: $err")}
                                         .flatMap { clientConnection: CachedLEConnection ->
+                                            Log.v(TAG, "stating stages")
                                             session.observeStage()
                                                     .doOnNext { stage: String? -> Log.v(TAG, "handling stage: $stage") }
-                                                    .flatMapSingle { _: String? ->
+                                                    .flatMapSingle {
                                                         Single.zip(
                                                                 session.singleClient(),
                                                                 session.singleServer(),
                                                                 BiFunction { client: ClientTransaction, server: ServerTransaction ->
                                                                     server(connection)
-                                                                            .doOnSuccess { _ -> Log.v(TAG, "server handshake completed") }
+                                                                            .doOnSuccess { Log.v(TAG, "server handshake completed") }
                                                                             .zipWith(
                                                                                     client(clientConnection), BiFunction<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>, android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>>> { first: Optional<BootstrapRequest>, second: TransactionResult<BootstrapRequest> -> android.util.Pair(first, second) })
                                                                             .toObservable()
-                                                                            .doOnSubscribe { _: Disposable? -> Log.v("debug", "client handshake subscribed") }
+                                                                            .doOnSubscribe { Log.v("debug", "client handshake subscribed") }
                                                                 }
                                                         )
                                                     }
@@ -688,13 +689,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     stopServer()
                 }
                 .flatMapSingle { bootstrapRequest: BootstrapRequest -> bootstrapWifiP2p(bootstrapRequest) }
-                .retry()
-                .repeat()
-                .doOnNext { s: HandshakeResult? -> releaseWakeLock() }
                 .doOnError { err: Throwable ->
                     Log.e(TAG, "gatt server shut down with error: $err")
                     err.printStackTrace()
                 }
+                .retry()
+                .repeat()
+                .doOnNext { s: HandshakeResult? -> releaseWakeLock() }
                 .subscribe(transactionCompleteRelay)
         mGattDisposable.add(d)
         startAdvertise()
