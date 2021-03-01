@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network
 
+import android.util.Log
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
@@ -40,12 +41,12 @@ class LuidPacket : ScatterSerializable {
 
     private constructor(`is`: InputStream) {
         mLuid = CRCProtobuf.parseFromCRC(Luid.parser(), `is`)
-        isHashed = mLuid.getValCase() == Luid.ValCase.VAL_HASH
+        isHashed = mLuid.valCase == Luid.ValCase.VAL_HASH
     }
 
     val hash: ByteArray
         get() = if (isHashed) {
-            mLuid!!.valHash.toByteArray()
+            mLuid.valHash.toByteArray()
         } else {
             ByteArray(0)
         }
@@ -54,7 +55,7 @@ class LuidPacket : ScatterSerializable {
         get() = if (!isHashed) {
             -1
         } else {
-            mLuid!!.valHash.protoversion
+            mLuid.valHash.protoversion
         }
 
     //note: this only is safe because crypto_generichash_BYTES_MIN is 16
@@ -62,12 +63,14 @@ class LuidPacket : ScatterSerializable {
         get() {
             val h = mLuid.valHash.toByteArray()
             return if (h.size != GenericHash.BYTES) {
+                Log.e("debug", "hash size wrong: ${h.size}")
                 null
             } else if (isHashed) {
                 val buf = ByteBuffer.wrap(h)
                 //note: this only is safe because crypto_generichash_BYTES_MIN is 16
                 UUID(buf.long, buf.long)
             } else {
+                Log.e("debug", "isHashed not set")
                 null
             }
         }
@@ -175,13 +178,13 @@ class LuidPacket : ScatterSerializable {
         }
 
         fun parseFrom(flowable: Observable<ByteArray>): Single<LuidPacket> {
-            val observer = InputStreamObserver(512) //TODO: find a way to calculate max size
+            val observer = InputStreamObserver(4096) //TODO: find a way to calculate max size
             flowable.subscribe(observer)
             return parseFrom(observer).doFinally { observer.close() }
         }
 
         fun parseFrom(flowable: Flowable<ByteArray?>): Single<LuidPacket> {
-            val observer = InputStreamFlowableSubscriber(512) //TODO: find a way to calculate max size
+            val observer = InputStreamFlowableSubscriber(4096) //TODO: find a way to calculate max size
             flowable.subscribe(observer)
             return parseFrom(observer).doFinally { observer.close() }
         }

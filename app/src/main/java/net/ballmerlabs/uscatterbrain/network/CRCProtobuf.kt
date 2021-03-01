@@ -13,7 +13,7 @@ import java.util.zip.CRC32
 object CRCProtobuf {
     private const val MASK = 0xFFFFFFFFL
     private const val MESSAGE_SIZE_CAP = 1024 * 1024
-    fun bytes2long(payload: ByteArray?): Long {
+    fun bytes2long(payload: ByteArray): Long {
         val buffer = ByteBuffer.wrap(payload)
         buffer.order(ByteOrder.BIG_ENDIAN)
         return (buffer.int and MASK.toInt()).toLong()
@@ -26,8 +26,7 @@ object CRCProtobuf {
         return buffer.array()
     }
 
-    @Throws(IOException::class)
-    fun <T : MessageLite?> parseFromCRC(parser: Parser<T>, inputStream: InputStream): T {
+    fun <T : MessageLite> parseFromCRC(parser: Parser<T>, inputStream: InputStream): T {
         val crc = ByteArray(4)
         val size = ByteArray(4)
         if (inputStream.read(size) != 4) {
@@ -51,7 +50,6 @@ object CRCProtobuf {
         return message
     }
 
-    @Throws(IOException::class)
     fun writeToCRC(message: MessageLite?, outputStream: OutputStream) {
         outputStream.write(
                 ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(message!!.serializedSize).array()
