@@ -14,11 +14,19 @@ import android.os.Parcelable
 import android.util.Log
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
+import io.reactivex.Scheduler
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
 
-class WifiDirectBroadcastReceiver(
+@Singleton
+class WifiDirectBroadcastReceiver @Inject constructor(
         private val manager: WifiP2pManager,
         private val channel: WifiP2pManager.Channel,
-        context: Context
+        context: Context,
+        @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_OPERATIONS) private val operationScheduler: Scheduler
 ) : BroadcastReceiver() {
     enum class P2pState {
         STATE_DISABLED, STATE_ENABLED
@@ -48,7 +56,7 @@ class WifiDirectBroadcastReceiver(
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION == action) {
             // Connection state changed!
             Log.v(TAG, "WIFI_P2P_CONNECTION_CHANGED_ACTION")
-            val networkInfo = intent.getParcelableExtra<Parcelable>(WifiP2pManager.EXTRA_NETWORK_INFO) as NetworkInfo?
+            val networkInfo = intent.getParcelableExtra<NetworkInfo>(WifiP2pManager.EXTRA_NETWORK_INFO)
             if (networkInfo != null && networkInfo.isConnected) {
                 manager.requestConnectionInfo(channel, mConnectionInfoListener)
             } else if (networkInfo != null) {
@@ -68,19 +76,19 @@ class WifiDirectBroadcastReceiver(
     }
 
     fun observeP2pState(): Observable<P2pState> {
-        return p2pStateSubject
+        return p2pStateSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
     }
 
     fun observeThisDevice(): Observable<WifiP2pDevice> {
-        return thisDeviceChangedSubject
+        return thisDeviceChangedSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
     }
 
     fun observeConnectionInfo(): Observable<WifiP2pInfo> {
-        return connectionSubject
+        return connectionSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
     }
 
     fun observePeers(): Observable<WifiP2pDeviceList> {
-        return deviceListSubject
+        return deviceListSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
     }
 
     fun asReceiver(): BroadcastReceiver {

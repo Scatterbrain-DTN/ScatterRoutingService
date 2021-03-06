@@ -1,12 +1,15 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
+import android.Manifest
 import android.content.Context
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.wifi.p2p.*
 import android.os.Build
 import android.os.Looper
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.core.app.ActivityCompat
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -27,6 +30,7 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.InterceptableServerSocke
 import net.ballmerlabs.uscatterbrain.network.wifidirect.InterceptableServerSocket.SocketConnection
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver.P2pState
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.Companion.TAG
 import org.reactivestreams.Subscription
 import java.net.InetAddress
 import java.net.Socket
@@ -46,10 +50,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         preferences: RouterPreferences,
         @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_READ) readScheduler: Scheduler,
         @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_WRITE) writeScheduler: Scheduler,
-        @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_OPERATIONS) operationsScheduler: Scheduler
+        @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_OPERATIONS) operationsScheduler: Scheduler,
+        channel: WifiP2pManager.Channel,
+        private val mBroadcastReceiver: WifiDirectBroadcastReceiver
 ) : WifiDirectRadioModule {
-    private val mBroadcastReceiver: WifiDirectBroadcastReceiver
-    private val mP2pChannel: WifiP2pManager.Channel
+    private val mP2pChannel: WifiP2pManager.Channel = channel
     private val readScheduler: Scheduler
     private val writeScheduler: Scheduler
     private val operationsScheduler: Scheduler
@@ -76,65 +81,68 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     fun createGroup(name: String?, passphrase: String?): Completable {
         return Single.fromCallable {
-            Log.v(WifiDirectRadioModule.TAG, "creategroup called$name $passphrase")
-            try {
-                val config = WifiP2pConfig.Builder()
-                        .setNetworkName(name!!)
-                        .setPassphrase(passphrase!!)
-                        .build()
-                val subject = ReplaySubject.create<Any>()
-                val groupRetry = AtomicReference(5)
-                if (!groupOperationInProgress.getAndUpdate { true }) {
-                    val listener: WifiP2pManager.ActionListener = object : WifiP2pManager.ActionListener {
-                        override fun onSuccess() {
-                            Log.v(WifiDirectRadioModule.TAG, "successfully created group!")
-                            groupOperationInProgress.set(false)
-                            subject.onComplete()
-                        }
-
-                        override fun onFailure(reason: Int) {
-                            Log.e(WifiDirectRadioModule.TAG, "failed to create group: " + reasonCodeToString(reason))
-                            if (groupRetry.getAndUpdate { v: Int -> v - 1 } > 0) {
-                                mManager.createGroup(mP2pChannel, this)
-                            } else {
-                                subject.onError(IllegalStateException("failed to create group"))
-                            }
-                        }
-                    }
-                    mManager.requestGroupInfo(mP2pChannel) { group: WifiP2pGroup? ->
-                        if (group == null) {
-                            Log.v(WifiDirectRadioModule.TAG, "group is null, assuming not created")
-                            mManager.createGroup(mP2pChannel, config, listener)
-                        } else {
-                            mManager.removeGroup(mP2pChannel, object : WifiP2pManager.ActionListener {
+            Log.v(TAG, "creategroup called$name $passphrase")
+            val subject = ReplaySubject.create<Any>()
+            return@fromCallable mBroadcastReceiver.observeConnectionInfo()
+                    .doOnSubscribe {
+                        Log.e(TAG, "subscribed")
+                        val config = WifiP2pConfig.Builder()
+                                .setNetworkName(name!!)
+                                .setPassphrase(passphrase!!)
+                                .build()
+                        val groupRetry = AtomicReference(5)
+                        if (!groupOperationInProgress.getAndUpdate { true }) {
+                            val listener: WifiP2pManager.ActionListener = object : WifiP2pManager.ActionListener {
                                 override fun onSuccess() {
-                                    mManager.createGroup(mP2pChannel, config, listener)
+                                    Log.v(TAG, "successfully created group!")
+                                    groupOperationInProgress.set(false)
+                                    subject.onComplete()
                                 }
 
                                 override fun onFailure(reason: Int) {
-                                    Log.e(WifiDirectRadioModule.TAG, "failed to remove group")
-                                    groupOperationInProgress.set(false)
-                                    subject.onError(IllegalStateException("failed to remove group"))
+                                    Log.e(TAG, "failed to create group: " + reasonCodeToString(reason))
+                                    if (groupRetry.getAndUpdate { v: Int -> v - 1 } > 0 && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                                        mManager.createGroup(mP2pChannel, this)
+                                    } else {
+                                        subject.onError(IllegalStateException("failed to create group"))
+                                    }
                                 }
-                            })
+                            }
+                            if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                                mManager.requestGroupInfo(mP2pChannel) { group: WifiP2pGroup? ->
+                                    if (group == null) {
+                                        Log.v(TAG, "group is null, assuming not created")
+                                        mManager.createGroup(mP2pChannel, config, listener)
+                                    } else {
+                                        mManager.removeGroup(mP2pChannel, object : WifiP2pManager.ActionListener {
+                                            override fun onSuccess() {
+                                                if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                                                        PackageManager.PERMISSION_GRANTED) {
+                                                    mManager.createGroup(mP2pChannel, config, listener)
+                                                }
+                                            }
+
+                                            override fun onFailure(reason: Int) {
+                                                Log.e(TAG, "failed to remove group")
+                                                groupOperationInProgress.set(false)
+                                                subject.onError(IllegalStateException("failed to remove group"))
+                                            }
+                                        })
+                                    }
+                                }
+                            }
+                        } else {
+                            subject.onComplete()
                         }
+
                     }
-                } else {
-                    subject.onComplete()
-                }
-                return@fromCallable subject
-                        .ignoreElements()
-                        .andThen(mBroadcastReceiver.observeConnectionInfo()
-                                .takeUntil { wifiP2pInfo: WifiP2pInfo? -> wifiP2pInfo!!.groupFormed && wifiP2pInfo.isGroupOwner }
-                                .ignoreElements())
-                        .doOnComplete { Log.v(WifiDirectRadioModule.TAG, "createGroup return success") }
-                        .doFinally { groupOperationInProgress.set(false) }
-            } catch (e: SecurityException) {
-                return@fromCallable Completable.error(e)
-            }
+                    .doOnNext { t: WifiP2pInfo -> Log.e(TAG, "received a WifiP2pInfo: $t") }
+                    .takeUntil { wifiP2pInfo: WifiP2pInfo -> (wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner) }
+                    .ignoreElements()
+                    .doOnComplete { Log.v(TAG, "createGroup return success") }
+                    .doFinally { groupOperationInProgress.set(false) }
         }.flatMapCompletable { completable: Completable ->
             completable
-                    .timeout(5, TimeUnit.SECONDS, operationsScheduler)
         }
     }
 
@@ -163,12 +171,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             try {
                 val discoveryListener: WifiP2pManager.ActionListener = object : WifiP2pManager.ActionListener {
                     override fun onSuccess() {
-                        Log.v(WifiDirectRadioModule.TAG, "peer discovery request completed, initiating connection")
+                        Log.v(TAG, "peer discovery request completed, initiating connection")
                         subject.onComplete()
                     }
 
                     override fun onFailure(reason: Int) {
-                        Log.e(WifiDirectRadioModule.TAG, "peer discovery failed")
+                        Log.e(TAG, "peer discovery failed")
                         if (discoverretry.getAndUpdate { v: Int -> v -1 } > 0) {
                             mManager.discoverPeers(mP2pChannel, this)
                         } else {
@@ -186,18 +194,18 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     fun initiateConnection(config: WifiP2pConfig): Completable {
         return Single.fromCallable {
-            Log.e(WifiDirectRadioModule.TAG, " mylooper " + (Looper.myLooper() == Looper.getMainLooper()))
+            Log.e(TAG, " mylooper " + (Looper.myLooper() == Looper.getMainLooper()))
             val subject = CompletableSubject.create()
             val connectRetry = AtomicReference(10)
             try {
                 val connectListener: WifiP2pManager.ActionListener = object : WifiP2pManager.ActionListener {
                     override fun onSuccess() {
-                        Log.v(WifiDirectRadioModule.TAG, "connected to wifi direct group! FMEEEEE! AM HAPPY!")
+                        Log.v(TAG, "connected to wifi direct group! FMEEEEE! AM HAPPY!")
                         subject.onComplete()
                     }
 
                     override fun onFailure(reason: Int) {
-                        Log.e(WifiDirectRadioModule.TAG, "failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(reason))
+                        Log.e(TAG, "failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(reason))
                         if (connectRetry.getAndUpdate { v: Int -> v - 1 } > 0) {
                             mManager.connect(mP2pChannel, config, this)
                         } else {
@@ -214,13 +222,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     fun declareHashesUke(): Single<DeclareHashesPacket> {
-        Log.v(WifiDirectRadioModule.TAG, "declareHashesUke")
+        Log.v(TAG, "declareHashesUke")
         return serverSocket
                 .flatMap { socket: Socket -> declareHashesSeme(socket) }
     }
 
     fun declareHashesSeme(socket: Socket): Single<DeclareHashesPacket> {
-        Log.v(WifiDirectRadioModule.TAG, "declareHashesSeme")
+        Log.v(TAG, "declareHashesSeme")
         return datastore.declareHashesPacket
                 .flatMapObservable<DeclareHashesPacket> { declareHashesPacket: DeclareHashesPacket ->
                     DeclareHashesPacket.parseFrom(socket.getInputStream())
@@ -247,7 +255,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .takeWhile(Predicate { routingMetadataPacket: RoutingMetadataPacket ->
                                 val end = !routingMetadataPacket.isEmpty
                                 if (!end) {
-                                    Log.v(WifiDirectRadioModule.TAG, "routingMetadata seme end of stream")
+                                    Log.v(TAG, "routingMetadata seme end of stream")
                                 }
                                 end
                             }) //TODO: timeout here
@@ -273,16 +281,16 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .takeWhile(Predicate { identityPacket: IdentityPacket? ->
                                 val end = !identityPacket!!.isEnd
                                 if (!end) {
-                                    Log.v(WifiDirectRadioModule.TAG, "identitypacket seme end of stream")
+                                    Log.v(TAG, "identitypacket seme end of stream")
                                 }
                                 end
                             })
                             .mergeWith(packets.concatMapCompletable { p: IdentityPacket? ->
                                 p!!.writeToStream(sock.getOutputStream())
                                         .subscribeOn(operationsScheduler)
-                                        .doOnComplete { Log.v(WifiDirectRadioModule.TAG, "wrote single identity packet") }
+                                        .doOnComplete { Log.v(TAG, "wrote single identity packet") }
                             }
-                                    .doOnComplete { Log.v(WifiDirectRadioModule.TAG, "identity packets complete") })
+                                    .doOnComplete { Log.v(TAG, "identity packets complete") })
                 }
     }
 
@@ -298,13 +306,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .takeUntil { info: WifiP2pInfo -> info.groupFormed && !info.isGroupOwner }
                 .lastOrError()
                 .timeout(timeout.toLong(), TimeUnit.SECONDS, operationsScheduler)
-                .doOnSuccess { info: WifiP2pInfo -> Log.v(WifiDirectRadioModule.TAG, "connect to group returned: " + info!!.groupOwnerAddress) }
-                .doOnError { err: Throwable -> Log.e(WifiDirectRadioModule.TAG, "connect to group failed: $err") }
+                .doOnSuccess { info: WifiP2pInfo -> Log.v(TAG, "connect to group returned: " + info!!.groupOwnerAddress) }
+                .doOnError { err: Throwable -> Log.e(TAG, "connect to group failed: $err") }
                 .doFinally { groupConnectInProgress.set(false) }
     }
 
     override fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest): Single<HandshakeResult> {
-        Log.v(WifiDirectRadioModule.TAG, "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
+        Log.v(TAG, "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
                 + " " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE) + " "
                 + upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE))
         return if (upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
@@ -333,7 +341,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     }
                     ).flatMap { stats: HandshakeResult? ->
                         declareHashesUke()
-                                .doOnSuccess { p: DeclareHashesPacket? -> Log.v(WifiDirectRadioModule.TAG, "received declare hashes packet uke") }
+                                .doOnSuccess { p: DeclareHashesPacket? -> Log.v(TAG, "received declare hashes packet uke") }
                                 .flatMap { declareHashesPacket: DeclareHashesPacket ->
                                     readBlockDataUke()
                                             .toObservable()
@@ -380,7 +388,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                             }
                                             .flatMap { stats: HandshakeResult ->
                                                 declareHashesSeme(socket)
-                                                        .doOnSuccess { p: DeclareHashesPacket? -> Log.v(WifiDirectRadioModule.TAG, "received declare hashes packet seme") }
+                                                        .doOnSuccess { p: DeclareHashesPacket? -> Log.v(TAG, "received declare hashes packet seme") }
                                                         .flatMapObservable { declareHashesPacket: DeclareHashesPacket ->
                                                             readBlockDataSeme(socket)
                                                                     .toObservable()
@@ -391,7 +399,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                             }
                                 }
                     }
-                    .doOnSubscribe { disp: Disposable? -> Log.v(WifiDirectRadioModule.TAG, "subscribed to writeBlockData") }
+                    .doOnSubscribe { disp: Disposable? -> Log.v(TAG, "subscribed to writeBlockData") }
         } else {
             Single.error(IllegalStateException("invalid role"))
         }
@@ -399,28 +407,31 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private fun <T> retryDelay(observable: Observable<T>, count: Int, seconds: Int): Observable<T> {
         return observable
-                .retryWhen { errors: Observable<Throwable?> ->
+                .doOnError { err -> Log.e(TAG, "retryDelay caught exception: $err")}
+                .retryWhen { errors: Observable<Throwable> ->
                     errors
-                            .zipWith(Observable.range(1, count), BiFunction<Throwable?, Int, Int?> { v: Throwable?, i: Int? -> i!! })
-                            .concatMapSingle { error: Int? -> Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+                            .zipWith(Observable.range(1, count), BiFunction { _: Throwable, i: Int -> i })
+                            .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
                 }
     }
 
     private fun retryDelay(completable: Completable, count: Int, seconds: Int): Completable {
         return completable
-                .retryWhen { errors: Flowable<Throwable?> ->
+                .doOnError { err -> Log.e(TAG, "retryDelay caught exception: $err")}
+                .retryWhen { errors: Flowable<Throwable> ->
                     errors
-                            .zipWith(Flowable.range(1, count), BiFunction<Throwable?, Int, Int?> { v: Throwable?, i: Int? -> i!! })
-                            .concatMapSingle { error: Int? -> Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+                            .zipWith(Flowable.range(1, count), BiFunction { _: Throwable, i: Int -> i })
+                            .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
                 }
     }
 
     private fun <T> retryDelay(single: Single<T>, count: Int, seconds: Int): Single<T> {
         return single
-                .retryWhen { errors: Flowable<Throwable?> ->
+                .doOnError { err -> Log.e(TAG, "retryDelay caught exception: $err")}
+                .retryWhen { errors: Flowable<Throwable> ->
                     errors
-                            .zipWith(Flowable.range(1, count), BiFunction<Throwable?, Int, Int?> { v: Throwable?, i: Int? -> i!! })
-                            .concatMapSingle { error: Int? -> Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+                            .zipWith(Flowable.range(1, count), BiFunction { _: Throwable, i: Int -> i!! })
+                            .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
                 }
     }
 
@@ -430,12 +441,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Completable {
         return stream.concatMapCompletable { blockDataStream: BlockDataStream ->
             blockDataStream.headerPacket.writeToStream(socket.getOutputStream())
-                    .doOnComplete { Log.v(WifiDirectRadioModule.TAG, "wrote headerpacket to client socket") }
+                    .doOnComplete { Log.v(TAG, "wrote headerpacket to client socket") }
                     .andThen(
                             blockDataStream.sequencePackets
-                                    .doOnNext { packet: BlockSequencePacket? -> Log.v(WifiDirectRadioModule.TAG, "seme writing sequence packet: " + packet!!.getmData()!!.size()) }
+                                    .doOnNext { packet: BlockSequencePacket? -> Log.v(TAG, "seme writing sequence packet: " + packet!!.getmData()!!.size()) }
                                     .concatMapCompletable { sequencePacket: BlockSequencePacket? -> sequencePacket!!.writeToStream(socket.getOutputStream()) }
-                                    .doOnComplete { Log.v(WifiDirectRadioModule.TAG, "wrote sequence packets to client socket") }
+                                    .doOnComplete { Log.v(TAG, "wrote sequence packets to client socket") }
                     )
         }
     }
@@ -445,20 +456,20 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Completable {
         return serverSocket
                 .flatMapCompletable { socket: Socket ->
-                    stream.doOnSubscribe { disp: Subscription? -> Log.v(WifiDirectRadioModule.TAG, "subscribed to BlockDataStream observable") }
-                            .doOnNext { p: BlockDataStream? -> Log.v(WifiDirectRadioModule.TAG, "writeBlockData processing BlockDataStream") }
+                    stream.doOnSubscribe { disp: Subscription? -> Log.v(TAG, "subscribed to BlockDataStream observable") }
+                            .doOnNext { p: BlockDataStream? -> Log.v(TAG, "writeBlockData processing BlockDataStream") }
                             .concatMapCompletable { blockDataStream: BlockDataStream ->
                                 blockDataStream.headerPacket.writeToStream(socket.getOutputStream())
                                         .subscribeOn(operationsScheduler)
-                                        .doOnComplete { Log.v(WifiDirectRadioModule.TAG, "server wrote header packet") }
+                                        .doOnComplete { Log.v(TAG, "server wrote header packet") }
                                         .andThen(
                                                 blockDataStream.sequencePackets
-                                                        .doOnNext { packet: BlockSequencePacket? -> Log.v(WifiDirectRadioModule.TAG, "uke writing sequence packet: " + packet!!.getmData()!!.size()) }
+                                                        .doOnNext { packet: BlockSequencePacket? -> Log.v(TAG, "uke writing sequence packet: " + packet!!.getmData()!!.size()) }
                                                         .concatMapCompletable { blockSequencePacket: BlockSequencePacket? ->
                                                             blockSequencePacket!!.writeToStream(socket.getOutputStream())
                                                                     .subscribeOn(operationsScheduler)
                                                         }
-                                                        .doOnComplete { Log.v(WifiDirectRadioModule.TAG, "server wrote sequence packets") }
+                                                        .doOnComplete { Log.v(TAG, "server wrote sequence packets") }
                                         )
                             }
                 }
@@ -481,9 +492,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                             .repeat(headerPacket.hashList.size.toLong())
                                                             .doOnNext {
                                                                 packet: BlockSequencePacket ->
-                                                                Log.v(WifiDirectRadioModule.TAG, "uke reading sequence packet: " + packet.getmData()!!.size())
+                                                                Log.v(TAG, "uke reading sequence packet: " + packet.getmData()!!.size())
                                                             }
-                                                            .doOnComplete { Log.v(WifiDirectRadioModule.TAG, "server read sequence packets") }
+                                                            .doOnComplete { Log.v(TAG, "server read sequence packets") }
                                             )
                                         }
                             }
@@ -491,7 +502,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .takeUntil { stream: BlockDataStream ->
                     val end = stream.headerPacket.isEndOfStream
                     if (end) {
-                        Log.v(WifiDirectRadioModule.TAG, "uke end of stream")
+                        Log.v(TAG, "uke end of stream")
                     }
                     end
                 } //TODO: timeout here
@@ -506,7 +517,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .flatMapObservable { obj: InterceptableServerSocket -> obj.observeConnections() }
                 .map<Socket> { conn -> conn.socket }
                 .firstOrError()
-                .doOnSuccess { n: Socket? -> Log.v(WifiDirectRadioModule.TAG, "accepted server socket") }
+                .doOnSuccess { n: Socket? -> Log.v(TAG, "accepted server socket") }
 
     private fun readBlockDataSeme(
             socket: Socket
@@ -526,16 +537,16 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                 .subscribeOn(operationsScheduler)
                                                 .repeat(header.hashList.size.toLong())
                                                 .doOnNext{ packet: BlockSequencePacket ->
-                                                    Log.v(WifiDirectRadioModule.TAG, "seme reading sequence packet: " + packet.getmData()!!.size())
+                                                    Log.v(TAG, "seme reading sequence packet: " + packet.getmData()!!.size())
                                                 }
-                                                .doOnComplete { Log.v(WifiDirectRadioModule.TAG, "seme complete read sequence packets") }
+                                                .doOnComplete { Log.v(TAG, "seme complete read sequence packets") }
                                 )
                             }
                 }
                 .takeUntil { stream: BlockDataStream ->
                     val end = stream.headerPacket.isEndOfStream
                     if (end) {
-                        Log.v(WifiDirectRadioModule.TAG, "seme end of stream")
+                        Log.v(TAG, "seme end of stream")
                     }
                     end
                 }
@@ -571,8 +582,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     init {
-        mP2pChannel = mManager.initialize(mContext, mContext.mainLooper, null)
-        mBroadcastReceiver = WifiDirectBroadcastReceiver(mManager, mP2pChannel, mContext)
         this.readScheduler = readScheduler
         this.writeScheduler = writeScheduler
         this.operationsScheduler = operationsScheduler
@@ -580,45 +589,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         this.preferences = preferences
         groupOperationInProgress.set(false)
         groupConnectInProgress.set(false)
-        val d = mBroadcastReceiver.observeConnectionInfo()
-                .subscribe(
-                        { info: WifiP2pInfo? ->
-                            Log.v(WifiDirectRadioModule.TAG, "connection state change: " + info.toString())
-                            if (info!!.groupFormed && info.isGroupOwner) {
-                                //TODO:
-                            } else if (info.groupFormed) {
-                            }
-                        }
-                ) { err: Throwable -> Log.v(WifiDirectRadioModule.TAG, "error on state change: $err") }
-        val d2 = mBroadcastReceiver.observeP2pState()
-                .subscribe(
-                        { state: P2pState? ->
-                            Log.v(WifiDirectRadioModule.TAG, "p2p state change: " + state.toString())
-                            if (state == P2pState.STATE_DISABLED) {
-                                Log.v(WifiDirectRadioModule.TAG, "adapter disabled, disposing tcp server")
-                                tcpServerDisposable.dispose()
-                            }
-                        }
-                ) { err: Throwable -> Log.e(WifiDirectRadioModule.TAG, "error on p2p state change: $err") }
-        val d3 = mBroadcastReceiver.observePeers()
-                .subscribe(
-                        { success: WifiP2pDeviceList? -> Log.v(WifiDirectRadioModule.TAG, "peers changed: " + success.toString()) }
-                ) { err: Throwable -> Log.e(WifiDirectRadioModule.TAG, "error when fetching peer list: $err") }
-        val d4 = mBroadcastReceiver.observeThisDevice()
-                .subscribe(
-                        { success: WifiP2pDevice? -> Log.v(WifiDirectRadioModule.TAG, "this device changed: " + success.toString()) }
-                ) { err: Throwable -> Log.e(WifiDirectRadioModule.TAG, "error during this device change: $err") }
-        wifidirectDisposable.add(d)
-        wifidirectDisposable.add(d2)
-        wifidirectDisposable.add(d3)
-        wifidirectDisposable.add(d4)
         val tcpserverdisposable = socketFactory.create(SCATTERBRAIN_PORT)
                 .subscribeOn(operationsScheduler)
                 .flatMapObservable { obj: InterceptableServerSocket -> obj.acceptLoop() }
-                .doOnComplete { Log.e(WifiDirectRadioModule.TAG, "tcp server completed. fueee") }
+                .doOnComplete { Log.e(TAG, "tcp server completed. fueee") }
                 .subscribe(
-                        { socket: SocketConnection -> Log.v(WifiDirectRadioModule.TAG, "accepted socket: " + socket.socket) }
-                ) { err: Throwable -> Log.e(WifiDirectRadioModule.TAG, "error when accepting socket: $err") }
+                        { socket: SocketConnection -> Log.v(TAG, "accepted socket: " + socket.socket) }
+                ) { err: Throwable -> Log.e(TAG, "error when accepting socket: $err") }
         wifidirectDisposable.add(tcpserverdisposable)
     }
 }

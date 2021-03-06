@@ -92,6 +92,13 @@ interface RoutingServiceComponent {
             }
 
             @JvmStatic
+            @Singleton
+            @Provides
+            fun providesChannel(ctx: Context?, wifiP2pManager: WifiP2pManager?): WifiP2pManager.Channel {
+                return wifiP2pManager!!.initialize(ctx, ctx!!.mainLooper, null)
+            }
+
+            @JvmStatic
             @Provides
             fun providesWifiP2pManager(ctx: Context?): WifiP2pManager {
                 return ctx!!.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
