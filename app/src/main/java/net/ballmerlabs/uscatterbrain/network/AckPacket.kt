@@ -35,7 +35,7 @@ class AckPacket private constructor(builder: Builder)  : ScatterSerializable {
         get() {
             val os = ByteArrayOutputStream()
             return try {
-                CRCProtobuf.writeToCRC(mAck, os)
+                CRCProtobuf.writeToCRC(mAck!!, os)
                 os.toByteArray()
             } catch (ignored: IOException) {
                 byteArrayOf(0) //this should be unreachable
@@ -46,7 +46,7 @@ class AckPacket private constructor(builder: Builder)  : ScatterSerializable {
         get() = ByteString.copyFrom(bytes)
 
     override fun writeToStream(os: OutputStream): Completable {
-        return Completable.fromAction { CRCProtobuf.writeToCRC(mAck, os) }
+        return Completable.fromAction { CRCProtobuf.writeToCRC(mAck!!, os) }
     }
 
     override fun writeToStream(fragsize: Int): Flowable<ByteArray> {

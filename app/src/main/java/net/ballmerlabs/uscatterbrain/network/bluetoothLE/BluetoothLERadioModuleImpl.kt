@@ -231,6 +231,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                         synchronized(connectedLuids) {
                             val hashUUID = luidPacket.hashAsUUID
+                            Log.e("debug", "version: ${luidPacket.protoVersion} hash ${luidPacket.hashAsUUID}")
                             if (connectedLuids.contains(hashUUID)) {
                                 Log.e(TAG, "device: $device already connected")
                                 return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)

@@ -28,7 +28,7 @@ class DeclareHashesPacket private constructor(builder: Builder) : ScatterSeriali
         get() {
             val os = ByteArrayOutputStream()
             return try {
-                CRCProtobuf.writeToCRC(declareHashes, os)
+                CRCProtobuf.writeToCRC(declareHashes!!, os)
                 os.toByteArray()
             } catch (ignored: IOException) {
                 byteArrayOf(0) //this should be unreachable
@@ -39,7 +39,7 @@ class DeclareHashesPacket private constructor(builder: Builder) : ScatterSeriali
         get() = ByteString.copyFrom(bytes)
 
     override fun writeToStream(os: OutputStream): Completable {
-        return Completable.fromAction { CRCProtobuf.writeToCRC(declareHashes, os) }
+        return Completable.fromAction { CRCProtobuf.writeToCRC(declareHashes!!, os) }
     }
 
     override fun writeToStream(fragsize: Int): Flowable<ByteArray> {

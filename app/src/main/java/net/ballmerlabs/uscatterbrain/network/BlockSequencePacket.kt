@@ -99,7 +99,7 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
         get() {
             val os = ByteArrayOutputStream()
             return try {
-                CRCProtobuf.writeToCRC(mBlockSequence, os)
+                CRCProtobuf.writeToCRC(mBlockSequence!!, os)
                 os.toByteArray()
             } catch (e: IOException) {
                 byteArrayOf(0) //this should be unreachable
@@ -110,7 +110,7 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
         get() = ByteString.copyFrom(bytes)
 
     override fun writeToStream(os: OutputStream): Completable {
-        return Completable.fromAction { CRCProtobuf.writeToCRC(mBlockSequence, os) }
+        return Completable.fromAction { CRCProtobuf.writeToCRC(mBlockSequence!!, os) }
     }
 
     override fun writeToStream(fragsize: Int): Flowable<ByteArray> {

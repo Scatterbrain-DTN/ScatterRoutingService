@@ -9,6 +9,7 @@ import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.CRC32
+import kotlin.math.absoluteValue
 
 object CRCProtobuf {
     private const val MASK = 0xFFFFFFFFL
@@ -16,7 +17,7 @@ object CRCProtobuf {
     fun bytes2long(payload: ByteArray): Long {
         val buffer = ByteBuffer.wrap(payload)
         buffer.order(ByteOrder.BIG_ENDIAN)
-        return (buffer.int and MASK.toInt()).toLong()
+        return (buffer.int.toLong() and MASK)
     }
 
     fun longToByte(value: Long): ByteArray {
@@ -50,11 +51,11 @@ object CRCProtobuf {
         return message
     }
 
-    fun writeToCRC(message: MessageLite?, outputStream: OutputStream) {
-        outputStream.write(
-                ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(message!!.serializedSize).array()
-        )
+    fun writeToCRC(message: MessageLite, outputStream: OutputStream) {
         val out = message.toByteArray()
+        outputStream.write(
+                ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(out.size).array()
+        )
         val crc32 = CRC32()
         crc32.update(out)
         outputStream.write(out)

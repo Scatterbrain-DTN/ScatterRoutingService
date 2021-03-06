@@ -218,7 +218,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
         get() {
             val os = ByteArrayOutputStream()
             return try {
-                CRCProtobuf.writeToCRC(blockdata, os)
+                CRCProtobuf.writeToCRC(blockdata!!, os)
                 os.toByteArray()
             } catch (e: IOException) {
                 byteArrayOf(0) //this should be unreachable
@@ -229,7 +229,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
         get() = ByteString.copyFrom(bytes)
 
     override fun writeToStream(os: OutputStream): Completable {
-        return Completable.fromAction { CRCProtobuf.writeToCRC(blockdata, os) }
+        return Completable.fromAction { CRCProtobuf.writeToCRC(blockdata!!, os) }
     }
 
     override fun writeToStream(fragsize: Int): Flowable<ByteArray> {

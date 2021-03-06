@@ -40,7 +40,7 @@ class UpgradePacket : ScatterSerializable {
         private set
 
     private constructor(builder: Builder) {
-        provides = builder.provides
+        provides = builder.provides!!
         sessionID = builder.sessionID
         metadata = builder.metadata
         mUpgrade = Upgrade.newBuilder()
@@ -52,16 +52,16 @@ class UpgradePacket : ScatterSerializable {
 
     private constructor(`is`: InputStream) {
         mUpgrade = CRCProtobuf.parseFromCRC(Upgrade.parser(), `is`)
-        sessionID = mUpgrade.getSessionid()
-        provides = AdvertisePacket.Companion.valToProvides(mUpgrade.getProvides())
-        metadata = mUpgrade.getMetadataMap()
+        sessionID = mUpgrade.sessionid
+        provides = AdvertisePacket.Companion.valToProvides(mUpgrade.provides)
+        metadata = mUpgrade.metadataMap
     }
 
     override val bytes: ByteArray
         get() {
             val os = ByteArrayOutputStream()
             return try {
-                CRCProtobuf.writeToCRC(mUpgrade, os)
+                CRCProtobuf.writeToCRC(mUpgrade!!, os)
                 os.toByteArray()
             } catch (e: IOException) {
                 byteArrayOf(0) //this should be unreachable
@@ -72,7 +72,7 @@ class UpgradePacket : ScatterSerializable {
         get() = ByteString.copyFrom(bytes)
 
     override fun writeToStream(os: OutputStream): Completable {
-        return Completable.fromAction { CRCProtobuf.writeToCRC(mUpgrade, os) }
+        return Completable.fromAction { CRCProtobuf.writeToCRC(mUpgrade!!, os) }
     }
 
     override fun writeToStream(fragsize: Int): Flowable<ByteArray> {

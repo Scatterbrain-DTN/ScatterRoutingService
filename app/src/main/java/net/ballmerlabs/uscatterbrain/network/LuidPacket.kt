@@ -24,12 +24,13 @@ class LuidPacket : ScatterSerializable {
     private constructor(builder: Builder) {
         isHashed = builder.enablehash
         mLuid = if (builder.enablehash) {
-            val hashed = hashed.newBuilder()
-                    .setHash(ByteString.copyFrom(calculateHashFromUUID(builder.uuid)))
+            val h = hashed.newBuilder()
+                    .setHash(ByteString.copyFrom(calculateHashFromUUID(builder.uuid!!)))
                     .setProtoversion(builder.version)
                     .build()
+            Log.e("debug", "hashed packet size ${h.hash.size()}")
             Luid.newBuilder()
-                    .setValHash(hashed)
+                    .setValHash(h)
                     .build()
         } else {
             val u = protoUUIDfromUUID(builder.uuid)
@@ -61,7 +62,7 @@ class LuidPacket : ScatterSerializable {
     //note: this only is safe because crypto_generichash_BYTES_MIN is 16
     val hashAsUUID: UUID?
         get() {
-            val h = mLuid.valHash.toByteArray()
+            val h = mLuid.valHash.hash.toByteArray()
             return if (h.size != GenericHash.BYTES) {
                 Log.e("debug", "hash size wrong: ${h.size}")
                 null
@@ -156,10 +157,11 @@ class LuidPacket : ScatterSerializable {
             return UUID(uuid.upper, uuid.lower)
         }
 
-        private fun calculateHashFromUUID(uuid: UUID?): ByteArray {
+        private fun calculateHashFromUUID(uuid: UUID): ByteArray {
             val hashbytes = ByteArray(GenericHash.BYTES)
+            Log.e("debug", "hash size ${hashbytes.size}")
             val uuidBuffer = ByteBuffer.allocate(16)
-            uuidBuffer.putLong(uuid!!.mostSignificantBits)
+            uuidBuffer.putLong(uuid.mostSignificantBits)
             uuidBuffer.putLong(uuid.leastSignificantBits)
             val uuidbytes = uuidBuffer.array()
             LibsodiumInterface.sodium.crypto_generichash(

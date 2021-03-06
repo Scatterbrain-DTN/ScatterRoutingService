@@ -27,7 +27,7 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
         val b = ElectLeader.newBuilder()
         if (!builder.enableHashing) {
             val body = ElectLeader.Body.newBuilder()
-                    .setProvides(AdvertisePacket.Companion.providesToVal(builder.provides))
+                    .setProvides(AdvertisePacket.Companion.providesToVal(builder.provides!!))
                     .setSalt(ByteString.copyFrom(salt))
             body.tiebreakerVal = ScatterProto.UUID.newBuilder()
                     .setUpper(builder.tiebreaker!!.mostSignificantBits)
@@ -113,7 +113,7 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
         get() {
             val os = ByteArrayOutputStream()
             return try {
-                CRCProtobuf.writeToCRC(mElectLeader, os)
+                CRCProtobuf.writeToCRC(mElectLeader!!, os)
                 os.toByteArray()
             } catch (ignored: IOException) {
                 byteArrayOf(0) //this should be unreachable
@@ -124,7 +124,7 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
         get() = ByteString.copyFrom(bytes)
 
     override fun writeToStream(os: OutputStream): Completable {
-        return Completable.fromAction { CRCProtobuf.writeToCRC(mElectLeader, os) }
+        return Completable.fromAction { CRCProtobuf.writeToCRC(mElectLeader!!, os) }
     }
 
     override fun writeToStream(fragize: Int): Flowable<ByteArray> {
@@ -150,12 +150,12 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
             return this
         }
 
-        fun setProvides(provides: AdvertisePacket.Provides?): Builder {
+        fun setProvides(provides: AdvertisePacket.Provides): Builder {
             this.provides = provides
             return this
         }
 
-        fun setTiebreaker(tiebreaker: UUID?): Builder {
+        fun setTiebreaker(tiebreaker: UUID): Builder {
             this.tiebreaker = tiebreaker
             return this
         }
@@ -175,18 +175,18 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
         private fun builderFromIs(inputStream: InputStream) : Builder {
             val electleader = CRCProtobuf.parseFromCRC(ElectLeader.parser(), inputStream)
             val builder = Builder()
-            if (electleader.getValCase().compareTo(ElectLeader.ValCase.VAL_BODY) == 0) {
-                builder.enableHashing = false
-                builder.provides = AdvertisePacket.valToProvides(electleader.valBody.provides)
-                builder.tiebreaker = UUID(
-                        electleader.valBody.tiebreakerVal.upper,
-                        electleader.valBody.tiebreakerVal.lower
-                )
+            return if (electleader.valCase.compareTo(ElectLeader.ValCase.VAL_BODY) == 0) {
+                builder.setProvides(AdvertisePacket.valToProvides(electleader.valBody.provides))
+                        .setTiebreaker(
+                                UUID(
+                                        electleader.valBody.tiebreakerVal.upper,
+                                        electleader.valBody.tiebreakerVal.lower
+                                )
+                        );
             } else {
-                builder.enableHashing
-                builder.hashVal = electleader.valHash
+                builder.enableHashing()
+                        .setHash(electleader.valHash)
             }
-            return builder
         }
         
         fun uuidToBytes(uuid: UUID?): ByteArray {

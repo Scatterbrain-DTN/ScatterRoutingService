@@ -4,6 +4,7 @@ apply plugin: 'kotlin-kapt'
 apply plugin: 'com.google.protobuf'
 apply plugin: 'groovyx.android'
 
+def protobuf_version = "3.11.1"
 
 android {
     buildToolsVersion "29.0.3"
@@ -13,6 +14,13 @@ android {
         compileSdkVersion 30
         versionCode 1
         versionName "1.0"
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments += [
+                        "room.incremental": "true"
+                ]
+            }
+        }
 
     }
     buildTypes {
@@ -39,11 +47,11 @@ androidGroovy {
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.8.0'
+        artifact = "com.google.protobuf:protoc:$protobuf_version"
     }
     plugins {
         javalite {
-            artifact = 'com.google.protobuf:protoc-gen-javalite:3.0.0'
+            artifact = "com.google.protobuf:protoc-gen-javalite:$protobuf_version"
         }
     }
     generateProtoTasks {
@@ -65,7 +73,7 @@ dependencies {
     implementation project(path: ':ScatterRoutingService:scatterbrainSDK')
     def lifecycle_version = "2.3.0"
     implementation 'androidx.appcompat:appcompat:1.2.0'
-    implementation 'com.google.protobuf:protobuf-javalite:3.11.1'
+    implementation "com.google.protobuf:protobuf-javalite:$protobuf_version"
     implementation "androidx.room:room-runtime:2.2.6"
     // Because RxAndroid releases are few and far between, it is recommended you also
     // explicitly depend on RxJava's latest version for bug fixes and new features.

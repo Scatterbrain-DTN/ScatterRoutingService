@@ -145,8 +145,8 @@ class AdvertisePacket private constructor(builder: Builder) : ScatterSerializabl
             return Provides.INVALID
         }
 
-        fun providesToVal(provides: Provides?): Int {
-            return provides!!.`val`
+        fun providesToVal(provides: Provides): Int {
+            return provides.`val`
         }
 
         /**
