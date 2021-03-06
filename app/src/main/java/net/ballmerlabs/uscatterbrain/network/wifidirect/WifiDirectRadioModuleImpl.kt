@@ -79,16 +79,17 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         mContext.registerReceiver(mBroadcastReceiver.asReceiver(), intentFilter)
     }
 
-    fun createGroup(name: String?, passphrase: String?): Completable {
+    override fun createGroup(name: String, passphrase: String): Completable {
         return Single.fromCallable {
             Log.v(TAG, "creategroup called$name $passphrase")
             val subject = ReplaySubject.create<Any>()
             return@fromCallable mBroadcastReceiver.observeConnectionInfo()
+                    .observeOn(operationsScheduler)
                     .doOnSubscribe {
                         Log.e(TAG, "subscribed")
                         val config = WifiP2pConfig.Builder()
-                                .setNetworkName(name!!)
-                                .setPassphrase(passphrase!!)
+                                .setNetworkName(name)
+                                .setPassphrase(passphrase)
                                 .build()
                         val groupRetry = AtomicReference(5)
                         if (!groupOperationInProgress.getAndUpdate { true }) {

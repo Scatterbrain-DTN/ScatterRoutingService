@@ -18,6 +18,7 @@ interface WifiDirectRadioModule {
     fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest): Single<HandshakeResult>
     fun unregisterReceiver()
     fun registerReceiver()
+    fun createGroup(name: String, passphrase: String): Completable
     class BlockDataStream {
         val sequencePackets: Flowable<BlockSequencePacket>
         val headerPacket: BlockHeaderPacket
