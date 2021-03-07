@@ -53,6 +53,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         private val mContext: Context,
         private val mAdvertiser: BluetoothLeAdvertiser,
         @param:Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
+        @param:Named(RoutingServiceComponent.NamedSchedulers.DEFAULT_SCHEDULER) private val defaultScheduler: Scheduler,
         private val mServer: RxBleServer,
         private val mClient: RxBleClient,
         private val wifiDirectRadioModule: WifiDirectRadioModule,
