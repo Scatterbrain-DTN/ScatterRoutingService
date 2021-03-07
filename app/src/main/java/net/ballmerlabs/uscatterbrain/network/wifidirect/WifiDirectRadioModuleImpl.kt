@@ -25,6 +25,7 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.TransactionResult
 import net.ballmerlabs.uscatterbrain.network.wifidirect.InterceptableServerSocket.InterceptableServerSocketFactory
 import net.ballmerlabs.uscatterbrain.network.wifidirect.InterceptableServerSocket.SocketConnection
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -452,8 +453,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         .andThen(
                                                 blockDataStream.sequencePackets
                                                         .doOnNext { packet: BlockSequencePacket? -> Log.v(TAG, "uke writing sequence packet: " + packet!!.getmData()!!.size()) }
-                                                        .concatMapCompletable { blockSequencePacket: BlockSequencePacket? ->
-                                                            blockSequencePacket!!.writeToStream(socket.getOutputStream())
+                                                        .concatMapCompletable { blockSequencePacket: BlockSequencePacket ->
+                                                            blockSequencePacket.writeToStream(socket.getOutputStream())
                                                                     .subscribeOn(operationsScheduler)
                                                         }
                                                         .doOnComplete { Log.v(TAG, "server wrote sequence packets") }
@@ -496,7 +497,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
                 .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
                 .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
-                .toSingle()
+                .toSingle(HandshakeResult(0,0,HandshakeResult.TransactionStatus.STATUS_SUCCESS))
     }
 
     private val serverSocket: Single<Socket>
@@ -540,7 +541,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
                 .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
                 .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
-                .toSingle()
+                .toSingle(HandshakeResult(0,0,HandshakeResult.TransactionStatus.STATUS_SUCCESS))
     }
 
     companion object {

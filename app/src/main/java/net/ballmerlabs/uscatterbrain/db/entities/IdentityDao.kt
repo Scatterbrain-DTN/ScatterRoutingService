@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.db.entities
 
 import androidx.room.*
 import io.reactivex.Completable
-import io.reactivex.Maybe
 import io.reactivex.Single
 
 @Dao

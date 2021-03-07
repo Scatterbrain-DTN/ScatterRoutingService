@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.db.entities
 
 import androidx.room.*
 import io.reactivex.Completable
-import io.reactivex.Maybe
 import io.reactivex.Single
 
 @Dao
@@ -13,7 +12,7 @@ abstract class ScatterMessageDao {
 
     @get:Query("SELECT * FROM messages")
     @get:Transaction
-    abstract val messagesWithFiles: Maybe<List<ScatterMessage>>
+    abstract val messagesWithFiles: Single<List<ScatterMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
