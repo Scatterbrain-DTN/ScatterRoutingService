@@ -60,16 +60,16 @@ interface WifiDirectRadioModule {
         @JvmOverloads
         constructor(message: ScatterMessage, packetFlowable: Flowable<BlockSequencePacket>, end: Boolean = false, todisk: Boolean = true) {
             val builder: BlockHeaderPacket.Builder = BlockHeaderPacket.newBuilder()
-                    .setToFingerprint(message.message!!.to)
-                    .setFromFingerprint(message.message!!.from)
-                    .setApplication(message.message!!.application!!)
-                    .setSig(message.message!!.sig)
+                    .setToFingerprint(message.message.to)
+                    .setFromFingerprint(message.message.from)
+                    .setApplication(message.message.application)
+                    .setSig(message.message.sig)
                     .setToDisk(todisk)
-                    .setSessionID(message.message!!.sessionid)
-                    .setBlockSize(message.message!!.blocksize)
-                    .setMime(message.message!!.mimeType)
-                    .setExtension(message.message!!.extension!!)
-                    .setHashes(HashlessScatterMessage.Companion.hashes2hash(message.messageHashes!!))
+                    .setSessionID(message.message.sessionid)
+                    .setBlockSize(message.message.blocksize)
+                    .setMime(message.message.mimeType)
+                    .setExtension(message.message.extension)
+                    .setHashes(HashlessScatterMessage.hashes2hash(message.messageHashes))
             if (end) {
                 builder.setEndOfStream()
             }
@@ -78,7 +78,6 @@ interface WifiDirectRadioModule {
             sequencePackets = packetFlowable
                     .doOnComplete { sequenceCompletable.onComplete() }
                     .doOnError { e: Throwable? -> sequenceCompletable.onError(e!!) }
-            checkNotNull(headerPacket) { "header packet was null" }
         }
 
         fun awaitSequencePackets(): Completable {
