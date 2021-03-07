@@ -13,7 +13,7 @@ data class Keys(
     var value: ByteArray
 ) {
     @PrimaryKey(autoGenerate = true)
-    var keyID: Long = -1
+    var keyID: Long? = null
 
     @ColumnInfo
     var identityFK: Long? = null

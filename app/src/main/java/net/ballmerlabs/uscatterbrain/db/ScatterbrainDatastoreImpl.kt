@@ -319,7 +319,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
                 .flatMapCompletable { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
                     val app = ClientApp(
-                            identity!!.identity!!.identityID,
+                            identity!!.identity.identityID!!,
                             packagename,
                             appsig
                     )
@@ -331,7 +331,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
                 .flatMapCompletable { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
                     val app = ClientApp(
-                            identity!!.identity!!.identityID,
+                            identity!!.identity.identityID!!,
                             packageName,
                             appsig
                     )

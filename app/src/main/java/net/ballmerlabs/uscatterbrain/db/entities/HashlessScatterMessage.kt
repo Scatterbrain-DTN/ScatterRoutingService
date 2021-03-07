@@ -74,5 +74,5 @@ data class HashlessScatterMessage(
     }
 
     @PrimaryKey(autoGenerate = true)
-    var messageID: Long = 0
+    var messageID: Long? = null
 }

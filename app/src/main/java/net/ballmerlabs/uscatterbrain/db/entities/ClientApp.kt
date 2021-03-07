@@ -16,5 +16,5 @@ data class ClientApp(
     var packageSignature: String,
 ) {
     @PrimaryKey(autoGenerate = true)
-    var clientAppID: Long = -1
+    var clientAppID: Long? = null
 }

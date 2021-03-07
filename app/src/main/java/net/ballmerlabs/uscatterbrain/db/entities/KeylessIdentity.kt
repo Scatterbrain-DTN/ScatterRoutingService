@@ -23,5 +23,5 @@ data class KeylessIdentity (
     var privatekey: ByteArray?
 ) {
     @PrimaryKey(autoGenerate = true)
-    var identityID: Long = -1
+    var identityID: Long? = null
 }
