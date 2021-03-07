@@ -87,7 +87,7 @@ interface ScatterbrainDatastore {
     fun getApiIdentityByFingerprint(fingerprint: String): ApiIdentity
     fun addACLs(identityFingerprint: String, packagename: String, appsig: String): Completable
     fun deleteACLs(identityFingerprint: String, packageName: String, appsig: String): Completable
-    fun getIdentityKey(identity: String): Maybe<ApiIdentity.KeyPair>
+    fun getIdentityKey(identity: String): Single<ApiIdentity.KeyPair>
     fun messageCount(): Int
     fun deleteByPath(path: File): Int
     fun clear()

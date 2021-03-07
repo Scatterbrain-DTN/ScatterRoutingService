@@ -9,7 +9,7 @@ import io.reactivex.Single
 abstract class ScatterMessageDao {
     @get:Query("SELECT * FROM messages")
     @get:Transaction
-    abstract val all: Maybe<List<ScatterMessage>>
+    abstract val all: Single<List<ScatterMessage>>
 
     @get:Query("SELECT * FROM messages")
     @get:Transaction
@@ -21,7 +21,7 @@ abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT * FROM messages WHERE filePath IN (:filePaths)")
-    abstract fun getByFilePath(vararg filePaths: String): Maybe<List<ScatterMessage>>
+    abstract fun getByFilePath(vararg filePaths: String): Single<List<ScatterMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages where application IN (:application)")
@@ -29,11 +29,11 @@ abstract class ScatterMessageDao {
 
     @get:Query("SELECT filePath FROM messages")
     @get:Transaction
-    abstract val allFiles: Maybe<List<String>>
+    abstract val allFiles: Single<List<String>>
 
     @Transaction
     @Query("SELECT * FROM messages WHERE identity_fingerprint IN (:ids)")
-    abstract fun getByIdentity(ids: String): Maybe<List<ScatterMessage>>
+    abstract fun getByIdentity(ids: String): Single<List<ScatterMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
@@ -46,7 +46,7 @@ abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")
-    abstract fun getTopHashes(count: Int): Maybe<List<ByteArray>>
+    abstract fun getTopHashes(count: Int): Single<List<ByteArray>>
 
     @Transaction
     @Insert

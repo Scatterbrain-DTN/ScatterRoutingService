@@ -514,7 +514,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 }.blockingGet()
     }
 
-    override fun getIdentityKey(identity: String): Maybe<ApiIdentity.KeyPair> {
+    override fun getIdentityKey(identity: String): Single<ApiIdentity.KeyPair> {
         return mDatastore.identityDao().getIdentityByFingerprint(identity)
                 .subscribeOn(databaseScheduler)
                 .map { id: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->

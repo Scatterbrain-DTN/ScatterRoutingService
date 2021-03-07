@@ -13,20 +13,20 @@ interface IdentityDao {
 
     @Transaction
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
-    fun getIdentitiesWithRelations(ids: List<Long>): Maybe<List<Identity>>
+    fun getIdentitiesWithRelations(ids: List<Long>): Single<List<Identity>>
 
     @Transaction
     @Query("SELECT * FROM identities WHERE fingerprint IN (:fingerprint)")
-    fun getIdentityByFingerprint(fingerprint: String): Maybe<Identity>
+    fun getIdentityByFingerprint(fingerprint: String): Single<Identity>
 
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
-    fun getByID(ids: List<Long>): Maybe<List<KeylessIdentity>>
+    fun getByID(ids: List<Long>): Single<List<KeylessIdentity>>
 
     @Query("SELECT * FROM identities WHERE givenname IN (:names)")
-    fun getByGivenName(names: Array<String>): Maybe<List<KeylessIdentity>>
+    fun getByGivenName(names: Array<String>): Single<List<KeylessIdentity>>
 
     @Query("SELECT * FROM keys WHERE keyID IN (:ids)")
-    fun getKeys(ids: List<Long>): Maybe<List<Keys>>
+    fun getKeys(ids: List<Long>): Single<List<Keys>>
 
     @Transaction
     @Query("SELECT * FROM identities ORDER BY RANDOM() LIMIT :count")
