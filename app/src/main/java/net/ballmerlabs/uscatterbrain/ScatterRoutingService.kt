@@ -30,14 +30,7 @@ import kotlin.jvm.Throws
 class ScatterRoutingService : LifecycleService() {
     val TAG = "ScatterRoutingService"
     private val mBinder: IBinder = ScatterBinder()
-    private val mBackend: RoutingServiceBackend
-        get() {
-            val c = DaggerRoutingServiceComponent.builder()
-                    .applicationContext(this)
-                    ?.build()!!
-            component.accept(c)
-            return c.scatterRoutingService()!!
-        }
+    private lateinit var mBackend: RoutingServiceBackend
     private val bound = AtomicReference(false)
     private val binder: ScatterbrainAPI.Stub = object : ScatterbrainAPI.Stub() {
         private fun checkPermission(permName: String): Boolean {
@@ -257,6 +250,11 @@ class ScatterRoutingService : LifecycleService() {
     override fun onStart(intent: Intent?, startId: Int) {
         super.onStart(intent, startId)
         try {
+            val c = DaggerRoutingServiceComponent.builder()
+                    .applicationContext(this)
+                    ?.build()!!
+            component.accept(c)
+            mBackend = c.scatterRoutingService()!!
             val channel = NotificationChannel(
                     NOTIFICATION_CHANNEL_FOREGROUND,
                     "fmef",
