@@ -4,10 +4,10 @@ import androidx.room.Embedded
 import androidx.room.Junction
 import androidx.room.Relation
 
-class ScatterMessage {
+data class ScatterMessage(
     @Embedded
-    var message: HashlessScatterMessage? = null
+    var message: HashlessScatterMessage,
 
     @Relation(parentColumn = "messageID", entityColumn = "hashID", associateBy = Junction(MessageHashCrossRef::class))
-    var messageHashes: List<Hashes>? = null
-}
+    var messageHashes: List<Hashes>
+)

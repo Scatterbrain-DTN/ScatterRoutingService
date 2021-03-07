@@ -5,10 +5,10 @@ import androidx.room.Entity
 import androidx.room.Index
 
 @Entity(primaryKeys = ["messageID", "hashID"], indices = [Index("messageID"), Index("hashID")])
-class MessageHashCrossRef {
+data class MessageHashCrossRef(
     @ColumnInfo(name = "messageID")
-    var messageID: Long = -1
+    var messageID: Long,
 
     @ColumnInfo(name = "hashID")
-    var hashID: Long = -1
-}
+    var hashID: Long
+)

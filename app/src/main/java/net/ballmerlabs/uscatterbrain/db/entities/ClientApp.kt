@@ -5,16 +5,16 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity
-class ClientApp {
+data class ClientApp(
+    @ColumnInfo
+    var identityFK: Long,
+
+    @ColumnInfo
+    var packageName: String,
+
+    @ColumnInfo
+    var packageSignature: String,
+) {
     @PrimaryKey(autoGenerate = true)
     var clientAppID: Long = -1
-
-    @ColumnInfo
-    var identityFK: Long? = null
-
-    @ColumnInfo
-    var packageName: String? = null
-
-    @ColumnInfo
-    var packageSignature: String? = null
 }

@@ -8,68 +8,57 @@ import com.google.protobuf.ByteString
 import java.util.*
 
 @Entity(tableName = "messages", indices = [Index(value = ["filepath"], unique = true), Index(value = ["identity_fingerprint"], unique = true), Index(value = ["globalhash"], unique = true)])
-class HashlessScatterMessage {
-    @PrimaryKey(autoGenerate = true)
-    var messageID: Long = 0
+data class HashlessScatterMessage(
+        @ColumnInfo
+        var body: ByteArray? = null,
 
-    
-    @ColumnInfo
-    var body: ByteArray? = null
+        @ColumnInfo
+        var identity_fingerprint: String? = null,
 
-    
-    @ColumnInfo
-    var identity_fingerprint: String? = null
+        @ColumnInfo
+        var to: ByteArray? = null,
 
-    
-    @ColumnInfo
-    var to: ByteArray? = null
+        @ColumnInfo
+        var from: ByteArray? = null,
 
-    
-    @ColumnInfo
-    var from: ByteArray? = null
 
-    
-    @ColumnInfo
-    var application: ByteArray? = null
+        @ColumnInfo
+        var application: ByteArray,
 
-    
-    @ColumnInfo
-    var sig: ByteArray? = null
 
-    
-    @ColumnInfo
-    var sessionid = 0
+        @ColumnInfo
+        var sig: ByteArray? = null,
 
-    
-    @ColumnInfo
-    var blocksize = 0
 
-    
-    @ColumnInfo
-    var extension: String? = null
+        @ColumnInfo
+        var sessionid: Int,
 
-    
-    @ColumnInfo(name = "filepath")
-    var filePath: String? = null
 
-    
-    @ColumnInfo(name = "globalhash")
-    var globalhash: ByteArray? = null
+        @ColumnInfo
+        var blocksize: Int,
 
-    
-    @ColumnInfo
-    var userFilename: String? = null
 
-    
-    @ColumnInfo
-    var mimeType: String? = null
+        @ColumnInfo
+        var extension: String,
 
+
+        @ColumnInfo(name = "filepath")
+        var filePath: String,
+
+        @ColumnInfo(name = "globalhash")
+        var globalhash: ByteArray,
+
+        @ColumnInfo
+        var userFilename: String? = null,
+
+        @ColumnInfo
+        var mimeType: String?
+) {
     companion object {
         fun hash2hashs(hashes: List<ByteString>): List<Hashes> {
             val result = ArrayList<Hashes>()
             for (hash in hashes) {
-                val h = Hashes()
-                h.hash = hash.toByteArray()
+                val h = Hashes(hash.toByteArray())
                 result.add(h)
             }
             return result
@@ -83,4 +72,7 @@ class HashlessScatterMessage {
             return result
         }
     }
+
+    @PrimaryKey(autoGenerate = true)
+    var messageID: Long = 0
 }

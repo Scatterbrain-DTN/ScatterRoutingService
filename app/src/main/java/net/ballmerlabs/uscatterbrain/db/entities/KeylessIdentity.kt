@@ -6,22 +6,22 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "identities", indices = [Index(value = ["fingerprint"], unique = true)])
-class KeylessIdentity {
-    @PrimaryKey(autoGenerate = true)
-    var identityID: Long = -1
-
+data class KeylessIdentity (
     @ColumnInfo(name = "givenname")
-    var givenName: String? = null
+    var givenName: String,
 
     @ColumnInfo(name = "publickey")
-    var publicKey: ByteArray? = null
+    var publicKey: ByteArray,
 
     @ColumnInfo(name = "signature")
-    var signature: ByteArray? = null
+    var signature: ByteArray,
 
     @ColumnInfo(name = "fingerprint")
-    var fingerprint: String? = null
+    var fingerprint: String,
 
     @ColumnInfo(name = "privatekey")
-    var privatekey: ByteArray? = null
+    var privatekey: ByteArray?
+) {
+    @PrimaryKey(autoGenerate = true)
+    var identityID: Long = -1
 }

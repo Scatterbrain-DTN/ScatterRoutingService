@@ -3,13 +3,13 @@ package net.ballmerlabs.uscatterbrain.db.entities
 import androidx.room.Embedded
 import androidx.room.Relation
 
-class Identity {
+data class Identity(
     @Embedded
-    var identity: KeylessIdentity? = null
+    var identity: KeylessIdentity,
 
     @Relation(parentColumn = "identityID", entityColumn = "identityFK")
-    var keys: List<Keys>? = null
+    var keys: List<Keys>,
 
     @Relation(parentColumn = "identityID", entityColumn = "identityFK")
     var clientACL: List<ClientApp>? = null
-}
+)

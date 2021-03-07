@@ -5,10 +5,10 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "hashes")
-class Hashes {
-    @PrimaryKey(autoGenerate = true)
-    var hashID: Long? = null
-
+data class Hashes(
     @ColumnInfo
-    var hash: ByteArray? = null
+    var hash: ByteArray
+) {
+    @PrimaryKey(autoGenerate = true)
+    var hashID: Long = -1
 }

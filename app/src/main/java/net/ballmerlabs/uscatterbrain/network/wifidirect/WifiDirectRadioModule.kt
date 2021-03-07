@@ -30,18 +30,24 @@ interface WifiDirectRadioModule {
                     .doOnComplete { sequenceCompletable.onComplete() }
                     .doOnError { e: Throwable? -> sequenceCompletable.onError(e!!) }
             this.headerPacket = headerPacket
-            entity = ScatterMessage()
-            entity.message = HashlessScatterMessage()
-            entity.message!!.to = headerPacket.toFingerprint.toByteArray()
-            entity.message!!.from = headerPacket.fromFingerprint.toByteArray()
-            entity.message!!.application = headerPacket.application
-            entity.message!!.sig = headerPacket.signature
-            entity.message!!.sessionid = headerPacket.sessionID
-            entity.message!!.blocksize = headerPacket.blockSize
-            entity.message!!.mimeType = headerPacket.mime
-            entity.message!!.extension = headerPacket.getExtension()
-            entity.message!!.globalhash = ScatterbrainDatastore.getGlobalHash(headerPacket.hashList)
-            entity.messageHashes = HashlessScatterMessage.hash2hashs(headerPacket.hashList)
+            entity = ScatterMessage(
+                    HashlessScatterMessage(
+                            null,
+                            null,
+                            headerPacket.toFingerprint.toByteArray(),
+                            headerPacket.fromFingerprint.toByteArray(),
+                            headerPacket.application,
+                            headerPacket.signature,
+                            headerPacket.sessionID,
+                            headerPacket.blockSize,
+                            headerPacket.getExtension(),
+                            ScatterbrainDatastore.getDefaultFileName(headerPacket),
+                            ScatterbrainDatastore.getGlobalHash(headerPacket.hashList),
+                            headerPacket.userFilename,
+                            headerPacket.mime
+                    ),
+                    HashlessScatterMessage.hash2hashs(headerPacket.hashList)
+            )
         }
 
         fun await(): Completable {
