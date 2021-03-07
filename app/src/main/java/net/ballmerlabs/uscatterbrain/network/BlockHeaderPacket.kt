@@ -167,19 +167,25 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
     }
 
     private fun regenBlockData() {
-        blockdata = BlockData.newBuilder()
-                .setApplicationBytes(ByteString.copyFrom(application))
-                .setFromFingerprint(fromFingerprint)
-                .setToFingerprint(toFingerprint)
-                .setTodisk(toDisk)
-                .setExtension(this.extension)
-                .addAllNexthashes(hashList)
-                .setSessionid(sessionID!!)
-                .setBlocksize(mBlocksize)
-                .setMime(mime)
-                .setEndofstream(isEndOfStream)
-                .setSig(ByteString.copyFrom(signature))
-                .build()
+        if (isEndOfStream) {
+            blockdata = BlockData.newBuilder()
+                    .setEndofstream(true)
+                    .build()
+        } else {
+            blockdata = BlockData.newBuilder()
+                    .setApplicationBytes(ByteString.copyFrom(application))
+                    .setFromFingerprint(fromFingerprint)
+                    .setToFingerprint(toFingerprint)
+                    .setTodisk(toDisk)
+                    .setExtension(this.extension)
+                    .addAllNexthashes(hashList)
+                    .setSessionid(sessionID!!)
+                    .setBlocksize(mBlocksize)
+                    .setMime(mime)
+                    .setEndofstream(isEndOfStream)
+                    .setSig(ByteString.copyFrom(signature))
+                    .build()
+        }
     }
 
     /**
@@ -437,17 +443,19 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @return the block header packet
          */
         fun build(): BlockHeaderPacket {
-            requireNotNull(hashlist) { "hashlist was null" }
+            if (!endofstream) {
+                requireNotNull(hashlist) { "hashlist was null" }
 
-            // fingerprints and application are required
-            requireNotNull(application) { "application was null" }
-            if (extensionVal == null) {
-                extensionVal = ".data"
-            }
-            if (blockSizeVal <= 0) {
-                val e = IllegalArgumentException("blocksize not set")
-                e.printStackTrace()
-                throw e
+                // fingerprints and application are required
+                requireNotNull(application) { "application was null" }
+                if (extensionVal == null) {
+                    extensionVal = ".data"
+                }
+                if (blockSizeVal <= 0) {
+                    val e = IllegalArgumentException("blocksize not set")
+                    e.printStackTrace()
+                    throw e
+                }
             }
             return BlockHeaderPacket(this)
         }

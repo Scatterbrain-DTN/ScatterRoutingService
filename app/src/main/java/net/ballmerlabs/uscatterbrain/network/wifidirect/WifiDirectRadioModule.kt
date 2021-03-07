@@ -22,7 +22,7 @@ interface WifiDirectRadioModule {
     class BlockDataStream {
         val sequencePackets: Flowable<BlockSequencePacket>
         val headerPacket: BlockHeaderPacket
-        val entity: ScatterMessage
+        val entity: ScatterMessage?
         private val sequenceCompletable = CompletableSubject.create()
 
         constructor(headerPacket: BlockHeaderPacket, sequencePackets: Flowable<BlockSequencePacket>) {
@@ -30,24 +30,28 @@ interface WifiDirectRadioModule {
                     .doOnComplete { sequenceCompletable.onComplete() }
                     .doOnError { e: Throwable? -> sequenceCompletable.onError(e!!) }
             this.headerPacket = headerPacket
-            entity = ScatterMessage(
-                    HashlessScatterMessage(
-                            null,
-                            null,
-                            headerPacket.toFingerprint!!.toByteArray(),
-                            headerPacket.fromFingerprint!!.toByteArray(),
-                            headerPacket.application!!,
-                            headerPacket.signature,
-                            headerPacket.sessionID!!,
-                            headerPacket.blockSize,
-                            headerPacket.getExtension(),
-                            ScatterbrainDatastore.getDefaultFileName(headerPacket),
-                            ScatterbrainDatastore.getGlobalHash(headerPacket.hashList!!),
-                            headerPacket.userFilename,
-                            headerPacket.mime
-                    ),
-                    HashlessScatterMessage.hash2hashs(headerPacket.hashList)
-            )
+            if (headerPacket.isEndOfStream) {
+                entity = null
+            } else {
+                entity = ScatterMessage(
+                        HashlessScatterMessage(
+                                null,
+                                null,
+                                headerPacket.toFingerprint!!.toByteArray(),
+                                headerPacket.fromFingerprint!!.toByteArray(),
+                                headerPacket.application!!,
+                                headerPacket.signature,
+                                headerPacket.sessionID!!,
+                                headerPacket.blockSize,
+                                headerPacket.getExtension(),
+                                ScatterbrainDatastore.getDefaultFileName(headerPacket),
+                                ScatterbrainDatastore.getGlobalHash(headerPacket.hashList!!),
+                                headerPacket.userFilename,
+                                headerPacket.mime
+                        ),
+                        HashlessScatterMessage.hash2hashs(headerPacket.hashList)
+                )
+            }
         }
 
         fun await(): Completable {
@@ -83,7 +87,14 @@ interface WifiDirectRadioModule {
         fun awaitSequencePackets(): Completable {
             return sequenceCompletable
         }
-
+        companion object {
+            fun endOfStream(): BlockDataStream {
+                return BlockDataStream(
+                        BlockHeaderPacket.newBuilder().setEndOfStream().build(),
+                        Flowable.empty()
+                )
+            }
+        }
     }
 
     companion object {

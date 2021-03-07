@@ -134,7 +134,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private fun insertMessageWithDisk(stream: BlockDataStream): Completable {
         val filePath = getFilePath(stream.headerPacket)
         Log.e(TAG, "inserting message at filePath $filePath")
-        stream.entity.message!!.filePath = filePath.absolutePath
+        stream.entity!!.message.filePath = filePath.absolutePath
         return mDatastore.scatterMessageDao().messageCountSingle(filePath.absolutePath)
                 .flatMapCompletable { count: Int ->
                     if (count > 0) {
@@ -163,7 +163,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 }
                                 .reduce { obj: ByteString, other: ByteString? -> obj.concat(other) }
                                 .flatMapCompletable { `val`: ByteString ->
-                                    stream.entity.message!!.body = `val`.toByteArray()
+                                    stream.entity!!.message.body = `val`.toByteArray()
                                     insertMessageToRoom(stream.entity)
                                 }.subscribeOn(databaseScheduler)
                     }
@@ -215,6 +215,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         )
                     }
                 }).toObservable()
+                .defaultIfEmpty(BlockDataStream.endOfStream())
     }
 
     private val seq: Flowable<Int>
