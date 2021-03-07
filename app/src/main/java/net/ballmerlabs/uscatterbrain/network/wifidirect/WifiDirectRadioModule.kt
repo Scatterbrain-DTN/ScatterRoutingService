@@ -34,15 +34,15 @@ interface WifiDirectRadioModule {
                     HashlessScatterMessage(
                             null,
                             null,
-                            headerPacket.toFingerprint.toByteArray(),
-                            headerPacket.fromFingerprint.toByteArray(),
-                            headerPacket.application,
+                            headerPacket.toFingerprint!!.toByteArray(),
+                            headerPacket.fromFingerprint!!.toByteArray(),
+                            headerPacket.application!!,
                             headerPacket.signature,
-                            headerPacket.sessionID,
+                            headerPacket.sessionID!!,
                             headerPacket.blockSize,
                             headerPacket.getExtension(),
                             ScatterbrainDatastore.getDefaultFileName(headerPacket),
-                            ScatterbrainDatastore.getGlobalHash(headerPacket.hashList),
+                            ScatterbrainDatastore.getGlobalHash(headerPacket.hashList!!),
                             headerPacket.userFilename,
                             headerPacket.mime
                     ),
@@ -67,7 +67,7 @@ interface WifiDirectRadioModule {
                     .setToDisk(todisk)
                     .setSessionID(message.message.sessionid)
                     .setBlockSize(message.message.blocksize)
-                    .setMime(message.message.mimeType)
+                    .setMime(message.message.mimeType!!)
                     .setExtension(message.message.extension)
                     .setHashes(HashlessScatterMessage.hashes2hash(message.messageHashes))
             if (end) {

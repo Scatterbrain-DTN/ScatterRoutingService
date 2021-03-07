@@ -469,8 +469,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     BlockHeaderPacket.parseFrom(socket.getInputStream())
                             .subscribeOn(operationsScheduler)
                             .toFlowable()
+                            .takeWhile { stream: BlockHeaderPacket ->
+                                val end = !stream.isEndOfStream
+                                if (end) {
+                                    Log.v(TAG, "uke end of stream")
+                                }
+                                end
+                            } //TODO: timeout here
                             .flatMap { headerPacket: BlockHeaderPacket ->
-                                Flowable.range(0, headerPacket.hashList.size)
+                                Flowable.range(0, headerPacket.hashList!!.size)
                                         .map {
                                             BlockDataStream(
                                                     headerPacket,
@@ -486,13 +493,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         }
                             }
                 }
-                .takeUntil { stream: BlockDataStream ->
-                    val end = stream.headerPacket.isEndOfStream
-                    if (end) {
-                        Log.v(TAG, "uke end of stream")
-                    }
-                    end
-                } //TODO: timeout here
                 .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
                 .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
                 .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
@@ -515,8 +515,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         }
                 .flatMap { obs: Single<BlockHeaderPacket> -> obs }
                 .toFlowable()
+                .takeWhile { stream: BlockHeaderPacket ->
+                    val end = !stream.isEndOfStream
+                    if (end) {
+                        Log.v(TAG, "seme end of stream")
+                    }
+                    end
+                }
                 .flatMap { header: BlockHeaderPacket ->
-                    Flowable.range(0, header.hashList.size)
+                    Flowable.range(0, header.hashList!!.size)
                             .map {
                                 BlockDataStream(
                                         header,
@@ -529,13 +536,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                 .doOnComplete { Log.v(TAG, "seme complete read sequence packets") }
                                 )
                             }
-                }
-                .takeUntil { stream: BlockDataStream ->
-                    val end = stream.headerPacket.isEndOfStream
-                    if (end) {
-                        Log.v(TAG, "seme end of stream")
-                    }
-                    end
                 }
                 .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
                 .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }

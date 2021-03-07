@@ -223,7 +223,7 @@ interface ScatterbrainDatastore {
         }
 
         fun getDefaultFileName(packet: BlockHeaderPacket): String {
-            return getDefaultFileName(packet.hashList)
+            return getDefaultFileName(packet.hashList!!)
         }
 
         const val DATABASE_NAME = "scatterdb"

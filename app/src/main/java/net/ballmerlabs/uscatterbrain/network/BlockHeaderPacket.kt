@@ -35,29 +35,29 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      *
      * @return the hash list
      */
-    val hashList: List<ByteString>
+    val hashList: List<ByteString>?
 
     /**
      * Gets from fingerprint.
      *
      * @return the from fingerprint
      */
-    val fromFingerprint: ByteString
+    val fromFingerprint: ByteString?
 
     /**
      * Gets to fingerprint.
      *
      * @return the to fingerprint
      */
-    val toFingerprint: ByteString
-    private val extension: String
+    val toFingerprint: ByteString?
+    private val extension: String?
 
     /**
      * Get signature byte [ ].
      *
      * @return the byte [ ]
      */
-    var signature: ByteArray
+    var signature: ByteArray?
         private set
 
     /**
@@ -65,14 +65,14 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      *
      * @return the byte [ ]
      */
-    val application: ByteArray
+    val application: ByteArray?
 
     /**
      * Gets session id.
      *
      * @return the session id
      */
-    val sessionID: Int
+    val sessionID: Int?
     /**
      * Gets to disk.
      *
@@ -94,13 +94,13 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
 
 
     init {
-        hashList = builder.hashlist!!
         isEndOfStream = builder.endofstream
+        hashList = builder.hashlist
         this.extension = builder.extensionVal
         if (builder.sig == null) {
             signature = ByteArray(Sign.ED25519_BYTES)
         } else {
-            signature = builder.sig!!
+            signature = builder.sig
         }
         if (builder.getmToFingerprint() != null) {
             toFingerprint = ByteString.copyFrom(builder.getmToFingerprint())
@@ -112,7 +112,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
         } else {
             fromFingerprint = ByteString.EMPTY
         }
-        application = builder.application!!
+        application = builder.application
         sessionID = builder.sessionid
         toDisk = builder.toDisk
         mBlocksize = builder.blockSizeVal
@@ -174,7 +174,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
                 .setTodisk(toDisk)
                 .setExtension(this.extension)
                 .addAllNexthashes(hashList)
-                .setSessionid(sessionID)
+                .setSessionid(sessionID!!)
                 .setBlocksize(mBlocksize)
                 .setMime(mime)
                 .setEndofstream(isEndOfStream)
@@ -204,8 +204,12 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
 
     val autogenFilename: String
         get() {
+            if (isEndOfStream) {
+                return ""
+            }
+
             val ext: String = ScatterbrainDatastore.Companion.getDefaultFileName(this) + "." +
-                    ScatterbrainDatastore.Companion.sanitizeFilename(extension)
+                    ScatterbrainDatastore.Companion.sanitizeFilename(extension!!)
             Log.e("debug", "getAutogenFilename: $ext")
             return ext
         }
@@ -269,7 +273,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return file extension
      */
     fun getExtension(): String {
-        return ScatterbrainDatastore.Companion.sanitizeFilename(extension)
+        return ScatterbrainDatastore.Companion.sanitizeFilename(extension!!)
     }
 
     /**
@@ -382,7 +386,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @param hashes list of hashes of following blocksequence packets.
          * @return builder
          */
-        fun setHashes(hashes: List<ByteString>?): Builder {
+        fun setHashes(hashes: List<ByteString>): Builder {
             hashlist = hashes
             return this
         }
@@ -412,7 +416,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
             return this
         }
 
-        fun setMime(mime: String?): Builder {
+        fun setMime(mime: String): Builder {
             this.mime = mime
             return this
         }
@@ -481,25 +485,28 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
         private fun builderFromIs(inputStream: InputStream) : Builder {
             val blockdata = CRCProtobuf.parseFromCRC(BlockData.parser(), inputStream)
             val builder = Builder()
-            if (blockdata.endofstream) {
-                builder.setEndOfStream()
-                return builder
-            }
-            builder.setApplication(blockdata!!.applicationBytes.toByteArray())
-            builder.setHashes(blockdata.nexthashesList)
-            builder.setFromFingerprint(blockdata.fromFingerprint.toByteArray())
-            builder.setToFingerprint(blockdata.toFingerprint.toByteArray())
-            builder.setSig(blockdata.sig.toByteArray())
-            builder.setToDisk(blockdata.todisk)
-            builder.setSessionID(blockdata.sessionid)
-            builder.setBlockSize(blockdata.blocksize)
-            builder.setExtension(blockdata.extension)
-            if (blockdata.filenameCase == BlockData.FilenameCase.FILENAME_VAL) {
-                builder.setFilename(blockdata.filenameVal)
-            }
-            builder.setMime(blockdata.mime)
 
-            return builder
+            if (blockdata.endofstream) {
+                return builder.setEndOfStream()
+            } else {
+                val filename: String?
+                if (blockdata.filenameCase == BlockData.FilenameCase.FILENAME_VAL) {
+                    filename = blockdata.filenameVal
+                } else{
+                    filename = null
+                }
+                return builder.setApplication(blockdata!!.applicationBytes.toByteArray())
+                        .setHashes(blockdata.nexthashesList)
+                        .setFromFingerprint(blockdata.fromFingerprint.toByteArray())
+                        .setToFingerprint(blockdata.toFingerprint.toByteArray())
+                        .setSig(blockdata.sig.toByteArray())
+                        .setToDisk(blockdata.todisk)
+                        .setSessionID(blockdata.sessionid)
+                        .setBlockSize(blockdata.blocksize)
+                        .setExtension(blockdata.extension)
+                        .setFilename(filename)
+                        .setMime(blockdata.mime)
+            }
         }
 
         /**
