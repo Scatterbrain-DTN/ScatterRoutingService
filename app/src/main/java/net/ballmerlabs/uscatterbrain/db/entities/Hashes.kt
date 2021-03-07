@@ -10,5 +10,5 @@ data class Hashes(
     var hash: ByteArray
 ) {
     @PrimaryKey(autoGenerate = true)
-    var hashID: Long = -1
+    var hashID: Long? = null
 }

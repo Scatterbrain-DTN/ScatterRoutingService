@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 import com.google.protobuf.ByteString
 import java.util.*
 
-@Entity(tableName = "messages", indices = [Index(value = ["filepath"], unique = true), Index(value = ["identity_fingerprint"], unique = true), Index(value = ["globalhash"], unique = true)])
+@Entity(tableName = "messages", indices = [Index(value = ["filepath"], unique = true), Index(value = ["globalhash"], unique = true)])
 data class HashlessScatterMessage(
         @ColumnInfo
         var body: ByteArray? = null,
