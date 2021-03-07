@@ -266,20 +266,19 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .subscribeOn(operationsScheduler)
                             .toObservable()
                             .repeat()
-                            .takeWhile(Predicate { identityPacket: IdentityPacket? ->
-                                val end = !identityPacket!!.isEnd
+                            .takeWhile { identityPacket: IdentityPacket ->
+                                val end = !identityPacket.isEnd
                                 if (!end) {
                                     Log.v(TAG, "identitypacket seme end of stream")
                                 }
                                 end
-                            })
-                            .mergeWith(packets.concatMapCompletable { p: IdentityPacket? ->
-                                p!!.writeToStream(sock.getOutputStream())
+                            }
+                            .mergeWith(packets.concatMapCompletable { p: IdentityPacket ->
+                                p.writeToStream(sock.getOutputStream())
                                         .subscribeOn(operationsScheduler)
                                         .doOnComplete { Log.v(TAG, "wrote single identity packet") }
-                            }
-                                    .doOnComplete { Log.v(TAG, "identity packets complete") })
-                }
+                            })
+                }.doOnComplete { Log.v(TAG, "identity packets complete") }
     }
 
     fun awaitPeersChanged(timeout: Int, unit: TimeUnit): Completable {

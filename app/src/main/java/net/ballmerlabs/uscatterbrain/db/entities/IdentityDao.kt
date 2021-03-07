@@ -36,8 +36,8 @@ interface IdentityDao {
             "SELECT identityID FROM identities WHERE fingerprint = :fp)")
     fun getClientApps(fp: String): Single<List<ClientApp>>
 
-    @get:Query("SELECT COUNT(*) FROM identities")
-    val identityCount: Int
+    @Query("SELECT COUNT(*) FROM identities")
+    fun getNumIdentities(): Int
 
     @Insert
     fun insert(identity: KeylessIdentity): Single<Long>

@@ -31,9 +31,9 @@ class IdentityPacket private constructor(builder: Builder) :
     private lateinit var mKeystorePrefs: SharedPreferences
     private val mCtx: Context
     private val mIdentity = AtomicReference<ScatterProto.Identity>()
-    val name: String
+    val name: String?
     private val sig = AtomicReference(ByteString.EMPTY)
-    val pubkey: ByteArray
+    val pubkey: ByteArray?
     override var luid: UUID? = null
         private set
 
@@ -44,8 +44,8 @@ class IdentityPacket private constructor(builder: Builder) :
         if (sig != null) {
             this.sig.set(ByteString.copyFrom(sig))
         }
-        pubkey = builder.scatterbrainPubkey!!
-        this.name = builder.name!!
+        pubkey = builder.scatterbrainPubkey
+        this.name = builder.name
         initKeyStore()
         if (builder.ismGenerateKeypair()) {
             generateKeyPair()
@@ -108,7 +108,7 @@ class IdentityPacket private constructor(builder: Builder) :
                     fingeprint,
                     fingeprint.size,
                     pubkey,
-                    pubkey.size.toLong(),
+                    pubkey!!.size.toLong(),
                     null,
                     0
             )
@@ -328,14 +328,14 @@ class IdentityPacket private constructor(builder: Builder) :
 
         private fun builderFromIs(inputstream: InputStream, context: Context) : Builder {
             val identity = CRCProtobuf.parseFromCRC(ScatterProto.Identity.parser(), inputstream)
-            var builder = Builder(context)
+            val builder = Builder(context)
             if (identity!!.messageCase == ScatterProto.Identity.MessageCase.VAL) {
                 builder.mPubKeymap = identity.getVal().keysMap
                 builder.setSig(identity.getVal().sig.toByteArray())
                 builder.setName(identity.getVal().givenname)
                 val scatterbrainKey = identity.getVal().keysMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]
                         ?: throw ProtocolException("scatterbrain key not in map")
-                builder.setScatterbrainPubkey(ByteString.EMPTY)
+                builder.setScatterbrainPubkey(scatterbrainKey)
             } else {
                 builder.setEnd()
             }

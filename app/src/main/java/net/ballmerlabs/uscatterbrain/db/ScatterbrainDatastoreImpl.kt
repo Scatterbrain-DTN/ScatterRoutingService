@@ -402,6 +402,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun insertIdentityPacket(identity: List<IdentityPacket>): Completable {
         return Observable.fromIterable(identity)
+                .doOnNext { id -> Log.v(TAG, "inserting identity: ${id.fingerprint}")}
                 .flatMap { i: IdentityPacket ->
                     if (i.isEnd || i.isEmpty()) {
                         return@flatMap Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
@@ -450,10 +451,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket> {
-        val num = Math.min(count, mDatastore.identityDao().identityCount)
-        return mDatastore.identityDao().getTopRandom(count)
+        val num = Math.min(count, mDatastore.identityDao().getNumIdentities())
+        return mDatastore.identityDao().getTopRandom(num)
                 .flatMapObservable<net.ballmerlabs.uscatterbrain.db.entities.Identity> { source: List<net.ballmerlabs.uscatterbrain.db.entities.Identity?>? -> Observable.fromIterable(source) }
-                .doOnComplete { Log.v(TAG, "datastore retrieved identities") }
+                .doOnComplete { Log.v(TAG, "datastore retrieved identities: $num") }
                 .doOnNext { id: net.ballmerlabs.uscatterbrain.db.entities.Identity? -> Log.v(TAG, "retrieved single identity") }
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .subscribeOn(databaseScheduler)
@@ -465,6 +466,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .setEnd(seq < num - 1)
                             .build()!!
                 })
+                .defaultIfEmpty(IdentityPacket.newBuilder(ctx).setEnd().build()!!)
     }
 
     override val declareHashesPacket: Single<DeclareHashesPacket>
