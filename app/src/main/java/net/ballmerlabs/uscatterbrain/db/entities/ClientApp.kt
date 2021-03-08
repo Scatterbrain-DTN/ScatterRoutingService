@@ -13,7 +13,7 @@ data class ClientApp(
     var packageName: String,
 
     @ColumnInfo
-    var packageSignature: String,
+    var packageSignature: String
 ) {
     @PrimaryKey(autoGenerate = true)
     var clientAppID: Long? = null
