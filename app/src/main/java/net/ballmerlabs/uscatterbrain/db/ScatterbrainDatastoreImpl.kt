@@ -352,8 +352,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     )
                     Identity(
                             kid,
-                            keys2keysBytes(identity.getmPubKeymap()),
-
+                            keys2keysBytes(identity.getmPubKeymap())
                     )
                 }.flatMapCompletable { ids: net.ballmerlabs.uscatterbrain.db.entities.Identity? -> this.insertIdentity(ids!!) }
     }
