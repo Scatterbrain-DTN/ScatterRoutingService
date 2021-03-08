@@ -216,7 +216,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.v(TAG, "gatt server luid hashed stage")
                     session.luidStage.selfHashed
                             .flatMapCompletable { luidpacket: LuidPacket ->
-                                session.luidStage.addPacket(luidpacket)
                                 serverConn.serverNotify(luidpacket)
                             }.toSingleDefault(Optional.empty())
                 }
@@ -235,6 +234,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         Log.e("debug", "version: ${luidPacket.protoVersion} hash ${luidPacket.hashAsUUID}")
                         if (connectedLuids.contains(hashUUID)) {
                             Log.e(TAG, "device: $device already connected")
+
                             return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
                         } else {
                             connectedLuids.add(hashUUID)
@@ -257,19 +257,23 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
         ) { conn: CachedLEConnection ->
             Log.v(TAG, "gatt client luid stage")
-            conn.readLuid()
-                    .doOnSuccess { luidPacket: LuidPacket ->
-                        Log.v(TAG, "client handshake received unhashed luid packet: " + luidPacket.luid)
-                        session.luidStage.addPacket(luidPacket)
+            session.luidStage.selfHashed
+                    .flatMap { selfHashed ->
+                        session.luidStage.addPacket(selfHashed)
+                        conn.readLuid()
+                                .doOnSuccess { luidPacket: LuidPacket ->
+                                    Log.v(TAG, "client handshake received unhashed luid packet: " + luidPacket.luid)
+                                    session.luidStage.addPacket(luidPacket)
+                                }
+                                .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
+                                .flatMapCompletable { luidPacket: LuidPacket ->
+                                    session.luidStage.verifyPackets()
+                                            .doOnComplete { session.luidMap[device.address] = luidPacket.luid }
+                                }
+                                .toSingleDefault(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, device))
+                                .doOnError { err: Throwable -> Log.e(TAG, "luid hash verify failed: $err") }
+                                .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_EXIT, device))
                     }
-                    .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
-                    .flatMapCompletable { luidPacket: LuidPacket ->
-                        session.luidStage.verifyPackets()
-                                .doOnComplete { session.luidMap[device.address] = luidPacket.luid }
-                    }
-                    .toSingleDefault(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, device))
-                    .doOnError { err: Throwable -> Log.e(TAG, "luid hash verify failed: $err") }
-                    .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_EXIT, device))
         }
         session.addStage(
                 TransactionResult.STAGE_ADVERTISE,
@@ -293,6 +297,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 { serverConn: CachedLEServerConnection ->
                     Log.v(TAG, "gatt server election hashed stage")
                     val packet = session.votingStage.getSelf(true, selectProvides())
+                    assert(packet.isHashed)
                     session.votingStage.addPacket(packet)
                     serverConn.serverNotify(packet)
                             .toSingleDefault(Optional.empty())
@@ -313,8 +318,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.v(TAG, "gatt server election stage")
                     session.luidStage.getSelf()
                             .flatMapCompletable { luidPacket: LuidPacket ->
+                                assert(!luidPacket.isHashed)
                                 val packet = session.votingStage.getSelf(false, selectProvides())
-                                packet!!.tagLuid(luidPacket.luid)
+                                packet.tagLuid(luidPacket.luid)
                                 session.votingStage.addPacket(packet)
                                 serverConn.serverNotify(packet)
                             }.toSingleDefault(Optional.empty())
