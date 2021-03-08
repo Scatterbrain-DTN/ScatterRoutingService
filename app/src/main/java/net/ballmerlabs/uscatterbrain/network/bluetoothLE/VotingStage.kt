@@ -110,13 +110,13 @@ class VotingStage(private val device: BluetoothDevice) {
 
     fun verifyPackets(): Completable {
         return if (hashedPackets.size != unhashedPackets.size) {
-            Completable.error(InvalidLuidException("size conflict"))
+            Completable.error(IllegalStateException("size conflict"))
         } else Observable.zip(
                 Observable.fromIterable(hashedPackets),
                 Observable.fromIterable(unhashedPackets), BiFunction { obj: ElectLeaderPacket?, packet: ElectLeaderPacket? -> obj!!.verifyHash(packet) })
                 .flatMap { bool: Boolean? ->
                     if (!bool!!) {
-                        return@flatMap Observable.error<Boolean>(InvalidLuidException("failed to verify hash"))
+                        return@flatMap Observable.error<Boolean>(java.lang.IllegalStateException("failed to verify hash"))
                     } else {
                         return@flatMap Observable.just(true)
                     }
