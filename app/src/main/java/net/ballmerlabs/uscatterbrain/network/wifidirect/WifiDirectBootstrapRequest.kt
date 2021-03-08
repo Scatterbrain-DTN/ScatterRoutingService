@@ -45,7 +45,9 @@ class WifiDirectBootstrapRequest : BootstrapRequest {
         }
 
         fun create(packet: UpgradePacket, role: ConnectionRole): WifiDirectBootstrapRequest {
-            check(packet.provides == AdvertisePacket.Provides.WIFIP2P) { "WifiDirectBootstrapRequest called with invalid provides" }
+            check(packet.provides == AdvertisePacket.Provides.WIFIP2P) {
+                "WifiDirectBootstrapRequest called with invalid provides: ${packet.provides}"
+            }
             val name = packet.metadata!![KEY_NAME]
                     ?: throw IllegalArgumentException("name was null")
             val passphrase = packet.metadata[KEY_PASSPHRASE]

@@ -15,9 +15,11 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleI
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlin.collections.HashMap
 
 class CachedLEConnection(val connection: RxBleConnection, private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>) : Disposable {
     private val disposable = CompositeDisposable()
+    private val channelMap = ConcurrentHashMap<UUID, Observable<ByteArray>>()
 
     private fun selectChannel(): Single<UUID> {
         return connection.readCharacteristic(BluetoothLERadioModuleImpl.Companion.UUID_SEMAPHOR)
@@ -33,11 +35,16 @@ class CachedLEConnection(val connection: RxBleConnection, private val channels: 
     private fun cachedNotification(): Observable<ByteArray> {
         val notificationDisposable = CompositeDisposable()
         return selectChannel()
+                .retry(10)
                 .flatMapObservable { uuid: UUID ->
                     connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
                             .retry(10)
-                            .doOnSubscribe { disposable: Disposable? -> Log.v(TAG, "client subscribed to notifications for $uuid") }
                             .flatMap { observable: Observable<ByteArray>? -> observable }
+                            .doOnSubscribe {
+                            Log.v(TAG, "client subscribed to notifications for $uuid")
+                                connection.readCharacteristic(uuid)
+                                        .subscribe()
+                            }
                             .doOnComplete { Log.e(TAG, "notifications completed for some reason") }
                             .doOnNext { b: ByteArray -> Log.v(TAG, "client received bytes " + b.size) }
                             .timeout(BluetoothLEModule.Companion.TIMEOUT.toLong(), TimeUnit.SECONDS)

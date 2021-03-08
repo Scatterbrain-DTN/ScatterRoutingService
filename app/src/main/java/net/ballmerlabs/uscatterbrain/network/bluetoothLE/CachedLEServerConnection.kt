@@ -105,7 +105,7 @@ class CachedLEServerConnection(val connection: RxBleServerConnection, private va
         )
                 .doOnNext { req: ServerResponseTransaction? -> Log.v(TAG, "received timing characteristic write request") }
                 .toFlowable(BackpressureStrategy.BUFFER)
-                .flatMapSingle { req: ServerResponseTransaction ->
+                .concatMapSingle { req: ServerResponseTransaction ->
                     selectCharacteristic()
                             .flatMap { characteristic: OwnedCharacteristic ->
                                 req.sendReply(BluetoothGatt.GATT_SUCCESS, 0,
@@ -117,14 +117,18 @@ class CachedLEServerConnection(val connection: RxBleServerConnection, private va
                 }
                 .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER), BiFunction { ch: OwnedCharacteristic, packet: ScatterSerializable ->
                     Log.v(TAG, "server received timing characteristic write")
-                    connection.setupIndication(ch.uuid, packet.writeToStream(20))
+                    connection.getOnCharacteristicReadRequest(ch.uuid)
+                            .firstOrError()
+                            .timeout(5, TimeUnit.SECONDS)
+                            .flatMapCompletable { trans -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null) }
+                            .andThen(connection.setupIndication(ch.uuid, packet.writeToStream(20)))
                             .doOnError(errorRelay)
                             .doFinally {
                                 sizeRelay.accept(decrementSize())
                                 ch.release()
                             }
                 })
-                .flatMapCompletable { completable: Completable? -> completable }
+                .flatMapCompletable { completable: Completable -> completable }
                 .repeat()
                 .retry()
                 .subscribe(
