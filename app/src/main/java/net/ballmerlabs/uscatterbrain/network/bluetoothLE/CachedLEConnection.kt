@@ -4,22 +4,44 @@ import android.content.Context
 import android.util.Log
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
+import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.SingleSource
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.functions.Function
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 
 class CachedLEConnection(val connection: RxBleConnection, private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>) : Disposable {
     private val disposable = CompositeDisposable()
     private val channelMap = ConcurrentHashMap<UUID, Observable<ByteArray>>()
+    private val enabled = CompletableSubject.create()
+
+    init {
+        premptiveEnable().subscribe(enabled)
+    }
+
+    private fun premptiveEnable(): Completable {
+        return Observable.fromIterable(BluetoothLERadioModuleImpl.channels.keys)
+                .flatMapSingle { uuid: UUID ->
+                    connection.setupIndication(uuid, NotificationSetupMode.DEFAULT)
+                            .doOnNext { Log.v(TAG, "preemptively enabled indications for $uuid") }
+                            .doOnError { Log.e(TAG, "failed to preemptively enable indications for $uuid") }
+                            .firstOrError()
+                            .retry(8)
+                }
+                .ignoreElements()
+                .doOnComplete { Log.v(TAG, "all notifications enabled")}
+    }
 
     private fun selectChannel(): Single<UUID> {
         return connection.readCharacteristic(BluetoothLERadioModuleImpl.Companion.UUID_SEMAPHOR)
@@ -34,7 +56,7 @@ class CachedLEConnection(val connection: RxBleConnection, private val channels: 
 
     private fun cachedNotification(): Observable<ByteArray> {
         val notificationDisposable = CompositeDisposable()
-        return selectChannel()
+        return enabled.andThen(selectChannel())
                 .retry(10)
                 .flatMapObservable { uuid: UUID ->
                     connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
