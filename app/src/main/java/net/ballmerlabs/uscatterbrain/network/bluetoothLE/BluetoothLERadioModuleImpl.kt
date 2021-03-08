@@ -230,16 +230,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
                             return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
                         }
-                        synchronized(connectedLuids) {
-                            val hashUUID = luidPacket.hashAsUUID
-                            Log.e("debug", "version: ${luidPacket.protoVersion} hash ${luidPacket.hashAsUUID}")
-                            if (connectedLuids.contains(hashUUID)) {
-                                Log.e(TAG, "device: $device already connected")
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
-                            } else {
-                                connectedLuids.add(hashUUID)
-                            }
+
+                        val hashUUID = luidPacket.hashAsUUID
+                        Log.e("debug", "version: ${luidPacket.protoVersion} hash ${luidPacket.hashAsUUID}")
+                        if (connectedLuids.contains(hashUUID)) {
+                            Log.e(TAG, "device: $device already connected")
+                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
+                        } else {
+                            connectedLuids.add(hashUUID)
                         }
+
                         Log.v(TAG, "client handshake received hashed luid packet: " + luidPacket.valCase)
                         session.luidStage.addPacket(luidPacket)
                         TransactionResult(TransactionResult.STAGE_LUID, device)
