@@ -13,9 +13,7 @@ import androidx.lifecycle.LifecycleService
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
 import io.reactivex.Single
-import net.ballmerlabs.scatterbrainsdk.Identity
-import net.ballmerlabs.scatterbrainsdk.ScatterMessage
-import net.ballmerlabs.scatterbrainsdk.ScatterbrainAPI
+import net.ballmerlabs.scatterbrainsdk.*
 import net.ballmerlabs.uscatterbrain.ScatterRoutingService
 import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
@@ -188,12 +186,18 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun generateIdentity(name: String): Identity {
             checkAdminPermission()
-            val identity: ApiIdentity = ApiIdentity.Companion.newBuilder()
+            val identity: ApiIdentity = ApiIdentity.newBuilder()
                     .setName(name)
-                    .sign(ApiIdentity.Companion.newPrivateKey())
+                    .sign(ApiIdentity.newPrivateKey())
                     .build()
             return mBackend.datastore.insertApiIdentity(identity)
                     .toSingleDefault(identity)
+                    .doOnSuccess {
+                        val stats = HandshakeResult(1,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS)
+                        val intent = Intent(getString(R.string.broadcast_message))
+                        intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, stats)
+                        sendBroadcast(intent, getString(R.string.permission_access))
+                    }
                     .blockingGet()
         }
 
