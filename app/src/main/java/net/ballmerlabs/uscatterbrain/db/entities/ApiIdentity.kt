@@ -17,7 +17,7 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
         builder.sig,
         builder.fingerprint
 ) {
-    private val privatekey: ByteArray
+    private val privatekey: ByteArray? = builder.privkey
     val privateKey: ByteArray?
         get() = privatekey
 
@@ -127,7 +127,4 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
         }
     }
 
-    init {
-        privatekey = builder.privkey!!
-    }
 }
