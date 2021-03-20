@@ -82,6 +82,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      */
     private fun insertMessagesSync(messages: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Completable {
         return Observable.fromIterable(messages)
+                .subscribeOn(databaseScheduler)
                 .flatMap<Any> { scatterMessage: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage -> insertMessagesSync(scatterMessage).toObservable() }
                 .ignoreElements()
     }
@@ -136,6 +137,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         Log.e(TAG, "inserting message at filePath $filePath")
         stream.entity!!.message.filePath = filePath.absolutePath
         return mDatastore.scatterMessageDao().messageCountSingle(filePath.absolutePath)
+                .subscribeOn(databaseScheduler)
                 .flatMapCompletable { count: Int ->
                     if (count > 0) {
                         return@flatMapCompletable discardStream(stream)
@@ -148,6 +150,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun insertMessagesWithoutDisk(stream: BlockDataStream): Completable {
         return mDatastore.scatterMessageDao().messageCountSingle(stream.headerPacket.autogenFilename)
+                .subscribeOn(databaseScheduler)
                 .flatMapCompletable { count: Int? ->
                     if (count!! > 0) {
                         return@flatMapCompletable discardStream(stream)
@@ -194,6 +197,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         Log.v(TAG, "called getTopRandomMessages")
         val num = Math.min(count, mDatastore.scatterMessageDao().messageCount())
         return mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, declareHashes.hashes)
+                .subscribeOn(databaseScheduler)
                 .doOnSubscribe { Log.v(TAG, "subscribed to getTopRandoMessages") }
                 .toFlowable()
                 .flatMap<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> { source: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> -> Flowable.fromIterable(source) }
@@ -241,12 +245,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      */
     override fun getMessagesByIdentity(id: KeylessIdentity): Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> {
         return mDatastore.scatterMessageDao().getByIdentity(id.fingerprint!!)
+                .subscribeOn(databaseScheduler)
                 .toObservable()
                 .flatMap { source: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage?>? -> Observable.fromIterable(source) }
     }
 
     override fun getMessageByPath(path: String): Single<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> {
         return mDatastore.scatterMessageDao().getByFilePath(path)
+                .subscribeOn(databaseScheduler)
                 .toObservable()
                 .flatMap<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> { source: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage?>? -> Observable.fromIterable(source) }
                 .firstOrError()
@@ -295,12 +301,19 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun insertIdentity(vararg ids: net.ballmerlabs.uscatterbrain.db.entities.Identity): Completable {
         return Single.just<Array<out net.ballmerlabs.uscatterbrain.db.entities.Identity>>(ids)
-                .flatMapCompletable { identities: Array<out net.ballmerlabs.uscatterbrain.db.entities.Identity> -> insertIdentity(Observable.fromArray(*identities)) }
+                .flatMapCompletable { identities: Array<out net.ballmerlabs.uscatterbrain.db.entities.Identity> ->
+                    insertIdentity(Observable.fromArray(*identities))
+                            .subscribeOn(databaseScheduler)
+
+                }
     }
 
     private fun insertIdentity(ids: List<net.ballmerlabs.uscatterbrain.db.entities.Identity>): Completable {
         return Single.just(ids)
-                .flatMapCompletable { identities: List<net.ballmerlabs.uscatterbrain.db.entities.Identity>? -> insertIdentity(Observable.fromIterable(identities)) }
+                .flatMapCompletable { identities: List<net.ballmerlabs.uscatterbrain.db.entities.Identity>? ->
+                    insertIdentity(Observable.fromIterable(identities))
+                            .subscribeOn(databaseScheduler)
+                }
     }
 
     private fun getFingerprint(identity: Identity): String {
@@ -318,6 +331,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun addACLs(identityFingerprint: String, packagename: String, appsig: String): Completable {
         return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
+                .subscribeOn(databaseScheduler)
                 .flatMapCompletable { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
                     val app = ClientApp(
                             identity!!.identity.identityID!!,
@@ -325,11 +339,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             appsig
                     )
                     mDatastore.identityDao().insertClientApp(app)
+                            .subscribeOn(databaseScheduler)
                 }
     }
 
     override fun deleteACLs(identityFingerprint: String, packageName: String, appsig: String): Completable {
         return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
+                .subscribeOn(databaseScheduler)
                 .flatMapCompletable { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
                     val app = ClientApp(
                             identity!!.identity.identityID!!,
@@ -337,6 +353,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             appsig
                     )
                     mDatastore.identityDao().deleteClientApps(app)
+                            .subscribeOn(databaseScheduler)
                 }
     }
 
@@ -354,7 +371,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             kid,
                             keys2keysBytes(identity.getmPubKeymap())
                     )
-                }.flatMapCompletable { ids: net.ballmerlabs.uscatterbrain.db.entities.Identity -> this.insertIdentity(ids) }
+                }.flatMapCompletable { ids: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
+                    this.insertIdentity(ids)
+                }
     }
 
     override fun insertApiIdentities(identities: List<Identity>): Completable {
@@ -374,7 +393,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 }.reduce(ArrayList(), { list: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>, id: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
                     list.add(id)
                     list
-                }).flatMapCompletable { ids: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity> -> this.insertIdentity(ids) }
+                }).flatMapCompletable { ids: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity> ->
+                    this.insertIdentity(ids)
+                }
     }
 
     private fun keys2keysBytes(k: Map<String, ByteArray>): List<Keys> {
@@ -438,7 +459,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     list.add(identity)
                     list
                 })
-                .flatMapCompletable { ids: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity> -> this.insertIdentity(ids) }
+                .flatMapCompletable { ids: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity> ->
+                    this.insertIdentity(ids)
+                }
     }
 
     override fun getIdentity(ids: List<Long>): Observable<IdentityPacket> {
@@ -466,11 +489,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket> {
         val num = Math.min(count, mDatastore.identityDao().getNumIdentities())
         return mDatastore.identityDao().getTopRandom(num)
+                .subscribeOn(databaseScheduler)
                 .flatMapObservable<net.ballmerlabs.uscatterbrain.db.entities.Identity> { source: List<net.ballmerlabs.uscatterbrain.db.entities.Identity?>? -> Observable.fromIterable(source) }
                 .doOnComplete { Log.v(TAG, "datastore retrieved identities: $num") }
                 .doOnNext { id: net.ballmerlabs.uscatterbrain.db.entities.Identity? -> Log.v(TAG, "retrieved single identity") }
                 .toFlowable(BackpressureStrategy.BUFFER)
-                .subscribeOn(databaseScheduler)
                 .zipWith(seq, BiFunction { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity, seq: Int ->
                     IdentityPacket.newBuilder(ctx)
                             .setName(identity.identity!!.givenName!!)
@@ -640,6 +663,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun getApiMessages(application: String): List<ScatterMessage> {
         return getApiMessage(mDatastore.scatterMessageDao()
                 .getByApplication(application)
+                .subscribeOn(databaseScheduler)
                 .flatMapObservable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> {
                     source: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> ->
                     Observable.fromIterable(source)
@@ -649,6 +673,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun getApiMessages(id: Long): ScatterMessage {
         return getApiMessage(mDatastore.scatterMessageDao().getByID(id))
+                .subscribeOn(databaseScheduler)
                 .blockingGet()
     }
 
@@ -727,7 +752,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     @Synchronized
     override fun deleteByPath(path: File): Int {
-        return mDatastore.scatterMessageDao().deleteByPath(path.absolutePath)
+        return mDatastore.scatterMessageDao()
+                .deleteByPath(path.absolutePath)
     }
 
     override fun messageCount(): Int {
