@@ -41,10 +41,10 @@ interface IdentityDao {
     @Insert
     fun insert(identity: KeylessIdentity): Single<Long>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertClientApps(clientApps: List<ClientApp>): Single<List<Long>>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertClientApp(vararg apps: ClientApp): Completable
 
     @Insert
