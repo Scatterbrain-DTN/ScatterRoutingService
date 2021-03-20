@@ -231,6 +231,19 @@ class ScatterRoutingService : LifecycleService() {
             }
         }
 
+        override fun getAppPermissions(identity: String?): Array<String> {
+            checkSuperuserPermission()
+            return mBackend.datastore.getACLs(identity!!)
+                    .flatMapObservable { acl -> Observable.fromIterable(acl) }
+                    .map { acl -> acl.packageName }
+                    .reduce(ArrayList<String>(), { list, acl ->
+                        list.add(acl)
+                        return@reduce list
+                    })
+                    .blockingGet()
+                    .toTypedArray()
+        }
+
         @Throws(RemoteException::class)
         override fun isDiscovering(): Boolean {
             checkAccessPermission()
