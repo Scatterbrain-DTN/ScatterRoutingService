@@ -15,7 +15,8 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
         builder.mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY],
         builder.name,
         builder.sig,
-        builder.fingerprint
+        builder.fingerprint,
+        builder.privkey != null
 ) {
     private val privatekey: ByteArray? = builder.privkey
     val privateKey: ByteArray?

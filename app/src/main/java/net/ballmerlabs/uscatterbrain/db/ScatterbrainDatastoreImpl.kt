@@ -259,8 +259,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .subscribeOn(databaseScheduler)
                             .flatMapCompletable { result: Long ->
                                 Observable.fromIterable(singleid.keys)
-                                        .map { key: Keys? ->
-                                            key!!.identityFK = result
+                                        .map { key: Keys ->
+                                            key.identityFK = result
                                             key
                                         }
                                         .reduce(ArrayList(), { list: ArrayList<Keys>, key: Keys ->
@@ -354,7 +354,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             kid,
                             keys2keysBytes(identity.getmPubKeymap())
                     )
-                }.flatMapCompletable { ids: net.ballmerlabs.uscatterbrain.db.entities.Identity? -> this.insertIdentity(ids!!) }
+                }.flatMapCompletable { ids: net.ballmerlabs.uscatterbrain.db.entities.Identity -> this.insertIdentity(ids) }
     }
 
     override fun insertApiIdentities(identities: List<Identity>): Completable {

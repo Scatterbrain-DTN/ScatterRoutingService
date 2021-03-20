@@ -32,6 +32,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val globalDisposable = AtomicReference<Disposable?>()
     private fun broadcastTransactionResult(transactionStats: HandshakeResult?) {
         val intent = Intent(context.getString(R.string.broadcast_message))
+        
         intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, transactionStats)
         context.sendBroadcast(intent, context.getString(R.string.permission_access))
     }
