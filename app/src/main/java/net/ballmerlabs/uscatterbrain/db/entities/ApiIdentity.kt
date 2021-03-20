@@ -29,7 +29,7 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
         val mPubKeymap: MutableMap<String?, ByteArray?> = HashMap()
         var name: String? = null
         private var pubkey: ByteArray? = null
-        val privkey: ByteArray? = null
+        var privkey: ByteArray? = null
         private var signPair: KeyPair? = null
         var fingerprint: String? = null
         private fun sumBytes(): ByteString {
@@ -106,6 +106,7 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
                 signEd25519(signPair!!.secretkey)
                 mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = signPair!!.publickey
                 pubkey = signPair!!.publickey
+                privkey = signPair!!.secretkey
             } else {
                 require(mPubKeymap.containsKey(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY)) { "key map does not contain scatterbrain pubkey" }
                 pubkey = mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]
