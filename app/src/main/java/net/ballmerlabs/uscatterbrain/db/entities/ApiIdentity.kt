@@ -16,13 +16,13 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
         builder.name,
         builder.sig,
         builder.fingerprint,
-        builder.privkey != null
+        builder.hasPrivateKey
 ) {
     private val privatekey: ByteArray? = builder.privkey
     val privateKey: ByteArray?
         get() = privatekey
 
-    class KeyPair(val secretkey: ByteArray?, val publickey: ByteArray?)
+    class KeyPair(val secretkey: ByteArray, val publickey: ByteArray)
 
     class Builder {
         var sig: ByteArray? = null
@@ -32,6 +32,7 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
         var privkey: ByteArray? = null
         private var signPair: KeyPair? = null
         var fingerprint: String? = null
+        var hasPrivateKey = false
         private fun sumBytes(): ByteString {
             var result = ByteString.EMPTY
             result = result.concat(ByteString.copyFromUtf8(name))
@@ -44,7 +45,7 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
             return result
         }
 
-        fun getPubkeyFingerprint(): String? {
+        fun getPubkeyFingerprint(): String {
             val fingeprint = ByteArray(GenericHash.BYTES)
             LibsodiumInterface.sodium.crypto_generichash(
                     fingeprint,
@@ -64,8 +65,8 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
          * @return the boolean
          */
         @Synchronized
-        private fun signEd25519(secretkey: ByteArray?): Boolean {
-            if (secretkey!!.size != Sign.SECRETKEYBYTES) return false
+        private fun signEd25519(secretkey: ByteArray): Boolean {
+            if (secretkey.size != Sign.SECRETKEYBYTES) return false
             val messagebytes = sumBytes()
             val signature = ByteArray(Sign.ED25519_BYTES)
             val p = PointerByReference(Pointer.NULL).pointer
@@ -94,7 +95,13 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
         }
 
         fun addKeys(keys: Map<String, ByteArray>): Builder {
-            mPubKeymap.putAll(keys!!)
+            mPubKeymap.putAll(keys)
+            return this
+        }
+        
+        
+        fun setHasPrivateKey(hasPrivKey: Boolean): Builder {
+            hasPrivateKey = hasPrivKey
             return this
         }
 
@@ -107,6 +114,7 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
                 mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = signPair!!.publickey
                 pubkey = signPair!!.publickey
                 privkey = signPair!!.secretkey
+                hasPrivateKey = true
             } else {
                 require(mPubKeymap.containsKey(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY)) { "key map does not contain scatterbrain pubkey" }
                 pubkey = mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]

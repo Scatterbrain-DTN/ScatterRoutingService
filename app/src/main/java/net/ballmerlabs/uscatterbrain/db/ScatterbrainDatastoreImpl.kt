@@ -507,9 +507,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .subscribeOn(databaseScheduler)
                 .map<ApiIdentity> { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
                     ApiIdentity.newBuilder()
-                            .setName(identity!!.identity!!.givenName!!)
-                            .addKeys(keys2map(identity.keys!!))
-                            .setSig(identity.identity!!.signature!!)
+                            .setName(identity!!.identity.givenName)
+                            .addKeys(keys2map(identity.keys))
+                            .setSig(identity.identity.signature)
+                            .setHasPrivateKey(identity.identity.privatekey != null)
                             .build()
                 }.blockingGet()
     }
@@ -518,8 +519,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return mDatastore.identityDao().getIdentityByFingerprint(identity)
                 .subscribeOn(databaseScheduler)
                 .map { id: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
-                    checkNotNull(id!!.identity!!.privatekey) { "private key not found" }
-                    ApiIdentity.KeyPair(id.identity!!.publicKey, id.identity!!.privatekey)
+                    checkNotNull(id!!.identity.privatekey) { "private key not found" }
+                    ApiIdentity.KeyPair(id.identity.publicKey, id.identity.privatekey!!)
                 }
     }
 
@@ -545,11 +546,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .flatMapObservable<net.ballmerlabs.uscatterbrain.db.entities.Identity> {
                     source: List<net.ballmerlabs.uscatterbrain.db.entities.Identity> ->
                     Observable.fromIterable(source) }
-                .map<ApiIdentity> { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
+                .map { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
                     ApiIdentity.newBuilder()
-                            .setName(identity.identity!!.givenName!!)
-                            .addKeys(keys2map(identity.keys!!))
-                            .setSig(identity.identity!!.signature!!)
+                            .setName(identity.identity.givenName)
+                            .addKeys(keys2map(identity.keys))
+                            .setSig(identity.identity.signature)
+                            .setHasPrivateKey(identity.identity.privatekey != null)
                             .build()
                 }.reduce(ArrayList(), { list: ArrayList<Identity>, id: ApiIdentity ->
                     list.add(id)
