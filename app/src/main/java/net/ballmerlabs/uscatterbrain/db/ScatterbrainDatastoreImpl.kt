@@ -352,7 +352,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             packageName,
                             appsig
                     )
-                    mDatastore.identityDao().deleteClientApps(app)
+                    mDatastore.identityDao().deleteClientApps(JustPackageName(app.packageName))
                             .subscribeOn(databaseScheduler)
                 }
     }

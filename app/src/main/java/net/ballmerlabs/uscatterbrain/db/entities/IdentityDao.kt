@@ -62,6 +62,6 @@ interface IdentityDao {
     @Delete
     fun delete(identity: KeylessIdentity): Completable
 
-    @Delete
-    fun deleteClientApps(vararg apps: ClientApp): Completable
+    @Delete(entity = ClientApp::class)
+    fun deleteClientApps(vararg apps: JustPackageName): Completable
 }

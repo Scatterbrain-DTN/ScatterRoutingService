@@ -22,3 +22,8 @@ data class ClientApp(
     @PrimaryKey(autoGenerate = true)
     var clientAppID: Long? = null
 }
+
+
+data class JustPackageName(
+        var packageName: String
+)
