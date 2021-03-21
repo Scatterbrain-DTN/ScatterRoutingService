@@ -3,24 +3,24 @@
     package="net.ballmerlabs.uscatterbrain">
 
     <permission-group
-        android:name="net.ballmerlabs.scatterbrain.SCATTERBRAIN"
+        android:name="net.ballmerlabs.scatterroutingservice.SCATTERBRAIN"
         android:description="@string/description_group"
         android:label="Scatterbrain networking"
         />
 
     <permission
-        android:name="net.ballmerlabs.scatterbrain.permission.ACCESS"
+        android:name="net.ballmerlabs.scatterroutingservice.permission.ACCESS"
         android:label="Scatterbrain access"
-        android:permissionGroup="net.ballmerlabs.scatterbrain.SCATTERBRAIN"
+        android:permissionGroup="net.ballmerlabs.scatterroutingservice.SCATTERBRAIN"
         android:protectionLevel="normal"
         />
     <permission
-        android:name="net.ballmerlabs.scatterbrain.permission.ADMIN"
+        android:name="net.ballmerlabs.scatterroutingservice.permission.ADMIN"
         android:label="Scatterbrain admin"
         android:protectionLevel="dangerous"
         />
     <permission
-        android:name="net.ballmerlabs.scatterbrain.permission.SUPERUSER"
+        android:name="net.ballmerlabs.scatterroutingservice.permission.SUPERUSER"
         android:label="Scatterbrain superuser"
         android:protectionLevel="signature"
         />
