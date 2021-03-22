@@ -201,6 +201,17 @@ class ScatterRoutingService : LifecycleService() {
                     .blockingGet()
         }
 
+        override fun removeIdentity(identity: String?): Boolean {
+            return mBackend.datastore.deleteIdentities(identity!!)
+                    .toSingleDefault(true)
+                    .doOnError {
+                        e -> Log.e(TAG, "failed to remove identity: $e")
+                        e.printStackTrace()
+                    }
+                    .onErrorReturnItem(false)
+                    .blockingGet()
+        }
+
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(RemoteException::class)
         override fun authorizeApp(identity: String, packagename: String) {

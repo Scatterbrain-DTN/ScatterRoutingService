@@ -64,4 +64,12 @@ interface IdentityDao {
 
     @Delete(entity = ClientApp::class)
     fun deleteClientApps(vararg apps: JustPackageName): Completable
+
+    @Transaction
+    @Delete(entity = KeylessIdentity::class)
+    fun deleteIdentityByFingerprint(vararg fingerprint: JustFingerprint): Completable
+
+    @Transaction
+    @Delete(entity = KeylessIdentity::class)
+    fun deleteIdentityByFingerprint(fingerprint: List<JustFingerprint>): Completable
 }

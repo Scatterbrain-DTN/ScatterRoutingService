@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
+import kotlin.collections.ArrayList
 
 /**
  * Interface to the androidx room backed datastore
@@ -183,6 +184,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 })
     }
 
+
     /**
      * gets a randomized list of messages from the datastore. Needs to be observed
      * to get async result
@@ -296,6 +298,19 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                         }
                                         )
                             }
+                }
+    }
+
+    override fun deleteIdentities(vararg fingerprint: String): Completable {
+        return Observable.fromIterable(fingerprint.asList())
+                .map { f -> JustFingerprint(f) }
+                .reduce(ArrayList<JustFingerprint>(), {list, f ->
+                    list.add(f)
+                    list
+                })
+                .flatMapCompletable { l ->
+                    mDatastore.identityDao().deleteIdentityByFingerprint(l)
+                            .subscribeOn(databaseScheduler)
                 }
     }
 

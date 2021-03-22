@@ -110,6 +110,7 @@ interface ScatterbrainDatastore {
     fun insertAndHashFileFromApi(message: ApiScatterMessage, blocksize: Int): Completable
     val declareHashesPacket: Single<DeclareHashesPacket>
     fun getACLs(identity: String): Single<MutableList<ACL>>
+    fun deleteIdentities(vararg fingerprint: String): Completable
     enum class FileCallbackResult {
         ERR_FILE_EXISTS, ERR_FILE_NO_EXISTS, ERR_IO_EXCEPTION, ERR_PERMISSION_DENIED, ERR_FAILED, ERR_SUCCESS, ERR_INVALID_ARGUMENT
     }

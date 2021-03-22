@@ -13,3 +13,9 @@ data class Identity(
     @Relation(parentColumn = "identityID", entityColumn = "identityFK")
     var clientACL: List<ClientApp>? = null
 )
+
+
+
+data class JustFingerprint(
+        val fingerprint: String
+)
