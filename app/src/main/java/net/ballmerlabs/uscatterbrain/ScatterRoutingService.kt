@@ -14,36 +14,31 @@ import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.*
-import net.ballmerlabs.uscatterbrain.ScatterRoutingService
 import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore.ACL
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.jvm.Throws
 
+/**
+ * Main foreground service class for Scatterbrain.
+ */
 class ScatterRoutingService : LifecycleService() {
-    val TAG = "ScatterRoutingService"
-    private val mBinder: IBinder = ScatterBinder()
     private lateinit var mBackend: RoutingServiceBackend
-    private val bound = AtomicReference(false)
     private val binder: ScatterbrainAPI.Stub = object : ScatterbrainAPI.Stub() {
         private fun checkPermission(permName: String): Boolean {
             val pm = applicationContext.packageManager
             return PackageManager.PERMISSION_GRANTED == pm.checkPermission(permName, callingPackageName)
         }
 
-        // permission check
+        // note: we have to get the package name from the Stub class because
+        // the binder is called via a proxy that may run as a different process
         @get:Synchronized
         private val callingPackageName: String
-            private get() {
-                // permission check
+            get() {
                 var packageName: String? = null
                 val packages = packageManager.getPackagesForUid(Binder.getCallingUid())
-                if (packages != null && packages.size > 0) {
+                if (packages != null && packages.isNotEmpty()) {
                     packageName = packages[0]
                 }
                 return packageName ?: ""
@@ -74,6 +69,7 @@ class ScatterRoutingService : LifecycleService() {
             }
         }
 
+        // fail if access permission is not granted
         @Throws(RemoteException::class)
         private fun checkAccessPermission() {
             if (checkPermission(getString(R.string.permission_superuser))) {
@@ -84,6 +80,7 @@ class ScatterRoutingService : LifecycleService() {
             }
         }
 
+        // fail if admin permission is not granted
         @Throws(RemoteException::class)
         private fun checkAdminPermission() {
             if (checkPermission(getString(R.string.permission_superuser))) {
@@ -94,6 +91,7 @@ class ScatterRoutingService : LifecycleService() {
             }
         }
 
+        //fail if superuser permission is not granted
         @Throws(RemoteException::class)
         private fun checkSuperuserPermission() {
             if (!checkPermission(getString(R.string.permission_superuser))) {
@@ -101,49 +99,87 @@ class ScatterRoutingService : LifecycleService() {
             }
         }
 
+        /**
+         * Get scattermessage by database id.
+         * @param id id unique to sqlite table
+         * @return message matching id
+         * @throws RemoteException if message not found
+         */
         @Throws(RemoteException::class)
         override fun getById(id: Long): ScatterMessage {
             checkAccessPermission()
             return mBackend.datastore.getApiMessages(id)
         }
 
+
+        /**
+         * get all messages belonging to an application
+         * @param application identifier
+         * @return list of messages, may be zero
+         */
         @Throws(RemoteException::class)
         override fun getByApplication(application: String): List<ScatterMessage> {
             checkAccessPermission()
             return mBackend.datastore.getApiMessages(application)
         }
 
+        /**
+         * get all identities stored in datastore. NOTE: this may be expensive to call
+         * use with caution
+         *
+         * @return list of identities
+         */
         @Throws(RemoteException::class)
         override fun getIdentities(): List<Identity> {
             checkAccessPermission()
             return mBackend.datastore.allIdentities
         }
 
+        /**
+         * get identity matching a specific fingerprint
+         * @param fingerprint
+         * @return identity
+         */
         @Throws(RemoteException::class)
         override fun getIdentityByFingerprint(fingerprint: String): Identity {
             checkAccessPermission()
             return mBackend.datastore.getApiIdentityByFingerprint(fingerprint)
         }
 
+        /**
+         * enqueues a message onto the datastore.
+         * @param message
+         */
         @Throws(RemoteException::class)
         override fun sendMessage(message: ScatterMessage) {
             checkAccessPermission()
-            mBackend.datastore.insertAndHashFileFromApi(ApiScatterMessage.Companion.fromApi(message), ScatterbrainDatastore.Companion.DEFAULT_BLOCKSIZE)
+            mBackend.datastore.insertAndHashFileFromApi(ApiScatterMessage.fromApi(message), ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
                     .blockingAwait()
         }
 
+        /**
+         * enqueues a list of messages onto the datastore
+         * @param messages list of messages
+         */
         @Throws(RemoteException::class)
         override fun sendMessages(messages: List<ScatterMessage>) {
             checkAccessPermission()
             Observable.fromIterable(messages)
                     .flatMapCompletable { m: ScatterMessage ->
                         mBackend.datastore.insertAndHashFileFromApi(
-                                ApiScatterMessage.Companion.fromApi(m),
-                                ScatterbrainDatastore.Companion.DEFAULT_BLOCKSIZE)
+                                ApiScatterMessage.fromApi(m),
+                                ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
                     }
                     .blockingAwait()
         }
 
+        /**
+         * sends a message and signs with specified identity fingerprint
+         * @param message scattermessage to send
+         * @param identity fingerprint of identity to sign with
+         * @throws RemoteException if application is not authorized to use identity or if identity
+         * does not exist
+         */
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(RemoteException::class)
         override fun sendAndSignMessage(message: ScatterMessage, identity: String) {
@@ -154,35 +190,52 @@ class ScatterRoutingService : LifecycleService() {
             mBackend.datastore.getIdentityKey(identity)
                     .flatMapCompletable { id: ApiIdentity.KeyPair? ->
                         mBackend.datastore.insertAndHashFileFromApi(
-                                ApiScatterMessage.Companion.fromApi(message, id),
-                                ScatterbrainDatastore.Companion.DEFAULT_BLOCKSIZE)
+                                ApiScatterMessage.fromApi(message, id),
+                                ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
                     }.blockingAwait()
         }
 
+        /**
+         * starts active discovery with one or more transport layers
+         */
         @Throws(RemoteException::class)
         override fun startDiscovery() {
             checkAdminPermission()
             mBackend.scheduler.start()
         }
 
+        /**
+         * stops active discovery with all transport layers
+         */
         @Throws(RemoteException::class)
         override fun stopDiscovery() {
             checkAdminPermission()
             mBackend.scheduler.stop()
         }
 
+        /**
+         * starts passive listening for connections on all transports
+         */
         @Throws(RemoteException::class)
         override fun startPassive() {
             checkAdminPermission()
             mBackend.radioModule.startServer()
         }
 
+        /**
+         * stops passive listening for connections on all transports
+         */
         @Throws(RemoteException::class)
         override fun stopPassive() {
             checkAdminPermission()
             mBackend.radioModule.stopServer()
         }
 
+        /**
+         * generates and stores a new identity
+         * @param name name for this identity
+         * @return identity object generated
+         */
         @Throws(RemoteException::class)
         override fun generateIdentity(name: String): Identity {
             checkAdminPermission()
@@ -201,6 +254,12 @@ class ScatterRoutingService : LifecycleService() {
                     .blockingGet()
         }
 
+        /**
+         * removes an identity by fingerprint.
+         * @param identity fingerprint of identity to remove
+         * @return true if identity removed, false otherwise
+         */
+        @Throws(RemoteException::class)
         override fun removeIdentity(identity: String?): Boolean {
             return mBackend.datastore.deleteIdentities(identity!!)
                     .toSingleDefault(true)
@@ -212,6 +271,12 @@ class ScatterRoutingService : LifecycleService() {
                     .blockingGet()
         }
 
+        /**
+         * authorizes an app by package name to use a specific identity
+         * @param identity fingerprint of identity to authorize
+         * @param packagename package name of app
+         * @throws RemoteException if package name not found or if permission denied
+         */
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(RemoteException::class)
         override fun authorizeApp(identity: String, packagename: String) {
@@ -227,6 +292,12 @@ class ScatterRoutingService : LifecycleService() {
             }
         }
 
+        /**
+         * deauthorizes an app by package name to use a specific identity
+         * @param identity fingerprint of identity to deauthorize
+         * @param packagename package name of app
+         * @throws RemoteException if package name not found or if permission denied
+         */
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(RemoteException::class)
         override fun deauthorizeApp(identity: String, packagename: String) {
@@ -242,6 +313,11 @@ class ScatterRoutingService : LifecycleService() {
             }
         }
 
+        /**
+         * returns a list of packages by package name that are authorized to use an identity
+         * @param identity identity by fingerprint
+         * @return list of package names if any
+         */
         override fun getAppPermissions(identity: String?): Array<String> {
             checkSuperuserPermission()
             return mBackend.datastore.getACLs(identity!!)
@@ -255,12 +331,20 @@ class ScatterRoutingService : LifecycleService() {
                     .toTypedArray()
         }
 
+        /**
+         * returns true if active discovery is running
+         * @return is discovering
+         */
         @Throws(RemoteException::class)
         override fun isDiscovering(): Boolean {
             checkAccessPermission()
             return mBackend.scheduler.isDiscovering
         }
 
+        /**
+         * returns true if passive listening
+         * @return is passive
+         */
         @Throws(RemoteException::class)
         override fun isPassive(): Boolean {
             checkAccessPermission()
@@ -271,12 +355,22 @@ class ScatterRoutingService : LifecycleService() {
     val packet: AdvertisePacket?
         get() = mBackend.packet
 
-    override fun onCreate() {
-        super.onCreate()
+    override fun onBind(i: Intent): IBinder {
+        super.onBind(i)
+        return binder
     }
 
-    override fun onStart(intent: Intent?, startId: Int) {
-        super.onStart(intent, startId)
+    override fun onUnbind(i: Intent): Boolean {
+        super.onUnbind(i)
+        return true
+    }
+
+    /*
+     * we initialize the service on start instead of on bind since multiple clients
+     * may be bound at once
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         try {
             val c = DaggerRoutingServiceComponent.builder()
                     .applicationContext(this)
@@ -307,35 +401,10 @@ class ScatterRoutingService : LifecycleService() {
             e.printStackTrace()
             Log.v(TAG, "exception")
         }
-    }
-
-    override fun onBind(i: Intent): IBinder? {
-        super.onBind(i)
-        return binder
-    }
-
-    //TODO: remove this in production
-    val radioModule: BluetoothLEModule?
-        get() = mBackend.radioModule
-
-    //TODO: remove this in production
-    val wifiDirect: WifiDirectRadioModule?
-        get() = mBackend.wifiDirect
-
-    //TODO: remove this in production
-    val datastore: ScatterbrainDatastore?
-        get() = mBackend.datastore
-
-    override fun onUnbind(i: Intent): Boolean {
-        super.onUnbind(i)
-        return true
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        super.onStartCommand(intent, flags, startId)
         return Service.START_NOT_STICKY
     }
 
+    /* make sure to trigger disposal of any rxjava chains before shutting down */
     override fun onDestroy() {
         super.onDestroy()
         mBackend.radioModule.stopDiscover()
@@ -343,13 +412,9 @@ class ScatterRoutingService : LifecycleService() {
         mBackend.wifiDirect.unregisterReceiver()
     }
 
-    inner class ScatterBinder : Binder() {
-        val service: ScatterRoutingService
-            get() = this@ScatterRoutingService
-    }
-
     companion object {
         const val PROTO_VERSION = 5
+        const val TAG = "ScatterRoutingService"
         private val component = BehaviorRelay.create<RoutingServiceComponent>()
         private const val NOTIFICATION_CHANNEL_FOREGROUND = "foreground"
         const val PERMISSION_DENIED_STR = "permission denied"
