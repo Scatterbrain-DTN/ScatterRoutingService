@@ -4,15 +4,16 @@ import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 
+/**
+ * state for bluetoothLE advertise stage
+ * used in state machine implementation
+ */
 class AdvertiseStage {
     private val packet = AtomicReference<AdvertisePacket>()
     fun addPacket(packet: AdvertisePacket) {
         this.packet.set(packet)
     }
-
-    val packets: AdvertisePacket
-        get() = packet.get()
-
+    
     companion object {
         private val provides: ArrayList<AdvertisePacket.Provides> = object : ArrayList<AdvertisePacket.Provides>() {
             init {

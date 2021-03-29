@@ -3,13 +3,11 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
-import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
-import android.os.Build
 import android.os.ParcelUuid
 import android.os.PowerManager
 import android.os.PowerManager.WakeLock
@@ -24,17 +22,15 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.functions.BiFunction
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.uscatterbrain.*
+import net.ballmerlabs.uscatterbrain.BuildConfig
 import net.ballmerlabs.uscatterbrain.R
-import net.ballmerlabs.uscatterbrain.RouterPreferences
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.ScatterRoutingService
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.discoveryOptions
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.DiscoveryOptions
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -48,12 +44,33 @@ import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
 
+/**
+ * Bluetooth low energy transport implementation.
+ * This transport provides devices discovery, data transfer,
+ * and bootstrapping to other transports.
+ *
+ * Logic is implemented as a finite state machine to simplify
+ * potential modification of protocol behavior.
+ *
+ * It should be noted that due to quirks in the way bluetooth LE is
+ * implemented on android, this transports is unusually complex.
+ * The basic idea is to connect to a device via bluetooth LE and establish
+ * dual gatt connections in both directions to send protobuf blobs using indications.
+ *
+ * Dual connections are required because only the GATT server can use
+ * notifications/indications, and notifications/indications are the only way to
+ * send streams of data efficiently
+ *
+ * It is important to note that a physical LE connections is NOT the same as a
+ * GATT connection. We only want one physical radio connection but two GATT connections.
+ * if for some reason we end up connecting twice due to a race condition, we need to identity and
+ * throw out one of the connections.
+ */
 @Singleton
 class BluetoothLERadioModuleImpl @Inject constructor(
         private val mContext: Context,
         private val mAdvertiser: BluetoothLeAdvertiser,
         @param:Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
-        @param:Named(RoutingServiceComponent.NamedSchedulers.DEFAULT_SCHEDULER) private val defaultScheduler: Scheduler,
         private val mServer: RxBleServer,
         private val mClient: RxBleClient,
         private val wifiDirectRadioModule: WifiDirectRadioModule,
@@ -66,13 +83,24 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     companion object {
         const val TAG = "BluetoothLE"
         const val CLIENT_CONNECT_TIMEOUT = 10
-        const val NUM_CHANNELS = 8
-        val SERVICE_UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
-        val UUID_SEMAPHOR = UUID.fromString("3429e76d-242a-4966-b4b3-301f28ac3ef2")
-        const val WAKE_LOCK_TAG = "net.ballmerlabs.uscatterbrain::scatterbrainwakelock"
+        // scatterbrain service uuid. This is the same for every scatterbrain router.
+        val SERVICE_UUID: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
+
+        // GATT characteristic uuid for semaphor used for a device to  lock a channel.
+        // This is to overcome race conditions caused by the statefulness of the GATT DB
+        // we really shouldn't need this but android won't let us have two GATT DBs
+        val UUID_SEMAPHOR: UUID = UUID.fromString("3429e76d-242a-4966-b4b3-301f28ac3ef2")
+
+        // a "channel" is a characteristc that protobuf messages are written to.
         val channels = ConcurrentHashMap<UUID, LockedCharactersitic>()
+
+        // number of channels. This can be increased or decreased for performance
+        private const val NUM_CHANNELS = 8
+
+        // scatterbrain gatt service object
         val mService = BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-        fun incrementUUID(uuid: UUID, i: Int): UUID {
+
+        private fun incrementUUID(uuid: UUID, i: Int): UUID {
             val buffer = ByteBuffer.allocate(16)
             buffer.putLong(uuid.mostSignificantBits)
             buffer.putLong(uuid.leastSignificantBits)
@@ -97,7 +125,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             return UUID(high, low)
         }
 
-        fun makeCharacteristic(uuid: UUID): BluetoothGattCharacteristic {
+        /*
+         * shortcut to generate a characteristic with the required permissions
+         * and properties and add it to our service.
+         * We need PROPERTY_INDICATE to send large protobuf blobs and
+         * READ and WRITE for timing / locking
+         */
+        private fun makeCharacteristic(uuid: UUID): BluetoothGattCharacteristic {
             val characteristic = BluetoothGattCharacteristic(
                     uuid,
                     BluetoothGattCharacteristic.PROPERTY_READ or
@@ -111,6 +145,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
 
         init {
+            // initialize our channels
             makeCharacteristic(UUID_SEMAPHOR)
             for (i in 0 until NUM_CHANNELS) {
                 val channel = incrementUUID(SERVICE_UUID, i + 1)
@@ -122,16 +157,21 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val mGattDisposable = CompositeDisposable()
     private val discoverDelay = 45
     private val discoveryDispoable = AtomicReference<Disposable>()
+
+    //we need to cache connections because RxAndroidBle doesn't like making double GATT connections
     private val connectionCache = ConcurrentHashMap<String, Observable<CachedLEConnection>>()
+
     private val transactionCompleteRelay = PublishRelay.create<HandshakeResult>()
-    private val connectedLuids = Collections.newSetFromMap(ConcurrentHashMap<UUID, Boolean>())
+
+    // luid is a temporary unique identifier used for a single transaction.
     private val myLuid = AtomicReference(UUID.randomUUID())
+
+    private val connectedLuids = Collections.newSetFromMap(ConcurrentHashMap<UUID, Boolean>())
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
     private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             super.onStartSuccess(settingsInEffect)
             Log.v(TAG, "successfully started advertise")
-            val bm = mContext.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         }
 
         override fun onStartFailure(errorCode: Int) {
@@ -142,23 +182,29 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun observeTransactionComplete() {
         val d = transactionCompleteRelay.subscribe(
-                { _: HandshakeResult ->
+                {
                     Log.v(TAG, "transaction complete, randomizing luid")
                     releaseWakeLock()
+                    // we need to randomize the luid every transaction or devices can be tracked
                     myLuid.set(UUID.randomUUID())
                 }
         ) { err: Throwable -> Log.e(TAG, "error in transactionCompleteRelay $err") }
         mGattDisposable.add(d)
     }
 
-    protected fun acquireWakelock() {
+    /*
+     * we should always hold a wakelock directly after the adapter wakes up the device
+     * when a scatterbrain uuid is detected. The adapter is responsible for waking up the device
+     * via offloaded scanning, but NOT for keeping it awake.
+     */
+    private fun acquireWakelock() {
         wakeLock.updateAndGet {
             powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, mContext.getString(R.string.wakelock_tag))
                     .apply { acquire(10*60*1000) }
         }
     }
 
-    protected fun releaseWakeLock() {
+    private fun releaseWakeLock() {
         wakeLock.getAndUpdate { null }?.release()
     }
 
@@ -179,25 +225,29 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
+    /**
+     * start offloaded advertising. This should continue even after the phone is asleep
+     */
     override fun startAdvertise() {
         Log.v(TAG, "Starting LE advertise")
-        if (Build.VERSION.SDK_INT >= 26) {
-            val settings = AdvertiseSettings.Builder()
-                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
-                    .setConnectable(true)
-                    .setTimeout(0)
-                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                    .build()
-            val addata = AdvertiseData.Builder()
-                    .setIncludeDeviceName(false)
-                    .setIncludeTxPowerLevel(false)
-                    .addServiceUuid(ParcelUuid(SERVICE_UUID))
-                    .build()
-            mAdvertiser.startAdvertising(settings, addata, mAdvertiseCallback)
-        }
+        val settings = AdvertiseSettings.Builder()
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+                .setConnectable(true)
+                .setTimeout(0)
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+                .build()
+        val addata = AdvertiseData.Builder()
+                .setIncludeDeviceName(false)
+                .setIncludeTxPowerLevel(false)
+                .addServiceUuid(ParcelUuid(SERVICE_UUID))
+                .build()
+        mAdvertiser.startAdvertising(settings, addata, mAdvertiseCallback)
     }
 
+    /**
+     * stop offloaded advertising
+     */
     override fun stopAdvertise() {
         Log.v(TAG, "stopping LE advertise")
         mAdvertiser.stopAdvertising(mAdvertiseCallback)
@@ -207,9 +257,30 @@ class BluetoothLERadioModuleImpl @Inject constructor(
        return if (preferences.getBoolean(mContext.getString(R.string.pref_incognito), false)) AdvertisePacket.Provides.BLE else AdvertisePacket.Provides.WIFIP2P
     }
 
+    /*
+     * initialize the finite state machine. This is VERY important and dictates the
+     * bluetooth LE transport's behavior for hte entire protocol.
+     * the LeDeviceSession object holds the stages and stage transition logic, and is
+     * executed when a device connects.
+     *
+     * At a bare minimum session.stage should be set to the starting state and
+     * it should be verified that STAGE_EXIT should be reachable without deadlocks
+     * After state exit, one of three things should happen
+     * 1. the transport errors out and the devices are disconnected
+     * 2. the transport bootstraps to another transport and awaits exit
+     * 3. the transport transfers messages and identities and then exits
+     *
+     * This is decided by the leader election process currently
+     */
     private fun initializeProtocol(device: BluetoothDevice): Single<LeDeviceSession> {
         Log.v(TAG, "initialize protocol")
         val session = LeDeviceSession(device, myLuid)
+        
+        /*
+         * luid hashed stage exchanges hashed luid packets (for election purposes)
+         * hashed packets are stored for later verification. 
+         * hashed packets are also used to weed out and terminate duplicate connections
+         */
         session.addStage(
                 TransactionResult.STAGE_LUID_HASHED,
                 { serverConn: CachedLEServerConnection ->
@@ -224,7 +295,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             conn.readLuid()
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
                     .observeOn(clientScheduler)
-                    .map<TransactionResult<BootstrapRequest>> { luidPacket: LuidPacket ->
+                    .map { luidPacket: LuidPacket ->
                         if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
                             Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
                             return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
@@ -245,6 +316,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         TransactionResult(TransactionResult.STAGE_LUID, device)
                     }
         }
+        
+        /*
+         * luid stage reveals unhashed packets after all hashed packets are collected
+         * hashes are compared to unhashed packets
+         */
         session.addStage(
                 TransactionResult.STAGE_LUID,
                 { serverConn: CachedLEServerConnection ->
@@ -275,29 +351,41 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_EXIT, device))
                     }
         }
+        
+        /*
+         * if no one cheats and sending luids, we exchange advertise packets. 
+         * This is really boring currently because all scatterbrain routers offer the same capabilities
+         */
         session.addStage(
                 TransactionResult.STAGE_ADVERTISE,
                 l@{ serverConn ->
                     Log.v(TAG, "gatt server advertise stage")
-                    return@l serverConn.serverNotify<AdvertisePacket>(AdvertiseStage.self)
+                    return@l serverConn.serverNotify(AdvertiseStage.self)
                             .toSingleDefault(Optional.empty())
                 }
         ) { conn: CachedLEConnection ->
             Log.v(TAG, "gatt client advertise stage")
             conn.readAdvertise()
-                    .doOnSuccess { advertisePacket: AdvertisePacket? -> Log.v(TAG, "client handshake received advertise packet") }
+                    .doOnSuccess { Log.v(TAG, "client handshake received advertise packet") }
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving advertise packet: $err") }
                     .map { advertisePacket: AdvertisePacket ->
                         session.advertiseStage.addPacket(advertisePacket)
-                        TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ELECTION_HASHED, device)
+                        TransactionResult(TransactionResult.STAGE_ELECTION_HASHED, device)
                     }
         }
+        
+        /*
+         * the leader election state is really complex, it is a good idea to check the documentation in
+         * VotingStage.kt to figure out how this works.
+         */
         session.addStage(
                 TransactionResult.STAGE_ELECTION_HASHED,
                 { serverConn: CachedLEServerConnection ->
                     Log.v(TAG, "gatt server election hashed stage")
                     val packet = session.votingStage.getSelf(true, selectProvides())
-                    assert(packet.isHashed)
+                    if (BuildConfig.DEBUG && !packet.isHashed) {
+                        error("Assertion failed")
+                    }
                     session.votingStage.addPacket(packet)
                     serverConn.serverNotify(packet)
                             .toSingleDefault(Optional.empty())
@@ -309,16 +397,23 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving election packet: $err") }
                     .map { electLeaderPacket: ElectLeaderPacket ->
                         session.votingStage.addPacket(electLeaderPacket)
-                        TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ELECTION, device)
+                        TransactionResult(TransactionResult.STAGE_ELECTION, device)
                     }
         }
+
+        /*
+         * see above
+         * Once the election stage is finished we move on to the actions decided by the result of the election
+         */
         session.addStage(
                 TransactionResult.STAGE_ELECTION,
                 { serverConn: CachedLEServerConnection ->
                     Log.v(TAG, "gatt server election stage")
                     session.luidStage.getSelf()
                             .flatMapCompletable { luidPacket: LuidPacket ->
-                                assert(!luidPacket.isHashed)
+                                if (BuildConfig.DEBUG && luidPacket.isHashed) {
+                                    error("Assertion failed")
+                                }
                                 val packet = session.votingStage.getSelf(false, selectProvides())
                                 packet.tagLuid(luidPacket.luid)
                                 session.votingStage.addPacket(packet)
@@ -336,8 +431,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .andThen(session.votingStage.determineUpgrade())
                     .map { provides: AdvertisePacket.Provides ->
                         Log.v(TAG, "election received provides: $provides")
-                        val role: ConnectionRole
-                        role = if (session.votingStage.selectSeme() == session.luidStage.luid) {
+                        val role: ConnectionRole = if (session.votingStage.selectSeme() == session.luidStage.luid) {
                             ConnectionRole.ROLE_SEME
                         } else {
                             ConnectionRole.ROLE_UKE
@@ -358,9 +452,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                     }
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving packet: $err") }
-                    .doOnSuccess { electLeaderPacket: TransactionResult<BootstrapRequest>? -> Log.v(TAG, "client handshake received election result") }
-                    .onErrorReturn { err: Throwable? -> TransactionResult(TransactionResult.STAGE_EXIT, device) }
+                    .doOnSuccess { Log.v(TAG, "client handshake received election result") }
+                    .onErrorReturn { TransactionResult(TransactionResult.STAGE_EXIT, device) }
         }
+
+        /*
+         * if the election state decided we should upgrade, move to a new transport using an upgrade
+         * packet exchange with our newly assigned role.
+         * Currently this just means switch to wifi direct
+         */
         session.addStage(
                 TransactionResult.STAGE_UPGRADE,
                 { serverConn: CachedLEServerConnection ->
@@ -371,7 +471,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             Log.v(TAG, "gatt client upgrade stage")
             if (session.role == ConnectionRole.ROLE_UKE) {
                 return@addStage conn.readUpgrade()
-                        .doOnSuccess { electLeaderPacket: UpgradePacket? -> Log.v(TAG, "client handshake received upgrade packet") }
+                        .doOnSuccess { Log.v(TAG, "client handshake received upgrade packet") }
                         .doOnError { err: Throwable -> Log.e(TAG, "error while receiving upgrade packet: $err") }
                         .map { upgradePacket: UpgradePacket ->
                             val request: BootstrapRequest = WifiDirectBootstrapRequest.create(
@@ -384,6 +484,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 return@addStage Single.just(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device))
             }
         }
+
+        /*
+         * if we chose not to upgrade, proceed with exchanging identity packets
+         */
         session.addStage(
                 TransactionResult.STAGE_IDENTITY,
                 { serverConn: CachedLEServerConnection ->
@@ -406,6 +510,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .ignoreElements()
                     .toSingleDefault(TransactionResult(TransactionResult.STAGE_DECLARE_HASHES, device))
         }
+
+        /*
+         * if we chose not to upgrade, exchange delcare hashes packets
+         */
         session.addStage(
                 TransactionResult.STAGE_DECLARE_HASHES,
                 { serverConn: CachedLEServerConnection ->
@@ -426,6 +534,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         TransactionResult<BootstrapRequest>(TransactionResult.STAGE_BLOCKDATA, device)
                     }
         }
+
+        /*
+         * if we chose not to upgrade, exchange messages V E R Y S L O W LY
+         * TODO: put some sort of cap on file size to avoid hanging here for hours
+         */
         session.addStage(
                 TransactionResult.STAGE_BLOCKDATA,
                 { serverConn: CachedLEServerConnection ->
@@ -457,7 +570,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 }
                     }
                     .takeUntil { stream: BlockDataStream ->
-                        val end = stream.headerPacket!!.isEndOfStream
+                        val end = stream.headerPacket.isEndOfStream
                         if (end) {
                             Log.v(TAG, "uke end of stream")
                         }
@@ -472,10 +585,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
                     }
         }
+
+        // set our starting stage
         session.stage = TransactionResult.STAGE_LUID_HASHED
-        return Single.just(session)
+        return Single.just(session) //TODO: this is ugly. Do this async
     }
 
+    /* attempt to bootstrap to wifi direct using upgrade packet (gatt server version) */
     private fun serverBootstrapWifiDirect(session: LeDeviceSession, serverConn: CachedLEServerConnection): Single<Optional<BootstrapRequest>> {
         return if (session.role == ConnectionRole.ROLE_SEME) {
             session.upgradeStage!!.upgrade
@@ -485,13 +601,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 ConnectionRole.ROLE_SEME
                         )
                         serverConn.serverNotify(upgradePacket)
-                                .toSingleDefault<Optional<BootstrapRequest>>(Optional.of(request))
+                                .toSingleDefault(Optional.of(request))
                     }
         } else {
-            Single.just<Optional<BootstrapRequest>>(Optional.empty())
+            Single.just(Optional.empty())
         }
     }
 
+    /* attempt to bootstrap to wifi direct using upgrade packet (gatt client version) */
     private fun bootstrapWifiP2p(bootstrapRequest: BootstrapRequest): Single<HandshakeResult> {
         return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest)
                 .doOnError { err: Throwable ->
@@ -507,6 +624,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
     }
 
+    /*
+     * establish a GATT connection using caching to work around RxAndroidBle quirk
+     */
     private fun establishConnection(device: RxBleDevice, timeout: Timeout): Observable<CachedLEConnection> {
         val conn = connectionCache[device.macAddress]
         if (conn != null) {
@@ -524,6 +644,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
     }
 
+    /*
+     * discover LE devices. Currently this runs forever and sets a global disposable
+     * so we can kill it if we want.
+     * This only scans for scatterbrain UUIDs
+     * TODO: make sure this runs on correct scheduler
+     */
     private fun discoverOnce(): Observable<DeviceConnection> {
         Log.d(TAG, "discover once called")
         return mClient.scanBleDevices(
@@ -547,10 +673,18 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         connection
                                 )
                             }
+                /*
+                 * WAIT? why are we not doing anything with our gatt connections??
+                 * see the comment in startServer() for why
+                 */
+
                 }
                 .doOnSubscribe { newValue: Disposable -> discoveryDispoable.set(newValue) }
     }
 
+    /*
+     * discover scatterbrain devices with optional timeout
+     */
     private fun discover(timeout: Int, forever: Boolean): Observable<HandshakeResult> {
         return observeTransactions()
                 .doOnSubscribe { disp: Disposable? ->
@@ -587,23 +721,40 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
     }
 
+    /**
+     * start device disovery once with timeout
+     * @param timeout
+     * @return completable
+     */
     override fun discoverWithTimeout(timeout: Int): Completable {
         return discover(timeout, false)
                 .firstOrError()
                 .ignoreElement()
     }
 
+    /**
+     * start device discovery forever, dispose to cancel.
+     * @return observable of HandshakeResult containing transaction stats
+     */
     override fun discoverForever(): Observable<HandshakeResult> {
         return discover(0, true)
     }
 
-    override fun startDiscover(opts: discoveryOptions): Disposable {
-        return discover(discoverDelay, opts == discoveryOptions.OPT_DISCOVER_FOREVER)
+    /**
+     * discover with options emum. For compatability reasons
+     * @param options
+     * @return disposable to cancel scan
+     */
+    override fun startDiscover(options: DiscoveryOptions): Disposable {
+        return discover(discoverDelay, options == DiscoveryOptions.OPT_DISCOVER_FOREVER)
                 .subscribe(
-                        { res: HandshakeResult? -> Log.v(TAG, "discovery completed") }
+                        { Log.v(TAG, "discovery completed") }
                 ) { err: Throwable -> Log.v(TAG, "discovery failed: $err") }
     }
 
+    /**
+     * @return a completsable that completes when the current transaction is finished, with optional error state
+     */
     override fun awaitTransaction(): Completable {
         return Completable.mergeArray(
                 transactionCompleteRelay.firstOrError().ignoreElement(),
@@ -611,6 +762,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         )
     }
 
+    /**
+     * @return observable with transaction stats
+     */
     override fun observeTransactions(): Observable<HandshakeResult> {
         return Observable.merge(
                 transactionCompleteRelay,
@@ -618,22 +772,45 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         )
     }
 
+    /**
+     * kill current scan in progress
+     */
     override fun stopDiscover() {
         val d = discoveryDispoable.get()
         d?.dispose()
     }
 
+    /**
+     * starts the gatt server in the background.
+     * NOTE: this function contains all the logic for running the state machine.
+     * this function NEEDS to be called for the device to be connectable
+     * @return false on failure
+     */
     override fun startServer(): Boolean {
-        if (mServer == null) {
-            return false
-        }
         val config = ServerConfig.newInstance(Timeout(5, TimeUnit.SECONDS))
                 .addService(mService)
+
+        /*
+         * NOTE: HIGHLY IMPORTANT: ACHTUNG!!
+         * this may seem like black magic, but gatt server connections are registered for
+         * BOTH incoming gatt connections AND outgoing connections. In fact, I cannot find a way to
+         * distinguish incoming and outgoing connections. So every connection, even CLIENT connections
+         * that we just initiated show up as emissions from this observable. Really wonky right?
+         *
+         * In a perfect world I would refactor my fork of RxAndroidBle to fix this, but the changes
+         * required to do that are very invasive and probably not worth it in the long run.
+         *
+         * As a result, gatt client connections are seemingly thrown away and unhandled. THIS IS FAKE NEWS
+         * they are handled here.
+         */
         val d = mServer.openServer(config)
                 .doOnSubscribe { Log.v(TAG, "gatt server subscribed") }
-                .doOnError { _: Throwable -> Log.e(TAG, "failed to open server") }
+                .doOnError { Log.e(TAG, "failed to open server") }
                 .concatMap { connectionRaw: RxBleServerConnection ->
+                    // wrap connection in CachedLeServiceConnection for convenience
                     val connection = CachedLEServerConnection(connectionRaw, channels)
+
+                    // gatt server library doesn't give us a handle to RxBleDevice so we look it up manually
                     val device = mClient.getBleDevice(connection.connection.device.address)
 
                     //don't attempt to initiate a reverse connection when we already initiated the outgoing connection
@@ -641,25 +818,34 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         Log.e(TAG, "device " + connection.connection.device.address + " was null in client")
                         return@concatMap Observable.error<BootstrapRequest>(IllegalStateException("device was null"))
                     }
+                    //accquire wakelock
                     acquireWakelock()
                     Log.d(TAG, "gatt server connection from " + connectionRaw.device.address)
+
                     initializeProtocol(connection.connection.device)
                             .flatMapObservable { session: LeDeviceSession ->
                                 establishConnection(device, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
                                         .doOnError { err: Throwable -> Log.e(TAG, "error establishing reverse connection: $err")}
                                         .flatMap { clientConnection: CachedLEConnection ->
                                             Log.v(TAG, "stating stages")
+                                            /*
+                                             * this is kind of hacky. this observable chain is the driving force of our state machine
+                                             * state transitions are handled when our LeDeviceSession is subscribed to.
+                                             * each transition causes the session to emit the next state and start over
+                                             * since states are only handled on subscibe or on a terminal error, there
+                                             * shouldn't be any races or reentrancy issues
+                                             */
                                             session.observeStage()
                                                     .doOnNext { stage: String? -> Log.v(TAG, "handling stage: $stage") }
                                                     .flatMapSingle {
                                                         Single.zip(
                                                                 session.singleClient(),
                                                                 session.singleServer(),
-                                                                BiFunction { client: ClientTransaction, server: ServerTransaction ->
+                                                                { client: ClientTransaction, server: ServerTransaction ->
                                                                     server(connection)
                                                                             .doOnSuccess { Log.v(TAG, "server handshake completed") }
                                                                             .zipWith(
-                                                                                    client(clientConnection), BiFunction<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>, android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>>> { first: Optional<BootstrapRequest>, second: TransactionResult<BootstrapRequest> -> android.util.Pair(first, second) })
+                                                                                    client(clientConnection), { first: Optional<BootstrapRequest>, second: TransactionResult<BootstrapRequest> -> android.util.Pair(first, second) })
                                                                             .toObservable()
                                                                             .doOnSubscribe { Log.v("debug", "client handshake subscribed") }
                                                                 }
@@ -710,23 +896,26 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return true
     }
 
-    fun cleanup(device: RxBleDevice) {
-        connectionCache.remove(device.macAddress)
-    }
-
+    /**
+     * stop our server and stop advertising
+     */
     override fun stopServer() {
-        mServer!!.closeServer()
+        mServer.closeServer()
         stopAdvertise()
     }
 
     class DeviceConnection(val device: BluetoothDevice, val connection: CachedLEConnection?)
 
+    /**
+     * implent a locking mechanism to grant single devices tempoary
+     * exclusive access to channel characteristics
+     */
     class LockedCharactersitic(@get:Synchronized
                                val characteristic: BluetoothGattCharacteristic, val channel: Int) {
         private val lockState = BehaviorRelay.create<Boolean>()
         fun awaitCharacteristic(): Single<OwnedCharacteristic> {
             return Single.just(asUnlocked())
-                    .zipWith(lockState.filter { p: Boolean? -> !p!! }.firstOrError(), BiFunction<OwnedCharacteristic, Boolean, OwnedCharacteristic?> { ch: OwnedCharacteristic?, lockstate: Boolean? -> ch!! })
+                    .zipWith(lockState.filter { p: Boolean? -> !p!! }.firstOrError(), { ch: OwnedCharacteristic?, _: Boolean? -> ch!! })
                     .map { ch: OwnedCharacteristic? ->
                         lock()
                         ch
@@ -755,6 +944,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
+    /**
+     * represents a characteristic that the caller has exclusive access to
+     */
     class OwnedCharacteristic(private val lockedCharactersitic: LockedCharactersitic) {
         private var released = false
 
