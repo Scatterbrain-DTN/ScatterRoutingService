@@ -5,6 +5,11 @@ import net.ballmerlabs.uscatterbrain.RouterPreferences
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * wrapper class for sharedPreferences to allow dagger2 injection
+ *
+ * used to control router parameters from frontend
+ */
 @Singleton
 class RouterPreferencesImpl @Inject constructor(
         private val preferences: SharedPreferences

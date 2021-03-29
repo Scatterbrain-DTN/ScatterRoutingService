@@ -19,63 +19,19 @@ import java.util.*
 import java.util.regex.Pattern
 import kotlin.jvm.Throws
 
+/**
+ * interface for scatterbrain datastore
+ */
 interface ScatterbrainDatastore {
-    /**
-     * For internal use, synchronously inserts messages to database
-     * @param message room entity for message to insert
-     * @return primary keys of message inserted
-     */
     fun insertMessagesSync(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable
-
-    /**
-     * Inserts a message stream (with header and blocksequence packets) from a network source
-     * into both the database and filestore if applicable
-     * @return completable for message insertion
-     */
     fun insertMessage(stream: BlockDataStream): Completable
-
-    /**
-     * Asynchronously inserts a list of messages into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param messages room entities to insert
-     * @return future returning list of ids inserted
-     */
     fun insertMessages(messages: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Completable
-
-    /**
-     * Asynchronously inserts a single message into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param message room entity to insert
-     * @return future returning id of row inserted
-     */
     fun insertMessageToRoom(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable
-
-    /**
-     * gets a randomized list of messages from the datastore. Needs to be observed
-     * to get async result
-     *
-     * @param count how many messages to retrieve
-     * @return livedata representation of list of messages
-     */
     fun getTopRandomMessages(
             count: Int,
             delareHashes: DeclareHashesPacket
     ): Observable<BlockDataStream>
-
-    /**
-     * gets a list of all the files in the datastore.
-     * @return list of DiskFiles objects
-     */
     val allFiles: Observable<String>
-
-    /**
-     * Retrieves a message by an identity room entity
-     *
-     * @param id room entity to search by
-     * @return livedata representation of list of messages
-     */
     fun getMessagesByIdentity(id: KeylessIdentity): Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>
     fun insertIdentityPacket(identity: List<IdentityPacket>): Completable
     fun getIdentity(ids: List<Long>): Observable<IdentityPacket>
@@ -111,9 +67,6 @@ interface ScatterbrainDatastore {
     val declareHashesPacket: Single<DeclareHashesPacket>
     fun getACLs(identity: String): Single<MutableList<ACL>>
     fun deleteIdentities(vararg fingerprint: String): Completable
-    enum class FileCallbackResult {
-        ERR_FILE_EXISTS, ERR_FILE_NO_EXISTS, ERR_IO_EXCEPTION, ERR_PERMISSION_DENIED, ERR_FAILED, ERR_SUCCESS, ERR_INVALID_ARGUMENT
-    }
 
     enum class WriteMode {
         APPEND, OVERWRITE
@@ -127,44 +80,12 @@ interface ScatterbrainDatastore {
         private val mFile: File
         private val mMode: WriteMode
         private var mLocked: Boolean
-        fun lock() {
-            mLocked = true
-        }
-
-        fun unlock() {
-            mLocked = false
-        }
 
         @Throws(IOException::class)
         override fun close() {
             inputStream.close()
             mOs.close()
         }
-
-        fun setMode(append: Boolean): Boolean {
-            try {
-                mOs.close()
-                mOs = FileOutputStream(mFile, append)
-            } catch (e: IOException) {
-                return false
-            }
-            return true
-        }
-
-        private fun reset(): Boolean {
-            return if (mMode == WriteMode.APPEND) {
-                setMode(true)
-            } else {
-                setMode(false)
-            }
-        }
-
-        val outputStream: FileOutputStream
-            get() = if (mLocked) {
-                throw IllegalStateException("file locked")
-            } else {
-                mOs
-            }
 
         init {
             mMode = WriteMode.OVERWRITE
@@ -229,7 +150,7 @@ interface ScatterbrainDatastore {
 
         const val DATABASE_NAME = "scatterdb"
         const val DEFAULT_BLOCKSIZE = 1024 * 2
-        val FILE_SANITIZE = Pattern.compile("/^[\\w.-]+$/\n")
+        val FILE_SANITIZE: Pattern = Pattern.compile("/^[\\w.-]+$/\n")
         const val USER_FILES_PATH = "userFiles"
         const val CACHE_FILES_PATH = "systemFiles"
     }

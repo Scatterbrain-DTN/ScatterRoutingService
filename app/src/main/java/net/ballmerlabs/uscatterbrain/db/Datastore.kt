@@ -4,7 +4,21 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import net.ballmerlabs.uscatterbrain.db.entities.*
 
-@Database(entities = [HashlessScatterMessage::class, KeylessIdentity::class, Hashes::class, MessageHashCrossRef::class, Keys::class, ClientApp::class], version = 4, exportSchema = false)
+/**
+ * declaration of room database
+ */
+@Database(
+        entities = [
+            HashlessScatterMessage::class,
+            KeylessIdentity::class,
+            Hashes::class,
+            MessageHashCrossRef::class,
+            Keys::class,
+            ClientApp::class
+                   ],
+        version = 4,
+        exportSchema = false
+)
 abstract class Datastore : RoomDatabase() {
     abstract fun identityDao(): IdentityDao
     abstract fun scatterMessageDao(): ScatterMessageDao

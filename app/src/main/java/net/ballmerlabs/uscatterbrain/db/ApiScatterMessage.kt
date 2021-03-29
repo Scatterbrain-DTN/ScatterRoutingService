@@ -11,6 +11,11 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicReference
 
+/**
+ * Internal handle to ScatterMessage parcelable used with api
+ * allows for signing messages with identity keys
+ * (which we can't do from the api)
+ */
 class ApiScatterMessage : ScatterMessage {
     private val secretkey = AtomicReference<ByteArray?>()
 
@@ -18,7 +23,7 @@ class ApiScatterMessage : ScatterMessage {
         secretkey.set(builder.privatekey)
     }
 
-    private constructor(message: ScatterMessage) : super(superToBuilder(message)) {}
+    private constructor(message: ScatterMessage) : super(superToBuilder(message))
     private constructor(message: ScatterMessage, privateKey: ByteArray?) : super(superToBuilder(message)) {
         secretkey.set(privateKey)
     }
@@ -70,11 +75,6 @@ class ApiScatterMessage : ScatterMessage {
 
     class Builder : ScatterMessage.Builder() {
         var privatekey: ByteArray? = null
-        fun sign(keyPair: ApiIdentity.KeyPair, fingerprint: String?): Builder {
-            privatekey = keyPair.secretkey!!
-            this.fingerprint = fingerprint
-            return this
-        }
 
         override fun build(): ApiScatterMessage {
             verify()
