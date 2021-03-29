@@ -4,6 +4,10 @@ import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Single
 
+/**
+ * Room dao for operations on identities and permission ACLs
+ * stored in database.
+ */
 @Dao
 interface IdentityDao {
     @get:Query("SELECT * FROM identities")

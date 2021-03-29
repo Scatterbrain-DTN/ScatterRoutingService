@@ -5,7 +5,18 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "identities", indices = [Index(value = ["fingerprint"], unique = true)])
+/**
+ * database object representing an identity
+ */
+@Entity(
+        tableName = "identities",
+        indices = [
+            Index(
+                    value = ["fingerprint"],
+                    unique = true
+            )
+        ]
+)
 data class KeylessIdentity (
     @ColumnInfo(name = "givenname")
     var givenName: String,
@@ -24,4 +35,20 @@ data class KeylessIdentity (
 ) {
     @PrimaryKey(autoGenerate = true)
     var identityID: Long? = null
+
+    /* override equals() and hashCode() to make linter happy */
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as KeylessIdentity
+
+        if (fingerprint != other.fingerprint) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return fingerprint.hashCode()
+    }
 }

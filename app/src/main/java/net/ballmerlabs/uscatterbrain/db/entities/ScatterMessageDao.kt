@@ -4,6 +4,11 @@ import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Single
 
+/**
+ * Room Dao containing queries and operations on messages stored
+ * in the database.
+ * TODO: fix some of these being handled manually without room
+ */
 @Dao
 abstract class ScatterMessageDao {
     @get:Query("SELECT * FROM messages")

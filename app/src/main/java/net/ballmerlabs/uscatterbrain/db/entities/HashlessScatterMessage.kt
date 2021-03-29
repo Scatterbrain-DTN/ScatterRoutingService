@@ -7,53 +7,36 @@ import androidx.room.PrimaryKey
 import com.google.protobuf.ByteString
 import java.util.*
 
-@Entity(tableName = "messages", indices = [Index(value = ["filepath"], unique = true), Index(value = ["globalhash"], unique = true)])
-data class HashlessScatterMessage(
-        @ColumnInfo
-        var body: ByteArray? = null,
-
-        @ColumnInfo
-        var identity_fingerprint: String? = null,
-
-        @ColumnInfo
-        var to: ByteArray? = null,
-
-        @ColumnInfo
-        var from: ByteArray? = null,
-
-
-        @ColumnInfo
-        var application: ByteArray,
-
-
-        @ColumnInfo
-        var sig: ByteArray? = null,
-
-
-        @ColumnInfo
-        var sessionid: Int,
-
-
-        @ColumnInfo
-        var blocksize: Int,
-
-
-        @ColumnInfo
-        var extension: String,
-
-
-        @ColumnInfo(name = "filepath")
-        var filePath: String,
-
-        @ColumnInfo(name = "globalhash")
-        var globalhash: ByteArray,
-
-        @ColumnInfo
-        var userFilename: String? = null,
-
-        @ColumnInfo
-        var mimeType: String?
-) {
+/**
+ * database object for a message.
+ */
+@Entity(
+        tableName = "messages",
+        indices = [
+            Index(
+                    value = ["filepath"]
+                    , unique = true
+            ),
+            Index(
+                    value = ["globalhash"],
+                    unique = true
+            )
+        ]
+)
+data class HashlessScatterMessage(@ColumnInfo
+                                  var body: ByteArray? = null, @ColumnInfo
+                                  var identity_fingerprint: String? = null, @ColumnInfo
+                                  var to: ByteArray? = null, @ColumnInfo
+                                  var from: ByteArray? = null, @ColumnInfo
+                                  var application: ByteArray, @ColumnInfo
+                                  var sig: ByteArray? = null, @ColumnInfo
+                                  var sessionid: Int, @ColumnInfo
+                                  var blocksize: Int, @ColumnInfo
+                                  var extension: String, @ColumnInfo(name = "filepath")
+                                  var filePath: String, @ColumnInfo(name = "globalhash")
+                                  var globalhash: ByteArray, @ColumnInfo
+                                  var userFilename: String? = null, @ColumnInfo
+                                  var mimeType: String?) {
     companion object {
         fun hash2hashs(hashes: List<ByteString>): List<Hashes> {
             val result = ArrayList<Hashes>()
@@ -73,6 +56,21 @@ data class HashlessScatterMessage(
         }
     }
 
+    /* override equals() and hashCode() to make linter happy */
     @PrimaryKey(autoGenerate = true)
     var messageID: Long? = null
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as HashlessScatterMessage
+
+        if (!globalhash.contentEquals(other.globalhash)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return globalhash.contentHashCode()
+    }
 }

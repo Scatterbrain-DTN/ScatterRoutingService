@@ -4,7 +4,13 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 
-@Entity(primaryKeys = ["messageID", "hashID"], indices = [Index("messageID"), Index("hashID")])
+/**
+ * database entity representing a mapping between a message and many hashes
+ */
+@Entity(
+        primaryKeys = ["messageID", "hashID"],
+        indices = [Index("messageID"), Index("hashID")]
+)
 data class MessageHashCrossRef(
     @ColumnInfo(name = "messageID")
     var messageID: Long,

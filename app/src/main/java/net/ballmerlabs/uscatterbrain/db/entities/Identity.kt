@@ -3,6 +3,11 @@ package net.ballmerlabs.uscatterbrain.db.entities
 import androidx.room.Embedded
 import androidx.room.Relation
 
+/**
+ * class with identity and corresponding relations.
+ * represents a one-to-many relationship between KeylessIdentity
+ * and multiple keys and ACLs
+ */
 data class Identity(
     @Embedded
     var identity: KeylessIdentity,
@@ -15,7 +20,10 @@ data class Identity(
 )
 
 
-
+/**
+ * internal class for looking up identity by fingerprint
+ * in Room
+ */
 data class JustFingerprint(
         val fingerprint: String
 )

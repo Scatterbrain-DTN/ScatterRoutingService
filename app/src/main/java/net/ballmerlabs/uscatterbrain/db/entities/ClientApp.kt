@@ -5,6 +5,10 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+/**
+ * Database object for an app permission ACL
+ * maps an identity to a package name and signature
+ */
 @Entity(indices = [
     Index(value = ["packageName"], unique = true),
     Index(value = ["packageSignature"], unique = true)
@@ -23,7 +27,9 @@ data class ClientApp(
     var clientAppID: Long? = null
 }
 
-
+/**
+ * internal class used for querying Room database by package name
+ */
 data class JustPackageName(
         var packageName: String
 )
