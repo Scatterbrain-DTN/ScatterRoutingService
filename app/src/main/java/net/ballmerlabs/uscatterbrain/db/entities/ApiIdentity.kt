@@ -10,7 +10,12 @@ import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import java.util.*
 
-class ApiIdentity protected constructor(builder: Builder) : Identity (
+/**
+ * ApiIdentity is a mutable handle to an identity that allows more privileged
+ * read/write access including the ability to sign and modify the private key
+ * This is used for working with identities internally
+ */
+open class ApiIdentity protected constructor(builder: Builder) : Identity (
         builder.mPubKeymap,
         builder.mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY],
         builder.name,
@@ -22,6 +27,10 @@ class ApiIdentity protected constructor(builder: Builder) : Identity (
     val privateKey: ByteArray?
         get() = privatekey
 
+
+    /**
+     * keypairs are effectively a tuple of an ed25519 public and private key
+     */
     class KeyPair(val secretkey: ByteArray, val publickey: ByteArray)
 
     class Builder {
