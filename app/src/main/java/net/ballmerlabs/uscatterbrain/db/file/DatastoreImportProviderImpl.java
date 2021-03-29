@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.db.file;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
@@ -29,8 +30,22 @@ import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import io.reactivex.disposables.Disposable;
-
+/**
+ * DocumentsProvider to allow importing files into the datastore
+ * without using the Scatterbrain binder api using android's native
+ * documents UI.
+ *
+ * This provides two roots. One is a read-write interface to add new
+ * files to the datastore using a well-known "filesharing" application id
+ *
+ * the other is a readonly view of existing files
+ * in the datastore from any application
+ *
+ * This is implemented in java because kotlin's null safety was causing
+ * strange issues with the DocumentsProvider api.
+ *
+ * TODO: find issue and rewrite in kotlin
+ */
 @Singleton
 public class DatastoreImportProviderImpl extends DocumentsProvider
         implements DatastoreImportProvider {
@@ -129,7 +144,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     }
 
     @Override
-    public Cursor queryRoots(String[] projection) throws FileNotFoundException {
+    public Cursor queryRoots(String[] projection) {
         final MatrixCursor result =  new MatrixCursor(
                 (projection == null || projection.length == 0) ? DEFAULT_ROOT : projection
         );
@@ -169,7 +184,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     }
 
     @Override
-    public Cursor queryChildDocuments(String parentDocumentId, String[] projection, String sortOrder) throws FileNotFoundException {
+    public Cursor queryChildDocuments(String parentDocumentId, String[] projection, String sortOrder) {
         Log.v(TAG, "queryChildDocuments: " + parentDocumentId);
         final MatrixCursor result =  new MatrixCursor(
                 (projection == null || projection.length == 0) ? DEFAULT_DOCUMENT_PROJECTION : projection
@@ -204,7 +219,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         return result;
     }
 
-    private ParcelFileDescriptor getDescriptor(File file, String mode) throws FileNotFoundException {
+    private ParcelFileDescriptor getDescriptor(File file, String mode) {
         try {
             return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode), fileCloseHandler, e -> {});
         } catch (IOException e) {
@@ -218,7 +233,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     }
 
     @Override
-    public ParcelFileDescriptor openDocument(String documentId, String mode, @Nullable CancellationSignal signal) throws FileNotFoundException {
+    public ParcelFileDescriptor openDocument(String documentId, String mode, @Nullable CancellationSignal signal) {
         Log.v(TAG, "openDocument: " + documentId);
         if (documentId.equals(USER_ROOT_ID)) {
             return getDescriptor(datastore.getUserDir(), mode);
@@ -234,7 +249,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
 
 
     @Override
-    public String createDocument(String parentDocumentId, String mimeType, String displayName) throws FileNotFoundException {
+    public String createDocument(String parentDocumentId, String mimeType, String displayName){
         final File f;
         final String parent;
         if (parentDocumentId.equals(USER_ROOT_ID)) {
@@ -295,14 +310,34 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     private void onInject() {
     }
 
+    @SuppressLint("CheckResult")
     @Override
     public boolean onCreate() {
-        Disposable ignored = ScatterRoutingService.Companion.getComponent()
+        /*
+         * NOTE: because we cannot inject directly into a DocumentsProvider
+         * due to api limitations, we have to do this INCREDIBLY hacky trick
+         * to manually inject dagger2 dependencies
+         *
+         * This relies on the fact that no user is inhumanly fast enough to
+         * open the documents UI before injection is complete, and even if they
+         * do the worst that happens is they have to refresh the page once due
+         * to a thrown nullpointerexception.
+         *
+         * I wish I didn't have to do this but I see no other way...
+         */
+
+        ScatterRoutingService.Companion.getComponent()
                 .doOnSuccess(success -> Log.v(TAG, "injecting DatastoreImportProvider"))
-                .subscribe(component -> {
-                    component.inject(this);
-                    onInject();
-                });
+                .subscribe(
+                        component -> {
+                            component.inject(this);
+                            onInject();
+                        },
+                        error -> {
+                         Log.e(TAG, "failed to inject dependencies for documentsprovider" +
+                                 error);
+                         error.printStackTrace();
+                        });
         return true;
     }
 }
