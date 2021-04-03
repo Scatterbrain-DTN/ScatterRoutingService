@@ -384,7 +384,7 @@ class ScatterRoutingService : LifecycleService() {
             val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, 0)
             val notification = Notification.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
                     .setContentTitle("ScatterRoutingService")
-                    .setContentText("discovering peers...")
+                    .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
                     .setSmallIcon(R.drawable.ic_launcher_background)
                     .setContentIntent(pendingIntent)
                     .setTicker("fmef am tire")
