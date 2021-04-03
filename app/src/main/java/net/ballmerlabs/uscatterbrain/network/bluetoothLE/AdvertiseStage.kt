@@ -21,7 +21,7 @@ class AdvertiseStage {
                 add(AdvertisePacket.Provides.WIFIP2P)
             }
         }
-        val self: AdvertisePacket = AdvertisePacket.Companion.newBuilder()
+        val self: AdvertisePacket = AdvertisePacket.newBuilder()
                 .setProvides(provides)
                 .build()!!
 

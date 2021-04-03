@@ -36,14 +36,7 @@ interface RoutingServiceComponent {
     object NamedSchedulers {
         const val DATABASE = "executor_database"
         const val BLE_CLIENT = "scheduler-ble-client"
-        const val WIFI_DIRECT_READ = "wifi-direct-read"
-        const val WIFI_DIRECT_WRITE = "wifi-direct-write"
         const val WIFI_DIRECT_OPERATIONS = "wifi-direct-operations"
-        const val DEFAULT_SCHEDULER = "default"
-    }
-
-    object NamedRadioModules {
-        const val BLUETOOTH_LE = "bluetooth-le"
     }
 
     @Component.Builder
@@ -93,7 +86,7 @@ interface RoutingServiceComponent {
             @Singleton
             @Provides
             fun provideDatastore(ctx: Context?): Datastore {
-                return Room.databaseBuilder(ctx!!, Datastore::class.java, ScatterbrainDatastore.Companion.DATABASE_NAME)
+                return Room.databaseBuilder(ctx!!, Datastore::class.java, ScatterbrainDatastore.DATABASE_NAME)
                         .build()
             }
 
@@ -119,30 +112,9 @@ interface RoutingServiceComponent {
 
             @JvmStatic
             @Provides
-            @Named(NamedSchedulers.WIFI_DIRECT_READ)
-            fun provideWifiDirectReadScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
-            }
-
-            @JvmStatic
-            @Provides
-            @Named(NamedSchedulers.WIFI_DIRECT_WRITE)
-            fun provideWifiDirectWriteScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
-            }
-
-            @JvmStatic
-            @Provides
             @Named(NamedSchedulers.WIFI_DIRECT_OPERATIONS)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
-            }
-
-            @JvmStatic
-            @Provides
-            @Named(NamedSchedulers.DEFAULT_SCHEDULER)
-            fun provideDefaultScheduler(): Scheduler {
-                return RxJavaPlugins.createComputationScheduler(ScatterbrainThreadFactory())
             }
 
             @JvmStatic

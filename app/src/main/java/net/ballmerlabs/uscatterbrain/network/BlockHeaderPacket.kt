@@ -27,7 +27,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      *
      * @return the blockdata
      */
-    var blockdata: BlockData? = null
+    private var blockdata: BlockData? = null
         private set
 
     /**
@@ -73,16 +73,6 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return the session id
      */
     val sessionID: Int?
-    /**
-     * Gets to disk.
-     *
-     * @return the to disk
-     */
-    /**
-     * Sets to disk.
-     *
-     * @param t the t
-     */
     var toDisk: Boolean
     var isEndOfStream: Boolean
         private set
@@ -97,20 +87,20 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
         isEndOfStream = builder.endofstream
         hashList = builder.hashlist
         this.extension = builder.extensionVal
-        if (builder.sig == null) {
-            signature = ByteArray(Sign.ED25519_BYTES)
+        signature = if (builder.sig == null) {
+            ByteArray(Sign.ED25519_BYTES)
         } else {
-            signature = builder.sig
+            builder.sig
         }
-        if (builder.getmToFingerprint() != null) {
-            toFingerprint = ByteString.copyFrom(builder.getmToFingerprint())
+        toFingerprint = if (builder.getmToFingerprint() != null) {
+            ByteString.copyFrom(builder.getmToFingerprint())
         } else {
-            toFingerprint = ByteString.EMPTY
+            ByteString.EMPTY
         }
-        if (builder.getmFromFingerprint() != null) {
-            fromFingerprint = ByteString.copyFrom(builder.getmFromFingerprint())
+        fromFingerprint = if (builder.getmFromFingerprint() != null) {
+            ByteString.copyFrom(builder.getmFromFingerprint())
         } else {
-            fromFingerprint = ByteString.EMPTY
+            ByteString.EMPTY
         }
         application = builder.application
         sessionID = builder.sessionid
@@ -214,8 +204,8 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
                 return ""
             }
 
-            val ext: String = ScatterbrainDatastore.Companion.getDefaultFileName(this) + "." +
-                    ScatterbrainDatastore.Companion.sanitizeFilename(extension!!)
+            val ext: String = ScatterbrainDatastore.getDefaultFileName(this) + "." +
+                    ScatterbrainDatastore.sanitizeFilename(extension!!)
             Log.e("debug", "getAutogenFilename: $ext")
             return ext
         }
@@ -279,7 +269,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return file extension
      */
     fun getExtension(): String {
-        return ScatterbrainDatastore.Companion.sanitizeFilename(extension!!)
+        return ScatterbrainDatastore.sanitizeFilename(extension!!)
     }
 
     /**
@@ -497,11 +487,10 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
             if (blockdata.endofstream) {
                 return builder.setEndOfStream()
             } else {
-                val filename: String?
-                if (blockdata.filenameCase == BlockData.FilenameCase.FILENAME_VAL) {
-                    filename = blockdata.filenameVal
+                val filename: String? = if (blockdata.filenameCase == BlockData.FilenameCase.FILENAME_VAL) {
+                    blockdata.filenameVal
                 } else{
-                    filename = null
+                    null
                 }
                 return builder.setApplication(blockdata!!.applicationBytes.toByteArray())
                         .setHashes(blockdata.nexthashesList)

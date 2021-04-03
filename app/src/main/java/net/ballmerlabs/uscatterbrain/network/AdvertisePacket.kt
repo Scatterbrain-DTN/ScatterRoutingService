@@ -110,10 +110,9 @@ class AdvertisePacket private constructor(builder: Builder) : ScatterSerializabl
     companion object {
         private fun builderFromIs(inputStream: InputStream) : Builder {
             val advertise = CRCProtobuf.parseFromCRC(Advertise.parser(), inputStream)
-            val provides = valToProvidesArray(advertise.getProvidesList())
-            val builder = Builder()
+            val provides = valToProvidesArray(advertise.providesList)
+            return Builder()
                     .setProvides(provides)
-            return builder
         }
 
         fun providesToValArray(provides: List<Provides>?): List<Int> {
@@ -124,7 +123,7 @@ class AdvertisePacket private constructor(builder: Builder) : ScatterSerializabl
             return res
         }
 
-        fun valToProvidesArray(vals: List<Int>): List<Provides> {
+        private fun valToProvidesArray(vals: List<Int>): List<Provides> {
             val provides = ArrayList<Provides>()
             for (i in vals) {
                 for (p in Provides.values()) {

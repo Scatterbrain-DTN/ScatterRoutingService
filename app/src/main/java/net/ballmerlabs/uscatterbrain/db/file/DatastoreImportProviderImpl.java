@@ -306,10 +306,6 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     }
 
 
-
-    private void onInject() {
-    }
-
     @SuppressLint("CheckResult")
     @Override
     public boolean onCreate() {
@@ -329,10 +325,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         ScatterRoutingService.Companion.getComponent()
                 .doOnSuccess(success -> Log.v(TAG, "injecting DatastoreImportProvider"))
                 .subscribe(
-                        component -> {
-                            component.inject(this);
-                            onInject();
-                        },
+                        component -> component.inject(this),
                         error -> {
                          Log.e(TAG, "failed to inject dependencies for documentsprovider" +
                                  error);

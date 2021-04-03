@@ -6,6 +6,9 @@ import io.reactivex.Flowable
 import java.io.OutputStream
 import java.util.*
 
+/**
+ * base class for all protobuf messages
+ */
 interface ScatterSerializable {
     enum class PacketType {
         TYPE_ACK, TYPE_BLOCKSEQUENCE, TYPE_BLOCKHEADER, TYPE_IDENTITY, TYPE_ADVERTISE, TYPE_UPGRADE, TYPE_ELECT_LEADER, TYPE_LUID, TYPE_DECLARE_HASHES

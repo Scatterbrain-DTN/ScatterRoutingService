@@ -11,6 +11,14 @@ import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
 import java.io.*
 import java.util.*
 
+/**
+ * AckPacket is currently unused
+ *
+ * if it were used it would be used as a replacement for some
+ * "optionalable" type messages. currently using a separate message
+ * type for that is hard because protocol buffers don't have
+ * simple polymorphism
+ */
 class AckPacket private constructor(builder: Builder)  : ScatterSerializable {
     private val mAck: Ack?
     override var luid: UUID? = null

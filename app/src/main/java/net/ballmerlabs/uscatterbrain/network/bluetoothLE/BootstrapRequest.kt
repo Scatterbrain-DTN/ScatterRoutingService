@@ -5,10 +5,18 @@ import android.os.Parcel
 import android.os.Parcelable
 import java.io.Serializable
 
+/**
+ * Simple parcelable key-value blob used to convey information to
+ * initialize a transport module. This is sent by a module performing
+ * device discovery to a module intended to perform data transfer
+ *
+ * The contents of the key-value data is dependent on the modules
+ * performing the bootstrapping
+ */
 open class BootstrapRequest : Parcelable {
     private val extras = Bundle()
 
-    protected constructor() {}
+    protected constructor()
     protected constructor(`in`: Parcel) {
         extras.readFromParcel(`in`)
     }
@@ -46,8 +54,8 @@ open class BootstrapRequest : Parcelable {
     }
 
     companion object {
-        const val TRANSPORT_FROM = "proto-from"
         const val TRANSPORT_TO = "proto-to"
+        @JvmField
         val CREATOR: Parcelable.Creator<BootstrapRequest> = object : Parcelable.Creator<BootstrapRequest> {
             override fun createFromParcel(`in`: Parcel): BootstrapRequest {
                 return BootstrapRequest(`in`)

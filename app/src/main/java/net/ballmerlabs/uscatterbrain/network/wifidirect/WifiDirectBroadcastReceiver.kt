@@ -6,6 +6,9 @@ import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pInfo
 import io.reactivex.Observable
 
+/**
+ * dagger2 interface for WifiDirectBroadcastReceiver
+ */
 interface WifiDirectBroadcastReceiver {
     fun observeP2pState(): Observable<WifiDirectBroadcastReceiverImpl.P2pState>
 

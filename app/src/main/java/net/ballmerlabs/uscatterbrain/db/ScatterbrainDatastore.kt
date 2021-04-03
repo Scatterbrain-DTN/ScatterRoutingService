@@ -2,8 +2,10 @@ package net.ballmerlabs.uscatterbrain.db
 
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
-import io.reactivex.*
+import io.reactivex.Completable
+import io.reactivex.Flowable
 import io.reactivex.Observable
+import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
@@ -13,11 +15,9 @@ import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import java.io.*
-import java.lang.IllegalStateException
 import java.nio.ByteBuffer
 import java.util.*
 import java.util.regex.Pattern
-import kotlin.jvm.Throws
 
 /**
  * interface for scatterbrain datastore
@@ -77,8 +77,8 @@ interface ScatterbrainDatastore {
     class OpenFile(path: File, append: Boolean) : Closeable {
         val inputStream: FileInputStream
         private var mOs: FileOutputStream
-        private val mFile: File
-        private val mMode: WriteMode
+        private val mFile: File = path
+        private val mMode: WriteMode = WriteMode.OVERWRITE
         private var mLocked: Boolean
 
         @Throws(IOException::class)
@@ -88,8 +88,6 @@ interface ScatterbrainDatastore {
         }
 
         init {
-            mMode = WriteMode.OVERWRITE
-            mFile = path
             mOs = FileOutputStream(mFile, append)
             inputStream = FileInputStream(mFile)
             mLocked = false
@@ -132,7 +130,7 @@ interface ScatterbrainDatastore {
             val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
             LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
             for (bytes in hashes) {
-                LibsodiumInterface.sodium.crypto_generichash_update(state, bytes.hash, bytes.hash?.size?.toLong()!!)
+                LibsodiumInterface.sodium.crypto_generichash_update(state, bytes.hash, bytes.hash.size.toLong())
             }
             LibsodiumInterface.sodium.crypto_generichash_final(state, outhash, outhash.size)
             return outhash
@@ -150,7 +148,7 @@ interface ScatterbrainDatastore {
 
         const val DATABASE_NAME = "scatterdb"
         const val DEFAULT_BLOCKSIZE = 1024 * 2
-        val FILE_SANITIZE: Pattern = Pattern.compile("/^[\\w.-]+$/\n")
+        private val FILE_SANITIZE: Pattern = Pattern.compile("^(\\s+.*|.*[\\\\/:\"?*|<>].*|.*\\s+|.*\\.)\$\n")
         const val USER_FILES_PATH = "userFiles"
         const val CACHE_FILES_PATH = "systemFiles"
     }

@@ -36,6 +36,7 @@ import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
 import kotlin.collections.ArrayList
+import kotlin.math.min
 
 /**
  * Interface to the androidx room backed datastore
@@ -214,7 +215,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             delareHashes: DeclareHashesPacket
     ): Observable<BlockDataStream> {
         Log.v(TAG, "called getTopRandomMessages")
-        val num = Math.min(count, mDatastore.scatterMessageDao().messageCount())
+        val num = min(count, mDatastore.scatterMessageDao().messageCount())
         return mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, delareHashes.hashes)
                 .subscribeOn(databaseScheduler)
                 .doOnSubscribe { Log.v(TAG, "subscribed to getTopRandoMessages") }
@@ -303,7 +304,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                     .ignoreElement()
                                         }
                                         .andThen(
-                                                Observable.fromCallable { if (singleid.clientACL != null) singleid.clientACL else ArrayList<ClientApp>() }
+                                                Observable.fromCallable { if (singleid.clientACL != null) singleid.clientACL else ArrayList() }
                                                         .flatMap<ClientApp> { source: List<ClientApp?>? -> Observable.fromIterable(source) }
                                                         .map { acl: ClientApp ->
                                                             acl.identityFK = result
@@ -342,7 +343,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     private fun insertIdentity(vararg ids: net.ballmerlabs.uscatterbrain.db.entities.Identity): Completable {
-        return Single.just<Array<out net.ballmerlabs.uscatterbrain.db.entities.Identity>>(ids)
+        return Single.just(ids)
                 .flatMapCompletable { identities: Array<out net.ballmerlabs.uscatterbrain.db.entities.Identity> ->
                     insertIdentity(Observable.fromArray(*identities))
                             .subscribeOn(databaseScheduler)
@@ -511,7 +512,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             i.name!!,
                             i.pubkey!!,
                             i.getSig(),
-                            i.fingerprint!!,
+                            i.fingerprint,
                             null
 
                     )
@@ -569,7 +570,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @return flowable of identitity packets
      */
     override fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket> {
-        val num = Math.min(count, mDatastore.identityDao().getNumIdentities())
+        val num = min(count, mDatastore.identityDao().getNumIdentities())
         return mDatastore.identityDao().getTopRandom(num)
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable<net.ballmerlabs.uscatterbrain.db.entities.Identity> { source: List<net.ballmerlabs.uscatterbrain.db.entities.Identity?>? -> Observable.fromIterable(source) }
@@ -782,7 +783,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return getApiMessage(mDatastore.scatterMessageDao()
                 .getByApplication(application)
                 .subscribeOn(databaseScheduler)
-                .flatMapObservable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> {
+                .flatMapObservable {
                     source: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> ->
                     Observable.fromIterable(source)
                 })
@@ -1094,7 +1095,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnSubscribe { Log.v(TAG, "subscribed to readFile") }
                 .flatMap {
                     Bytes.from(path, blocksize)
-                            .zipWith(seq, BiFunction<ByteArray, Int, BlockSequencePacket> { bytes: ByteArray, seqnum: Int ->
+                            .zipWith(seq, { bytes: ByteArray, seqnum: Int ->
                                 Log.e("debug", "reading " + bytes.size)
                                 BlockSequencePacket.newBuilder()
                                         .setSequenceNumber(seqnum)
@@ -1108,10 +1109,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         private const val TAG = "ScatterbrainDatastore"
     }
 
-    /**
-     * constructor
-     * @param ctx  application or service context
-     */
     init {
         userDir //create user and cahce directories so we can monitor them
         cacheDir

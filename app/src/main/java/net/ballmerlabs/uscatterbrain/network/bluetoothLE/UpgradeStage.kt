@@ -9,9 +9,18 @@ import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import java.util.*
 
+/**
+ * Manages state for the FSM to generate a BootstrapRequest or
+ * UpgradePacket
+ */
 class UpgradeStage(private val provides: AdvertisePacket.Provides) {
     private val metadata: MutableMap<String, String> = HashMap()
-    val sessionID = Random(System.nanoTime()).nextInt()
+    private val sessionID = Random(System.nanoTime()).nextInt()
+
+    /*
+     * currently we generate our bootstrap request using hardcoded data (only wifi direct)
+     * TODO: generate based on user input and/or custom plugins
+     */
     private fun initMetadata() {
         when (provides) {
             AdvertisePacket.Provides.WIFIP2P -> {
@@ -29,6 +38,7 @@ class UpgradeStage(private val provides: AdvertisePacket.Provides) {
         }
     }
 
+    //get upgrade packet to send over network
     val upgrade: Single<UpgradePacket>
         get() = when (provides) {
             AdvertisePacket.Provides.WIFIP2P -> {
@@ -42,10 +52,6 @@ class UpgradeStage(private val provides: AdvertisePacket.Provides) {
             }
             else -> Single.error(IllegalStateException("unsupported provides"))
         }
-
-    fun getMetadata(): Map<String, String> {
-        return metadata
-    }
 
     companion object {
         const val TAG = "UpgradeStage"

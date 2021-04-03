@@ -7,7 +7,6 @@ import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterProto.Upgrade
-import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
 import java.io.*
 import java.util.*
@@ -44,7 +43,7 @@ class UpgradePacket : ScatterSerializable {
         sessionID = builder.sessionID
         metadata = builder.metadata
         mUpgrade = Upgrade.newBuilder()
-                .setProvides(AdvertisePacket.Companion.providesToVal(provides))
+                .setProvides(AdvertisePacket.providesToVal(provides))
                 .setSessionid(sessionID)
                 .putAllMetadata(metadata)
                 .build()
@@ -53,7 +52,7 @@ class UpgradePacket : ScatterSerializable {
     private constructor(`is`: InputStream) {
         mUpgrade = CRCProtobuf.parseFromCRC(Upgrade.parser(), `is`)
         sessionID = mUpgrade.sessionid
-        provides = AdvertisePacket.Companion.valToProvides(mUpgrade.provides)
+        provides = AdvertisePacket.valToProvides(mUpgrade.provides)
         metadata = mUpgrade.metadataMap
     }
 

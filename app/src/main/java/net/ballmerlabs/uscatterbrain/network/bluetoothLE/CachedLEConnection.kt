@@ -7,29 +7,34 @@ import com.polidea.rxandroidble2.RxBleConnection
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
-import io.reactivex.SingleSource
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.functions.Function
-import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import kotlin.collections.ArrayList
-import kotlin.collections.HashMap
 
-class CachedLEConnection(val connection: RxBleConnection, private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>) : Disposable {
+/**
+ * Convenience class wrapping an RxBleConnection
+ *
+ * This class manages channel selection and protobuf stream parsing
+ * for a BLE client connection
+ */
+class CachedLEConnection(private val connection: RxBleConnection, private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>) : Disposable {
     private val disposable = CompositeDisposable()
-    private val channelMap = ConcurrentHashMap<UUID, Observable<ByteArray>>()
     private val enabled = CompletableSubject.create()
 
     init {
         premptiveEnable().subscribe(enabled)
     }
 
+    /*
+     * to avoid data races when writing to the ClientConfig descriptor, 
+     * enable indications for all channel characteristics
+     * as soon as we have the RxBleConnection. 
+     */
     private fun premptiveEnable(): Completable {
         return Observable.fromIterable(BluetoothLERadioModuleImpl.channels.keys)
                 .flatMapSingle { uuid: UUID ->
@@ -43,10 +48,14 @@ class CachedLEConnection(val connection: RxBleConnection, private val channels: 
                 .doOnComplete { Log.v(TAG, "all notifications enabled")}
     }
 
+    /*
+     * read from the semaphor characteristic to determine what channel
+     * we are allowed to use
+     */
     private fun selectChannel(): Single<UUID> {
-        return connection.readCharacteristic(BluetoothLERadioModuleImpl.Companion.UUID_SEMAPHOR)
+        return connection.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
                 .flatMap flatMap@{ bytes: ByteArray ->
-                    val uuid: UUID = BluetoothLERadioModuleImpl.Companion.bytes2uuid(bytes)
+                    val uuid: UUID = BluetoothLERadioModuleImpl.bytes2uuid(bytes)
                     if (!channels.containsKey(uuid)) {
                         return@flatMap Single.error<UUID>(IllegalStateException("gatt server returned invalid uuid"))
                     }
@@ -54,6 +63,11 @@ class CachedLEConnection(val connection: RxBleConnection, private val channels: 
                 }
     }
 
+    /*
+     * select a free channel and read protobuf data from it.
+     * use characteristic reads for timing to tell the server we are ready
+     * to receive data
+     */
     private fun cachedNotification(): Observable<ByteArray> {
         val notificationDisposable = CompositeDisposable()
         return enabled.andThen(selectChannel())
@@ -69,41 +83,41 @@ class CachedLEConnection(val connection: RxBleConnection, private val channels: 
                             }
                             .doOnComplete { Log.e(TAG, "notifications completed for some reason") }
                             .doOnNext { b: ByteArray -> Log.v(TAG, "client received bytes " + b.size) }
-                            .timeout(BluetoothLEModule.Companion.TIMEOUT.toLong(), TimeUnit.SECONDS)
+                            .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
                             .doFinally { notificationDisposable.dispose() }
                 }
     }
 
     fun readAdvertise(): Single<AdvertisePacket> {
-        return AdvertisePacket.Companion.parseFrom(cachedNotification())
+        return AdvertisePacket.parseFrom(cachedNotification())
     }
 
     fun readUpgrade(): Single<UpgradePacket> {
-        return UpgradePacket.Companion.parseFrom(cachedNotification())
+        return UpgradePacket.parseFrom(cachedNotification())
     }
 
     fun readBlockHeader(): Single<BlockHeaderPacket> {
-        return BlockHeaderPacket.Companion.parseFrom(cachedNotification())
+        return BlockHeaderPacket.parseFrom(cachedNotification())
     }
 
     fun readBlockSequence(): Single<BlockSequencePacket> {
-        return BlockSequencePacket.Companion.parseFrom(cachedNotification())
+        return BlockSequencePacket.parseFrom(cachedNotification())
     }
 
     fun readDeclareHashes(): Single<DeclareHashesPacket> {
-        return DeclareHashesPacket.Companion.parseFrom(cachedNotification())
+        return DeclareHashesPacket.parseFrom(cachedNotification())
     }
 
     fun readElectLeader(): Single<ElectLeaderPacket> {
-        return ElectLeaderPacket.Companion.parseFrom(cachedNotification())
+        return ElectLeaderPacket.parseFrom(cachedNotification())
     }
 
     fun readIdentityPacket(context: Context): Single<IdentityPacket> {
-        return IdentityPacket.Companion.parseFrom(cachedNotification(), context)
+        return IdentityPacket.parseFrom(cachedNotification(), context)
     }
 
     fun readLuid(): Single<LuidPacket> {
-        return LuidPacket.Companion.parseFrom(cachedNotification())
+        return LuidPacket.parseFrom(cachedNotification())
     }
 
     override fun dispose() {

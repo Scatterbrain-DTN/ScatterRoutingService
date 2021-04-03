@@ -7,25 +7,25 @@ import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler.RoutingServiceState
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * The purpose of the scheduler is to manage the global state of the router
+ * currently this means switching from active to passive discovery or disabling
+ * the router
+ *
+ * This should get more complex in the future when transport modules are plugins
+ */
 @Singleton
 class ScatterbrainSchedulerImpl @Inject constructor(
-        wifiDirectRadioModule: WifiDirectRadioModule,
-        bluetoothLEModule: BluetoothLEModule,
-        scatterbrainDatastore: ScatterbrainDatastore,
+        private val bluetoothLEModule: BluetoothLEModule,
         private val context: Context
 ) : ScatterbrainScheduler {
-    private val mState: AtomicReference<RoutingServiceState>
-    private val bluetoothLEModule: BluetoothLEModule
-    private val wifiDirectRadioModule: WifiDirectRadioModule
-    private val datastore: ScatterbrainDatastore
+    private val mState: AtomicReference<RoutingServiceState> = AtomicReference(RoutingServiceState.STATE_SUSPEND)
     override var isDiscovering = false
         private set
     private var isAdvertising = false
@@ -49,7 +49,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         bluetoothLEModule.startAdvertise()
         bluetoothLEModule.startServer()
         val d = bluetoothLEModule.discoverForever()
-                .doOnSubscribe { disp: Disposable? -> isDiscovering = true }
+                .doOnSubscribe { isDiscovering = true }
                 .doOnDispose { isDiscovering = false }
                 .subscribe(
                         { res: HandshakeResult? -> Log.v(TAG, "finished transaction: $res") }
@@ -83,12 +83,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     }
 
     init {
-        mState = AtomicReference(RoutingServiceState.STATE_SUSPEND)
-        this.wifiDirectRadioModule = wifiDirectRadioModule
-        this.bluetoothLEModule = bluetoothLEModule
-        datastore = scatterbrainDatastore
         val d = this.bluetoothLEModule.observeTransactions()
                 .subscribe({ transactionStats: HandshakeResult? -> broadcastTransactionResult(transactionStats) }
-                ) { err: Throwable? -> Log.e(TAG, "fatal error, transaction relay somehow called onError") }
+                ) { Log.e(TAG, "fatal error, transaction relay somehow called onError") }
     }
 }

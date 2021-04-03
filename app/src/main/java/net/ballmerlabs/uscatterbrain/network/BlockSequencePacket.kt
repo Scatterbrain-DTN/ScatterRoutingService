@@ -81,7 +81,7 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
         val seqnum = ByteBuffer.allocate(4).putInt(mSequenceNumber).order(ByteOrder.BIG_ENDIAN).array()
         LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, hashbytes.size)
         LibsodiumInterface.sodium.crypto_generichash_update(state, seqnum, seqnum.size.toLong())
-        LibsodiumInterface.sodium.crypto_generichash_update(state, mData!!.toByteArray(), mData!!.size().toLong())
+        LibsodiumInterface.sodium.crypto_generichash_update(state, mData!!.toByteArray(), mData.size().toLong())
         LibsodiumInterface.sodium.crypto_generichash_final(state, hashbytes, hashbytes.size)
         return hashbytes
     }

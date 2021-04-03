@@ -3,6 +3,11 @@ package net.ballmerlabs.uscatterbrain.network
 import java.nio.BufferOverflowException
 import java.nio.ByteBuffer
 
+/**
+ * this is a component of the system for parsing BLE indications
+ * into protobuf messages. It is a zero-copy circular buffer for
+ * temporarily storing streams of bytes
+ */
 class CircularBuffer(private val writeBuffer: ByteBuffer) {
     private val readBuffer: ByteBuffer = writeBuffer.duplicate()
     fun size(): Int {
@@ -21,7 +26,7 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
             throw BufferOverflowException()
         }
         var l = length
-        val read = Math.min(length, readBuffer.remaining())
+        val read = length.coerceAtMost(readBuffer.remaining())
         readBuffer[buf, offset, read]
         l -= read
         if (l > 0) {
@@ -31,11 +36,11 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
     }
 
     fun put(buf: ByteArray, offset: Int, len: Int) {
-        var l = Math.min(buf.size, len)
+        var l = buf.size.coerceAtMost(len)
         if (l > remaining()) {
             throw BufferOverflowException()
         }
-        val write = Math.min(l, writeBuffer.remaining())
+        val write = l.coerceAtMost(writeBuffer.remaining())
         writeBuffer.put(buf, offset, write)
         l -= write
         if (l > 0) {
@@ -49,7 +54,7 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
     }
 
     fun skip(n: Long): Long {
-        val skip = Math.min(remaining().toLong(), n).toInt()
+        val skip = remaining().toLong().coerceAtMost(n).toInt()
         val p = readBuffer.position()
         readBuffer.position(readBuffer.position() + skip)
         return (readBuffer.position() - p).toLong()

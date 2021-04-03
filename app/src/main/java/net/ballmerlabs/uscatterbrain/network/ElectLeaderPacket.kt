@@ -9,25 +9,26 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.ElectLeader
-import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
 import java.io.*
 import java.nio.ByteBuffer
 import java.util.*
 
+/**
+ * wrapper class for ElectLeader protobuf message
+ */
 class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializable {
     private val mElectLeader: ElectLeader?
-    private val salt: ByteArray
+    private val salt: ByteArray = ByteArray(GenericHash.BYTES)
     override var luid: UUID? = null
         private set
     
     init {
-        salt = ByteArray(GenericHash.BYTES)
         LibsodiumInterface.sodium.randombytes_buf(salt, salt.size)
         val b = ElectLeader.newBuilder()
         if (!builder.enableHashing) {
             val body = ElectLeader.Body.newBuilder()
-                    .setProvides(AdvertisePacket.Companion.providesToVal(builder.provides!!))
+                    .setProvides(AdvertisePacket.providesToVal(builder.provides!!))
                     .setSalt(ByteString.copyFrom(salt))
             body.tiebreakerVal = ScatterProto.UUID.newBuilder()
                     .setUpper(builder.tiebreaker!!.mostSignificantBits)
@@ -40,10 +41,6 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
             b.valHash = builder.hashVal
         }
         mElectLeader = b.build()
-    }
-
-    enum class Phase {
-        PHASE_VAL, PHASE_HASH
     }
 
     private fun hashFromBuilder(builder: Builder): ByteArray {
@@ -65,7 +62,7 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
         return hashbytes
     }
 
-    fun hashFromPacket(): ByteArray {
+    private fun hashFromPacket(): ByteArray {
         val hashbytes = ByteArray(GenericHash.BYTES)
         var bytes = ByteString.EMPTY
         bytes.concat(ByteString.copyFrom(salt))
@@ -85,14 +82,18 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
     }
 
     fun verifyHash(packet: ElectLeaderPacket?): Boolean {
-        return if (packet!!.isHashed == isHashed) {
-            false
-        } else if (isHashed) {
-            val hash = packet.hashFromPacket()
-            Arrays.equals(hash, hash)
-        } else {
-            val hash = hashFromPacket()
-            Arrays.equals(hash, packet.hash)
+        return when {
+            packet!!.isHashed == isHashed -> {
+                false
+            }
+            isHashed -> {
+                val hash = packet.hashFromPacket()
+                hash.contentEquals(hash)
+            }
+            else -> {
+                val hash = hashFromPacket()
+                hash.contentEquals(packet.hash)
+            }
         }
     }
 
@@ -107,7 +108,7 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
     }
 
     val provides: AdvertisePacket.Provides
-        get() = AdvertisePacket.Companion.valToProvides(mElectLeader!!.valBody.provides)
+        get() = AdvertisePacket.valToProvides(mElectLeader!!.valBody.provides)
 
     override val bytes: ByteArray
         get() {
@@ -127,8 +128,8 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
         return Completable.fromAction { CRCProtobuf.writeToCRC(mElectLeader!!, os) }
     }
 
-    override fun writeToStream(fragize: Int): Flowable<ByteArray> {
-        return Bytes.from(ByteArrayInputStream(bytes), fragize)
+    override fun writeToStream(fragsize: Int): Flowable<ByteArray> {
+        return Bytes.from(ByteArrayInputStream(bytes), fragsize)
     }
 
     override val type: PacketType
@@ -182,7 +183,7 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
                                         electleader.valBody.tiebreakerVal.upper,
                                         electleader.valBody.tiebreakerVal.lower
                                 )
-                        );
+                        )
             } else {
                 builder.enableHashing()
                         .setHash(electleader.valHash)

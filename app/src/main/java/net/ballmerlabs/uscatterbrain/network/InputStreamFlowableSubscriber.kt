@@ -5,7 +5,13 @@ import io.reactivex.disposables.Disposable
 import org.reactivestreams.Subscription
 import java.io.IOException
 import kotlin.jvm.Throws
+import kotlin.math.max
+import kotlin.math.min
 
+/**
+ * serves as a bridge between a flowable and an inputstream with
+ * a static sized buffer to old unread data
+ */
 class InputStreamFlowableSubscriber(capacity: Int) : InputStreamCallback(capacity), FlowableSubscriber<ByteArray?> {
     private var isDisposed = false
     private var subscription: Subscription? = null
@@ -53,7 +59,7 @@ class InputStreamFlowableSubscriber(capacity: Int) : InputStreamCallback(capacit
     @Throws(IOException::class)
     override fun read(b: ByteArray): Int {
         if (subscription != null) {
-            subscription!!.request(Math.max(blocksize, b.size).toLong())
+            subscription!!.request(max(blocksize, b.size).toLong())
         }
         return super.read(b)
     }
@@ -61,7 +67,7 @@ class InputStreamFlowableSubscriber(capacity: Int) : InputStreamCallback(capacit
     @Throws(IOException::class)
     override fun read(b: ByteArray, off: Int, len: Int): Int {
         if (subscription != null) {
-            subscription!!.request(Math.max(blocksize, Math.min(b.size, len)).toLong())
+            subscription!!.request(max(blocksize, min(b.size, len)).toLong())
         }
         return super.read(b, off, len)
     }
@@ -77,7 +83,7 @@ class InputStreamFlowableSubscriber(capacity: Int) : InputStreamCallback(capacit
     @Throws(IOException::class)
     override fun skip(n: Long): Long {
         if (subscription != null) {
-            subscription!!.request(Math.max(blocksize.toLong(), n))
+            subscription!!.request(max(blocksize.toLong(), n))
         }
         return super.skip(n)
     }

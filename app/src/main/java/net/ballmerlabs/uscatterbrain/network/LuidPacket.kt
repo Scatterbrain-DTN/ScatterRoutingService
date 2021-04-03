@@ -16,6 +16,9 @@ import java.io.*
 import java.nio.ByteBuffer
 import java.util.*
 
+/**
+ * Wrapper class for Luid protobuf message
+ */
 class LuidPacket : ScatterSerializable {
     private val mLuid: Luid
     val isHashed: Boolean
@@ -63,28 +66,36 @@ class LuidPacket : ScatterSerializable {
     val hashAsUUID: UUID?
         get() {
             val h = mLuid.valHash.hash.toByteArray()
-            return if (h.size != GenericHash.BYTES) {
-                Log.e("debug", "hash size wrong: ${h.size}")
-                null
-            } else if (isHashed) {
-                val buf = ByteBuffer.wrap(h)
-                //note: this only is safe because crypto_generichash_BYTES_MIN is 16
-                UUID(buf.long, buf.long)
-            } else {
-                Log.e("debug", "isHashed not set")
-                null
+            return when {
+                h.size != GenericHash.BYTES -> {
+                    Log.e("debug", "hash size wrong: ${h.size}")
+                    null
+                }
+                isHashed -> {
+                    val buf = ByteBuffer.wrap(h)
+                    //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+                    UUID(buf.long, buf.long)
+                }
+                else -> {
+                    Log.e("debug", "isHashed not set")
+                    null
+                }
             }
         }
 
     fun verifyHash(packet: LuidPacket?): Boolean {
-        return if (packet!!.isHashed == isHashed) {
-            false
-        } else if (isHashed) {
-            val hash = calculateHashFromUUID(packet.luid)
-            Arrays.equals(hash, hash)
-        } else {
-            val hash = calculateHashFromUUID(luid)
-            Arrays.equals(hash, packet.hash)
+        return when {
+            packet!!.isHashed == isHashed -> {
+                false
+            }
+            isHashed -> {
+                val hash = calculateHashFromUUID(packet.luid)
+                hash.contentEquals(hash)
+            }
+            else -> {
+                val hash = calculateHashFromUUID(luid)
+                hash.contentEquals(packet.hash)
+            }
         }
     }
 

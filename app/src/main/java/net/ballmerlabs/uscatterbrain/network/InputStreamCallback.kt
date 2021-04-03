@@ -13,12 +13,11 @@ import java.util.concurrent.Semaphore
  * inputstream. It buffers any data observed as an observer and
  * replays it when read from as an inputstream.
  */
-abstract class InputStreamCallback(capacity: Int) : InputStream() {
+abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
     protected var throwable: Throwable? = null
     protected var closed = false
     protected var disposable: Disposable? = null
-    private val buf: CircularBuffer
-    private val BUF_CAPACITY: Int = capacity
+    private val buf: CircularBuffer = CircularBuffer(ByteBuffer.allocate(BUF_CAPACITY + 1))
     private val readLock = Semaphore(1, true)
     private var complete = false
     protected fun acceptBytes(buf: ByteArray) {
@@ -44,7 +43,7 @@ abstract class InputStreamCallback(capacity: Int) : InputStream() {
             while (buf.size() < len && !complete) {
                 readLock.acquire()
             }
-            val l = Math.min(len, buf.size())
+            val l = len.coerceAtMost(buf.size())
             buf[result, offset, l]
             l
         } catch (ignored: BufferUnderflowException) {
@@ -112,7 +111,4 @@ abstract class InputStreamCallback(capacity: Int) : InputStream() {
         }
     }
 
-    init {
-        buf = CircularBuffer(ByteBuffer.allocate(BUF_CAPACITY + 1))
-    }
 }

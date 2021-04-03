@@ -12,17 +12,16 @@ import java.io.*
 import java.util.*
 import kotlin.collections.ArrayList
 
+/**
+ * wrapper class for DeclareHashes protobuf message
+ */
 class DeclareHashesPacket private constructor(builder: Builder) : ScatterSerializable {
-    private val declareHashes: DeclareHashes?
+    private val declareHashes: DeclareHashes? = DeclareHashes.newBuilder()
+            .setOptout(builder.optout)
+            .addAllHashes(builder.hashes)
+            .build()
     override var luid: UUID? = null
         private set
-
-    init {
-        declareHashes = DeclareHashes.newBuilder()
-                .setOptout(builder.optout)
-                .addAllHashes(builder.hashes)
-                .build()
-    }
 
     override val bytes: ByteArray
         get() {
@@ -84,9 +83,6 @@ class DeclareHashesPacket private constructor(builder: Builder) : ScatterSeriali
         }
 
         fun build(): DeclareHashesPacket {
-            if (hashes == null) {
-                hashes = ArrayList()
-            }
             return DeclareHashesPacket(this)
         }
 
@@ -98,7 +94,7 @@ class DeclareHashesPacket private constructor(builder: Builder) : ScatterSeriali
             val declareHashes = CRCProtobuf.parseFromCRC(DeclareHashes.parser(), inputStream)
             val builder = Builder()
             if (declareHashes.optout) {
-                builder.optout = true;
+                builder.optout = true
             } else {
                 builder.setHashes(declareHashes.hashesList)
             }

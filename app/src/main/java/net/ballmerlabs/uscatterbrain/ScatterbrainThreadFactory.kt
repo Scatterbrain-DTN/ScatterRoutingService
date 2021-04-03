@@ -4,6 +4,10 @@ import io.reactivex.internal.schedulers.NonBlockingThread
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicLong
 
+/**
+ * thread factory to create rxjava schedulers with
+ * allows for naming threads and setting scheduling priority if needed
+ */
 class ScatterbrainThreadFactory : AtomicLong(), ThreadFactory {
     override fun newThread(r: Runnable): Thread {
         val name = "ScatterbrainThread-" + incrementAndGet()

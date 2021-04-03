@@ -1,44 +1,47 @@
 package net.ballmerlabs.uscatterbrain.scheduler
 
+/**
+ * dagger2 interface for ScatterbrainScheduler
+ */
 interface ScatterbrainScheduler {
     enum class RoutingServiceState {
         STATE_DISCOVER_PEERS {
-            override fun airplaneMode(): RoutingServiceState? {
+            override fun airplaneMode(): RoutingServiceState {
                 return STATE_SUSPEND
             }
 
-            override fun disableDiscovery(): RoutingServiceState? {
+            override fun disableDiscovery(): RoutingServiceState {
                 return STATE_ADVERTISE
             }
 
-            override fun transferPackets(): RoutingServiceState? {
+            override fun transferPackets(): RoutingServiceState {
                 return STATE_TRANSFER_PACKETS
             }
         },
         STATE_TRANSFER_PACKETS {
-            override fun resumeAdvertise(): RoutingServiceState? {
+            override fun resumeAdvertise(): RoutingServiceState {
                 return STATE_ADVERTISE
             }
 
-            override fun resumeDiscover(): RoutingServiceState? {
+            override fun resumeDiscover(): RoutingServiceState {
                 return STATE_DISCOVER_PEERS
             }
         },
         STATE_ADVERTISE {
-            override fun airplaneMode(): RoutingServiceState? {
+            override fun airplaneMode(): RoutingServiceState {
                 return STATE_SUSPEND
             }
 
-            override fun enableDiscovery(): RoutingServiceState? {
+            override fun enableDiscovery(): RoutingServiceState {
                 return STATE_DISCOVER_PEERS
             }
 
-            override fun transferPackets(): RoutingServiceState? {
+            override fun transferPackets(): RoutingServiceState {
                 return STATE_TRANSFER_PACKETS
             }
         },
         STATE_SUSPEND {
-            override fun resume(): RoutingServiceState? {
+            override fun resume(): RoutingServiceState {
                 return STATE_ADVERTISE
             }
         };

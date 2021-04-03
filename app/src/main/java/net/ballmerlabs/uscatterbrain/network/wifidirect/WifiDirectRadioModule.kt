@@ -13,12 +13,22 @@ import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 
+/**
+ * dagger2 interface for WifiDirectRadioModule
+ */
 interface WifiDirectRadioModule {
     fun connectToGroup(name: String, passphrase: String, timeout: Int): Single<WifiP2pInfo>
     fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest): Single<HandshakeResult>
     fun unregisterReceiver()
     fun registerReceiver()
     fun createGroup(name: String, passphrase: String): Completable
+
+    /**
+     * Wrapper class combining BlockHeaderPacket, SequencePackets, and
+     * a database entity
+     *
+     * Allows streaming messages from network directly into database/filestore
+     */
     class BlockDataStream {
         val sequencePackets: Flowable<BlockSequencePacket>
         val headerPacket: BlockHeaderPacket
@@ -84,9 +94,6 @@ interface WifiDirectRadioModule {
                     .doOnError { e: Throwable? -> sequenceCompletable.onError(e!!) }
         }
 
-        fun awaitSequencePackets(): Completable {
-            return sequenceCompletable
-        }
         companion object {
             fun endOfStream(): BlockDataStream {
                 return BlockDataStream(

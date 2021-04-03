@@ -1,17 +1,18 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.bluetooth.BluetoothDevice
 import android.util.Log
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
-import io.reactivex.functions.BiFunction
 import net.ballmerlabs.uscatterbrain.ScatterRoutingService
 import net.ballmerlabs.uscatterbrain.network.LuidPacket
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 
-class LuidStage(private val device: BluetoothDevice, private val uuid: AtomicReference<UUID>) {
+/**
+ * holds state for the luid stage of the bluetooth LE transport FSM
+ */
+class LuidStage(private val uuid: AtomicReference<UUID>) {
     private val hashPackets = ArrayList<LuidPacket>()
     private val realPackets = ArrayList<LuidPacket>()
     private val selfhashed = AtomicReference<LuidPacket?>()
@@ -45,15 +46,6 @@ class LuidStage(private val device: BluetoothDevice, private val uuid: AtomicRef
             }
         }
 
-    val hashedLuids: List<UUID?>
-        get() {
-            val result = ArrayList<UUID>()
-            for (packet in hashPackets) {
-                result.add(packet.hashAsUUID!!)
-            }
-            return result
-        }
-
     fun getSelf(): Single<LuidPacket?> {
         val packet = self.get()
         return if (packet == null) {
@@ -77,13 +69,17 @@ class LuidStage(private val device: BluetoothDevice, private val uuid: AtomicRef
         }
     }
 
+    /**
+     * verify the hashes on received luid packets. This prevents a type of attack
+     * where a remote device generates a nonrandom luid to cheat at the leader election
+     */
     fun verifyPackets(): Completable {
         return if (hashPackets.size != realPackets.size) {
             Completable.error(InvalidLuidException("size conflict " +
                     hashPackets.size + " " + realPackets.size))
         } else Observable.zip(
                 Observable.fromIterable(hashPackets),
-                Observable.fromIterable(realPackets), BiFunction { obj: LuidPacket?, packet: LuidPacket? -> obj!!.verifyHash(packet) })
+                Observable.fromIterable(realPackets), { obj: LuidPacket?, packet: LuidPacket? -> obj!!.verifyHash(packet) })
                 .flatMap { bool: Boolean? ->
                     if (!bool!!) {
                         return@flatMap Observable.error<Boolean>(InvalidLuidException("failed to verify hash"))

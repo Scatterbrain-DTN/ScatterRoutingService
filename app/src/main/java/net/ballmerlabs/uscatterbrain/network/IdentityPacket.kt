@@ -22,14 +22,16 @@ import java.net.ProtocolException
 import java.security.GeneralSecurityException
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.jvm.Throws
 
+/**
+ * wrapper class for Identity protobuf message
+ */
 class IdentityPacket private constructor(builder: Builder) :
         ScatterSerializable,
         MutableMap<String, ByteString> {
     private var mPubKeymap: MutableMap<String, ByteString> = TreeMap()
     private lateinit var mKeystorePrefs: SharedPreferences
-    private val mCtx: Context
+    private val mCtx: Context = builder.context
     private val mIdentity = AtomicReference<ScatterProto.Identity>()
     val name: String?
     private val sig = AtomicReference(ByteString.EMPTY)
@@ -39,7 +41,6 @@ class IdentityPacket private constructor(builder: Builder) :
 
 
     init {
-        mCtx = builder.context
         val sig = builder.getSig()
         if (sig != null) {
             this.sig.set(ByteString.copyFrom(sig))
@@ -79,29 +80,16 @@ class IdentityPacket private constructor(builder: Builder) :
         mKeystorePrefs = EncryptedSharedPreferences.create(
                 ScatterbrainApi.KEYSTORE_ID,
                 masterKeyAlias,
-                mCtx!!,
+                mCtx,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
     }
 
-    val privKey: ByteArray?
-        get() {
-            if (mKeystorePrefs.contains(LibsodiumInterface.base64enc(pubkey))) {
-                val result = mKeystorePrefs!!.getString(LibsodiumInterface.base64enc(pubkey), null)
-                return if (result == null) {
-                    null
-                } else {
-                    LibsodiumInterface.base64dec(result)
-                }
-            }
-            return null
-        }
-
     val isEnd: Boolean
         get() = mIdentity.get().messageCase == ScatterProto.Identity.MessageCase.END
 
-    val fingerprint: String?
+    val fingerprint: String
         get() {
             val fingeprint = ByteArray(GenericHash.BYTES)
             LibsodiumInterface.sodium.crypto_generichash(
@@ -209,7 +197,7 @@ class IdentityPacket private constructor(builder: Builder) :
         mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = ByteString.copyFrom(pubkey)
         val secretKeyBase64 = LibsodiumInterface.base64enc(privkey)
         val fingerprint = LibsodiumInterface.base64enc(pubkey)
-        mKeystorePrefs!!.edit()
+        mKeystorePrefs.edit()
                 .putString(fingerprint, secretKeyBase64)
                 .apply()
         signEd25519(privkey)
@@ -247,11 +235,6 @@ class IdentityPacket private constructor(builder: Builder) :
 
         fun setEnd(end: Boolean): Builder {
             gone = end
-            return this
-        }
-
-        fun generateKeypair(): Builder {
-            mGenerateKeypair = true
             return this
         }
 
@@ -309,7 +292,7 @@ class IdentityPacket private constructor(builder: Builder) :
     }
 
     override fun put(key: String, value: ByteString): ByteString? {
-        return mPubKeymap.put(key!!, value!!)
+        return mPubKeymap.put(key, value)
     }
 
     override fun remove(key: String): ByteString? {

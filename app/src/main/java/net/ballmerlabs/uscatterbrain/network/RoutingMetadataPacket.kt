@@ -12,6 +12,9 @@ import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
 import java.io.*
 import java.util.*
 
+/**
+ * wrapper class for RoutingMetadata protobuf message
+ */
 class RoutingMetadataPacket : ScatterSerializable {
     private val routingMetadata: RoutingMetadata
     private val metadataMap = HashMap<UUID, ByteArray>()
@@ -20,7 +23,7 @@ class RoutingMetadataPacket : ScatterSerializable {
 
     private constructor(inputStream: InputStream) {
         routingMetadata = CRCProtobuf.parseFromCRC(RoutingMetadata.parser(), inputStream)
-        addMap(routingMetadata.getKeyvalMap())
+        addMap(routingMetadata.keyvalMap)
     }
 
     private constructor(builder: Builder) {
@@ -43,7 +46,7 @@ class RoutingMetadataPacket : ScatterSerializable {
 
     @get:Synchronized
     private val map: Map<String, ByteString>
-        private get() {
+        get() {
             val result: MutableMap<String, ByteString> = HashMap()
             for ((key, value) in metadataMap) {
                 result[key.toString()] = ByteString.copyFrom(value)
@@ -55,10 +58,7 @@ class RoutingMetadataPacket : ScatterSerializable {
         get() = metadataMap
 
     val isEmpty: Boolean
-        get() = routingMetadata!!.endofstream
-
-    val uUID: UUID
-        get() = UUID(routingMetadata!!.id.upper, routingMetadata.id.lower)
+        get() = routingMetadata.endofstream
 
     override val bytes: ByteArray
         get() {
@@ -95,11 +95,6 @@ class RoutingMetadataPacket : ScatterSerializable {
         var uuid: UUID? = null
         fun addMetadata(map: Map<UUID, ByteArray>?): Builder {
             this.map.putAll(map!!)
-            return this
-        }
-
-        fun setUUID(uuid: UUID?): Builder {
-            this.uuid = uuid
             return this
         }
 

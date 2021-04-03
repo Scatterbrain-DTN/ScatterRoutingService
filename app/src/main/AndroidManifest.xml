@@ -48,7 +48,8 @@
         <service
             android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService"
             android:foregroundServiceType="location"
-            android:exported="true"/>
+            android:exported="true"
+            android:permission="net.ballmerlabs.scatterroutingservice.permission.ACCESS" />
 
         <provider
             android:authorities="net.ballmerlabs.uscatterbrain.documents"

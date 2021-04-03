@@ -9,18 +9,25 @@ import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.CRC32
-import kotlin.math.absoluteValue
 
+/**
+ * wrapper for parser for protobuf messages that implements its own
+ * length-prefix encoding and CRC checksumming.
+ *
+ * CRCs are a good idea because not all planned transports ensure
+ * data integrity at the transport layer. It also catches my mistakes with
+ * parsing ;)
+ */
 object CRCProtobuf {
     private const val MASK = 0xFFFFFFFFL
     private const val MESSAGE_SIZE_CAP = 1024 * 1024
-    fun bytes2long(payload: ByteArray): Long {
+    private fun bytes2long(payload: ByteArray): Long {
         val buffer = ByteBuffer.wrap(payload)
         buffer.order(ByteOrder.BIG_ENDIAN)
         return (buffer.int.toLong() and MASK)
     }
 
-    fun longToByte(value: Long): ByteArray {
+    private fun longToByte(value: Long): ByteArray {
         val buffer = ByteBuffer.allocate(4)
         buffer.order(ByteOrder.BIG_ENDIAN)
         buffer.putInt(value.toInt())

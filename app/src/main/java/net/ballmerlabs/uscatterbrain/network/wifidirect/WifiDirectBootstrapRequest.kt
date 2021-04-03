@@ -6,14 +6,18 @@ import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 
-class WifiDirectBootstrapRequest : BootstrapRequest {
+/**
+ * BootstrapRequest with convenience functions for wifi direct bootstraps
+ */
+open class WifiDirectBootstrapRequest : BootstrapRequest {
     val name: String
     val passphrase: String
     val role: ConnectionRole
 
+    //TODO: make this work with the JVM. currently can't serialize
     protected constructor(`in`: Parcel) : super(`in`) {
-        name = getStringExtra(KEY_NAME)!!
-        passphrase = getStringExtra(KEY_PASSPHRASE)!!
+        name = getStringExtra(KEY_NAME)
+        passphrase = getStringExtra(KEY_PASSPHRASE)
         role = getSerializableExtra(KEY_ROLE) as ConnectionRole
     }
 

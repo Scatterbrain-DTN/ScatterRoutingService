@@ -53,7 +53,7 @@ import javax.inject.Singleton
  * potential modification of protocol behavior.
  *
  * It should be noted that due to quirks in the way bluetooth LE is
- * implemented on android, this transports is unusually complex.
+ * implemented on android, this transport is unusually complex.
  * The basic idea is to connect to a device via bluetooth LE and establish
  * dual gatt connections in both directions to send protobuf blobs using indications.
  *
@@ -61,10 +61,16 @@ import javax.inject.Singleton
  * notifications/indications, and notifications/indications are the only way to
  * send streams of data efficiently
  *
- * It is important to note that a physical LE connections is NOT the same as a
+ * It is important to note that a physical LE connection is NOT the same as a
  * GATT connection. We only want one physical radio connection but two GATT connections.
  * if for some reason we end up connecting twice due to a race condition, we need to identity and
- * throw out one of the connections.
+ * throw out one of the connections. While matching duplication connections by mac address is a
+ * trival and correct way of discarding duplicate connections, we cannot do that here because
+ * android does not guarantee that the adapter mac will not be randomized between connection
+ * attempts
+ * 
+ * Instead of mac, we use a randomly generated uuid called an "LUID". Unfortunately this means we
+ * must be capable of servicing multiple concurrent connection up to the exchange of LUID values
  */
 @Singleton
 class BluetoothLERadioModuleImpl @Inject constructor(
@@ -215,13 +221,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         )
 
     private fun parseScanMode(): Int {
-        val scanMode = powerSave
-        return if (scanMode == mContext.getString(R.string.powersave_active)) {
-            ScanSettings.SCAN_MODE_LOW_POWER
-        } else if (scanMode == mContext.getString(R.string.powersave_opportunistic)) {
-            ScanSettings.SCAN_MODE_OPPORTUNISTIC
-        } else {
-            -1 //scan disabled
+        return when (powerSave) {
+            mContext.getString(R.string.powersave_active) -> {
+                ScanSettings.SCAN_MODE_LOW_POWER
+            }
+            mContext.getString(R.string.powersave_opportunistic) -> {
+                ScanSettings.SCAN_MODE_OPPORTUNISTIC
+            }
+            else -> {
+                -1 //scan disabled
+            }
         }
     }
 
@@ -259,7 +268,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     /*
      * initialize the finite state machine. This is VERY important and dictates the
-     * bluetooth LE transport's behavior for hte entire protocol.
+     * bluetooth LE transport's behavior for the entire protocol.
      * the LeDeviceSession object holds the stages and stage transition logic, and is
      * executed when a device connects.
      *
@@ -439,16 +448,19 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         Log.v(TAG, "selected role: $role")
                         session.role = role
                         session.setUpgradeStage(provides)
-                        if (provides == AdvertisePacket.Provides.INVALID) {
-                            Log.e(TAG, "received invalid provides")
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
-                        } else if (provides == AdvertisePacket.Provides.BLE) {
-                            //we should do everything in BLE. slowwwww ;(
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_IDENTITY, device)
-                        } else if (provides == AdvertisePacket.Provides.WIFIP2P) {
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_UPGRADE, device)
-                        } else {
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
+                        when (provides) {
+                            AdvertisePacket.Provides.INVALID -> {
+                                Log.e(TAG, "received invalid provides")
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
+                            }
+                            AdvertisePacket.Provides.BLE -> {
+                                //we should do everything in BLE. slowwwww ;(
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_IDENTITY, device)
+                            }
+                            AdvertisePacket.Provides.WIFIP2P ->
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_UPGRADE, device)
+                            else ->
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
                         }
                     }
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving packet: $err") }
@@ -531,7 +543,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving declareHashes packet: $err") }
                     .map { declareHashesPacket: DeclareHashesPacket ->
                         session.setDeclareHashesPacket(declareHashesPacket)
-                        TransactionResult<BootstrapRequest>(TransactionResult.STAGE_BLOCKDATA, device)
+                        TransactionResult(TransactionResult.STAGE_BLOCKDATA, device)
                     }
         }
 
@@ -582,7 +594,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                     .map { res: HandshakeResult ->
                         transactionCompleteRelay.accept(res)
-                        TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
+                        TransactionResult(TransactionResult.STAGE_EXIT, device)
                     }
         }
 
@@ -636,7 +648,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         connectionCache[device.macAddress] = subject
         return device.establishConnection(false, timeout)
                 .doOnDispose { connectionCache.remove(device.macAddress) }
-                .doOnError { err: Throwable? -> connectionCache.remove(device.macAddress) }
+                .doOnError { connectionCache.remove(device.macAddress) }
                 .map { d: RxBleConnection -> CachedLEConnection(d, channels) }
                 .doOnNext { connection: CachedLEConnection ->
                     Log.v(TAG, "successfully established connection")
@@ -667,10 +679,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             scanResult.bleDevice,
                             Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)
                     )
-                            .map { connection: CachedLEConnection? ->
+                            .map {
                                 DeviceConnection(
-                                        scanResult.bleDevice.bluetoothDevice,
-                                        connection
+                                        scanResult.bleDevice.bluetoothDevice
                                 )
                             }
                 /*
@@ -858,12 +869,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         .takeUntil { result: android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>> -> result.second.nextStage == TransactionResult.STAGE_EXIT }
                                         .filter { pair: android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>> -> pair.second.hasResult() || pair.first.isPresent }
                                         .map { pair: android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>> ->
-                                            if (pair.second.hasResult()) {
-                                                return@map pair.second.result
-                                            } else if (pair.first.isPresent) {
-                                                return@map pair.first.get()
-                                            } else {
-                                                throw IllegalStateException("this should never happen")
+                                            when {
+                                                pair.second.hasResult() -> {
+                                                    return@map pair.second.result
+                                                }
+                                                pair.first.isPresent -> {
+                                                    return@map pair.first.get()
+                                                }
+                                                else -> {
+                                                    throw IllegalStateException("this should never happen")
+                                                }
                                             }
                                         }
                                         .doOnError { err: Throwable ->
@@ -889,7 +904,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
                 .retry()
                 .repeat()
-                .doOnNext { s: HandshakeResult? -> releaseWakeLock() }
+                .doOnNext { releaseWakeLock() }
                 .subscribe(transactionCompleteRelay)
         mGattDisposable.add(d)
         startAdvertise()
@@ -904,7 +919,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         stopAdvertise()
     }
 
-    class DeviceConnection(val device: BluetoothDevice, val connection: CachedLEConnection?)
+    class DeviceConnection(val device: BluetoothDevice)
 
     /**
      * implent a locking mechanism to grant single devices tempoary
@@ -956,6 +971,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
 
         @get:Synchronized
+        @Suppress("Unused")
         val characteristic: BluetoothGattCharacteristic
             get() {
                 if (released) {

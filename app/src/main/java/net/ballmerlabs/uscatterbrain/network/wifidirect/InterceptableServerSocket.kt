@@ -3,28 +3,30 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 import android.util.Log
 import io.reactivex.Observable
 import io.reactivex.Single
-import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import java.io.IOException
-import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
-class InterceptableServerSocket : ServerSocket {
+/**
+ * Accepts TCP sockets in a loop, relaying the accepted connections to an
+ * observable for later use
+ */
+class InterceptableServerSocket(port: Int) : ServerSocket(port) {
     private var closed = false
 
     class SocketConnection(val socket: Socket)
 
     class InterceptableServerSocketFactory {
         private var serverSocket: InterceptableServerSocket? = null
-        fun create(port: Int): Single<InterceptableServerSocket?> {
+        fun create(port: Int): Single<InterceptableServerSocket> {
             return Single.fromCallable {
                 if (serverSocket == null) {
                     serverSocket = InterceptableServerSocket(port)
                 }
-                Log.v(WifiDirectRadioModule.Companion.TAG, "creating server socket")
+                Log.v(WifiDirectRadioModule.TAG, "creating server socket")
                 serverSocket
             }
         }
@@ -33,14 +35,9 @@ class InterceptableServerSocket : ServerSocket {
     private val socketSet = Collections.newSetFromMap(ConcurrentHashMap<Socket, Boolean>())
     private val socketBehaviorSubject = BehaviorSubject.create<SocketConnection>()
 
-    constructor() {}
-    constructor(port: Int) : super(port) {}
-    constructor(port: Int, backlog: Int) : super(port, backlog) {}
-    constructor(port: Int, backlog: Int, bindAddr: InetAddress?) : super(port, backlog, bindAddr) {}
-
     fun acceptLoop(): Observable<SocketConnection> {
         return Observable.fromCallable { SocketConnection(accept()) }
-                .doOnError { err: Throwable -> Log.e(WifiDirectRadioModule.Companion.TAG, "error on socket accept: $err") }
+                .doOnError { err: Throwable -> Log.e(WifiDirectRadioModule.TAG, "error on socket accept: $err") }
                 .repeatUntil { closed }
     }
 
@@ -62,14 +59,8 @@ class InterceptableServerSocket : ServerSocket {
         super.close()
     }
 
-    val sockets: Set<Socket>
-        get() {
-            socketSet.removeIf { socket: Socket? -> isClosed }
-            return socketSet
-        }
-
     fun observeConnections(): Observable<SocketConnection> {
         return socketBehaviorSubject
-                .doOnSubscribe { disp: Disposable? -> Log.v("debug", "subscribed to server sockets") }
+                .doOnSubscribe { Log.v("debug", "subscribed to server sockets") }
     }
 }

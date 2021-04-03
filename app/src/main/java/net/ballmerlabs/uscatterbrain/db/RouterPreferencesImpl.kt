@@ -33,7 +33,7 @@ class RouterPreferencesImpl @Inject constructor(
     override val all: Map<String?, *>?
         get() = preferences.all
 
-    override fun GetLong(key: String?, def: Long): Long {
+    override fun getLong(key: String?, def: Long): Long {
         return preferences.getString(key, def.toString())!!.toLong()
     }
 

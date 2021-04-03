@@ -18,7 +18,6 @@ import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore.ACL
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
-import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 
 /**
  * Main foreground service class for Scatterbrain.
@@ -351,9 +350,6 @@ class ScatterRoutingService : LifecycleService() {
             return mBackend.scheduler.isPassive
         }
     }
-
-    val packet: AdvertisePacket?
-        get() = mBackend.packet
 
     override fun onBind(i: Intent): IBinder {
         super.onBind(i)
