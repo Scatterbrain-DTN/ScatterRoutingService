@@ -6,7 +6,12 @@ import android.bluetooth.BluetoothDevice
  * transactionresult is a combination optional and data class holding the result of a GATT
  * transaction. It is used to set the next stage in the FSM and optionally to bootstrap
  */
-class TransactionResult<T> constructor(val nextStage: String, val device: BluetoothDevice, val result: T? = null) {
+class TransactionResult<T> constructor(
+        val nextStage: String,
+        val device: BluetoothDevice,
+        val result: T? = null,
+        val err: Boolean = false
+) {
     fun hasResult(): Boolean {
         return result != null
     }

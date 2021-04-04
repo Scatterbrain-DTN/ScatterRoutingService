@@ -342,7 +342,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         if (connectedLuids.contains(hashUUID)) {
                             Log.e(TAG, "device: $device already connected")
 
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
+                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device, err = true)
                         } else {
                             connectedLuids.add(hashUUID)
                         }
@@ -908,8 +908,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         )
                                                     }
                                                     .concatMap { result: Observable<android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>>> -> result }
+                                                    .doOnNext { transactionResult ->
+                                                        session.stage = transactionResult.second.nextStage
+                                                        if (transactionResult.second.nextStage == TransactionResult.STAGE_EXIT &&
+                                                                !transactionResult.second.err) {
+                                                            connection.dispose()
+                                                            connectionRaw.disconnect()
+                                                            removeConnection(device.macAddress)
+                                                        }
+                                                    }
                                                     .takeUntil { result: android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>> -> result.second.nextStage == TransactionResult.STAGE_EXIT }
-                                                    .doOnNext { transactionResult: android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>> -> session.stage = transactionResult.second.nextStage }
                                         }
                                         .takeUntil { result: android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>> -> result.second.nextStage == TransactionResult.STAGE_EXIT }
                                         .filter { pair: android.util.Pair<Optional<BootstrapRequest>, TransactionResult<BootstrapRequest>> -> pair.second.hasResult() || pair.first.isPresent }
@@ -931,12 +939,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             err.printStackTrace()
                                         }
                                         .onErrorResumeNext(Observable.never())
-                                        .doFinally {
-                                            Log.v(TAG, "stages complete, cleaning up")
-                                            connection.dispose()
-                                            connectionRaw.disconnect()
-                                            removeConnection(device.macAddress)
-                                        }
                             }
                 }
                 .doOnDispose {
