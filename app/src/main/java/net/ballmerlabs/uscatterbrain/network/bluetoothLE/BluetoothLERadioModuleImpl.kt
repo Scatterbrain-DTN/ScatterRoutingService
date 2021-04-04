@@ -101,9 +101,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         // number of channels. This can be increased or decreased for performance
         private const val NUM_CHANNELS = 8
 
-        //stores a list of nearby devices that we can connect to. Purged after a timeout
-        private val nearbyPeers = Collections.newSetFromMap(ConcurrentHashMap<RxBleDevice, Boolean>())
-
         // scatterbrain gatt service object
         val mService = BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
 
@@ -168,7 +165,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private val mGattDisposable = CompositeDisposable()
-    private val discoverDelay = 45
     private val discoveryDispoable = AtomicReference<Disposable>()
 
     //we need to cache connections because RxAndroidBle doesn't like making double GATT connections
@@ -193,14 +189,29 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
+    /*
+     * due to quirks in the way android handles bluetooth, it may be safest in some cases
+     * to restart the discovery proces entirely. This does not terminate any observables
+     * listening for transactions or scan results, but it will forcibly disconnect all currently
+     * connected devices.
+     *
+     * Note: if we aren't currently discovering forever this just terminates the current discovery
+     */
+    private fun restartScan() {
+        discoveryDispoable.get()?.dispose()
+        connectionCache.clear()
+        if (discoveryPersistent.get()) {
+            discoverOnce(true)
+        }
+    }
+
     private fun observeTransactionComplete() {
         val d = transactionCompleteRelay.subscribe(
                 {
                     Log.v(TAG, "transaction complete, randomizing luid")
                     releaseWakeLock()
                     //for safety, disconnect all devies and restart scanning after a successful transaction
-                    discoveryDispoable.get()?.dispose()
-                    discoverOnce(discoveryPersistent.get())
+                    restartScan()
                     // we need to randomize the luid every transaction or devices can be tracked
                     myLuid.set(UUID.randomUUID())
                 }
@@ -657,26 +668,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return refreshInProgresss
                 .firstOrError()
                 .flatMapCompletable { b ->
-                    when {
-                        nearbyPeers.size == 0 -> Completable.complete()
-                        b -> refreshInProgresss.takeUntil { v -> !v }
+                   if (b) refreshInProgresss.takeUntil { v -> !v }
                                 .ignoreElements()
-                        else -> Observable.fromIterable(nearbyPeers)
-                                .doOnSubscribe { refreshInProgresss.accept(true) }
-                                .map { peer ->
-                                    val dev = connectionCache[peer.macAddress]
-                                    connectionCache.remove(peer.macAddress) //invalidate cache to trigger callbacks again
-                                    if (dev != null) {
-                                        dev.dispose()
-                                        establishConnection(peer, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
-                                    } else {
-                                        establishConnection(peer, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
-
-                                    }
-                                }
-                                .ignoreElements()
-                                .andThen(awaitTransaction())
-                    }
+                   else {
+                       restartScan()
+                       awaitTransaction()
+                   }
                 }
                 .doOnError { refreshInProgresss.accept(false) }
                 .doOnComplete { refreshInProgresss.accept(false) }
@@ -696,7 +693,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .doOnError { connectionCache.remove(device.macAddress) }
                 .doOnNext {
                     Log.v(TAG, "successfully established connection")
-                    nearbyPeers.add(device)
                     Single.just(device)
                             .delay(
                                     preferences.getLong(mContext.getString(R.string.pref_peercachedelay), 10*60),
@@ -704,10 +700,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     clientScheduler
                             )
                             .subscribe(
-                                    { d ->
-                                        Log.v(TAG, "peer $device timed out, removing from nearby peer cache")
-                                        nearbyPeers.remove(d)
-                                    },
+                                    { Log.v(TAG, "peer $device timed out, removing from nearby peer cache") },
                                     { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
                             )
 
@@ -789,24 +782,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    /*
-     * discover scatterbrain devices with optional timeout
-     */
-    private fun discover(forever: Boolean): Observable<HandshakeResult> {
-        discoveryPersistent.set(forever)
-        discoverOnce(forever)
-        return observeTransactions()
-                .doOnSubscribe { disp: Disposable ->
-                    mGattDisposable.add(disp)
-                }
-    }
-
     /**
      * start device discovery forever, dispose to cancel.
      * @return observable of HandshakeResult containing transaction stats
      */
     override fun discoverForever(): Observable<HandshakeResult> {
-        return discover( true)
+        discoveryPersistent.set(true)
+        discoverOnce(true)
+        return observeTransactions()
+                .doOnSubscribe { disp: Disposable ->
+                    mGattDisposable.add(disp)
+                }
     }
 
     /**
