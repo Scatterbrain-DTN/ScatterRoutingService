@@ -13,17 +13,23 @@ import androidx.lifecycle.LifecycleService
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.*
 import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore.ACL
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.collections.ArrayList
 
 /**
  * Main foreground service class for Scatterbrain.
  */
 class ScatterRoutingService : LifecycleService() {
     private lateinit var mBackend: RoutingServiceBackend
+    private val protocolDisposableSet = Collections.newSetFromMap(ConcurrentHashMap<Disposable, Boolean>())
     private val binder: ScatterbrainAPI.Stub = object : ScatterbrainAPI.Stub() {
         private fun checkPermission(permName: String): Boolean {
             val pm = applicationContext.packageManager
@@ -153,6 +159,7 @@ class ScatterRoutingService : LifecycleService() {
         override fun sendMessage(message: ScatterMessage) {
             checkAccessPermission()
             mBackend.datastore.insertAndHashFileFromApi(ApiScatterMessage.fromApi(message), ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
+                    .doOnComplete { asyncRefreshPeers() }
                     .blockingAwait()
         }
 
@@ -191,7 +198,9 @@ class ScatterRoutingService : LifecycleService() {
                         mBackend.datastore.insertAndHashFileFromApi(
                                 ApiScatterMessage.fromApi(message, id),
                                 ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
-                    }.blockingAwait()
+                    }
+                    .doOnComplete { asyncRefreshPeers() }
+                    .blockingAwait()
         }
 
         /**
@@ -250,6 +259,7 @@ class ScatterRoutingService : LifecycleService() {
                         intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, stats)
                         sendBroadcast(intent, getString(R.string.permission_access))
                     }
+                    .doOnSuccess { asyncRefreshPeers() }
                     .blockingGet()
         }
 
@@ -359,6 +369,23 @@ class ScatterRoutingService : LifecycleService() {
     override fun onUnbind(i: Intent): Boolean {
         super.onUnbind(i)
         return true
+    }
+
+    private fun asyncRefreshPeers() {
+        val disp = AtomicReference<Disposable>()
+        val d = mBackend.radioModule.refreshPeers()
+                .doFinally {
+                    val d = disp.get()
+                    if (d != null) {
+                        protocolDisposableSet.remove(d)
+                    }
+                }
+                .subscribe(
+                { Log.v(TAG, "async refresh peers successful") },
+                { err -> Log.e(TAG, "error in async refresh peers: $err")}
+        )
+        protocolDisposableSet.add(d)
+        disp.set(d)
     }
 
     /*

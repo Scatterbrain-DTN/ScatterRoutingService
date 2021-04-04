@@ -22,7 +22,6 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.BuildConfig
@@ -103,8 +102,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         // number of channels. This can be increased or decreased for performance
         private const val NUM_CHANNELS = 8
 
+        //stores a list of nearby devices that we can connect to. Purged after a timeout
+        private val nearbyPeers = Collections.newSetFromMap(ConcurrentHashMap<RxBleDevice, Boolean>())
+
         // scatterbrain gatt service object
         val mService = BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+
+        //avoid triggering concurrent peer refreshes
+        val refreshInProgresss = BehaviorRelay.create<Boolean>()
 
         private fun incrementUUID(uuid: UUID, i: Int): UUID {
             val buffer = ByteBuffer.allocate(16)
@@ -157,6 +162,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 val channel = incrementUUID(SERVICE_UUID, i + 1)
                 channels[channel] = LockedCharactersitic(makeCharacteristic(channel), i)
             }
+            refreshInProgresss.accept(false)
         }
     }
 
@@ -165,7 +171,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val discoveryDispoable = AtomicReference<Disposable>()
 
     //we need to cache connections because RxAndroidBle doesn't like making double GATT connections
-    private val connectionCache = ConcurrentHashMap<String, Observable<CachedLEConnection>>()
+    private val connectionCache = ConcurrentHashMap<String, CachedLEConnection>()
 
     private val transactionCompleteRelay = PublishRelay.create<HandshakeResult>()
 
@@ -636,24 +642,72 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
     }
 
+    /**
+     * attempt to reinitiate a connection with all nearby peers and
+     * run another transaction. This should be called sparingly if new data is available
+     * If a refresh is already in progress this function calls oncomplete when the current
+     * refresh is complete
+     * @return completable
+     */
+    override fun refreshPeers(): Completable {
+        return refreshInProgresss
+                .flatMapCompletable { b ->
+                    if (b) refreshInProgresss.takeUntil { v -> !v }
+                                .ignoreElements()
+                    else Observable.fromIterable(nearbyPeers)
+                            .doOnSubscribe { refreshInProgresss.accept(true) }
+                            .map { peer ->
+                                val dev = connectionCache[peer.macAddress]
+                                connectionCache.remove(peer.macAddress) //invalidate cache to trigger callbacks again
+                                if (dev != null) {
+                                    dev.dispose()
+                                    establishConnection(peer, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
+                                } else {
+                                    establishConnection(peer, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
+
+                                }
+                            }
+                            .ignoreElements()
+                            .andThen(awaitTransaction())
+                }
+                .doOnError { refreshInProgresss.accept(false) }
+                .doOnComplete { refreshInProgresss.accept(false) }
+
+    }
+
     /*
      * establish a GATT connection using caching to work around RxAndroidBle quirk
      */
-    private fun establishConnection(device: RxBleDevice, timeout: Timeout): Observable<CachedLEConnection> {
+    private fun establishConnection(device: RxBleDevice, timeout: Timeout): CachedLEConnection {
         val conn = connectionCache[device.macAddress]
         if (conn != null) {
             return conn
         }
-        val subject = BehaviorSubject.create<CachedLEConnection>()
-        connectionCache[device.macAddress] = subject
-        return device.establishConnection(false, timeout)
+        val connectionObs = device.establishConnection(false, timeout)
                 .doOnDispose { connectionCache.remove(device.macAddress) }
                 .doOnError { connectionCache.remove(device.macAddress) }
-                .map { d: RxBleConnection -> CachedLEConnection(d, channels) }
-                .doOnNext { connection: CachedLEConnection ->
+                .doOnNext {
                     Log.v(TAG, "successfully established connection")
-                    subject.onNext(connection)
+                    nearbyPeers.add(device)
+                    Single.just(device)
+                            .delay(
+                                    preferences.getLong(mContext.getString(R.string.pref_peercachedelay), 10*60),
+                                    TimeUnit.SECONDS,
+                                    clientScheduler
+                            )
+                            .subscribe(
+                                    { d ->
+                                        Log.v(TAG, "peer $device timed out, removing from nearby peer cache")
+                                        nearbyPeers.remove(d)
+                                    },
+                                    { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
+                            )
+
                 }
+        val cached = CachedLEConnection(connectionObs, channels)
+        connectionCache[device.macAddress] = cached
+
+        return cached
     }
 
     /*
@@ -662,7 +716,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * This only scans for scatterbrain UUIDs
      * TODO: make sure this runs on correct scheduler
      */
-    private fun discoverOnce(): Observable<DeviceConnection> {
+    private fun discoverOnce(): Completable {
         Log.d(TAG, "discover once called")
         return mClient.scanBleDevices(
                 ScanSettings.Builder()
@@ -673,17 +727,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 ScanFilter.Builder()
                         .setServiceUuid(ParcelUuid(SERVICE_UUID))
                         .build())
-                .concatMap { scanResult: ScanResult ->
+                .map { scanResult: ScanResult ->
                     Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
                     establishConnection(
                             scanResult.bleDevice,
                             Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)
                     )
-                            .map {
-                                DeviceConnection(
-                                        scanResult.bleDevice.bluetoothDevice
-                                )
-                            }
                 /*
                  * WAIT? why are we not doing anything with our gatt connections??
                  * see the comment in startServer() for why
@@ -691,6 +740,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                 }
                 .doOnSubscribe { newValue: Disposable -> discoveryDispoable.set(newValue) }
+                .ignoreElements()
     }
 
     /*
@@ -706,7 +756,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 .retry()
                                 .doOnError { err: Throwable -> Log.e(TAG, "error with initial handshake: $err") }
                                 .subscribe(
-                                        { complete: DeviceConnection -> Log.v(TAG, "handshake completed: $complete") }
+                                        {  Log.v(TAG, "handshake completed") }
                                 ) { err: Throwable ->
                                     Log.e(TAG, """
      handshake failed: $err
@@ -835,8 +885,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                     initializeProtocol(connection.connection.device)
                             .flatMapObservable { session: LeDeviceSession ->
-                                establishConnection(device, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
-                                        .doOnError { err: Throwable -> Log.e(TAG, "error establishing reverse connection: $err")}
+                                Observable.just(establishConnection(device, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)))
                                         .flatMap { clientConnection: CachedLEConnection ->
                                             Log.v(TAG, "stating stages")
                                             /*
@@ -918,8 +967,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         mServer.closeServer()
         stopAdvertise()
     }
-
-    class DeviceConnection(val device: BluetoothDevice)
 
     /**
      * implent a locking mechanism to grant single devices tempoary

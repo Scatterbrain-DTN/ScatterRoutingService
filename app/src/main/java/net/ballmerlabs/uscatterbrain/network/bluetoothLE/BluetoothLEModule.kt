@@ -16,6 +16,7 @@ interface BluetoothLEModule {
     fun observeTransactions(): Observable<HandshakeResult>
     fun discoverWithTimeout(timeout: Int): Completable
     fun discoverForever(): Observable<HandshakeResult>
+    fun refreshPeers(): Completable
     enum class DiscoveryOptions {
         OPT_DISCOVER_ONCE, OPT_DISCOVER_FOREVER
     }
