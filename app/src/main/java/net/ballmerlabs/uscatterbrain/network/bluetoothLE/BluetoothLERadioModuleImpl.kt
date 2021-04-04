@@ -630,6 +630,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return Single.just(session) //TODO: this is ugly. Do this async
     }
 
+    private fun removeConnection(device: String) {
+        connectionCache.computeIfPresent(device) { _, value ->
+            value.dispose()
+            null
+        }
+    }
+    
     /* attempt to bootstrap to wifi direct using upgrade packet (gatt server version) */
     private fun serverBootstrapWifiDirect(session: LeDeviceSession, serverConn: CachedLEServerConnection): Single<Optional<BootstrapRequest>> {
         return if (session.role == ConnectionRole.ROLE_SEME) {
@@ -695,8 +702,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             return conn
         }
         val connectionObs = device.establishConnection(false, timeout)
-                .doOnDispose { connectionCache.remove(device.macAddress) }
-                .doOnError { connectionCache.remove(device.macAddress) }
+                .doOnDispose { removeConnection(device.macAddress) }
+                .doOnError { removeConnection(device.macAddress) }
                 .doOnNext {
                     Log.v(TAG, "successfully established connection")
                     Single.just(device)
