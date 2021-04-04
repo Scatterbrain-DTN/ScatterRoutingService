@@ -210,6 +210,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         if (discoveryPersistent.get()) {
             discoverOnce(true)
         }
+        stopServer()
+        startServer()
     }
 
     private fun observeTransactionComplete() {
