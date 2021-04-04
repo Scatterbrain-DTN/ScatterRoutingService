@@ -941,7 +941,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             Log.e(TAG, "stage " + session.stage + " error " + err)
                                             err.printStackTrace()
                                         }
-                                        .onErrorResumeNext(Observable.never())
                             }
                 }
                 .doOnDispose {
