@@ -202,6 +202,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             it.value.dispose()
         }
         connectionCache.clear()
+        connectedLuids.clear()
         discoveryDispoable.getAndUpdate { d ->
             d?.dispose()
             null
