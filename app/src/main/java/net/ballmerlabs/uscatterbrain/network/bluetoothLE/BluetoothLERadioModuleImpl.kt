@@ -199,6 +199,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     private fun restartScan() {
         discoveryDispoable.get()?.dispose()
+        connectionCache.forEach {
+            it.value.dispose()
+        }
         connectionCache.clear()
         if (discoveryPersistent.get()) {
             discoverOnce(true)
