@@ -141,29 +141,27 @@ class ElectLeaderPacket private constructor(builder: Builder) : ScatterSerializa
     val hash: ByteArray
         get() = mElectLeader!!.valHash.toByteArray()
 
-    class Builder {
-        var enableHashing = false
-        var hashVal: ByteString? = null
-        var provides: AdvertisePacket.Provides? = null
-        var tiebreaker: UUID? = null
-        fun enableHashing(): Builder {
+    data class Builder(
+            var enableHashing: Boolean = false,
+            var hashVal: ByteString? = null,
+            var provides: AdvertisePacket.Provides? = null,
+            var tiebreaker: UUID? = null,
+    ) {
+
+        fun enableHashing() = apply {
             enableHashing = true
-            return this
         }
 
-        fun setProvides(provides: AdvertisePacket.Provides): Builder {
+        fun setProvides(provides: AdvertisePacket.Provides) = apply {
             this.provides = provides
-            return this
         }
 
-        fun setTiebreaker(tiebreaker: UUID): Builder {
+        fun setTiebreaker(tiebreaker: UUID) = apply {
             this.tiebreaker = tiebreaker
-            return this
         }
 
-        fun setHash(hash: ByteString): Builder {
+        fun setHash(hash: ByteString) = apply {
             this.hashVal = hash
-            return this
         }
 
         fun build(): ElectLeaderPacket {

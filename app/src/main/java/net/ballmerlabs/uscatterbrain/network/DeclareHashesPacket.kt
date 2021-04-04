@@ -61,25 +61,23 @@ class DeclareHashesPacket private constructor(builder: Builder) : ScatterSeriali
             return r
         }
 
-    class Builder {
-        var hashes: ArrayList<ByteString> = ArrayList()
-        var optout = false
-        fun setHashes(hashes: List<ByteString>): Builder {
+    data class Builder(
+            var hashes: ArrayList<ByteString> = ArrayList(),
+            var optout: Boolean = false,
+    ) {
+        fun setHashes(hashes: List<ByteString>) = apply {
             this.hashes.addAll(hashes)
-            return this
         }
 
-        fun setHashesByte(hashes: List<ByteArray>): Builder {
+        fun setHashesByte(hashes: List<ByteArray>) = apply {
             this.hashes = ArrayList()
             for (bytes in hashes) {
                 this.hashes.add(ByteString.copyFrom(bytes))
             }
-            return this
         }
 
-        fun optOut(): Builder {
+        fun optOut() = apply {
             optout = true
-            return this
         }
 
         fun build(): DeclareHashesPacket {

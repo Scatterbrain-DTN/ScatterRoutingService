@@ -72,28 +72,21 @@ class AdvertisePacket private constructor(builder: Builder) : ScatterSerializabl
     /**
      * builder for advertise packet
      */
-    class Builder
+    data class Builder(
+            var provides: List<Provides>? = null
+    )
     /**
      * Instantiates a new Builder.
      */
     {
-        /**
-         * Gets provides.
-         *
-         * @return the provides
-         */
-        var provides: List<Provides>? = null
-            private set
-
         /**
          * Sets provides.
          *
          * @param provides scatterbrain provides enum
          * @return builder
          */
-        fun setProvides(provides: List<Provides>?): Builder {
+        fun setProvides(provides: List<Provides>?) = apply {
             this.provides = provides
-            return this
         }
 
         /**

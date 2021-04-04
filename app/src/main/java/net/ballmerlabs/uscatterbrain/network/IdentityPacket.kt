@@ -41,7 +41,7 @@ class IdentityPacket private constructor(builder: Builder) :
 
 
     init {
-        val sig = builder.getSig()
+        val sig = builder.sig
         if (sig != null) {
             this.sig.set(ByteString.copyFrom(sig))
         }
@@ -210,55 +210,46 @@ class IdentityPacket private constructor(builder: Builder) :
         return sig.get()!!.toByteArray()
     }
 
-    class Builder(val context: Context) {
-        var mPubKeymap: MutableMap<String, ByteString> = TreeMap()
-        var scatterbrainPubkey: ByteArray? = null
-            private set
-        private var mGenerateKeypair = false
-        var name: String? = null
-            private set
-        private var mSig: ByteArray? = null
-        var gone = false
+    data class Builder(
+            val context: Context,
+            var pubkeyMap: MutableMap<String, ByteString> = TreeMap(),
+            var scatterbrainPubkey: ByteArray? = null,
+            var generateKeypair: Boolean = false,
+            var name: String? = null,
+            var sig: ByteArray? = null,
+            var gone: Boolean = false
+            ) {
 
         fun ismGenerateKeypair(): Boolean {
-            return mGenerateKeypair
+            return generateKeypair
         }
 
-        fun getSig(): ByteArray? {
-            return mSig
-        }
-
-        fun setEnd(): Builder {
+        fun setEnd() = apply {
             gone = true
-            return this
         }
 
-        fun setEnd(end: Boolean): Builder {
+        fun setEnd(end: Boolean) = apply {
             gone = end
-            return this
         }
 
-        fun setName(name: String): Builder {
+        fun setName(name: String) = apply {
             this.name = name
-            return this
         }
 
-        fun setSig(sig: ByteArray): Builder {
-            mSig = sig
-            return this
+        fun setSig(sig: ByteArray) = apply {
+            this.sig = sig
         }
 
-        fun setScatterbrainPubkey(pubkey: ByteString): Builder {
+        fun setScatterbrainPubkey(pubkey: ByteString) = apply {
             scatterbrainPubkey = pubkey.toByteArray()
-            return this
         }
 
         fun build(): IdentityPacket? {
             if (!gone) {
-                if (scatterbrainPubkey == null && !mGenerateKeypair) {
+                if (scatterbrainPubkey == null && !generateKeypair) {
                     return null
                 }
-                if (scatterbrainPubkey != null && mGenerateKeypair) {
+                if (scatterbrainPubkey != null && generateKeypair) {
                     return null
                 }
                 if (name == null) {
@@ -313,7 +304,7 @@ class IdentityPacket private constructor(builder: Builder) :
             val identity = CRCProtobuf.parseFromCRC(ScatterProto.Identity.parser(), inputstream)
             val builder = Builder(context)
             if (identity!!.messageCase == ScatterProto.Identity.MessageCase.VAL) {
-                builder.mPubKeymap = identity.getVal().keysMap
+                builder.pubkeyMap = identity.getVal().keysMap
                 builder.setSig(identity.getVal().sig.toByteArray())
                 builder.setName(identity.getVal().givenname)
                 val scatterbrainKey = identity.getVal().keysMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]

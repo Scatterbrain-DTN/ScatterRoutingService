@@ -29,9 +29,9 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
 
 
     init {
-        mSequenceNumber = builder.getmSequenceNumber()
-        val d = builder.getmData()
-        mDataOnDisk = builder.getmDataOnDisk()
+        mSequenceNumber = builder.sequenceNumber
+        val d = builder.data
+        mDataOnDisk = builder.dataOnDisk
         val tmpbuilder = BlockSequence.newBuilder()
         if (d != null) {
             tmpbuilder.dataContents = d
@@ -163,15 +163,16 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
     /**
      * Builder class for BlockSequencePacket
      */
-    class Builder
+    data class Builder(
+            var sequenceNumber: Int = 0,
+            var data: ByteString? = null,
+            val dataOnDisk: File? = null,
+            var onDisk: Boolean = false
+    )
     /**
      * Instantiates a new Builder.
      */
     {
-        private var mSequenceNumber = 0
-        private var mData: ByteString? = null
-        private val mDataOnDisk: File? = null
-        private val mOnDisk = false
 
         /**
          * Sets sequence number.
@@ -179,9 +180,8 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
          * @param sequenceNumber the sequence number
          * @return the sequence number
          */
-        fun setSequenceNumber(sequenceNumber: Int): Builder {
-            mSequenceNumber = sequenceNumber
-            return this
+        fun setSequenceNumber(sequenceNumber: Int) = apply {
+            this.sequenceNumber = sequenceNumber
         }
 
         /**
@@ -190,9 +190,8 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
          * @param data the data
          * @return the data
          */
-        fun setData(data: ByteString?): Builder {
-            mData = data
-            return this
+        fun setData(data: ByteString?) = apply {
+            this.data = data
         }
 
         /**
@@ -202,33 +201,6 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
          */
         fun build(): BlockSequencePacket {
             return BlockSequencePacket(this)
-        }
-
-        /**
-         * Gets sequence number.
-         *
-         * @return the sequence number
-         */
-        fun getmSequenceNumber(): Int {
-            return mSequenceNumber
-        }
-
-        /**
-         * Gets data.
-         *
-         * @return the data
-         */
-        fun getmData(): ByteString? {
-            return mData
-        }
-
-        /**
-         * Gets file to write packet to
-         *
-         * @return file object
-         */
-        fun getmDataOnDisk(): File? {
-            return mDataOnDisk
         }
     }
 

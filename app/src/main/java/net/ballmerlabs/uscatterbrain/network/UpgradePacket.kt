@@ -88,23 +88,11 @@ class UpgradePacket : ScatterSerializable {
     /**
      * The type Builder.
      */
-    class Builder {
-        /**
-         * Gets session id.
-         *
-         * @return the session id
-         */
-        var sessionID = 0
-            private set
-
-        /**
-         * Gets provies.
-         *
-         * @return provides
-         */
-        var provides: AdvertisePacket.Provides? = null
-            private set
-        var metadata: Map<String, String>? = null
+    data class Builder(
+            var sessionID: Int = 0,
+            var provides: AdvertisePacket.Provides? = null,
+            var metadata: Map<String, String>? = null
+    ) {
 
         /**
          * Sets session id.
@@ -112,9 +100,8 @@ class UpgradePacket : ScatterSerializable {
          * @param sessionID the session id
          * @return builder
          */
-        fun setSessionID(sessionID: Int): Builder {
+        fun setSessionID(sessionID: Int) = apply {
             this.sessionID = sessionID
-            return this
         }
 
         /**
@@ -123,14 +110,12 @@ class UpgradePacket : ScatterSerializable {
          * @param provides the provides
          * @return builder
          */
-        fun setProvides(provides: AdvertisePacket.Provides?): Builder {
+        fun setProvides(provides: AdvertisePacket.Provides?) = apply {
             this.provides = provides
-            return this
         }
 
-        fun setMetadata(metadata: Map<String, String>?): Builder {
+        fun setMetadata(metadata: Map<String, String>?) = apply {
             this.metadata = metadata
-            return this
         }
 
         /**

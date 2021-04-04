@@ -89,18 +89,17 @@ class RoutingMetadataPacket : ScatterSerializable {
         this.luid = luid
     }
 
-    class Builder {
-        private val map: MutableMap<UUID, ByteArray> = HashMap()
-        var empty = false
-        var uuid: UUID? = null
-        fun addMetadata(map: Map<UUID, ByteArray>?): Builder {
+    data class Builder(
+            val map: MutableMap<UUID, ByteArray> = HashMap(),
+            var empty: Boolean = false,
+            var uuid: UUID? = null
+    ) {
+        fun addMetadata(map: Map<UUID, ByteArray>?) = apply {
             this.map.putAll(map!!)
-            return this
         }
 
-        fun setEmpty(): Builder {
+        fun setEmpty() = apply {
             empty = true
-            return this
         }
 
         fun build(): RoutingMetadataPacket {

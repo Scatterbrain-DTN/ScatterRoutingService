@@ -105,7 +105,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
         application = builder.application
         sessionID = builder.sessionid
         toDisk = builder.toDisk
-        mBlocksize = builder.blockSizeVal
+        mBlocksize = builder.blockSizeVal!!
         mime = builder.mime
         val b = BlockData.newBuilder()
         if (builder.filename == null) {
@@ -275,52 +275,21 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
     /**
      * The type Builder.
      */
-    class Builder {
-        /**
-         * Gets to disk.
-         *
-         * @return the to disk
-         */
-        var toDisk = false
-            private set
+    data class Builder(
+            var toDisk: Boolean = false,
+            var application: ByteArray? = null,
+            var sessionid: Int? = null,
+            var blockSizeVal: Int? = null,
+            var mToFingerprint: ByteArray? = null,
+            var mFromFingerprint: ByteArray? = null,
+            var extensionVal: String = "",
+            var hashlist: List<ByteString>? = null,
+            var sig: ByteArray? = null,
+            var filename: String? = null,
+            var mime: String? = null,
+            var endofstream: Boolean = false,
 
-        /**
-         * Get application name (in UTF-8).
-         *
-         * @return the byte [ ]
-         */
-        var application: ByteArray? = null
-            private set
-
-        /**
-         * Gets sessionid.
-         *
-         * @return the sessionid
-         */
-        var sessionid: Int
-            private set
-
-        /**
-         * Gets blocksize
-         * @return blocksize
-         */
-        var blockSizeVal: Int
-        private var mToFingerprint: ByteArray? = null
-        private var mFromFingerprint: ByteArray? = null
-        var extensionVal: String = ""
-
-        /**
-         * Gets hashlist.
-         *
-         * @return the hashlist
-         */
-        var hashlist: List<ByteString>? = null
-            private set
-        var sig: ByteArray? = null
-            private set
-        var filename: String? = null
-        var mime: String?
-        var endofstream = false
+    ) {
 
         /**
          * Sets the fingerprint for the recipient.
@@ -328,9 +297,8 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @param toFingerprint the to fingerprint
          * @return builder
          */
-        fun setToFingerprint(toFingerprint: ByteArray?): Builder {
+        fun setToFingerprint(toFingerprint: ByteArray?) = apply {
             mToFingerprint = toFingerprint
-            return this
         }
 
         /**
@@ -339,9 +307,8 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @param fromFingerprint sets the fingerprint for the sender
          * @return builder
          */
-        fun setFromFingerprint(fromFingerprint: ByteArray?): Builder {
+        fun setFromFingerprint(fromFingerprint: ByteArray?) = apply {
             mFromFingerprint = fromFingerprint
-            return this
         }
 
         /**
@@ -350,9 +317,8 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @param application bytes for UTF encoded scatterbrain application string
          * @return builder
          */
-        fun setApplication(application: ByteArray): Builder {
+        fun setApplication(application: ByteArray) = apply {
             this.application = application
-            return this
         }
         /**
          * Sets to disk.
@@ -360,9 +326,8 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @param toDisk whether to write this file to disk or attempt to store it in the database
          * @return builder
          */
-        fun setToDisk(toDisk: Boolean): Builder {
+        fun setToDisk(toDisk: Boolean) = apply {
             this.toDisk = toDisk
-            return this
         }
 
         /**
@@ -371,9 +336,8 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @param sessionID the session id (used for upgrading between protocols)
          * @return builder
          */
-        fun setSessionID(sessionID: Int): Builder {
+        fun setSessionID(sessionID: Int) = apply {
             sessionid = sessionID
-            return this
         }
 
         /**
@@ -382,9 +346,8 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @param hashes list of hashes of following blocksequence packets.
          * @return builder
          */
-        fun setHashes(hashes: List<ByteString>): Builder {
+        fun setHashes(hashes: List<ByteString>) = apply {
             hashlist = hashes
-            return this
         }
 
         /**
@@ -392,9 +355,8 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @param ext: string file extension
          * @return builder
          */
-        fun setExtension(ext: String): Builder {
+        fun setExtension(ext: String) = apply {
             this.extensionVal = ext
-            return this
         }
 
         /**
@@ -402,29 +364,24 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          * @param blockSize
          * @return builder
          */
-        fun setBlockSize(blockSize: Int): Builder {
+        fun setBlockSize(blockSize: Int) = apply {
             this.blockSizeVal = blockSize
-            return this
         }
 
-        fun setSig(sig: ByteArray?): Builder {
+        fun setSig(sig: ByteArray?) = apply {
             this.sig = sig
-            return this
         }
 
-        fun setMime(mime: String): Builder {
+        fun setMime(mime: String) = apply {
             this.mime = mime
-            return this
         }
 
-        fun setEndOfStream(): Builder {
+        fun setEndOfStream() = apply {
             endofstream = true
-            return this
         }
 
-        fun setFilename(filename: String?): Builder {
+        fun setFilename(filename: String?) = apply {
             this.filename = filename
-            return this
         }
 
         /**
@@ -438,10 +395,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
 
                 // fingerprints and application are required
                 requireNotNull(application) { "application was null" }
-                if (extensionVal == null) {
-                    extensionVal = ".data"
-                }
-                if (blockSizeVal <= 0) {
+                if (blockSizeVal!! <= 0) {
                     val e = IllegalArgumentException("blocksize not set")
                     e.printStackTrace()
                     throw e

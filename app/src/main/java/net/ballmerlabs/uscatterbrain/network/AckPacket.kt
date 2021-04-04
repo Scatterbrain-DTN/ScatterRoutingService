@@ -78,17 +78,17 @@ class AckPacket private constructor(builder: Builder)  : ScatterSerializable {
     val status: Status
         get() = proto2status(mAck!!.status)
 
-    class Builder {
-        var message: String? = null
-        var status: Status? = null
-        fun setMessage(message: String?): Builder {
+    data class Builder(
+            var message: String? = null,
+            var status: Status? = null,
+    ) {
+
+        fun setMessage(message: String?) = apply {
             this.message = message
-            return this
         }
 
-        fun setStatus(status: Status?): Builder {
+        fun setStatus(status: Status?) = apply {
             this.status = status
-            return this
         }
 
         fun build(): AckPacket {

@@ -134,19 +134,18 @@ class LuidPacket : ScatterSerializable {
     override val luid: UUID
         get() = protoUUIDtoUUID(mLuid.valUuid)
 
-    class Builder {
-        var uuid: UUID? = null
-        var enablehash = false
-        var version = -1
-        fun enableHashing(protoversion: Int): Builder {
+    data class Builder(
+            var uuid: UUID? = null,
+            var enablehash: Boolean = false,
+            var version: Int = -1
+    ) {
+        fun enableHashing(protoversion: Int) = apply {
             enablehash = true
             version = protoversion
-            return this
         }
 
-        fun setLuid(uuid: UUID?): Builder {
+        fun setLuid(uuid: UUID?) = apply {
             this.uuid = uuid
-            return this
         }
 
         fun build(): LuidPacket {
