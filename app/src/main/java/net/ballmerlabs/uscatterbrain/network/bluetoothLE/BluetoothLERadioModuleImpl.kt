@@ -652,23 +652,26 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun refreshPeers(): Completable {
         return refreshInProgresss
                 .flatMapCompletable { b ->
-                    if (b) refreshInProgresss.takeUntil { v -> !v }
+                    when {
+                        nearbyPeers.size == 0 -> Completable.complete()
+                        b -> refreshInProgresss.takeUntil { v -> !v }
                                 .ignoreElements()
-                    else Observable.fromIterable(nearbyPeers)
-                            .doOnSubscribe { refreshInProgresss.accept(true) }
-                            .map { peer ->
-                                val dev = connectionCache[peer.macAddress]
-                                connectionCache.remove(peer.macAddress) //invalidate cache to trigger callbacks again
-                                if (dev != null) {
-                                    dev.dispose()
-                                    establishConnection(peer, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
-                                } else {
-                                    establishConnection(peer, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
+                        else -> Observable.fromIterable(nearbyPeers)
+                                .doOnSubscribe { refreshInProgresss.accept(true) }
+                                .map { peer ->
+                                    val dev = connectionCache[peer.macAddress]
+                                    connectionCache.remove(peer.macAddress) //invalidate cache to trigger callbacks again
+                                    if (dev != null) {
+                                        dev.dispose()
+                                        establishConnection(peer, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
+                                    } else {
+                                        establishConnection(peer, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS))
 
+                                    }
                                 }
-                            }
-                            .ignoreElements()
-                            .andThen(awaitTransaction())
+                                .ignoreElements()
+                                .andThen(awaitTransaction())
+                    }
                 }
                 .doOnError { refreshInProgresss.accept(false) }
                 .doOnComplete { refreshInProgresss.accept(false) }
