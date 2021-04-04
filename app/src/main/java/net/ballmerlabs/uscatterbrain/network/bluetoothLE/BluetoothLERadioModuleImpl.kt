@@ -934,6 +934,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         .doFinally {
                                             Log.v(TAG, "stages complete, cleaning up")
                                             connection.dispose()
+                                            connectionRaw.disconnect()
+                                            removeConnection(device.macAddress)
                                         }
                             }
                 }
