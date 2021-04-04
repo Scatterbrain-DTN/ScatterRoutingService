@@ -17,7 +17,8 @@ class RoutingServiceBackendImpl @Inject constructor(
         override val datastore: ScatterbrainDatastore,
         override val radioModule: BluetoothLEModule,
         override val scheduler: ScatterbrainScheduler,
-        override val wifiDirect: WifiDirectRadioModule
+        override val wifiDirect: WifiDirectRadioModule,
+        override val prefs: RouterPreferences
 ) : RoutingServiceBackend {
     companion object {
         const val TAG = "RoutingServiceBackend"

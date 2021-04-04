@@ -14,6 +14,7 @@
     <string name="pref_blockdatacap">blockdatacap</string>
     <string name="pref_powersave">powersave_mode</string>
     <string name="pref_peercachedelay">peercachedelay</string>
+    <string name="pref_transactiontimeout">transactiontimeout</string>
     <string name="pref_incognito">incognito</string>
     <string name="powersave_active">active</string>
     <string name="powersave_passive">passive</string>

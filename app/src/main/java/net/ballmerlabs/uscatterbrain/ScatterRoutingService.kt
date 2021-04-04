@@ -21,6 +21,7 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore.ACL
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.collections.ArrayList
 
@@ -374,6 +375,13 @@ class ScatterRoutingService : LifecycleService() {
     private fun asyncRefreshPeers() {
         val disp = AtomicReference<Disposable>()
         val d = mBackend.radioModule.refreshPeers()
+                .timeout(
+                        mBackend.prefs.getLong(
+                                getString(R.string.pref_transactiontimeout),
+                                RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
+                        ),
+                        TimeUnit.SECONDS
+                )
                 .doFinally {
                     val d = disp.get()
                     if (d != null) {
