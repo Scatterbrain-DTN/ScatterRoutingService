@@ -29,7 +29,6 @@ import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.DiscoveryOptions
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -110,6 +109,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
         //avoid triggering concurrent peer refreshes
         val refreshInProgresss = BehaviorRelay.create<Boolean>()
+        
+        val discoveryPersistent = AtomicReference(false)
 
         private fun incrementUUID(uuid: UUID, i: Int): UUID {
             val buffer = ByteBuffer.allocate(16)
@@ -197,6 +198,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 {
                     Log.v(TAG, "transaction complete, randomizing luid")
                     releaseWakeLock()
+                    //for safety, disconnect all devies and restart scanning after a successful transaction
+                    discoveryDispoable.get()?.dispose()
+                    discoverOnce(discoveryPersistent.get())
                     // we need to randomize the luid every transaction or devices can be tracked
                     myLuid.set(UUID.randomUUID())
                 }
@@ -720,81 +724,81 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * This only scans for scatterbrain UUIDs
      * TODO: make sure this runs on correct scheduler
      */
-    private fun discoverOnce(): Completable {
+    private fun discoverOnce(forever: Boolean): Disposable {
         Log.d(TAG, "discover once called")
-        return mClient.scanBleDevices(
-                ScanSettings.Builder()
-                        .setScanMode(parseScanMode())
-                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .setShouldCheckLocationServicesState(true)
-                        .build(),
-                ScanFilter.Builder()
-                        .setServiceUuid(ParcelUuid(SERVICE_UUID))
-                        .build())
-                .map { scanResult: ScanResult ->
-                    Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
-                    establishConnection(
-                            scanResult.bleDevice,
-                            Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)
-                    )
-                /*
-                 * WAIT? why are we not doing anything with our gatt connections??
-                 * see the comment in startServer() for why
-                 */
+        return discoveryDispoable.updateAndGet{
+            d ->
+            if (d != null) d
+            else {
+                val newd = mClient.scanBleDevices(
+                        ScanSettings.Builder()
+                                .setScanMode(parseScanMode())
+                                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                                .setShouldCheckLocationServicesState(true)
+                                .build(),
+                        ScanFilter.Builder()
+                                .setServiceUuid(ParcelUuid(SERVICE_UUID))
+                                .build())
+                        .map { scanResult: ScanResult ->
+                            Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
+                            establishConnection(
+                                    scanResult.bleDevice,
+                                    Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)
+                            )
+                            /*
+                             * WAIT? why are we not doing anything with our gatt connections??
+                             * see the comment in startServer() for why
+                             */
 
+                        }
+                        .ignoreElements()
+                        .repeat()
+                        .retry()
+                        .doOnError { err: Throwable -> Log.e(TAG, "error with initial handshake: $err") }
+                        .subscribe(
+                                { Log.v(TAG, "handshake completed") },
+                                { err: Throwable ->
+                                    Log.e(TAG, """
+                                handshake failed: $err
+                                ${Arrays.toString(err.stackTrace)}
+                                """.trimIndent())
+                                }
+                        )
+                if (!forever) {
+                    val timeoutDisp = Completable.fromAction {}
+                            .delay(
+                                    preferences.getLong(
+                                            mContext.getString(R.string.pref_transactiontimeout),
+                                            RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT),
+                                    TimeUnit.SECONDS
+                            )
+                            .subscribe(
+                                    {
+                                        Log.v(TAG, "scan timed out")
+                                        discoveryDispoable.getAndUpdate { compositeDisposable: Disposable? ->
+                                            compositeDisposable?.dispose()
+                                            null
+                                        }
+                                    }
+                            ) { err: Throwable -> Log.e(TAG, "error while timing out scan: $err") }
+                    mGattDisposable.add(timeoutDisp)
                 }
-                .doOnSubscribe { newValue: Disposable -> discoveryDispoable.set(newValue) }
-                .ignoreElements()
+                newd
+            }
+
+        }
     }
 
     /*
      * discover scatterbrain devices with optional timeout
      */
-    private fun discover(timeout: Int, forever: Boolean): Observable<HandshakeResult> {
+    private fun discover(forever: Boolean): Observable<HandshakeResult> {
+        discoveryPersistent.set(forever)
+        discoverOnce(forever)
         return observeTransactions()
-                .doOnSubscribe { disp: Disposable? ->
-                    if (powerSave != mContext.getString(R.string.powersave_passive)) {
-                        mGattDisposable.add(disp!!)
-                        val d = discoverOnce()
-                                .repeat()
-                                .retry()
-                                .doOnError { err: Throwable -> Log.e(TAG, "error with initial handshake: $err") }
-                                .subscribe(
-                                        {  Log.v(TAG, "handshake completed") }
-                                ) { err: Throwable ->
-                                    Log.e(TAG, """
-     handshake failed: $err
-     ${Arrays.toString(err.stackTrace)}
-     """.trimIndent())
-                                }
-                        if (!forever) {
-                            val timeoutDisp = Completable.fromAction {}
-                                    .delay(timeout.toLong(), TimeUnit.SECONDS)
-                                    .subscribe(
-                                            {
-                                                Log.v(TAG, "scan timed out")
-                                                discoveryDispoable.getAndUpdate { compositeDisposable: Disposable? ->
-                                                    compositeDisposable?.dispose()
-                                                    null
-                                                }
-                                            }
-                                    ) { err: Throwable -> Log.e(TAG, "error while timing out scan: $err") }
-                            mGattDisposable.add(timeoutDisp)
-                        }
-                        mGattDisposable.add(d)
-                    }
+                .doOnSubscribe { disp: Disposable ->
+                    mGattDisposable.add(disp)
                 }
-    }
-
-    /**
-     * start device disovery once with timeout
-     * @param timeout
-     * @return completable
-     */
-    override fun discoverWithTimeout(timeout: Int): Completable {
-        return discover(timeout, false)
-                .firstOrError()
-                .ignoreElement()
     }
 
     /**
@@ -802,19 +806,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * @return observable of HandshakeResult containing transaction stats
      */
     override fun discoverForever(): Observable<HandshakeResult> {
-        return discover(0, true)
-    }
-
-    /**
-     * discover with options emum. For compatability reasons
-     * @param options
-     * @return disposable to cancel scan
-     */
-    override fun startDiscover(options: DiscoveryOptions): Disposable {
-        return discover(discoverDelay, options == DiscoveryOptions.OPT_DISCOVER_FOREVER)
-                .subscribe(
-                        { Log.v(TAG, "discovery completed") }
-                ) { err: Throwable -> Log.v(TAG, "discovery failed: $err") }
+        return discover( true)
     }
 
     /**
@@ -841,6 +833,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * kill current scan in progress
      */
     override fun stopDiscover() {
+        discoveryPersistent.set(false)
         val d = discoveryDispoable.get()
         d?.dispose()
     }
