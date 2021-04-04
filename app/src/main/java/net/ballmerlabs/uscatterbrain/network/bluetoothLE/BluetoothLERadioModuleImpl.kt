@@ -198,11 +198,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * Note: if we aren't currently discovering forever this just terminates the current discovery
      */
     private fun restartScan() {
-        discoveryDispoable.get()?.dispose()
         connectionCache.forEach {
             it.value.dispose()
         }
         connectionCache.clear()
+        discoveryDispoable.getAndUpdate { d ->
+            d?.dispose()
+            null
+        }
         if (discoveryPersistent.get()) {
             discoverOnce(true)
         }
