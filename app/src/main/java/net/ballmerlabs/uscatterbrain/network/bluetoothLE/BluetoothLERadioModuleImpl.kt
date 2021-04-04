@@ -651,6 +651,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun refreshPeers(): Completable {
         return refreshInProgresss
+                .firstOrError()
                 .flatMapCompletable { b ->
                     when {
                         nearbyPeers.size == 0 -> Completable.complete()
