@@ -258,8 +258,8 @@ class ScatterRoutingService : LifecycleService() {
                         val intent = Intent(getString(R.string.broadcast_message))
                         intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, stats)
                         sendBroadcast(intent, getString(R.string.permission_access))
+                        asyncRefreshPeers()
                     }
-                    .doOnSuccess { asyncRefreshPeers() }
                     .blockingGet()
         }
 
