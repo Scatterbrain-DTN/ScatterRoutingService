@@ -955,6 +955,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.e(TAG, "gatt server shut down with error: $err")
                     err.printStackTrace()
                 }
+                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                 .retry()
                 .repeat()
                 .doOnNext { releaseWakeLock() }
