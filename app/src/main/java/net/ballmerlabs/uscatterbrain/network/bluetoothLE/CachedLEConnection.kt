@@ -61,6 +61,7 @@ class CachedLEConnection(
 
                 }
                 .ignoreElements()
+                .onErrorComplete() //We can swallow errors here since indications are enabled already if failed
                 .doOnComplete { Log.v(TAG, "all notifications enabled")}
     }
 
