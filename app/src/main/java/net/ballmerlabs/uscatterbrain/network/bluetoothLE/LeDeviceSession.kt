@@ -39,6 +39,7 @@ class LeDeviceSession(val device: BluetoothDevice, luid: AtomicReference<UUID>) 
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities
     val votingStage: VotingStage = VotingStage() //determine if an upgrade takes place
     var upgradeStage: UpgradeStage? = null //possibly upgrade to new transport
+    var peerLuid: UUID? = null
     private val transactionMap = ConcurrentHashMap<String, Pair<ClientTransaction, ServerTransaction>>()
     private val stageChanges = BehaviorSubject.create<String?>()
     val luidMap = ConcurrentHashMap<String, UUID>()
