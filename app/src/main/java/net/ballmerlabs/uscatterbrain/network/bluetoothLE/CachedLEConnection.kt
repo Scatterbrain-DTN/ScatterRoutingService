@@ -4,8 +4,10 @@ import android.content.Context
 import android.util.Log
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
+import com.polidea.rxandroidble2.Timeout
 import io.reactivex.Completable
 import io.reactivex.Observable
+import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
@@ -25,11 +27,13 @@ import java.util.concurrent.TimeUnit
  */
 class CachedLEConnection(
         private val connectionObservable: Observable<RxBleConnection>,
-        private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>
+        private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
+        private val scheduler: Scheduler
         ) : Disposable {
     private val disposable = CompositeDisposable()
     private val enabled = CompletableSubject.create()
     private val connection = BehaviorSubject.create<RxBleConnection>()
+    private val timeout: Long = 5
 
     init {
         premptiveEnable().subscribe(enabled)
@@ -108,34 +112,51 @@ class CachedLEConnection(
 
     fun readAdvertise(): Single<AdvertisePacket> {
         return AdvertisePacket.parseFrom(cachedNotification())
+                .subscribeOn(scheduler)
+                .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readUpgrade(): Single<UpgradePacket> {
         return UpgradePacket.parseFrom(cachedNotification())
+                .subscribeOn(scheduler)
+                .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readBlockHeader(): Single<BlockHeaderPacket> {
         return BlockHeaderPacket.parseFrom(cachedNotification())
+                .subscribeOn(scheduler)
+                .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readBlockSequence(): Single<BlockSequencePacket> {
         return BlockSequencePacket.parseFrom(cachedNotification())
+                .subscribeOn(scheduler)
+                .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readDeclareHashes(): Single<DeclareHashesPacket> {
         return DeclareHashesPacket.parseFrom(cachedNotification())
+                .subscribeOn(scheduler)
+                .timeout(timeout, TimeUnit.SECONDS, scheduler)
+
     }
 
     fun readElectLeader(): Single<ElectLeaderPacket> {
         return ElectLeaderPacket.parseFrom(cachedNotification())
+                .subscribeOn(scheduler)
+                .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readIdentityPacket(context: Context): Single<IdentityPacket> {
         return IdentityPacket.parseFrom(cachedNotification(), context)
+                .subscribeOn(scheduler)
+                .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readLuid(): Single<LuidPacket> {
         return LuidPacket.parseFrom(cachedNotification())
+                .subscribeOn(scheduler)
+                .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     override fun dispose() {

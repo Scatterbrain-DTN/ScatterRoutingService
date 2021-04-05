@@ -5,10 +5,8 @@ import android.util.Log
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleServerConnection
 import com.polidea.rxandroidble2.ServerResponseTransaction
-import io.reactivex.BackpressureStrategy
-import io.reactivex.Completable
+import io.reactivex.*
 import io.reactivex.Observable
-import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
@@ -23,7 +21,11 @@ import java.util.concurrent.atomic.AtomicReference
  * Wraps an RxBleServerConnection and provides channel locking and a convenient interface to
  * serialize protobuf messages via indications.
  */
-class CachedLEServerConnection(val connection: RxBleServerConnection, private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>) : Disposable {
+class CachedLEServerConnection(
+        val connection: RxBleServerConnection,
+        private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
+        private  val scheduler: Scheduler
+        ) : Disposable {
     private val disposable = CompositeDisposable()
     private val packetQueue = PublishRelay.create<ScatterSerializable>()
     private val sizeRelay = PublishRelay.create<Int>()
@@ -132,8 +134,14 @@ class CachedLEServerConnection(val connection: RxBleServerConnection, private va
                             .firstOrError()
                             .timeout(5, TimeUnit.SECONDS)
                             .flatMapCompletable { trans -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null) }
-                            .andThen(connection.setupIndication(ch.uuid, packet.writeToStream(20)))
+                            .andThen(connection.setupIndication(
+                                    ch.uuid,
+                                    packet.writeToStream(20)
+                                            .subscribeOn(scheduler)
+                            ))
+                            .timeout(30, TimeUnit.SECONDS, scheduler)
                             .doOnError(errorRelay)
+                            .onErrorComplete()
                             .doFinally {
                                 sizeRelay.accept(decrementSize())
                                 ch.release()

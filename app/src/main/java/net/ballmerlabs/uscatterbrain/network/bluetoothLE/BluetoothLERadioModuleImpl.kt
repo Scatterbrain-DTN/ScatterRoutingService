@@ -723,7 +723,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             )
 
                 }
-        val cached = CachedLEConnection(connectionObs, channels)
+        val cached = CachedLEConnection(connectionObs, channels, clientScheduler)
         connectionCache[device.macAddress] = cached
 
         return cached
@@ -870,7 +870,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .doOnError { Log.e(TAG, "failed to open server") }
                 .concatMap { connectionRaw: RxBleServerConnection ->
                     // wrap connection in CachedLeServiceConnection for convenience
-                    val connection = CachedLEServerConnection(connectionRaw, channels)
+                    val connection = CachedLEServerConnection(connectionRaw, channels, clientScheduler)
 
                     // gatt server library doesn't give us a handle to RxBleDevice so we look it up manually
                     val device = mClient.getBleDevice(connection.connection.device.address)

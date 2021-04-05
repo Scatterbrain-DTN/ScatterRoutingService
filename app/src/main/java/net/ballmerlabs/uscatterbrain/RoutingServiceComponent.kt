@@ -133,7 +133,7 @@ interface RoutingServiceComponent {
             @Provides
             @Named(NamedSchedulers.BLE_CLIENT)
             fun provideBleClientScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
             }
 
             @JvmStatic
