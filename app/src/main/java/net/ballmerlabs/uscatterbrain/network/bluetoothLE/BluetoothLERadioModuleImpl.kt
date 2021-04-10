@@ -333,28 +333,26 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             Log.v(TAG, "gatt client luid hashed stage")
             conn.readLuid()
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
+                    .observeOn(clientScheduler)
                     .map { luidPacket: LuidPacket ->
                         if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
                             Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device,  luidPacket.hashAsUUID)
+                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
                         }
 
+                        val hashUUID = luidPacket.hashAsUUID
                         Log.e("debug", "version: ${luidPacket.protoVersion} hash ${luidPacket.hashAsUUID}")
-                        synchronized(connectedLuids) {
-                            val hashUUID = luidPacket.hashAsUUID
-                            if (connectedLuids.contains(hashUUID)) {
-                                Log.e(TAG, "device: $device already connected")
+                        if (connectedLuids.contains(hashUUID)) {
+                            Log.e(TAG, "device: $device already connected")
 
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device, hashUUID, err = true)
-                            } else {
-                                connectedLuids.add(hashUUID)
-                                session.peerLuid = hashUUID
-                            }
+                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device, err = true)
+                        } else {
+                            connectedLuids.add(hashUUID)
                         }
 
                         Log.v(TAG, "client handshake received hashed luid packet: " + luidPacket.valCase)
                         session.luidStage.addPacket(luidPacket)
-                        TransactionResult(TransactionResult.STAGE_LUID, device, session.peerLuid)
+                        TransactionResult(TransactionResult.STAGE_LUID, device)
                     }
         }
         
@@ -387,9 +385,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     session.luidStage.verifyPackets()
                                             .doOnComplete { session.luidMap[device.address] = luidPacket.luid }
                                 }
-                                .toSingleDefault(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, device, session.peerLuid))
+                                .toSingleDefault(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, device))
                                 .doOnError { err: Throwable -> Log.e(TAG, "luid hash verify failed: $err") }
-                                .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_EXIT, device, session.peerLuid))
+                                .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_EXIT, device))
                     }
         }
         
@@ -411,7 +409,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving advertise packet: $err") }
                     .map { advertisePacket: AdvertisePacket ->
                         session.advertiseStage.addPacket(advertisePacket)
-                        TransactionResult(TransactionResult.STAGE_ELECTION_HASHED, device, session.peerLuid)
+                        TransactionResult(TransactionResult.STAGE_ELECTION_HASHED, device)
                     }
         }
         
@@ -438,7 +436,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving election packet: $err") }
                     .map { electLeaderPacket: ElectLeaderPacket ->
                         session.votingStage.addPacket(electLeaderPacket)
-                        TransactionResult(TransactionResult.STAGE_ELECTION, device, session.peerLuid)
+                        TransactionResult(TransactionResult.STAGE_ELECTION, device)
                     }
         }
 
@@ -483,21 +481,21 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         when (provides) {
                             AdvertisePacket.Provides.INVALID -> {
                                 Log.e(TAG, "received invalid provides")
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device, session.peerLuid)
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
                             }
                             AdvertisePacket.Provides.BLE -> {
                                 //we should do everything in BLE. slowwwww ;(
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_IDENTITY, device, session.peerLuid)
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_IDENTITY, device)
                             }
                             AdvertisePacket.Provides.WIFIP2P ->
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_UPGRADE, device, session.peerLuid)
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_UPGRADE, device)
                             else ->
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device, session.peerLuid)
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device)
                         }
                     }
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving packet: $err") }
                     .doOnSuccess { Log.v(TAG, "client handshake received election result") }
-                    .onErrorReturn { TransactionResult(TransactionResult.STAGE_EXIT, device, session.peerLuid) }
+                    .onErrorReturn { TransactionResult(TransactionResult.STAGE_EXIT, device) }
         }
 
         /*
@@ -522,10 +520,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     upgradePacket,
                                     ConnectionRole.ROLE_UKE
                             )
-                            TransactionResult(TransactionResult.STAGE_EXIT, device, session.peerLuid, result = request)
+                            TransactionResult(TransactionResult.STAGE_EXIT, device, request)
                         }
             } else {
-                return@addStage Single.just(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device, session.peerLuid))
+                return@addStage Single.just(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_EXIT, device))
             }
         }
 
@@ -552,7 +550,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         end
                     }
                     .ignoreElements()
-                    .toSingleDefault(TransactionResult(TransactionResult.STAGE_DECLARE_HASHES, device, session.peerLuid))
+                    .toSingleDefault(TransactionResult(TransactionResult.STAGE_DECLARE_HASHES, device))
         }
 
         /*
@@ -575,7 +573,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving declareHashes packet: $err") }
                     .map { declareHashesPacket: DeclareHashesPacket ->
                         session.setDeclareHashesPacket(declareHashesPacket)
-                        TransactionResult(TransactionResult.STAGE_BLOCKDATA, device, session.peerLuid)
+                        TransactionResult(TransactionResult.STAGE_BLOCKDATA, device)
                     }
         }
 
@@ -626,7 +624,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                     .map { res: HandshakeResult ->
                         transactionCompleteRelay.accept(res)
-                        TransactionResult(TransactionResult.STAGE_EXIT, device, session.peerLuid)
+                        TransactionResult(TransactionResult.STAGE_EXIT, device)
                     }
         }
 

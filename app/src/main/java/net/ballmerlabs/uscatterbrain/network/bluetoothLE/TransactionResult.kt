@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothDevice
-import java.util.*
 
 /**
  * transactionresult is a combination optional and data class holding the result of a GATT
@@ -10,7 +9,6 @@ import java.util.*
 class TransactionResult<T> constructor(
         val nextStage: String,
         val device: BluetoothDevice,
-        val luid: UUID?,
         val result: T? = null,
         val err: Boolean = false
 ) {
