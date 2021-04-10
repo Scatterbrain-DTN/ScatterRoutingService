@@ -189,38 +189,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    /*
-     * due to quirks in the way android handles bluetooth, it may be safest in some cases
-     * to restart the discovery proces entirely. This does not terminate any observables
-     * listening for transactions or scan results, but it will forcibly disconnect all currently
-     * connected devices.
-     *
-     * Note: if we aren't currently discovering forever this just terminates the current discovery
-     */
-    private fun restartScan() {
-        connectionCache.forEach {
-            it.value.dispose()
-        }
-        connectionCache.clear()
-        connectedLuids.clear()
-        discoveryDispoable.getAndUpdate { d ->
-            d?.dispose()
-            null
-        }
-        if (discoveryPersistent.get()) {
-            discoverOnce(true)
-        }
-        stopServer()
-        startServer()
-    }
-
     private fun observeTransactionComplete() {
         val d = transactionCompleteRelay.subscribe(
                 {
                     Log.v(TAG, "transaction complete, randomizing luid")
                     releaseWakeLock()
-                    //for safety, disconnect all devies and restart scanning after a successful transaction
-                    restartScan()
                     // we need to randomize the luid every transaction or devices can be tracked
                     myLuid.set(UUID.randomUUID())
                 }
@@ -687,7 +660,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                    if (b) refreshInProgresss.takeUntil { v -> !v }
                                 .ignoreElements()
                    else {
-                       restartScan()
                        awaitTransaction()
                    }
                 }
