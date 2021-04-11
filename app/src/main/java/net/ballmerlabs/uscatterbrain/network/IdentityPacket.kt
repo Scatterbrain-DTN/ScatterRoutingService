@@ -2,8 +2,6 @@ package net.ballmerlabs.uscatterbrain.network
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKeys
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
@@ -47,7 +45,6 @@ class IdentityPacket private constructor(builder: Builder) :
         }
         pubkey = builder.scatterbrainPubkey
         this.name = builder.name
-        initKeyStore()
         if (builder.ismGenerateKeypair()) {
             generateKeyPair()
         }
@@ -72,18 +69,6 @@ class IdentityPacket private constructor(builder: Builder) :
                 .setVal(body)
                 .setEnd(false)
                 .build())
-    }
-
-    @Throws(GeneralSecurityException::class, IOException::class)
-    private fun initKeyStore() {
-        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-        mKeystorePrefs = EncryptedSharedPreferences.create(
-                ScatterbrainApi.KEYSTORE_ID,
-                masterKeyAlias,
-                mCtx,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
     }
 
     val isEnd: Boolean
