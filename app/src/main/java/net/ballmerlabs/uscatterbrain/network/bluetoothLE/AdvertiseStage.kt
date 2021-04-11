@@ -8,10 +8,14 @@ import java.util.concurrent.atomic.AtomicReference
  * state for bluetoothLE advertise stage
  * used in state machine implementation
  */
-class AdvertiseStage {
+class AdvertiseStage : LeDeviceSession.Stage {
     private val packet = AtomicReference<AdvertisePacket>()
     fun addPacket(packet: AdvertisePacket) {
         this.packet.set(packet)
+    }
+
+    override fun reset() {
+        packet.set(null)
     }
     
     companion object {

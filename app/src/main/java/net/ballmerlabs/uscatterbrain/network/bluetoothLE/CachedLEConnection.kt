@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
-import com.polidea.rxandroidble2.Timeout
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Scheduler
@@ -26,20 +25,20 @@ import java.util.concurrent.TimeUnit
  * for a BLE client connection
  */
 class CachedLEConnection(
-        private val connectionObservable: Observable<RxBleConnection>,
+        public val connection: Observable<RxBleConnection>,
         private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
         private val scheduler: Scheduler
         ) : Disposable {
     private val disposable = CompositeDisposable()
     private val enabled = CompletableSubject.create()
-    private val connection = BehaviorSubject.create<RxBleConnection>()
+    private val connectionSubject = BehaviorSubject.create<RxBleConnection>()
     private val timeout: Long = 5
 
     init {
         premptiveEnable().subscribe(enabled)
-        connectionObservable
+        connection
                 .doOnSubscribe { d -> disposable.add(d)}
-                .subscribe(connection)
+                .subscribe(connectionSubject)
     }
 
     /*
@@ -50,7 +49,7 @@ class CachedLEConnection(
     private fun premptiveEnable(): Completable {
         return Observable.fromIterable(BluetoothLERadioModuleImpl.channels.keys)
                 .flatMapSingle{ uuid: UUID ->
-                    connection
+                    connectionSubject
                             .firstOrError()
                             .flatMap { c ->
                                 c.setupIndication(uuid, NotificationSetupMode.DEFAULT)
@@ -70,7 +69,7 @@ class CachedLEConnection(
      * we are allowed to use
      */
     private fun selectChannel(): Single<UUID> {
-        return connection
+        return connectionSubject
                 .firstOrError()
                 .flatMap { c ->
                     c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
@@ -94,7 +93,7 @@ class CachedLEConnection(
         return enabled.andThen(selectChannel())
                 .retry(10)
                 .flatMapObservable { uuid: UUID ->
-                    connection
+                    connectionSubject
                             .firstOrError()
                             .flatMapObservable { c ->  c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
                                     .retry(10)

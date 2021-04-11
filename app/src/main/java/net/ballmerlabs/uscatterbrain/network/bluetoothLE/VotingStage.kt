@@ -18,10 +18,10 @@ import kotlin.collections.HashSet
  * in a semi-trustless fashion if a transport layer bootstrap is required and, if so,
  * to which transport to switch to.
  */
-class VotingStage {
+class VotingStage : LeDeviceSession.Stage {
     private val hashedPackets = ArrayList<ElectLeaderPacket>()
     private val unhashedPackets = ArrayList<ElectLeaderPacket>()
-    private val tiebreaker = UUID.randomUUID()
+    private var tiebreaker = UUID.randomUUID()
     fun getSelf(hashed: Boolean, provides: AdvertisePacket.Provides): ElectLeaderPacket {
         val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder()
         if (hashed) {
@@ -31,6 +31,12 @@ class VotingStage {
                 .setProvides(provides)
                 .setTiebreaker(tiebreaker)
                 .build()
+    }
+
+    override fun reset() {
+        hashedPackets.clear()
+        unhashedPackets.clear()
+        tiebreaker = UUID.randomUUID()
     }
 
     /**

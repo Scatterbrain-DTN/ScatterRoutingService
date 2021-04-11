@@ -13,10 +13,15 @@ import java.util.*
  * Manages state for the FSM to generate a BootstrapRequest or
  * UpgradePacket
  */
-class UpgradeStage(private val provides: AdvertisePacket.Provides) {
+class UpgradeStage(private val provides: AdvertisePacket.Provides) : LeDeviceSession.Stage {
     private val metadata: MutableMap<String, String> = HashMap()
-    private val sessionID = Random(System.nanoTime()).nextInt()
+    private var sessionID = Random(System.nanoTime()).nextInt()
 
+    override fun reset() {
+        sessionID = Random(System.nanoTime()).nextInt()
+        metadata.clear()
+    }
+    
     /*
      * currently we generate our bootstrap request using hardcoded data (only wifi direct)
      * TODO: generate based on user input and/or custom plugins

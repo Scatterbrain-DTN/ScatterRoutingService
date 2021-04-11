@@ -12,12 +12,12 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * holds state for the luid stage of the bluetooth LE transport FSM
  */
-class LuidStage(private val uuid: AtomicReference<UUID>) {
-    private val hashPackets = ArrayList<LuidPacket>()
+class LuidStage(private val uuid: AtomicReference<UUID>) : LeDeviceSession.Stage {
+    val hashPackets = ArrayList<LuidPacket>()
     private val realPackets = ArrayList<LuidPacket>()
     private val selfhashed = AtomicReference<LuidPacket?>()
     val self = AtomicReference<LuidPacket?>()
-    private fun createSelf(hashed: Boolean): Single<LuidPacket?> {
+    private fun createSelf(hashed: Boolean): Single<LuidPacket> {
         return Single.fromCallable {
             val builder: LuidPacket.Builder = LuidPacket.newBuilder()
                     .setLuid(uuid.get())
@@ -36,7 +36,7 @@ class LuidStage(private val uuid: AtomicReference<UUID>) {
                 }
     }
 
-    val selfHashed: Single<LuidPacket?>
+    val selfHashed: Single<LuidPacket>
         get() {
             val packet = selfhashed.get()
             return if (packet == null) {
@@ -46,7 +46,7 @@ class LuidStage(private val uuid: AtomicReference<UUID>) {
             }
         }
 
-    fun getSelf(): Single<LuidPacket?> {
+    fun getSelf(): Single<LuidPacket> {
         val packet = self.get()
         return if (packet == null) {
             createSelf(false)
@@ -67,6 +67,13 @@ class LuidStage(private val uuid: AtomicReference<UUID>) {
         } else {
             realPackets.add(packet)
         }
+    }
+
+    override fun reset() {
+        hashPackets.clear()
+        realPackets.clear()
+        self.set(null)
+        selfhashed.set(null)
     }
 
     /**

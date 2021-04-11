@@ -34,13 +34,19 @@ typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionRe
  * over bluetooth LE between two devices. Each state in the FSM is referred to as a "stage"
  * and gets its own member class
  */
-class LeDeviceSession(val device: BluetoothDevice, luid: AtomicReference<UUID>) {
+class LeDeviceSession(
+        val device: BluetoothDevice, 
+        luid: AtomicReference<UUID>,
+        val client: CachedLEConnection,
+        val server: CachedLEServerConnection
+) {
     val luidStage: LuidStage = LuidStage(luid) //exchange hashed and unhashed luids
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities
     val votingStage: VotingStage = VotingStage() //determine if an upgrade takes place
     var upgradeStage: UpgradeStage? = null //possibly upgrade to new transport
     private val transactionMap = ConcurrentHashMap<String, Pair<ClientTransaction, ServerTransaction>>()
     private val stageChanges = BehaviorSubject.create<String?>()
+    var locked = false
     val luidMap = ConcurrentHashMap<String, UUID>()
     var stage: String = TransactionResult.STAGE_START
     set(value) {
@@ -62,6 +68,20 @@ class LeDeviceSession(val device: BluetoothDevice, luid: AtomicReference<UUID>) 
             clientTransaction: ClientTransaction
     ) {
         transactionMap[name] = Pair(clientTransaction, serverTransaction)
+    }
+
+    /**
+     * lock this session if a transaction is in progress
+     */
+    fun lock() = apply {
+        locked = true
+    }
+
+    /**
+     * unlock this session if a transaction is complete
+     */
+    fun unlock() = apply {
+        locked = false
     }
 
     /**
@@ -90,7 +110,7 @@ class LeDeviceSession(val device: BluetoothDevice, luid: AtomicReference<UUID>) 
      */
     fun observeStage(): Observable<String?> {
         return stageChanges
-                .takeWhile { s: String? -> s!!.compareTo(TransactionResult.STAGE_EXIT) != 0 }
+                .takeWhile { s: String? -> s!!.compareTo(TransactionResult.STAGE_SUSPEND) != 0 }
                 .delay(0, TimeUnit.SECONDS)
     }
 
@@ -113,8 +133,14 @@ class LeDeviceSession(val device: BluetoothDevice, luid: AtomicReference<UUID>) 
     val declareHashes: Single<DeclareHashesPacket?>
         get() = Single.just(declareHashesPacket)
 
+    
+    interface Stage {
+        fun reset()
+    }
+    
     companion object {
         const val TAG = "LeDeviceSession"
+        const val INITIAL_STAGE = TransactionResult.STAGE_LUID_HASHED
     }
 
 }
