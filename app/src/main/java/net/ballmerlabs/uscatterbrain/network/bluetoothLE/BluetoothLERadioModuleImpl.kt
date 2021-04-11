@@ -317,7 +317,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .map { luidPacket: LuidPacket ->
                         if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
                             Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_SUSPEND, device, UUID.nameUUIDFromBytes(byteArrayOf(0)))
+                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_TERMINATE, device, UUID.nameUUIDFromBytes(byteArrayOf(0)))
                         }
 
                         val hashUUID = luidPacket.hashAsUUID!!
@@ -325,7 +325,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         if (connectedLuids.containsKey(hashUUID)) {
                             Log.e(TAG, "device: $device already connected")
 
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_SUSPEND, device, hashUUID, err = true)
+                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_TERMINATE, device, hashUUID, err = true)
                         } else {
                             connectedLuids[hashUUID] = session.lock()
                         }
@@ -367,7 +367,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 }
                                 .toSingleDefault(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, device, session.luidStage.luid!!))
                                 .doOnError { err: Throwable -> Log.e(TAG, "luid hash verify failed: $err") }
-                                .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_SUSPEND, device, session.luidStage.luid!!))
+                                .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_TERMINATE, device, session.luidStage.luid!!))
                     }
         }
         
@@ -461,7 +461,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         when (provides) {
                             AdvertisePacket.Provides.INVALID -> {
                                 Log.e(TAG, "received invalid provides")
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_SUSPEND, device, session.luidStage.luid!!)
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_TERMINATE, device, session.luidStage.luid!!)
                             }
                             AdvertisePacket.Provides.BLE -> {
                                 //we should do everything in BLE. slowwwww ;(
@@ -470,12 +470,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             AdvertisePacket.Provides.WIFIP2P ->
                                 return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_UPGRADE, device, session.luidStage.luid!!)
                             else ->
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_SUSPEND, device, session.luidStage.luid!!)
+                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_TERMINATE, device, session.luidStage.luid!!)
                         }
                     }
                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving packet: $err") }
                     .doOnSuccess { Log.v(TAG, "client handshake received election result") }
-                    .onErrorReturn { TransactionResult(TransactionResult.STAGE_SUSPEND, device, session.luidStage.luid!!) }
+                    .onErrorReturn { TransactionResult(TransactionResult.STAGE_TERMINATE, device, session.luidStage.luid!!) }
         }
 
         /*
@@ -838,6 +838,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private fun rewindSession(session: LeDeviceSession) {
+        Log.v(TAG, "rewinding session")
         session.advertiseStage.reset()
         session.upgradeStage?.reset()
         session.votingStage.reset()
@@ -953,12 +954,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     .concatMap { result -> result }
                                                     .doOnNext { transactionResult ->
                                                         if (session.stage == TransactionResult.STAGE_SUSPEND) {
+                                                            Log.v(TAG, "session $device suspending")
                                                             session.unlock()
                                                         }
                                                         session.stage = transactionResult.second.nextStage
                                                     }
                                                     .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
                                                     .doFinally {
+                                                        Log.e(TAG, "TERMINATION: session $device terminated")
                                                         // if we encounter any errors or terminate, remove cached connections
                                                         // as they may be tainted
                                                         for (luid in session.luidStage.hashPackets) {
