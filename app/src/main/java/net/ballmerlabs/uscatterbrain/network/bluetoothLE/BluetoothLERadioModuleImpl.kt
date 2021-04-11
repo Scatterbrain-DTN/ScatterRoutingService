@@ -911,7 +911,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     //don't attempt to initiate a reverse connection when we already initiated the outgoing connection
                     if (device == null) {
                         Log.e(TAG, "device " + connection.connection.device.address + " was null in client")
-                        return@flatMap Observable.error<BootstrapRequest>(IllegalStateException("device was null"))
+                        return@flatMap Observable.error<HandshakeResult>(IllegalStateException("device was null"))
                     }
 
                     Log.d(TAG, "gatt server connection from " + connectionRaw.device.address)
@@ -979,40 +979,44 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                 }
                                                                 .concatMap { result -> result }
                                                                 .doOnNext { transactionResult ->
-                                                                    if (session.stage == TransactionResult.STAGE_SUSPEND) {
-                                                                        Log.v(TAG, "session $device suspending")
+                                                                    if (session.stage == TransactionResult.STAGE_SUSPEND && 
+                                                                            !transactionResult.second.hasResult() &&
+                                                                            !transactionResult.first.isPresent) {
+                                                                        Log.v(TAG, "session $device suspending, no bootstrap")
                                                                         session.unlock()
                                                                     }
                                                                     session.stage = transactionResult.second.nextStage
                                                                 }
                                                                 .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
+                                                                .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
+                                                                .map { pair ->
+                                                                    when {
+                                                                        pair.second.hasResult() -> {
+                                                                            return@map pair.second.result
+                                                                        }
+                                                                        else -> {
+                                                                            return@map pair.first.get()
+                                                                        }
+                                                                    }
+                                                                }
+                                                                .flatMapSingle { bootstrapRequest: BootstrapRequest -> bootstrapWifiP2p(bootstrapRequest) }
+                                                                .doOnNext {
+                                                                    Log.v(TAG, "wifi direct bootstrap complete, unlocking session.")
+                                                                    session.unlock()
+                                                                }
                                                                 .doFinally {
                                                                     Log.e(TAG, "TERMINATION: session $device terminated")
                                                                     // if we encounter any errors or terminate, remove cached connections
                                                                     // as they may be tainted
-                                                                    for (luid in session.luidStage.hashPackets) {
-                                                                        connectedLuids.remove(luid.hashAsUUID)
+                                                                    for (l in session.luidStage.hashPackets) {
+                                                                        connectedLuids.remove(l.hashAsUUID)
                                                                     }
                                                                     session.unlock()
                                                                     connectionDisposable.dispose()
                                                                     myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                                                 }
                                                     }
-                                                    .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
-                                                    .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
-                                                    .map { pair ->
-                                                        when {
-                                                            pair.second.hasResult() -> {
-                                                                return@map pair.second.result
-                                                            }
-                                                            pair.first.isPresent -> {
-                                                                return@map pair.first.get()
-                                                            }
-                                                            else -> {
-                                                                throw IllegalStateException("this should never happen")
-                                                            }
-                                                        }
-                                                    }
+                                            
                                         }
                             }
                 }
@@ -1021,7 +1025,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     transactionErrorRelay.accept(IllegalStateException("gatt server disposed"))
                     stopServer()
                 }
-                .flatMapSingle { bootstrapRequest: BootstrapRequest -> bootstrapWifiP2p(bootstrapRequest) }
                 .doOnError { err: Throwable ->
                     Log.e(TAG, "gatt server shut down with error: $err")
                     err.printStackTrace()
