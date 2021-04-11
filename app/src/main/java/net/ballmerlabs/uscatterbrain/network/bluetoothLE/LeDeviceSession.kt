@@ -45,7 +45,7 @@ class LeDeviceSession(
     val votingStage: VotingStage = VotingStage() //determine if an upgrade takes place
     var upgradeStage: UpgradeStage? = null //possibly upgrade to new transport
     private val transactionMap = ConcurrentHashMap<String, Pair<ClientTransaction, ServerTransaction>>()
-    private val stageChanges = BehaviorSubject.create<String?>()
+    private val stageChanges = BehaviorSubject.create<String>()
     var locked = false
     val luidMap = ConcurrentHashMap<String, UUID>()
     var stage: String = TransactionResult.STAGE_START
@@ -108,7 +108,7 @@ class LeDeviceSession(
      * Observe stage changes.
      * @return observable emitting name of each stage and calling oncomplete on STAGE_EXIT
      */
-    fun observeStage(): Observable<String?> {
+    fun observeStage(): Observable<String> {
         return stageChanges
                 .takeWhile { s -> s.compareTo(TransactionResult.STAGE_TERMINATE) != 0 }
                 .filter {s -> s.compareTo(TransactionResult.STAGE_SUSPEND) != 0 }
@@ -141,7 +141,7 @@ class LeDeviceSession(
     
     companion object {
         const val TAG = "LeDeviceSession"
-        const val INITIAL_STAGE = TransactionResult.STAGE_LUID_HASHED
+        const val INITIAL_STAGE = TransactionResult.STAGE_LUID
     }
 
 }

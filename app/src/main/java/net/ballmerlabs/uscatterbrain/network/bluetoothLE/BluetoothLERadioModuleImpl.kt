@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
@@ -181,7 +180,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val myLuid = AtomicReference(UUID.randomUUID())
 
     private val connectedLuids = ConcurrentHashMap<UUID, LeDeviceSession>()
+    private val activeLuids = Collections.newSetFromMap(ConcurrentHashMap<UUID, Boolean>())
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
+
     private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             super.onStartSuccess(settingsInEffect)
@@ -192,6 +193,45 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             super.onStartFailure(errorCode)
             Log.e(TAG, "failed to start advertise")
         }
+    }
+
+    private fun getLuidClient(conn: CachedLEConnection): Single<UUID> {
+        return conn.readLuid()
+                .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
+                .observeOn(clientScheduler)
+                .flatMap { luidPacket: LuidPacket ->
+                    if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
+                        Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
+                        return@flatMap Single.error(java.lang.IllegalStateException("invalid proto version"))
+                    }
+
+                    val hashUUID = luidPacket.hashAsUUID!!
+                    Log.e("debug", "version: ${luidPacket.protoVersion} hash ${luidPacket.hashAsUUID}")
+                    if (activeLuids.contains(hashUUID)) {
+                        Log.e(TAG, "device already active")
+
+                        return@flatMap Single.error(IllegalStateException("device already connected"))
+                    } else {
+                        //TODO:
+                        //connectedLusession.lock()
+                        activeLuids.add(hashUUID)
+                    }
+
+                    Log.v(TAG, "client handshake received hashed luid packet: " + luidPacket.valCase)
+                    Single.just(hashUUID)
+                }
+    }
+
+    private fun getLuidServer(serverConn: CachedLEServerConnection): Completable {
+        return Single.fromCallable {
+            LuidPacket.newBuilder()
+                    .enableHashing(ScatterRoutingService.PROTO_VERSION)
+                    .setLuid(myLuid.get())
+                    .build()
+        }
+                .flatMapCompletable { luidpacket: LuidPacket ->
+                    serverConn.serverNotify(luidpacket)
+                }
     }
 
     private fun observeTransactionComplete() {
@@ -288,329 +328,315 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * This is decided by the leader election process currently
      */
     private fun initializeProtocol(
-            device: BluetoothDevice,
-            client: CachedLEConnection,
-            server: CachedLEServerConnection
+            s: LeDeviceSession,
+            defaultState: String
     ): Single<LeDeviceSession> {
         Log.v(TAG, "initialize protocol")
-        val session = LeDeviceSession(device, myLuid, client, server)
-        
-        /*
-         * luid hashed stage exchanges hashed luid packets (for election purposes)
-         * hashed packets are stored for later verification. 
-         * hashed packets are also used to weed out and terminate duplicate connections
-         */
-        session.addStage(
-                TransactionResult.STAGE_LUID_HASHED,
-                { serverConn: CachedLEServerConnection ->
-                    Log.v(TAG, "gatt server luid hashed stage")
-                    session.luidStage.selfHashed
-                            .flatMapCompletable { luidpacket: LuidPacket ->
-                                serverConn.serverNotify(luidpacket)
-                            }.toSingleDefault(Optional.empty())
-                }
-        ) { conn: CachedLEConnection ->
-            Log.v(TAG, "gatt client luid hashed stage")
-            conn.readLuid()
-                    .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
-                    .observeOn(clientScheduler)
-                    .map { luidPacket: LuidPacket ->
-                        if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
-                            Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_TERMINATE, device, UUID.nameUUIDFromBytes(byteArrayOf(0)))
-                        }
-
-                        val hashUUID = luidPacket.hashAsUUID!!
-                        Log.e("debug", "version: ${luidPacket.protoVersion} hash ${luidPacket.hashAsUUID}")
-                        if (connectedLuids.containsKey(hashUUID)) {
-                            Log.e(TAG, "device: $device already connected")
-
-                            return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_TERMINATE, device, hashUUID, err = true)
-                        } else {
-                            connectedLuids[hashUUID] = session.lock()
-                        }
-
-                        Log.v(TAG, "client handshake received hashed luid packet: " + luidPacket.valCase)
-                        session.luidStage.addPacket(luidPacket)
-                        TransactionResult(TransactionResult.STAGE_LUID, device, hashUUID)
-                    }
-        }
-        
-        /*
-         * luid stage reveals unhashed packets after all hashed packets are collected
-         * hashes are compared to unhashed packets
-         */
-        session.addStage(
-                TransactionResult.STAGE_LUID,
-                { serverConn: CachedLEServerConnection ->
-                    Log.v(TAG, "gatt server luid stage")
-                    session.luidStage.getSelf()
-                            .flatMapCompletable { luidpacket: LuidPacket ->
-                                session.luidStage.addPacket(luidpacket)
-                                serverConn.serverNotify(luidpacket)
-                            }.toSingleDefault(Optional.empty())
-                }
-        ) { conn: CachedLEConnection->
-            Log.v(TAG, "gatt client luid stage")
-            session.luidStage.selfHashed
-                    .flatMap { selfHashed ->
-                        session.luidStage.addPacket(selfHashed)
-                        conn.readLuid()
-                                .doOnSuccess { luidPacket: LuidPacket ->
-                                    Log.v(TAG, "client handshake received unhashed luid packet: " + luidPacket.luid)
-                                    session.luidStage.addPacket(luidPacket)
+        return Single.just(s)
+                .map { session ->
+                    /*
+                     * luid stage reveals unhashed packets after all hashed packets are collected
+                     * hashes are compared to unhashed packets
+                     */
+                    session.addStage(
+                            TransactionResult.STAGE_LUID,
+                            { serverConn: CachedLEServerConnection ->
+                                Log.v(TAG, "gatt server luid stage")
+                                session.luidStage.getSelf()
+                                        .flatMapCompletable { luidpacket: LuidPacket ->
+                                            session.luidStage.addPacket(luidpacket)
+                                            serverConn.serverNotify(luidpacket)
+                                        }.toSingleDefault(Optional.empty())
+                            }
+                    ) { conn: CachedLEConnection->
+                        Log.v(TAG, "gatt client luid stage")
+                        session.luidStage.selfHashed
+                                .flatMap { selfHashed ->
+                                    session.luidStage.addPacket(selfHashed)
+                                    conn.readLuid()
+                                            .doOnSuccess { luidPacket: LuidPacket ->
+                                                Log.v(TAG, "client handshake received unhashed luid packet: " + luidPacket.luid)
+                                                session.luidStage.addPacket(luidPacket)
+                                            }
+                                            .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
+                                            .flatMapCompletable { luidPacket: LuidPacket ->
+                                                session.luidStage.verifyPackets()
+                                                        .doOnComplete { session.luidMap[session.device.address] = luidPacket.luid } //TODO: stop this
+                                            }
+                                            .toSingleDefault(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, session.device, session.luidStage.luid!!))
+                                            .doOnError { err: Throwable -> Log.e(TAG, "luid hash verify failed: $err") }
+                                            .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_TERMINATE, session.device, session.luidStage.luid!!))
                                 }
-                                .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
-                                .flatMapCompletable { luidPacket: LuidPacket ->
-                                    session.luidStage.verifyPackets()
-                                            .doOnComplete { session.luidMap[device.address] = luidPacket.luid }
-                                }
-                                .toSingleDefault(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, device, session.luidStage.luid!!))
-                                .doOnError { err: Throwable -> Log.e(TAG, "luid hash verify failed: $err") }
-                                .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_TERMINATE, device, session.luidStage.luid!!))
                     }
-        }
-        
-        /*
-         * if no one cheats and sending luids, we exchange advertise packets. 
-         * This is really boring currently because all scatterbrain routers offer the same capabilities
-         */
-        session.addStage(
-                TransactionResult.STAGE_ADVERTISE,
-                l@{ serverConn ->
-                    Log.v(TAG, "gatt server advertise stage")
-                    return@l serverConn.serverNotify(AdvertiseStage.self)
-                            .toSingleDefault(Optional.empty())
-                }
-        ) { conn: CachedLEConnection ->
-            Log.v(TAG, "gatt client advertise stage")
-            conn.readAdvertise()
-                    .doOnSuccess { Log.v(TAG, "client handshake received advertise packet") }
-                    .doOnError { err: Throwable -> Log.e(TAG, "error while receiving advertise packet: $err") }
-                    .map { advertisePacket: AdvertisePacket ->
-                        session.advertiseStage.addPacket(advertisePacket)
-                        TransactionResult(TransactionResult.STAGE_ELECTION_HASHED, device, session.luidStage.luid!!)
-                    }
-        }
-        
-        /*
-         * the leader election state is really complex, it is a good idea to check the documentation in
-         * VotingStage.kt to figure out how this works.
-         */
-        session.addStage(
-                TransactionResult.STAGE_ELECTION_HASHED,
-                { serverConn: CachedLEServerConnection ->
-                    Log.v(TAG, "gatt server election hashed stage")
-                    val packet = session.votingStage.getSelf(true, selectProvides())
-                    if (BuildConfig.DEBUG && !packet.isHashed) {
-                        error("Assertion failed")
-                    }
-                    session.votingStage.addPacket(packet)
-                    serverConn.serverNotify(packet)
-                            .toSingleDefault(Optional.empty())
-                }
-        ) { conn: CachedLEConnection ->
-            Log.v(TAG, "gatt client election hashed stage")
-            conn.readElectLeader()
-                    .doOnSuccess { Log.v(TAG, "client handshake received hashed election packet") }
-                    .doOnError { err: Throwable -> Log.e(TAG, "error while receiving election packet: $err") }
-                    .map { electLeaderPacket: ElectLeaderPacket ->
-                        session.votingStage.addPacket(electLeaderPacket)
-                        TransactionResult(TransactionResult.STAGE_ELECTION, device, session.luidStage.luid!!)
-                    }
-        }
 
-        /*
-         * see above
-         * Once the election stage is finished we move on to the actions decided by the result of the election
-         */
-        session.addStage(
-                TransactionResult.STAGE_ELECTION,
-                { serverConn: CachedLEServerConnection ->
-                    Log.v(TAG, "gatt server election stage")
-                    session.luidStage.getSelf()
-                            .flatMapCompletable { luidPacket: LuidPacket ->
-                                if (BuildConfig.DEBUG && luidPacket.isHashed) {
+                    /*
+                     * if no one cheats and sending luids, we exchange advertise packets.
+                     * This is really boring currently because all scatterbrain routers offer the same capabilities
+                     */
+                    session.addStage(
+                            TransactionResult.STAGE_ADVERTISE,
+                            l@{ serverConn ->
+                                Log.v(TAG, "gatt server advertise stage")
+                                return@l serverConn.serverNotify(AdvertiseStage.self)
+                                        .toSingleDefault(Optional.empty())
+                            }
+                    ) { conn: CachedLEConnection ->
+                        Log.v(TAG, "gatt client advertise stage")
+                        conn.readAdvertise()
+                                .doOnSuccess { Log.v(TAG, "client handshake received advertise packet") }
+                                .doOnError { err: Throwable -> Log.e(TAG, "error while receiving advertise packet: $err") }
+                                .map { advertisePacket: AdvertisePacket ->
+                                    session.advertiseStage.addPacket(advertisePacket)
+                                    TransactionResult(TransactionResult.STAGE_ELECTION_HASHED, session.device, session.luidStage.luid!!)
+                                }
+                    }
+
+                    /*
+                     * the leader election state is really complex, it is a good idea to check the documentation in
+                     * VotingStage.kt to figure out how this works.
+                     */
+                    session.addStage(
+                            TransactionResult.STAGE_ELECTION_HASHED,
+                            { serverConn: CachedLEServerConnection ->
+                                Log.v(TAG, "gatt server election hashed stage")
+                                val packet = session.votingStage.getSelf(true, selectProvides())
+                                if (BuildConfig.DEBUG && !packet.isHashed) {
                                     error("Assertion failed")
                                 }
-                                val packet = session.votingStage.getSelf(false, selectProvides())
-                                packet.tagLuid(luidPacket.luid)
                                 session.votingStage.addPacket(packet)
                                 serverConn.serverNotify(packet)
-                            }.toSingleDefault(Optional.empty())
-                }
-        ) { conn: CachedLEConnection ->
-            Log.v(TAG, "gatt client election stage")
-            conn.readElectLeader()
-                    .flatMapCompletable { electLeaderPacket: ElectLeaderPacket? ->
-                        electLeaderPacket!!.tagLuid(session.luidMap[device.address])
-                        session.votingStage.addPacket(electLeaderPacket)
-                        session.votingStage.verifyPackets()
-                    }
-                    .andThen(session.votingStage.determineUpgrade())
-                    .map { provides: AdvertisePacket.Provides ->
-                        Log.v(TAG, "election received provides: $provides")
-                        val role: ConnectionRole = if (session.votingStage.selectSeme() == session.luidStage.luid) {
-                            ConnectionRole.ROLE_SEME
-                        } else {
-                            ConnectionRole.ROLE_UKE
-                        }
-                        Log.v(TAG, "selected role: $role")
-                        session.role = role
-                        session.setUpgradeStage(provides)
-                        when (provides) {
-                            AdvertisePacket.Provides.INVALID -> {
-                                Log.e(TAG, "received invalid provides")
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_TERMINATE, device, session.luidStage.luid!!)
+                                        .toSingleDefault(Optional.empty())
                             }
-                            AdvertisePacket.Provides.BLE -> {
-                                //we should do everything in BLE. slowwwww ;(
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_IDENTITY, device, session.luidStage.luid!!)
-                            }
-                            AdvertisePacket.Provides.WIFIP2P ->
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_UPGRADE, device, session.luidStage.luid!!)
-                            else ->
-                                return@map TransactionResult<BootstrapRequest>(TransactionResult.STAGE_TERMINATE, device, session.luidStage.luid!!)
-                        }
-                    }
-                    .doOnError { err: Throwable -> Log.e(TAG, "error while receiving packet: $err") }
-                    .doOnSuccess { Log.v(TAG, "client handshake received election result") }
-                    .onErrorReturn { TransactionResult(TransactionResult.STAGE_TERMINATE, device, session.luidStage.luid!!) }
-        }
-
-        /*
-         * if the election state decided we should upgrade, move to a new transport using an upgrade
-         * packet exchange with our newly assigned role.
-         * Currently this just means switch to wifi direct
-         */
-        session.addStage(
-                TransactionResult.STAGE_UPGRADE,
-                { serverConn: CachedLEServerConnection ->
-                    Log.v(TAG, "gatt server upgrade stage")
-                    serverBootstrapWifiDirect(session, serverConn)
-                }
-        ) { conn: CachedLEConnection ->
-            Log.v(TAG, "gatt client upgrade stage")
-            if (session.role == ConnectionRole.ROLE_UKE) {
-                return@addStage conn.readUpgrade()
-                        .doOnSuccess { Log.v(TAG, "client handshake received upgrade packet") }
-                        .doOnError { err: Throwable -> Log.e(TAG, "error while receiving upgrade packet: $err") }
-                        .map { upgradePacket: UpgradePacket ->
-                            val request: BootstrapRequest = WifiDirectBootstrapRequest.create(
-                                    upgradePacket,
-                                    ConnectionRole.ROLE_UKE
-                            )
-                            TransactionResult(TransactionResult.STAGE_SUSPEND, device, session.luidStage.luid!!, result = request)
-                        }
-            } else {
-                return@addStage Single.just(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_SUSPEND, device, session.luidStage.luid!!))
-            }
-        }
-
-        /*
-         * if we chose not to upgrade, proceed with exchanging identity packets
-         */
-        session.addStage(
-                TransactionResult.STAGE_IDENTITY,
-                { serverConn: CachedLEServerConnection ->
-                    datastore.getTopRandomIdentities(
-                            preferences.getInt(mContext.getString(R.string.pref_identitycap), 32)
-                    )
-                            .concatMapCompletable { packet: IdentityPacket -> serverConn.serverNotify(packet) }
-                            .toSingleDefault(Optional.empty())
-                }
-        ) { conn: CachedLEConnection ->
-            conn.readIdentityPacket(mContext)
-                    .repeat()
-                    .takeWhile { identityPacket: IdentityPacket? ->
-                        val end = !identityPacket!!.isEnd
-                        if (!end) {
-                            Log.v(TAG, "identitypacket end of stream")
-                        }
-                        end
-                    }
-                    .ignoreElements()
-                    .toSingleDefault(TransactionResult(TransactionResult.STAGE_DECLARE_HASHES, device, session.luidStage.luid!!))
-        }
-
-        /*
-         * if we chose not to upgrade, exchange delcare hashes packets
-         */
-        session.addStage(
-                TransactionResult.STAGE_DECLARE_HASHES,
-                { serverConn: CachedLEServerConnection ->
-                    Log.v(TAG, "gatt server declareHashes stage")
-                    datastore.declareHashesPacket
-                            .flatMapCompletable { packet: DeclareHashesPacket -> serverConn.serverNotify(packet) }
-                            .toSingleDefault(Optional.empty())
-                }
-        ) { conn: CachedLEConnection ->
-            conn.readDeclareHashes()
-                    .doOnSuccess { declareHashesPacket: DeclareHashesPacket ->
-                        Log.v(TAG, "client handshake received declareHashes: " +
-                                declareHashesPacket.hashes.size)
-                    }
-                    .doOnError { err: Throwable -> Log.e(TAG, "error while receiving declareHashes packet: $err") }
-                    .map { declareHashesPacket: DeclareHashesPacket ->
-                        session.setDeclareHashesPacket(declareHashesPacket)
-                        TransactionResult(TransactionResult.STAGE_BLOCKDATA, device, session.luidStage.luid!!)
-                    }
-        }
-
-        /*
-         * if we chose not to upgrade, exchange messages V E R Y S L O W LY
-         * TODO: put some sort of cap on file size to avoid hanging here for hours
-         */
-        session.addStage(
-                TransactionResult.STAGE_BLOCKDATA,
-                { serverConn: CachedLEServerConnection ->
-                    Log.v(TAG, "gatt server blockdata stage")
-                    session.declareHashes
-                            .flatMapCompletable { declareHashesPacket: DeclareHashesPacket ->
-                                datastore.getTopRandomMessages(
-                                        preferences.getInt(mContext.getString(R.string.pref_blockdatacap), 30),
-                                        declareHashesPacket
-                                )
-                                        .concatMapCompletable { message: BlockDataStream ->
-                                            serverConn.serverNotify(message.headerPacket)
-                                                    .andThen(message.sequencePackets.concatMapCompletable { packet: BlockSequencePacket ->
-                                                        serverConn.serverNotify(packet) })
-                                        }
-                            }.toSingleDefault(Optional.empty())
-                }
-        ) { conn: CachedLEConnection ->
-            conn.readBlockHeader()
-                    .toFlowable()
-                    .flatMap { blockHeaderPacket: BlockHeaderPacket ->
-                        Flowable.range(0, blockHeaderPacket.hashList!!.size)
-                                .map {
-                                    BlockDataStream(
-                                            blockHeaderPacket,
-                                            conn.readBlockSequence()
-                                                    .repeat(blockHeaderPacket.hashList.size.toLong())
-                                    )
+                    ) { conn: CachedLEConnection ->
+                        Log.v(TAG, "gatt client election hashed stage")
+                        conn.readElectLeader()
+                                .doOnSuccess { Log.v(TAG, "client handshake received hashed election packet") }
+                                .doOnError { err: Throwable -> Log.e(TAG, "error while receiving election packet: $err") }
+                                .map { electLeaderPacket: ElectLeaderPacket ->
+                                    session.votingStage.addPacket(electLeaderPacket)
+                                    TransactionResult(TransactionResult.STAGE_ELECTION, session.device, session.luidStage.luid!!)
                                 }
                     }
-                    .takeUntil { stream: BlockDataStream ->
-                        val end = stream.headerPacket.isEndOfStream
-                        if (end) {
-                            Log.v(TAG, "uke end of stream")
-                        }
-                        end
-                    }
-                    .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
-                    .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
-                    .toSingle()
-                    .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
-                    .map { res: HandshakeResult ->
-                        transactionCompleteRelay.accept(res)
-                        TransactionResult(TransactionResult.STAGE_SUSPEND, device, session.luidStage.luid!!)
-                    }
-        }
 
-        // set our starting stage
-        session.stage = LeDeviceSession.INITIAL_STAGE
-        return Single.just(session) //TODO: this is ugly. Do this async
+                    /*
+                     * see above
+                     * Once the election stage is finished we move on to the actions decided by the result of the election
+                     */
+                    session.addStage(
+                            TransactionResult.STAGE_ELECTION,
+                            { serverConn: CachedLEServerConnection ->
+                                Log.v(TAG, "gatt server election stage")
+                                session.luidStage.getSelf()
+                                        .flatMapCompletable { luidPacket: LuidPacket ->
+                                            if (BuildConfig.DEBUG && luidPacket.isHashed) {
+                                                error("Assertion failed")
+                                            }
+                                            val packet = session.votingStage.getSelf(false, selectProvides())
+                                            packet.tagLuid(luidPacket.luid)
+                                            session.votingStage.addPacket(packet)
+                                            serverConn.serverNotify(packet)
+                                        }.toSingleDefault(Optional.empty())
+                            }
+                    ) { conn: CachedLEConnection ->
+                        Log.v(TAG, "gatt client election stage")
+                        conn.readElectLeader()
+                                .flatMapCompletable { electLeaderPacket: ElectLeaderPacket? ->
+                                    electLeaderPacket!!.tagLuid(session.luidMap[session.device.address])
+                                    session.votingStage.addPacket(electLeaderPacket)
+                                    session.votingStage.verifyPackets()
+                                }
+                                .andThen(session.votingStage.determineUpgrade())
+                                .map { provides: AdvertisePacket.Provides ->
+                                    Log.v(TAG, "election received provides: $provides")
+                                    val role: ConnectionRole = if (session.votingStage.selectSeme() == session.luidStage.luid) {
+                                        ConnectionRole.ROLE_SEME
+                                    } else {
+                                        ConnectionRole.ROLE_UKE
+                                    }
+                                    Log.v(TAG, "selected role: $role")
+                                    session.role = role
+                                    session.setUpgradeStage(provides)
+                                    when (provides) {
+                                        AdvertisePacket.Provides.INVALID -> {
+                                            Log.e(TAG, "received invalid provides")
+                                            return@map TransactionResult<BootstrapRequest>(
+                                                    TransactionResult.STAGE_TERMINATE,
+                                                    session.device,
+                                                    session.luidStage.luid!!
+                                            )
+                                        }
+                                        AdvertisePacket.Provides.BLE -> {
+                                            //we should do everything in BLE. slowwwww ;(
+                                            return@map TransactionResult<BootstrapRequest>(
+                                                    TransactionResult.STAGE_IDENTITY,
+                                                    session.device,
+                                                    session.luidStage.luid!!
+                                            )
+                                        }
+                                        AdvertisePacket.Provides.WIFIP2P ->
+                                            return@map TransactionResult<BootstrapRequest>(
+                                                    TransactionResult.STAGE_UPGRADE,
+                                                    session.device,
+                                                    session.luidStage.luid!!
+                                            )
+                                        else ->
+                                            return@map TransactionResult<BootstrapRequest>(
+                                                    TransactionResult.STAGE_TERMINATE,
+                                                    session.device, session.luidStage.luid!!
+                                            )
+                                    }
+                                }
+                                .doOnError { err: Throwable -> Log.e(TAG, "error while receiving packet: $err") }
+                                .doOnSuccess { Log.v(TAG, "client handshake received election result") }
+                                .onErrorReturn {
+                                    TransactionResult(TransactionResult.STAGE_TERMINATE, session.device, session.luidStage.luid!!)
+                                }
+                    }
+
+                    /*
+                     * if the election state decided we should upgrade, move to a new transport using an upgrade
+                     * packet exchange with our newly assigned role.
+                     * Currently this just means switch to wifi direct
+                     */
+                    session.addStage(
+                            TransactionResult.STAGE_UPGRADE,
+                            { serverConn: CachedLEServerConnection ->
+                                Log.v(TAG, "gatt server upgrade stage")
+                                serverBootstrapWifiDirect(session, serverConn)
+                            }
+                    ) { conn: CachedLEConnection ->
+                        Log.v(TAG, "gatt client upgrade stage")
+                        if (session.role == ConnectionRole.ROLE_UKE) {
+                            return@addStage conn.readUpgrade()
+                                    .doOnSuccess { Log.v(TAG, "client handshake received upgrade packet") }
+                                    .doOnError { err: Throwable -> Log.e(TAG, "error while receiving upgrade packet: $err") }
+                                    .map { upgradePacket: UpgradePacket ->
+                                        val request: BootstrapRequest = WifiDirectBootstrapRequest.create(
+                                                upgradePacket,
+                                                ConnectionRole.ROLE_UKE
+                                        )
+                                        TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.luid!!, result = request)
+                                    }
+                        } else {
+                            return@addStage Single.just(TransactionResult<BootstrapRequest>(
+                                    TransactionResult.STAGE_SUSPEND,
+                                    session.device,
+                                    session.luidStage.luid!!)
+                            )
+                        }
+                    }
+
+                    /*
+                     * if we chose not to upgrade, proceed with exchanging identity packets
+                     */
+                    session.addStage(
+                            TransactionResult.STAGE_IDENTITY,
+                            { serverConn: CachedLEServerConnection ->
+                                datastore.getTopRandomIdentities(
+                                        preferences.getInt(mContext.getString(R.string.pref_identitycap), 32)
+                                )
+                                        .concatMapCompletable { packet: IdentityPacket -> serverConn.serverNotify(packet) }
+                                        .toSingleDefault(Optional.empty())
+                            }
+                    ) { conn: CachedLEConnection ->
+                        conn.readIdentityPacket(mContext)
+                                .repeat()
+                                .takeWhile { identityPacket: IdentityPacket? ->
+                                    val end = !identityPacket!!.isEnd
+                                    if (!end) {
+                                        Log.v(TAG, "identitypacket end of stream")
+                                    }
+                                    end
+                                }
+                                .ignoreElements()
+                                .toSingleDefault(
+                                        TransactionResult(
+                                                TransactionResult.STAGE_DECLARE_HASHES,
+                                                session.device,
+                                                session.luidStage.luid!!
+                                        )
+                                )
+                    }
+
+                    /*
+                     * if we chose not to upgrade, exchange delcare hashes packets
+                     */
+                    session.addStage(
+                            TransactionResult.STAGE_DECLARE_HASHES,
+                            { serverConn: CachedLEServerConnection ->
+                                Log.v(TAG, "gatt server declareHashes stage")
+                                datastore.declareHashesPacket
+                                        .flatMapCompletable { packet: DeclareHashesPacket -> serverConn.serverNotify(packet) }
+                                        .toSingleDefault(Optional.empty())
+                            }
+                    ) { conn: CachedLEConnection ->
+                        conn.readDeclareHashes()
+                                .doOnSuccess { declareHashesPacket: DeclareHashesPacket ->
+                                    Log.v(TAG, "client handshake received declareHashes: " +
+                                            declareHashesPacket.hashes.size)
+                                }
+                                .doOnError { err: Throwable -> Log.e(TAG, "error while receiving declareHashes packet: $err") }
+                                .map { declareHashesPacket: DeclareHashesPacket ->
+                                    session.setDeclareHashesPacket(declareHashesPacket)
+                                    TransactionResult(TransactionResult.STAGE_BLOCKDATA, session.device, session.luidStage.luid!!)
+                                }
+                    }
+
+                    /*
+                     * if we chose not to upgrade, exchange messages V E R Y S L O W LY
+                     * TODO: put some sort of cap on file size to avoid hanging here for hours
+                     */
+                    session.addStage(
+                            TransactionResult.STAGE_BLOCKDATA,
+                            { serverConn: CachedLEServerConnection ->
+                                Log.v(TAG, "gatt server blockdata stage")
+                                session.declareHashes
+                                        .flatMapCompletable { declareHashesPacket: DeclareHashesPacket ->
+                                            datastore.getTopRandomMessages(
+                                                    preferences.getInt(mContext.getString(R.string.pref_blockdatacap), 30),
+                                                    declareHashesPacket
+                                            )
+                                                    .concatMapCompletable { message: BlockDataStream ->
+                                                        serverConn.serverNotify(message.headerPacket)
+                                                                .andThen(message.sequencePackets.concatMapCompletable { packet: BlockSequencePacket ->
+                                                                    serverConn.serverNotify(packet) })
+                                                    }
+                                        }.toSingleDefault(Optional.empty())
+                            }
+                    ) { conn: CachedLEConnection ->
+                        conn.readBlockHeader()
+                                .toFlowable()
+                                .flatMap { blockHeaderPacket: BlockHeaderPacket ->
+                                    Flowable.range(0, blockHeaderPacket.hashList!!.size)
+                                            .map {
+                                                BlockDataStream(
+                                                        blockHeaderPacket,
+                                                        conn.readBlockSequence()
+                                                                .repeat(blockHeaderPacket.hashList.size.toLong())
+                                                )
+                                            }
+                                }
+                                .takeUntil { stream: BlockDataStream ->
+                                    val end = stream.headerPacket.isEndOfStream
+                                    if (end) {
+                                        Log.v(TAG, "uke end of stream")
+                                    }
+                                    end
+                                }
+                                .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
+                                .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
+                                .toSingle()
+                                .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
+                                .map { res: HandshakeResult ->
+                                    transactionCompleteRelay.accept(res)
+                                    TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.luid!!)
+                                }
+                    }
+
+                    // set our starting stage
+                    session.stage = defaultState
+                    session
+                }
     }
 
     private fun removeConnection(device: String) {
@@ -894,100 +920,100 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .flatMap { clientConnection: CachedLEConnection ->
                                 connectionDisposable.add(clientConnection)
                                 Log.v(TAG, "stating stages")
-                                initializeProtocol(connection.connection.device, clientConnection, connection)
-                                        .flatMapObservable { session: LeDeviceSession ->
 
-                                            //observe any disconnects from gatt server and remove cached connections
-                                            connectionRaw.observeDisconnect<Any>()
-                                                    .subscribe(
-                                                            {}, //does not emit items
-                                                            { 
-                                                                for (luid in session.luidStage.hashPackets) {
-                                                                    connectedLuids.remove(luid.hashAsUUID)
+                                getLuidClient(clientConnection)
+                                        .toObservable()
+                                        .mergeWith(getLuidServer(connection))
+                                        .firstOrError()
+                                        .flatMapObservable { luid ->
+                                            val s = connectedLuids.getOrDefault(luid, LeDeviceSession(
+                                                    device.bluetoothDevice, 
+                                                    myLuid, 
+                                                    clientConnection, 
+                                                    connection)
+                                            )
+                                            initializeProtocol(s, TransactionResult.STAGE_LUID)
+                                                    .flatMapObservable { session: LeDeviceSession ->
+                                                        val d = connectionRaw.getOnCharacteristicWriteRequest(UUID_SEMAPHOR)
+                                                                .flatMapCompletable { trans ->
+                                                                    val remoteluid = bytes2uuid(trans.value)
+                                                                    val remotesession = connectedLuids[remoteluid]
+
+                                                                    when {
+                                                                        remotesession == null -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_FALSE)
+                                                                        remotesession.locked -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_BUSY)
+                                                                        else -> {
+                                                                            rewindSession(remotesession)
+                                                                            trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_TRUE)
+                                                                        }
+                                                                    }
                                                                 }
-                                                            }
-                                                    )
-
-                                            val d = connectionRaw.getOnCharacteristicWriteRequest(UUID_SEMAPHOR)
-                                                    .flatMapCompletable { trans ->
-                                                        val remoteluid = bytes2uuid(trans.value)
-                                                        val remotesession = connectedLuids[remoteluid]
-
-                                                        when {
-                                                            remotesession == null -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_FALSE)
-                                                            remotesession.locked -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_BUSY)
-                                                            else -> {
-                                                                rewindSession(remotesession)
-                                                                trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_TRUE)
-                                                            }
-                                                        }
-                                                    }
-                                                    .subscribe()
+                                                                .subscribe()
 
 
-                                            connectionDisposable.add(d)
-                                            /*
-                                             * this is kind of hacky. this observable chain is the driving force of our state machine
-                                             * state transitions are handled when our LeDeviceSession is subscribed to.
-                                             * each transition causes the session to emit the next state and start over
-                                             * since states are only handled on subscibe or on a terminal error, there
-                                             * shouldn't be any races or reentrancy issues
-                                             */
-                                            session.observeStage()
-                                                    .doOnNext { stage: String? -> Log.v(TAG, "handling stage: $stage") }
-                                                    .flatMapSingle {
-                                                        Single.zip(
-                                                                session.singleClient(),
-                                                                session.singleServer(),
-                                                                { client: ClientTransaction, server: ServerTransaction ->
-                                                                    server(connection)
-                                                                            .doOnSuccess { Log.v(TAG, "server handshake completed") }
-                                                                            .zipWith(client(clientConnection), {
-                                                                                first: Optional<BootstrapRequest>, second: TransactionResult<BootstrapRequest> ->
-                                                                                android.util.Pair(first, second)
-                                                                            })
-                                                                            .toObservable()
-                                                                            .doOnSubscribe { Log.v("debug", "client handshake subscribed") }
+                                                        connectionDisposable.add(d)
+                                                        /*
+                                                         * this is kind of hacky. this observable chain is the driving force of our state machine
+                                                         * state transitions are handled when our LeDeviceSession is subscribed to.
+                                                         * each transition causes the session to emit the next state and start over
+                                                         * since states are only handled on subscibe or on a terminal error, there
+                                                         * shouldn't be any races or reentrancy issues
+                                                         */
+                                                        session.observeStage()
+                                                                .doOnNext { stage: String? -> Log.v(TAG, "handling stage: $stage") }
+                                                                .flatMapSingle {
+                                                                    Single.zip(
+                                                                            session.singleClient(),
+                                                                            session.singleServer(),
+                                                                            { client: ClientTransaction, server: ServerTransaction ->
+                                                                                server(connection)
+                                                                                        .doOnSuccess { Log.v(TAG, "server handshake completed") }
+                                                                                        .zipWith(client(clientConnection), {
+                                                                                            first: Optional<BootstrapRequest>, second: TransactionResult<BootstrapRequest> ->
+                                                                                            android.util.Pair(first, second)
+                                                                                        })
+                                                                                        .toObservable()
+                                                                                        .doOnSubscribe { Log.v("debug", "client handshake subscribed") }
+                                                                            }
+                                                                    )
                                                                 }
-                                                        )
-                                                    }
-                                                    .concatMap { result -> result }
-                                                    .doOnNext { transactionResult ->
-                                                        if (session.stage == TransactionResult.STAGE_SUSPEND) {
-                                                            Log.v(TAG, "session $device suspending")
-                                                            session.unlock()
-                                                        }
-                                                        session.stage = transactionResult.second.nextStage
+                                                                .concatMap { result -> result }
+                                                                .doOnNext { transactionResult ->
+                                                                    if (session.stage == TransactionResult.STAGE_SUSPEND) {
+                                                                        Log.v(TAG, "session $device suspending")
+                                                                        session.unlock()
+                                                                    }
+                                                                    session.stage = transactionResult.second.nextStage
+                                                                }
+                                                                .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
+                                                                .doFinally {
+                                                                    Log.e(TAG, "TERMINATION: session $device terminated")
+                                                                    // if we encounter any errors or terminate, remove cached connections
+                                                                    // as they may be tainted
+                                                                    for (luid in session.luidStage.hashPackets) {
+                                                                        connectedLuids.remove(luid.hashAsUUID)
+                                                                    }
+                                                                    session.unlock()
+                                                                    connectionDisposable.dispose()
+                                                                    myLuid.set(UUID.randomUUID()) // randomize luid for privacy
+                                                                }
                                                     }
                                                     .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
-                                                    .doFinally {
-                                                        Log.e(TAG, "TERMINATION: session $device terminated")
-                                                        // if we encounter any errors or terminate, remove cached connections
-                                                        // as they may be tainted
-                                                        for (luid in session.luidStage.hashPackets) {
-                                                            connectedLuids.remove(luid.hashAsUUID)
+                                                    .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
+                                                    .map { pair ->
+                                                        when {
+                                                            pair.second.hasResult() -> {
+                                                                return@map pair.second.result
+                                                            }
+                                                            pair.first.isPresent -> {
+                                                                return@map pair.first.get()
+                                                            }
+                                                            else -> {
+                                                                throw IllegalStateException("this should never happen")
+                                                            }
                                                         }
-                                                        session.unlock()
-                                                        connectionDisposable.dispose()
-                                                        myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                                     }
                                         }
-                                        .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
-                                        .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
-                                        .map { pair ->
-                                            when {
-                                                pair.second.hasResult() -> {
-                                                    return@map pair.second.result
-                                                }
-                                                pair.first.isPresent -> {
-                                                    return@map pair.first.get()
-                                                }
-                                                else -> {
-                                                    throw IllegalStateException("this should never happen")
-                                                }
-                                            }
-                                        }
-
                             }
                 }
                 .doOnDispose {

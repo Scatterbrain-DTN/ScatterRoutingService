@@ -22,7 +22,6 @@ class TransactionResult<T> constructor(
         const val STAGE_SUSPEND = "suspend"
         const val STAGE_TERMINATE = "exit"
         const val STAGE_START = "start"
-        const val STAGE_LUID_HASHED = "luid-hashed"
         const val STAGE_LUID = "luid"
         const val STAGE_ADVERTISE = "advertise"
         const val STAGE_ELECTION_HASHED = "election-hashed"
