@@ -199,8 +199,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 {
                     Log.v(TAG, "transaction complete, randomizing luid")
                     releaseWakeLock()
-                    // we need to randomize the luid every transaction or devices can be tracked
-                    myLuid.set(UUID.randomUUID())
                 }
         ) { err: Throwable -> Log.e(TAG, "error in transactionCompleteRelay $err") }
         mGattDisposable.add(d)
@@ -959,6 +957,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         }
                                                         session.stage = transactionResult.second.nextStage
                                                     }
+                                                    .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
                                                     .doFinally {
                                                         // if we encounter any errors or terminate, remove cached connections
                                                         // as they may be tainted
@@ -967,8 +966,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         }
                                                         session.unlock()
                                                         connectionDisposable.dispose()
+                                                        myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                                     }
-                                                    .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
                                         }
                                         .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
                                         .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
