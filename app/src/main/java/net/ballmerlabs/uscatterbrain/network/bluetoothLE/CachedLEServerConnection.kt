@@ -110,6 +110,7 @@ class CachedLEServerConnection(
                                                             .andThen(connection.setupIndication(
                                                                     characteristic.uuid,
                                                                     packet.writeToStream(20)
+                                                                            .subscribeOn(scheduler)
                                                             ))
                                                             .doOnError{ err ->
                                                                 Log.e(TAG, "error in gatt server indication $err")
