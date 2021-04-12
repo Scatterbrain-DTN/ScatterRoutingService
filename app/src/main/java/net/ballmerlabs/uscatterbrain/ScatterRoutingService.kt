@@ -390,7 +390,10 @@ class ScatterRoutingService : LifecycleService() {
                 }
                 .subscribe(
                 { Log.v(TAG, "async refresh peers successful") },
-                { err -> Log.e(TAG, "error in async refresh peers: $err")}
+                { err ->
+                    Log.e(TAG, "error in async refresh peers: $err")
+                    err.printStackTrace()
+                }
         )
         protocolDisposableSet.add(d)
         disp.set(d)

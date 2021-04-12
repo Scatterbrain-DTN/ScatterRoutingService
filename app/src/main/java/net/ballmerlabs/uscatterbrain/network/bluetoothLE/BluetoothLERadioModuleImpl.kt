@@ -691,7 +691,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                    else {
                        Observable.fromIterable(sessionCache.values)
                                .concatMapCompletable { session ->
-                                   session.client.connection
+                                   session.client.connectionSubject
                                            .flatMapSingle { connection ->
                                                connection.writeCharacteristic(UUID_SEMAPHOR, uuid2bytes(myLuid.get()))
                                            }
@@ -703,14 +703,18 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                    } //TODO: actually connect
                                                    res.contentEquals(GATT_BUSY) -> Completable.complete()
                                                    res.contentEquals(GATT_FALSE) -> Completable.complete()
-                                                   else -> Completable.error(java.lang.IllegalStateException("invalid response"))
+                                                   else -> Completable.error(java.lang.IllegalStateException("invalid response $res"))
 
                                                }
                                            }
                                }
                    }
                 }
-                .doOnError { refreshInProgresss.accept(false) }
+                .doOnError { err ->
+                    Log.e(TAG, "error on refresh $err")
+                    err.printStackTrace()
+                    refreshInProgresss.accept(false)
+                }
                 .doOnComplete { refreshInProgresss.accept(false) }
 
     }
@@ -719,13 +723,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * establish a GATT connection using caching to work around RxAndroidBle quirk
      */
     private fun establishConnection(device: RxBleDevice, timeout: Timeout): CachedLEConnection {
+        Log.v(TAG, "establishing connection to ${device.macAddress}")
         val conn = connectionCache[device.macAddress]
         if (conn != null) {
             return conn
         }
         val connectionObs = device.establishConnection(false, timeout)
-                .doOnDispose { removeConnection(device.macAddress) }
-                .doOnError { removeConnection(device.macAddress) }
                 .doOnNext {
                     Log.v(TAG, "successfully established connection")
                     Single.just(device)
@@ -910,7 +913,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         return@concatMap Observable.error<HandshakeResult>(IllegalStateException("device was null"))
                     }
 
-                    Log.d(TAG, "gatt server connection from " + connectionRaw.device.address)
+                    Log.d(TAG, "gatt server connection from ${connection.connection.device.address} ${device.macAddress}")
 
                     Observable.just(establishConnection(device, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)))
                             .flatMap { clientConnection: CachedLEConnection ->
@@ -930,8 +933,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     clientConnection, 
                                                     connection,
                                                     luid
-                                            )
-                                            )
+                                            ))
+
+                                            sessionCache.putIfAbsent(luid.hashAsUUID!!, s)
                                             initializeProtocol(s, TransactionResult.STAGE_LUID)
                                                     .flatMapObservable { session: LeDeviceSession ->
                                                         val d = connectionRaw.getOnCharacteristicWriteRequest(UUID_SEMAPHOR)
@@ -1019,6 +1023,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             
                                         }
                             }
+                            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                 }
                 .doOnDispose {
                     Log.e(TAG, "gatt server disposed")
@@ -1029,7 +1034,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.e(TAG, "gatt server shut down with error: $err")
                     err.printStackTrace()
                 }
-                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                 .retry()
                 .repeat()
                 .doOnNext { releaseWakeLock() }

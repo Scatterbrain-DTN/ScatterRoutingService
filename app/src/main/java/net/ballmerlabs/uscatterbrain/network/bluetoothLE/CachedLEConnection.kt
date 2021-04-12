@@ -25,13 +25,13 @@ import java.util.concurrent.TimeUnit
  * for a BLE client connection
  */
 class CachedLEConnection(
-        public val connection: Observable<RxBleConnection>,
+        connection: Observable<RxBleConnection>,
         private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
         private val scheduler: Scheduler
         ) : Disposable {
     private val disposable = CompositeDisposable()
     private val enabled = CompletableSubject.create()
-    private val connectionSubject = BehaviorSubject.create<RxBleConnection>()
+    val connectionSubject = BehaviorSubject.create<RxBleConnection>()
     private val timeout: Long = 20
 
     init {
