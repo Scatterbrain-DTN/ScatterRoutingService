@@ -4,7 +4,6 @@ import android.bluetooth.BluetoothGatt
 import android.util.Log
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleServerConnection
-import com.polidea.rxandroidble2.ServerResponseTransaction
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -42,22 +41,7 @@ class CachedLEServerConnection(
                         .map { lockedCharactersitic: LockedCharactersitic -> lockedCharactersitic.awaitCharacteristic().toObservable() }
         )
                 .firstOrError()
-    }
-    
-    @Synchronized
-    private fun <T : ScatterSerializable> enqueuePacket(packet: T): Completable {
-        incrementSize()
-        return sizeRelay
-                .mergeWith(
-                        errorRelay
-                                .flatMap { exception: Throwable -> throw exception }
-                )
-                .takeWhile { s: Int -> s > 0 }
-                .ignoreElements()
-                .doOnSubscribe {
-                    Log.v(TAG, "packet queue accepted packet " + packet.type)
-                    packetQueue.accept(packet)
-                }
+                .doOnSuccess { char -> Log.v(TAG, "selected characteristic $char") }
     }
 
     private fun decrementSize(): Int {
@@ -73,20 +57,18 @@ class CachedLEServerConnection(
      * @param packet ScatterSerializable message to send
      * @return completable
      */
-    @Synchronized
-    fun <T : ScatterSerializable> serverNotify(
-            packet: T
+    fun serverNotify(
+            packet: ScatterSerializable
     ): Completable {
         Log.v(TAG, "serverNotify for packet " + packet.type)
-        return if (size.get() <= 0) {
-            enqueuePacket(packet)
-        } else {
-            sizeRelay
+        return sizeRelay
                     .takeWhile { s: Int -> s > 0 }
                     .ignoreElements()
-                    .andThen(enqueuePacket(packet))
+                    .doOnSubscribe {
+                        incrementSize()
+                        packetQueue.accept(packet)
+                    }
                     .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
-        }
     }
 
     override fun dispose() {
@@ -113,41 +95,40 @@ class CachedLEServerConnection(
          * It should be noted that while there may be more then one packet waiting in the queue,
          * the adapter can only service one packet per channel
          */
-        val d = connection.getOnCharacteristicReadRequest(
-                BluetoothLERadioModuleImpl.UUID_SEMAPHOR
-        )
-                .doOnNext { Log.v(TAG, "received timing characteristic write request") }
-                .toFlowable(BackpressureStrategy.BUFFER)
-                .concatMapSingle { req: ServerResponseTransaction ->
-                    selectCharacteristic()
-                            .flatMap { characteristic: OwnedCharacteristic ->
-                                req.sendReply(BluetoothGatt.GATT_SUCCESS, 0,
-                                        BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid))
-                                        .toSingleDefault(characteristic)
-                            }
-                            .timeout(2, TimeUnit.SECONDS)
-                            .doOnError { req.sendReply(BluetoothGatt.GATT_FAILURE, 0, null) }
-                }
-                .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER), { ch: OwnedCharacteristic, packet: ScatterSerializable ->
-                    Log.v(TAG, "server received timing characteristic write")
-                    connection.getOnCharacteristicReadRequest(ch.uuid)
-                            .firstOrError()
-                            .timeout(5, TimeUnit.SECONDS)
-                            .flatMapCompletable { trans -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null) }
-                            .andThen(connection.setupIndication(
-                                    ch.uuid,
-                                    packet.writeToStream(20)
-                                            .subscribeOn(scheduler)
-                            ))
-                            .timeout(30, TimeUnit.SECONDS, scheduler)
-                            .doOnError(errorRelay)
-                            .onErrorComplete()
-                            .doFinally {
-                                sizeRelay.accept(decrementSize())
-                                ch.release()
-                            }
+        val d =
+        packetQueue.toFlowable(BackpressureStrategy.BUFFER)
+                .zipWith(connection.getOnCharacteristicReadRequest(
+                        BluetoothLERadioModuleImpl.UUID_SEMAPHOR
+                )
+                        .toFlowable(BackpressureStrategy.BUFFER), { packet, req ->
+                    Log.v(TAG, "received UUID_SEMAPHOR write")
+                            selectCharacteristic()
+                                    .flatMapCompletable { characteristic: OwnedCharacteristic ->
+                                                    connection.getOnCharacteristicReadRequest(characteristic.uuid)
+                                                            .firstOrError()
+                                                            .flatMapCompletable { trans -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null) }
+                                                            .andThen(connection.setupIndication(
+                                                                    characteristic.uuid,
+                                                                    packet.writeToStream(20)
+                                                            ))
+                                                            .doOnError{ err ->
+                                                                Log.e(TAG, "error in gatt server indication $err")
+                                                                errorRelay.accept(err)
+                                                            }
+                                                            .onErrorComplete()
+                                                            .doFinally {
+                                                                sizeRelay.accept(decrementSize())
+                                                                characteristic.release()
+                                                            }
+                                                            .doOnSubscribe {
+                                                                req.sendReply(BluetoothGatt.GATT_SUCCESS, 0,
+                                                                    BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid))
+                                                                    .subscribe()
+                                                            }
+                                    }
+                                    .doOnError { req.sendReply(BluetoothGatt.GATT_FAILURE, 0, null) }
                 })
-                .flatMapCompletable { completable: Completable -> completable }
+                .flatMapCompletable { obs -> obs }
                 .repeat()
                 .retry()
                 .subscribe(

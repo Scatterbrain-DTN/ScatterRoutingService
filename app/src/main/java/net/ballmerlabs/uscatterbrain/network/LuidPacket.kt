@@ -12,6 +12,7 @@ import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.Luid
 import net.ballmerlabs.uscatterbrain.ScatterProto.Luid.hashed
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import java.io.*
 import java.nio.ByteBuffer
 import java.util.*
@@ -41,6 +42,17 @@ class LuidPacket : ScatterSerializable {
                     .setValUuid(u)
                     .build()
         }
+    }
+
+    private constructor(hash: UUID, protoversion: Int) {
+        isHashed = true
+        val h = hashed.newBuilder()
+                .setHash(ByteString.copyFrom(BluetoothLERadioModuleImpl.uuid2bytes(hash)))
+                .setProtoversion(protoversion)
+                .build()
+        mLuid = Luid.newBuilder()
+                .setValHash(h)
+                .build()
     }
 
     private constructor(`is`: InputStream) {
@@ -161,6 +173,10 @@ class LuidPacket : ScatterSerializable {
                     .setLower(uuid!!.leastSignificantBits)
                     .setUpper(uuid.mostSignificantBits)
                     .build()
+        }
+        
+        fun fromHash(hash: UUID, protoversion: Int): LuidPacket {
+            return LuidPacket(hash, protoversion)
         }
 
         private fun protoUUIDtoUUID(uuid: ScatterProto.UUID): UUID {

@@ -32,7 +32,7 @@ class CachedLEConnection(
     private val disposable = CompositeDisposable()
     private val enabled = CompletableSubject.create()
     private val connectionSubject = BehaviorSubject.create<RxBleConnection>()
-    private val timeout: Long = 5
+    private val timeout: Long = 20
 
     init {
         premptiveEnable().subscribe(enabled)
@@ -73,14 +73,15 @@ class CachedLEConnection(
                 .firstOrError()
                 .flatMap { c ->
                     c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
-                        .flatMap flatMap@{ bytes: ByteArray ->
+                        .map{ bytes: ByteArray ->
                             val uuid: UUID = BluetoothLERadioModuleImpl.bytes2uuid(bytes)
                             if (!channels.containsKey(uuid)) {
-                                return@flatMap Single.error<UUID>(IllegalStateException("gatt server returned invalid uuid"))
+                                throw IllegalStateException("gatt server returned invalid uuid")
                             }
-                            Single.just(uuid)
+                            uuid
                         }
                 }
+                .doOnSuccess{ uuid -> Log.v(TAG, "client selected channel $uuid") }
     }
 
     /*
@@ -89,24 +90,24 @@ class CachedLEConnection(
      * to receive data
      */
     private fun cachedNotification(): Observable<ByteArray> {
-        val notificationDisposable = CompositeDisposable()
         return enabled.andThen(selectChannel())
                 .retry(10)
                 .flatMapObservable { uuid: UUID ->
                     connectionSubject
                             .firstOrError()
-                            .flatMapObservable { c ->  c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                                    .retry(10)
-                                    .flatMap { observable: Observable<ByteArray>? -> observable }
-                                    .doOnSubscribe {
-                                        Log.v(TAG, "client subscribed to notifications for $uuid")
-                                        c.readCharacteristic(uuid)
-                                                .subscribe()
-                                    }
-                                    .doOnComplete { Log.e(TAG, "notifications completed for some reason") }
-                                    .doOnNext { b: ByteArray -> Log.v(TAG, "client received bytes " + b.size) }
-                                    .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
-                                    .doFinally { notificationDisposable.dispose() }}
+                            .flatMapObservable { c ->
+                                c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                                        .retry(10)
+                                        .flatMap { observable -> observable }
+                                        .doOnSubscribe {
+                                            Log.v(TAG, "client subscribed to notifications for $uuid")
+                                            c.readCharacteristic(uuid)
+                                                    .subscribe()
+                                        }
+                                        .doOnComplete { Log.e(TAG, "notifications completed for some reason") }
+                                        .doOnNext { b: ByteArray -> Log.v(TAG, "client received bytes " + b.size) }
+                                        .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
+                            }
                 }
     }
 

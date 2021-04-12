@@ -8,11 +8,11 @@ import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
+import net.ballmerlabs.uscatterbrain.network.LuidPacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 
 /*
  * server and client transactions are represented as functions taking a GATT connection
@@ -36,11 +36,12 @@ typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionRe
  */
 class LeDeviceSession(
         val device: BluetoothDevice, 
-        luid: AtomicReference<UUID>,
+        luid: UUID,
         val client: CachedLEConnection,
-        val server: CachedLEServerConnection
+        val server: CachedLEServerConnection,
+        val remoteLuid: LuidPacket
 ) {
-    val luidStage: LuidStage = LuidStage(luid) //exchange hashed and unhashed luids
+    val luidStage: LuidStage = LuidStage(luid, remoteLuid) //exchange hashed and unhashed luids
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities
     val votingStage: VotingStage = VotingStage() //determine if an upgrade takes place
     var upgradeStage: UpgradeStage? = null //possibly upgrade to new transport
