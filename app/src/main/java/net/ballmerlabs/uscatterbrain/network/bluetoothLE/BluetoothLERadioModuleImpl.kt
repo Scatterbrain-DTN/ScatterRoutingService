@@ -180,7 +180,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     // luid is a temporary unique identifier used for a single transaction.
     private val myLuid = AtomicReference(UUID.randomUUID())
 
-    private val connectedLuids = ConcurrentHashMap<UUID, LeDeviceSession>()
+    private val sessionCache = ConcurrentHashMap<UUID, LeDeviceSession>()
     private val activeLuids = Collections.newSetFromMap(ConcurrentHashMap<UUID, Boolean>())
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
@@ -213,8 +213,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                         return@flatMap Single.error(IllegalStateException("device already connected"))
                     } else {
-                        //TODO:
-                        //connectedLusession.lock()
                         activeLuids.add(hashUUID)
                     }
 
@@ -691,7 +689,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                    if (b) refreshInProgresss.takeUntil { v -> !v }
                                 .ignoreElements()
                    else {
-                       Observable.fromIterable(connectedLuids.values)
+                       Observable.fromIterable(sessionCache.values)
                                .concatMapCompletable { session ->
                                    session.client.connection
                                            .flatMapSingle { connection ->
@@ -926,7 +924,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         .firstOrError()
                                         .flatMapObservable { luid ->
                                             Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
-                                            val s = connectedLuids.getOrDefault(luid.hashAsUUID!!, LeDeviceSession(
+                                            val s = sessionCache.getOrDefault(luid.hashAsUUID!!, LeDeviceSession(
                                                     device.bluetoothDevice, 
                                                     myLuid.get(),
                                                     clientConnection, 
@@ -939,7 +937,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         val d = connectionRaw.getOnCharacteristicWriteRequest(UUID_SEMAPHOR)
                                                                 .flatMapCompletable { trans ->
                                                                     val remoteluid = bytes2uuid(trans.value)
-                                                                    val remotesession = connectedLuids[remoteluid]
+                                                                    val remotesession = sessionCache[remoteluid]
 
                                                                     when {
                                                                         remotesession == null -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_FALSE)
@@ -1005,12 +1003,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                 .doOnNext {
                                                                     Log.v(TAG, "wifi direct bootstrap complete, unlocking session.")
                                                                     session.unlock()
+                                                                    activeLuids.remove(session.remoteLuid)
                                                                 }
+                                                                .doOnError { activeLuids.remove(session.remoteLuid) }
                                                                 .doFinally {
                                                                     Log.e(TAG, "TERMINATION: session $device terminated")
                                                                     // if we encounter any errors or terminate, remove cached connections
                                                                     // as they may be tainted
-                                                                    connectedLuids.remove(session.remoteLuid)
+                                                                    sessionCache.remove(session.remoteLuid)
                                                                     session.unlock()
                                                                     connectionDisposable.dispose()
                                                                     myLuid.set(UUID.randomUUID()) // randomize luid for privacy
