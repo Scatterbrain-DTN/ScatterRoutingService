@@ -683,6 +683,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * @return completable
      */
     override fun refreshPeers(): Completable {
+        Log.v(TAG, "refreshing ${sessionCache.size} peers")
         return refreshInProgresss
                 .firstOrError()
                 .flatMapCompletable { b ->
@@ -693,20 +694,20 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                .concatMapCompletable { session ->
                                    session.client.connectionSubject
                                            .flatMapSingle { connection ->
-                                               connection.writeCharacteristic(UUID_SEMAPHOR, uuid2bytes(myLuid.get()))
+                                               connection.writeCharacteristic(UUID_SEMAPHOR, uuid2bytes(
+                                                       LuidPacket.newBuilder()
+                                                               .setLuid(myLuid.get())
+                                                               .enableHashing(ScatterRoutingService.PROTO_VERSION)
+                                                               .build().hashAsUUID!!
+                                               ))
                                            }
-                                           .flatMapCompletable { res ->
-                                               when {
-                                                   res.contentEquals(GATT_TRUE) -> {
-                                                       rewindSession(session)
-                                                       awaitTransaction()
-                                                   } //TODO: actually connect
-                                                   res.contentEquals(GATT_BUSY) -> Completable.complete()
-                                                   res.contentEquals(GATT_FALSE) -> Completable.complete()
-                                                   else -> Completable.error(java.lang.IllegalStateException("invalid response $res"))
-
-                                               }
+                                           .flatMapCompletable {
+                                               Log.v(TAG, "received success code, rewinding session")
+                                               rewindSession(session)
+                                               awaitTransaction()
                                            }
+                                           .doOnError { Log.e(TAG, "remote peer busy, ignoring for now") }
+                                           .onErrorComplete()
                                }
                    }
                 }
@@ -944,11 +945,18 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     val remotesession = sessionCache[remoteluid]
 
                                                                     when {
-                                                                        remotesession == null -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_FALSE)
-                                                                        remotesession.locked -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_BUSY)
+                                                                        remotesession == null -> {
+                                                                            Log.e(TAG, "remote session for $remoteluid was null" )
+                                                                            trans.sendReply(BluetoothGatt.GATT_FAILURE, 0, null)
+                                                                        }
+                                                                        remotesession.locked -> {
+                                                                            Log.e(TAG, "attempted to rewind session $remoteluid but was locked")
+                                                                            trans.sendReply(BluetoothGatt.GATT_FAILURE, 0, null)
+                                                                        }
                                                                         else -> {
+                                                                            Log.v(TAG, "remote session $remoteluid valid, commencing rewind")
                                                                             rewindSession(remotesession)
-                                                                            trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, GATT_TRUE)
+                                                                            trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null)
                                                                         }
                                                                     }
                                                                 }
@@ -1016,7 +1024,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     // as they may be tainted
                                                                     sessionCache.remove(session.remoteLuid)
                                                                     session.unlock()
-                                                                    connectionDisposable.dispose()
                                                                     myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                                                 }
                                                     }
