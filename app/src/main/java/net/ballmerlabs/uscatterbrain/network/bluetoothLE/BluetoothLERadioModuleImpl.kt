@@ -1033,7 +1033,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     // as they may be tainted
                                                                     sessionCache.remove(session.remoteLuid)
                                                                     activeLuids.remove(session.remoteLuid)
+                                                                    connectionRaw.disconnect()
+                                                                    connectionDisposable.dispose()
+                                                                    connection.dispose()
                                                                     session.unlock()
+                                                                    removeConnection(device.macAddress)
                                                                     myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                                                 }
                                                     }
