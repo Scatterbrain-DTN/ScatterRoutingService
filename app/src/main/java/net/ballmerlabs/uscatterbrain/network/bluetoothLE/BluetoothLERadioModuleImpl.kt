@@ -15,6 +15,7 @@ import android.util.Log
 import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.*
+import com.polidea.rxandroidble2.exceptions.BleDisconnectedException
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanResult
 import com.polidea.rxandroidble2.scan.ScanSettings
@@ -362,7 +363,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 }
                                 .toSingleDefault(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, session.device, session.luidStage.remoteHashed))
                                 .doOnError { err: Throwable -> Log.e(TAG, "luid hash verify failed: $err") }
-                                .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_TERMINATE, session.device, session.luidStage.remoteHashed))
+                                .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.remoteHashed))
                     }
 
                     /*
@@ -456,7 +457,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         AdvertisePacket.Provides.INVALID -> {
                                             Log.e(TAG, "received invalid provides")
                                             return@map TransactionResult<BootstrapRequest>(
-                                                    TransactionResult.STAGE_TERMINATE,
+                                                    TransactionResult.STAGE_SUSPEND,
                                                     session.device,
                                                     session.luidStage.remoteHashed
                                             )
@@ -477,7 +478,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             )
                                         else ->
                                             return@map TransactionResult<BootstrapRequest>(
-                                                    TransactionResult.STAGE_TERMINATE,
+                                                    TransactionResult.STAGE_SUSPEND,
                                                     session.device, session.luidStage.remoteHashed
                                             )
                                     }
@@ -485,7 +486,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 .doOnError { err: Throwable -> Log.e(TAG, "error while receiving packet: $err") }
                                 .doOnSuccess { Log.v(TAG, "client handshake received election result") }
                                 .onErrorReturn {
-                                    TransactionResult(TransactionResult.STAGE_TERMINATE, session.device, session.luidStage.remoteHashed)
+                                    TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.remoteHashed)
                                 }
                     }
 
@@ -1017,12 +1018,21 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     session.unlock()
                                                                     activeLuids.remove(session.remoteLuid)
                                                                 }
-                                                                .doOnError { activeLuids.remove(session.remoteLuid) }
+                                                                .doOnError { err ->
+                                                                    Log.e(TAG, "session ${session.remoteLuid} ended with error $err")
+                                                                    when(err) {
+                                                                        is BleDisconnectedException -> session.stage = TransactionResult.STAGE_TERMINATE
+                                                                        else -> session.stage = TransactionResult.STAGE_SUSPEND
+                                                                    }
+                                                                    session.unlock()
+                                                                }
+                                                                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                                                                 .doFinally {
                                                                     Log.e(TAG, "TERMINATION: session $device terminated")
                                                                     // if we encounter any errors or terminate, remove cached connections
                                                                     // as they may be tainted
                                                                     sessionCache.remove(session.remoteLuid)
+                                                                    activeLuids.remove(session.remoteLuid)
                                                                     session.unlock()
                                                                     myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                                                 }
@@ -1031,6 +1041,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         }
                             }
                             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+
                 }
                 .doOnDispose {
                     Log.e(TAG, "gatt server disposed")
