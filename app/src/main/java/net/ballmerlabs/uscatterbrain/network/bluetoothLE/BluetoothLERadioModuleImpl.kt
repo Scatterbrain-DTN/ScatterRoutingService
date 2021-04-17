@@ -708,7 +708,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                rewindSession(session)
                                                awaitTransaction()
                                            }
-                                           .doOnError { Log.e(TAG, "remote peer busy, ignoring for now") }
+                                           .doOnError { err -> Log.e(TAG, "remote peer busy, ignoring for now: $err") }
                                            .onErrorComplete()
                                }
                    }
@@ -867,10 +867,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun rewindSession(session: LeDeviceSession) {
         Log.v(TAG, "rewinding session")
-        session.advertiseStage.reset()
-        session.upgradeStage?.reset()
-        session.votingStage.reset()
-        session.stage = TransactionResult.STAGE_ADVERTISE
+        session.stage = TransactionResult.STAGE_UPGRADE
     }
     
     private fun resetSession(session: LeDeviceSession) {
