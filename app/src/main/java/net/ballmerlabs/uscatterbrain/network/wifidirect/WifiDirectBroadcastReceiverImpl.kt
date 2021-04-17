@@ -32,7 +32,7 @@ import javax.inject.Singleton
 class WifiDirectBroadcastReceiverImpl @Inject constructor(
         private val manager: WifiP2pManager,
         private val channel: WifiP2pManager.Channel,
-        @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_OPERATIONS) private val operationScheduler: Scheduler
+        @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationScheduler: Scheduler
 ) : BroadcastReceiver(), WifiDirectBroadcastReceiver {
     enum class P2pState {
         STATE_DISABLED, STATE_ENABLED

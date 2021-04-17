@@ -58,7 +58,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         private val mContext: Context,
         private val datastore: ScatterbrainDatastore,
         private val preferences: RouterPreferences,
-        @Named(RoutingServiceComponent.NamedSchedulers.WIFI_DIRECT_OPERATIONS) private val operationsScheduler: Scheduler,
+        @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
         private val channel: WifiP2pManager.Channel,
         private val mBroadcastReceiver: WifiDirectBroadcastReceiver
 ) : WifiDirectRadioModule {
@@ -95,58 +95,60 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      * @param passphrase group PSK. minimum 8 characters
      */
     override fun createGroup(name: String, passphrase: String): Completable {
-        return mBroadcastReceiver.observeConnectionInfo()
-                            .doOnSubscribe {
-                                Log.e(TAG, "subscribed")
-                                val config = WifiP2pConfig.Builder()
-                                        .setNetworkName(name)
-                                        .setPassphrase(passphrase)
-                                        .build()
-                                val groupRetry = AtomicReference(5)
-                                if (!groupOperationInProgress.getAndUpdate { true }) {
-                                    val listener: WifiP2pManager.ActionListener = object : WifiP2pManager.ActionListener { override fun onSuccess() {
-                                        Log.v(TAG, "successfully created group!")
-                                        groupOperationInProgress.set(false)
-                                    }
+        return Completable.defer {
+            mBroadcastReceiver.observeConnectionInfo()
+                    .doOnSubscribe {
+                        Log.e(TAG, "subscribed")
+                        val config = WifiP2pConfig.Builder()
+                                .setNetworkName(name)
+                                .setPassphrase(passphrase)
+                                .build()
+                        val groupRetry = AtomicReference(5)
+                        if (!groupOperationInProgress.getAndUpdate { true }) {
+                            val listener: WifiP2pManager.ActionListener = object : WifiP2pManager.ActionListener { override fun onSuccess() {
+                                Log.v(TAG, "successfully created group!")
+                                groupOperationInProgress.set(false)
+                            }
 
-                                        override fun onFailure(reason: Int) {
-                                            Log.e(TAG, "failed to create group: " + reasonCodeToString(reason))
-                                            if (groupRetry.getAndUpdate { v: Int -> v - 1 } > 0 && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                                                mManager.createGroup(channel, this)
-                                            }
-                                        }
-                                    }
-                                    if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                                        mManager.requestGroupInfo(channel) { group: WifiP2pGroup? ->
-                                            if (group == null) {
-                                                Log.v(TAG, "group is null, assuming not created")
-                                                mManager.createGroup(channel, config, listener)
-                                            } else {
-                                                mManager.removeGroup(channel, object : WifiP2pManager.ActionListener {
-                                                    override fun onSuccess() {
-                                                        if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                                                                PackageManager.PERMISSION_GRANTED) {
-                                                            mManager.createGroup(channel, config, listener)
-                                                        }
-                                                    }
-
-                                                    override fun onFailure(reason: Int) {
-                                                        Log.e(TAG, "failed to remove group")
-                                                        groupOperationInProgress.set(false)
-                                                    }
-                                                })
-                                            }
-                                        }
+                                override fun onFailure(reason: Int) {
+                                    Log.e(TAG, "failed to create group: " + reasonCodeToString(reason))
+                                    if (groupRetry.getAndUpdate { v: Int -> v - 1 } > 0 && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                                        mManager.createGroup(channel, this)
                                     }
                                 }
-
                             }
-                .doOnError { err -> Log.e(TAG, "createGroup error: $err")}
-                            .doOnNext { t: WifiP2pInfo -> Log.e(TAG, "received a WifiP2pInfo: $t") }
-                            .takeUntil { wifiP2pInfo: WifiP2pInfo -> (wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner) }
-                            .ignoreElements()
-                            .doOnComplete { Log.v(TAG, "createGroup return success") }
-                            .doFinally { groupOperationInProgress.set(false) }
+                            if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                                mManager.requestGroupInfo(channel) { group: WifiP2pGroup? ->
+                                    if (group == null) {
+                                        Log.v(TAG, "group is null, assuming not created")
+                                        mManager.createGroup(channel, config, listener)
+                                    } else {
+                                        mManager.removeGroup(channel, object : WifiP2pManager.ActionListener {
+                                            override fun onSuccess() {
+                                                if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                                                        PackageManager.PERMISSION_GRANTED) {
+                                                    mManager.createGroup(channel, config, listener)
+                                                }
+                                            }
+
+                                            override fun onFailure(reason: Int) {
+                                                Log.e(TAG, "failed to remove group")
+                                                groupOperationInProgress.set(false)
+                                            }
+                                        })
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                    .doOnError { err -> Log.e(TAG, "createGroup error: $err")}
+                    .doOnNext { t: WifiP2pInfo -> Log.e(TAG, "received a WifiP2pInfo: $t") }
+                    .takeUntil { wifiP2pInfo: WifiP2pInfo -> (wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner) }
+                    .ignoreElements()
+                    .doOnComplete { Log.v(TAG, "createGroup return success") }
+                    .doFinally { groupOperationInProgress.set(false) }
+        }
     }
 
     private fun getTcpSocket(address: InetAddress): Single<Socket> {
@@ -160,15 +162,17 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      * @param passphrase group PSK. minimum 8 characters
      */
     override fun connectToGroup(name: String, passphrase: String, timeout: Int): Single<WifiP2pInfo> {
-        return if (!groupConnectInProgress.getAndUpdate { true }) {
-            val config = WifiP2pConfig.Builder()
-                    .setPassphrase(passphrase)
-                    .setNetworkName(name)
-                    .build()
-            retryDelay(initiateConnection(config), 20, 1)
-                    .andThen(awaitConnection(timeout))
-        } else {
-            awaitConnection(timeout)
+       return Single.defer {
+            if (!groupConnectInProgress.getAndUpdate { true }) {
+                val config = WifiP2pConfig.Builder()
+                        .setPassphrase(passphrase)
+                        .setNetworkName(name)
+                        .build()
+                retryDelay(initiateConnection(config), 20, 1)
+                        .andThen(awaitConnection(timeout))
+            } else {
+                awaitConnection(timeout)
+            }
         }
     }
 
@@ -176,7 +180,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      * conect using a wifip2pconfig object
      */
     private fun initiateConnection(config: WifiP2pConfig): Completable {
-        return Single.fromCallable {
+        return Completable.defer {
             Log.e(TAG, " mylooper " + (Looper.myLooper() == Looper.getMainLooper()))
             val subject = CompletableSubject.create()
             val connectRetry = AtomicReference(10)
@@ -197,11 +201,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
                 }
                 mManager.connect(channel, config, connectListener)
-                return@fromCallable subject
+                return@defer subject
             } catch (e: SecurityException) {
-                return@fromCallable Completable.error(e)
+                return@defer Completable.error(e)
             }
-        }.flatMapCompletable { completable: Completable? -> completable }
+        }
     }
 
     //transfer declare hashes packet as UKE

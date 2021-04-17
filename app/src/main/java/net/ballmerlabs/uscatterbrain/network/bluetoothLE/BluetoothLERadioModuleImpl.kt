@@ -76,7 +76,8 @@ import javax.inject.Singleton
 class BluetoothLERadioModuleImpl @Inject constructor(
         private val mContext: Context,
         private val mAdvertiser: BluetoothLeAdvertiser,
-        @param:Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
+        @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
+        @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
         private val mServer: RxBleServer,
         private val mClient: RxBleClient,
         private val wifiDirectRadioModule: WifiDirectRadioModule,
@@ -484,7 +485,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     }
                                 }
                                 .doOnError { err: Throwable -> Log.e(TAG, "error while receiving packet: $err") }
-                                .doOnSuccess { Log.v(TAG, "client handshake received election result") }
+                                .doOnSuccess { result -> Log.v(TAG, "client handshake received election result ${result.nextStage}") }
                                 .onErrorReturn {
                                     TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.remoteHashed)
                                 }
@@ -737,7 +738,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .delay(
                                     preferences.getLong(mContext.getString(R.string.pref_peercachedelay), 10*60),
                                     TimeUnit.SECONDS,
-                                    clientScheduler
+                                    operationsScheduler
                             )
                             .subscribe(
                                     { Log.v(TAG, "peer $device timed out, removing from nearby peer cache") },
@@ -745,7 +746,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             )
 
                 }
-        val cached = CachedLEConnection(connectionObs, channels, clientScheduler)
+        val cached = CachedLEConnection(connectionObs, channels, operationsScheduler)
         connectionCache[device.macAddress] = cached
 
         return cached
@@ -871,6 +872,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         session.votingStage.reset()
         session.stage = TransactionResult.STAGE_ADVERTISE
     }
+    
+    private fun resetSession(session: LeDeviceSession) {
+        Log.v(TAG, "resetting session without rewind")
+        session.advertiseStage.reset()
+        session.upgradeStage?.reset()
+        session.votingStage.reset()
+    }
 
     /**
      * starts the gatt server in the background.
@@ -902,7 +910,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     //accquire wakelock
                     acquireWakelock()
                     // wrap connection in CachedLeServiceConnection for convenience
-                    val connection = CachedLEServerConnection(connectionRaw, channels, clientScheduler)
+                    val connection = CachedLEServerConnection(connectionRaw, channels, operationsScheduler)
                     val connectionDisposable = CompositeDisposable()
                     connectionDisposable.add(connection)
 
@@ -921,12 +929,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .flatMap { clientConnection: CachedLEConnection ->
                                 connectionDisposable.add(clientConnection)
                                 Log.v(TAG, "stating stages")
-
                                 getLuidClient(clientConnection)
                                         .toObservable()
                                         .mergeWith(getLuidServer(connection))
-                                        .subscribeOn(Schedulers.io())
+                                        .subscribeOn(operationsScheduler)
+                                        .doOnError { err -> Log.v(TAG, "error on retrieving luid $err") }
                                         .firstOrError()
+                                        .onErrorResumeNext(Single.never())
                                         .flatMapObservable { luid ->
                                             Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
                                             val s = sessionCache.getOrDefault(luid.hashAsUUID!!, LeDeviceSession(
@@ -974,7 +983,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                          */
                                                         session.observeStage()
                                                                 .doOnNext { stage: String? -> Log.v(TAG, "handling stage: $stage") }
-                                                                .flatMapSingle {
+                                                                .flatMap {
                                                                     Single.zip(
                                                                             session.singleClient(),
                                                                             session.singleServer(),
@@ -982,26 +991,38 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                                 server(connection)
                                                                                         .doOnSuccess { Log.v(TAG, "server handshake completed") }
                                                                                         .zipWith(client(clientConnection), {
-                                                                                            first: Optional<BootstrapRequest>, second: TransactionResult<BootstrapRequest> ->
+                                                                                            first, second ->
                                                                                             android.util.Pair(first, second)
                                                                                         })
                                                                                         .toObservable()
                                                                                         .doOnSubscribe { Log.v("debug", "client handshake subscribed") }
                                                                             }
-                                                                    )
-                                                                }
-                                                                .concatMap { result -> result }
-                                                                .doOnNext { transactionResult ->
-                                                                    if (session.stage == TransactionResult.STAGE_SUSPEND && 
-                                                                            !transactionResult.second.hasResult() &&
-                                                                            !transactionResult.first.isPresent) {
-                                                                        Log.v(TAG, "session $device suspending, no bootstrap")
-                                                                        session.unlock()
-                                                                    }
-                                                                    session.stage = transactionResult.second.nextStage
+
+                                                                    ).flatMapObservable { result -> result }
+                                                                            .subscribeOn(clientScheduler)
+                                                                            .doOnError { err ->
+                                                                                Log.e(TAG, "transaction error $err")
+                                                                                resetSession(session)
+                                                                            }
+                                                                            // retry on error
+                                                                            .onErrorReturnItem(android.util.Pair(Optional.empty(), TransactionResult(
+                                                                                    TransactionResult.STAGE_ADVERTISE,
+                                                                                    device.bluetoothDevice,
+                                                                                    luid.hashAsUUID!!
+                                                                            )))
+                                                                            .doOnNext { transactionResult ->
+                                                                                if (session.stage == TransactionResult.STAGE_SUSPEND &&
+                                                                                        !transactionResult.second.hasResult() &&
+                                                                                        !transactionResult.first.isPresent) {
+                                                                                    Log.v(TAG, "session $device suspending, no bootstrap")
+                                                                                    session.unlock()
+                                                                                }
+                                                                                session.stage = transactionResult.second.nextStage
+                                                                            }
+                                                                            .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
+
                                                                 }
                                                                 .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
-                                                                .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
                                                                 .map { pair ->
                                                                     when {
                                                                         pair.second.hasResult() -> {
