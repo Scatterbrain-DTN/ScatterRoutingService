@@ -91,13 +91,11 @@ class CachedLEConnection(
      */
     private fun cachedNotification(): Observable<ByteArray> {
         return enabled.andThen(selectChannel())
-                .retry(10)
                 .flatMapObservable { uuid: UUID ->
                     connectionSubject
                             .firstOrError()
                             .flatMapObservable { c ->
                                 c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                                        .retry(10)
                                         .flatMap { observable -> observable }
                                         .doOnSubscribe {
                                             Log.v(TAG, "client subscribed to notifications for $uuid")
@@ -109,6 +107,7 @@ class CachedLEConnection(
                                         .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
                             }
                 }
+                .retry(10)
     }
 
     fun readAdvertise(): Single<AdvertisePacket> {

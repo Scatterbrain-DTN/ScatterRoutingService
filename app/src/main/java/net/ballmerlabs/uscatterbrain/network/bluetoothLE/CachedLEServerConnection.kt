@@ -13,8 +13,6 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleI
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Wraps an RxBleServerConnection and provides channel locking and a convenient interface to
@@ -29,8 +27,6 @@ class CachedLEServerConnection(
     private val packetQueue = PublishRelay.create<ScatterSerializable>()
     private val sizeRelay = PublishRelay.create<Int>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
-    private val size = AtomicReference(0)
-
     /*
      * when a client reads from the semaphor characteristic, we need to
      * find an unlocked channel and return its uuid
@@ -44,14 +40,6 @@ class CachedLEServerConnection(
                 .doOnSuccess { char -> Log.v(TAG, "selected characteristic $char") }
     }
 
-    private fun decrementSize(): Int {
-        return size.updateAndGet { size: Int -> size - 1}
-    }
-
-    private fun incrementSize(): Int {
-        return size.updateAndGet { size: Int -> size + 1 }
-    }
-
     /**
      * Send a scatterbrain message to the connected client.
      * @param packet ScatterSerializable message to send
@@ -61,14 +49,9 @@ class CachedLEServerConnection(
             packet: ScatterSerializable
     ): Completable {
         Log.v(TAG, "serverNotify for packet " + packet.type)
-        return sizeRelay
-                    .takeWhile { s: Int -> s > 0 }
-                    .ignoreElements()
-                    .doOnSubscribe {
-                        incrementSize()
-                        packetQueue.accept(packet)
-                    }
-                    .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
+        return Completable.fromAction {
+            packetQueue.accept(packet)
+        }
     }
 
     override fun dispose() {
@@ -117,24 +100,29 @@ class CachedLEServerConnection(
                                                                 errorRelay.accept(err)
                                                             }
                                                             .onErrorComplete()
-                                                            .doFinally {
-                                                                sizeRelay.accept(decrementSize())
-                                                                characteristic.release()
-                                                            }
+                                                            .doFinally { characteristic.release() }
                                                             .doOnSubscribe {
                                                                 req.sendReply(BluetoothGatt.GATT_SUCCESS, 0,
                                                                     BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid))
-                                                                    .subscribe()
+                                                                    .subscribe(
+                                                                            { },
+                                                                            { err -> Log.e(TAG, "failed to ack semaphor read: $err")}
+                                                                    )
                                                             }
                                     }
-                                    .doOnError { req.sendReply(BluetoothGatt.GATT_FAILURE, 0, null) }
+                                    .doOnError { err ->
+                                        Log.e(TAG, "error in gatt server selectCharacteristic: $err")
+                                        req.sendReply(BluetoothGatt.GATT_FAILURE, 0, null)
+                                    }
+                                    .onErrorComplete()
                 })
                 .flatMapCompletable { obs -> obs }
                 .repeat()
                 .retry()
                 .subscribe(
-                        { Log.v(TAG, "timing characteristic write handler completed") }
-                ) { err: Throwable -> Log.e(TAG, "timing characteristic handler error: $err") }
+                        { Log.e(TAG, "timing characteristic write handler completed prematurely") },
+                        { err -> Log.e(TAG, "timing characteristic handler error: $err") }
+                )
         disposable.add(d)
     }
 }
