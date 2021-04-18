@@ -22,6 +22,7 @@ interface WifiDirectRadioModule {
     fun unregisterReceiver()
     fun registerReceiver()
     fun createGroup(name: String, passphrase: String): Completable
+    fun removeGroup(): Completable
 
     /**
      * Wrapper class combining BlockHeaderPacket, SequencePackets, and

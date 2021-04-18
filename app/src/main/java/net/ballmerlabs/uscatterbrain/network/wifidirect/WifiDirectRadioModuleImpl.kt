@@ -141,6 +141,26 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             subject
         }
     }
+    
+    override fun removeGroup(): Completable {
+        val c = Completable.defer {
+            val subject = CompletableSubject.create()
+            val actionListener = object: WifiP2pManager.ActionListener {
+                override fun onSuccess() {
+                    subject.onComplete()
+                }
+
+                override fun onFailure(p0: Int) {
+                    subject.onError(IllegalStateException("failed ${reasonCodeToString(p0)}"))
+                }
+
+            }
+            mManager.removeGroup(channel, actionListener)
+            subject
+        }
+
+        return retryDelay(c, 10, 5)
+    }
 
     private fun getTcpSocket(address: InetAddress): Single<Socket> {
         return Single.fromCallable { Socket(address, SCATTERBRAIN_PORT) }

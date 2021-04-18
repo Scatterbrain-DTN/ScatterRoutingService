@@ -12,6 +12,7 @@ import android.os.ParcelUuid
 import android.os.PowerManager
 import android.os.PowerManager.WakeLock
 import android.util.Log
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.*
@@ -1059,6 +1060,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     connection.dispose()
                                                                     session.unlock()
                                                                     removeConnection(device.macAddress)
+                                                                    wifiDirectRadioModule.removeGroup().subscribe(
+                                                                            { Log.v(TAG, "successfually cleanued up wifi direct group after termination") },
+                                                                            { err ->
+                                                                                Log.e(TAG, "failed to cleanup wifi direct group after termination")
+                                                                                FirebaseCrashlytics.getInstance().recordException(err)
+                                                                            }
+                                                                    )
                                                                     myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                                                 }
                                                     }
