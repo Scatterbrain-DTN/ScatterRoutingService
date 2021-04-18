@@ -732,20 +732,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             return conn
         }
         val connectionObs = device.establishConnection(false, timeout)
-                .doOnNext {
-                    Log.v(TAG, "successfully established connection")
-                    Single.just(device)
-                            .delay(
-                                    preferences.getLong(mContext.getString(R.string.pref_peercachedelay), 10*60),
-                                    TimeUnit.SECONDS,
-                                    operationsScheduler
-                            )
-                            .subscribe(
-                                    { Log.v(TAG, "peer $device timed out, removing from nearby peer cache") },
-                                    { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
-                            )
-
-                }
+                .doFinally { connectionCache.remove(device.macAddress) }
+                .doOnNext { Log.v(TAG, "successfully established connection") }
         val cached = CachedLEConnection(connectionObs, channels, operationsScheduler)
         connectionCache[device.macAddress] = cached
 
@@ -944,6 +932,20 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             ))
 
                                             sessionCache.putIfAbsent(luid.hashAsUUID!!, s)
+
+                                            Single.just(luid)
+                                                    .delay(
+                                                            preferences.getLong(mContext.getString(R.string.pref_peercachedelay), 20*60),
+                                                            TimeUnit.SECONDS,
+                                                            operationsScheduler
+                                                    )
+                                                    .subscribe(
+                                                            { l ->
+                                                                Log.v(TAG, "peer $device timed out, removing from nearby peer cache")
+                                                                sessionCache.remove(l)
+                                                            },
+                                                            { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
+                                                    )
                                             initializeProtocol(s, TransactionResult.STAGE_LUID)
                                                     .flatMapObservable { session: LeDeviceSession ->
                                                         val d = connectionRaw.getOnCharacteristicWriteRequest(UUID_SEMAPHOR)
@@ -1051,6 +1053,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     // as they may be tainted
                                                                     sessionCache.remove(session.remoteLuid)
                                                                     activeLuids.remove(session.remoteLuid)
+                                                                    connectionCache.remove(device.macAddress)
                                                                     connectionRaw.disconnect()
                                                                     connectionDisposable.dispose()
                                                                     connection.dispose()
