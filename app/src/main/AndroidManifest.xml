@@ -60,6 +60,10 @@
             <intent-filter>
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER"/>
             </intent-filter>
+
+            <intent-filter>
+                <action android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService.BIND"/>
+            </intent-filter>
         </provider>
     </application>
 </manifest>
