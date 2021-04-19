@@ -81,9 +81,9 @@ dependencies {
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     // (see https://github.com/ReactiveX/RxJava/releases for latest 3.x.x version)
     implementation("androidx.security:security-crypto:1.1.0-alpha03")
-    implementation project(':rxandroidble')
     implementation project(':scatterbrainSDK')
     implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.1'
+    implementation "com.polidea.rxandroidble2:rxandroidble:1.11.1"
     kapt "androidx.room:room-compiler:2.2.6" // For Kotlin use kapt instead of annotationProcessor
     implementation "androidx.lifecycle:lifecycle-service:$lifecycle_version"
     // The following Espresso dependency can be either "implementation"
