@@ -252,7 +252,7 @@ class ScatterRoutingService : LifecycleService() {
                     .setName(name)
                     .sign(ApiIdentity.newPrivateKey())
                     .build()
-            return mBackend.datastore.insertApiIdentity(identity)
+            val ret = mBackend.datastore.insertApiIdentity(identity)
                     .toSingleDefault(identity)
                     .doOnSuccess {
                         val stats = HandshakeResult(1,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS)
@@ -262,6 +262,10 @@ class ScatterRoutingService : LifecycleService() {
                         asyncRefreshPeers()
                     }
                     .blockingGet()
+            if (callingPackageName != applicationContext.packageName) {
+                authorizeApp(identity.fingerprint, callingPackageName)
+            }
+            return ret
         }
 
         /**
