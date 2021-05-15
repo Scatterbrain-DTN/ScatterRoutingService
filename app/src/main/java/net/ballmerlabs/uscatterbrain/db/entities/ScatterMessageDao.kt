@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.db.entities
 import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Single
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 
 /**
  * Room Dao containing queries and operations on messages stored
@@ -52,24 +53,42 @@ abstract class ScatterMessageDao {
     @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")
     abstract fun getTopHashes(count: Int): Single<List<ByteArray>>
 
+    @Insert
+    abstract fun __insertMessagesWithHashes(messagesWithHashes: Array<MessageHashCrossRef?>): List<Long>
+
+    @Insert
+    abstract fun __insertMessages(messages: List<HashlessScatterMessage>): List<Long>
+
+    @Insert
+    abstract fun __insertMessages(message: HashlessScatterMessage): Long
+
+    @Insert
+    abstract fun __insertHashes(h: List<Hashes>): List<Long>
+
+
     @Transaction
     @Insert
-    abstract fun insertMessagesWithHashes(messagesWithHashes: List<MessageHashCrossRef>): Single<List<Long>>
+    fun insertMessage(message: ScatterMessage) {
+        val res = __insertHashes(message.messageHashes)
+        val messageRes = __insertMessages(message.message)
+        message.message.globalhash = ScatterbrainDatastore.getGlobalHashDb(message.messageHashes)
+        val hashXrefList = arrayOfNulls<MessageHashCrossRef>(res.size)
+        for (i in res.indices) {
+            val xref = MessageHashCrossRef(
+                    messageRes,
+                    res[i]
+            )
 
-    @Insert
-    abstract fun _insertMessages(messages: List<HashlessScatterMessage>): Single<List<Long>>
-
-    @Insert
-    abstract fun _insertMessages(message: HashlessScatterMessage): Single<Long>
-
-    @Insert
-    abstract fun insertHashes(h: List<Hashes>): Single<List<Long>>
+            hashXrefList[i] = xref
+        }
+        __insertMessagesWithHashes(hashXrefList)
+    }
 
     @Insert
     abstract fun insertIdentity(identity: KeylessIdentity): Single<Long>
 
     @Insert
-    abstract fun insertIdentities(ids: List<KeylessIdentity>): Single<List<Long>>
+    abstract fun __insertIdentities(ids: List<KeylessIdentity>): Single<List<Long>>
 
     @Delete
     abstract fun delete(message: HashlessScatterMessage): Completable

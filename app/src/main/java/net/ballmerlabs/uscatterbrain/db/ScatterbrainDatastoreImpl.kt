@@ -54,25 +54,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val cacheFilesDir: File = File(ctx.filesDir, ScatterbrainDatastore.CACHE_FILES_PATH)
     private val userDirectoryObserver: FileObserver
     override fun insertMessagesSync(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable {
-        return mDatastore.scatterMessageDao().insertHashes(message.messageHashes)
-                .subscribeOn(databaseScheduler)
-                .flatMap { hashids: List<Long> ->
-                    message.message.globalhash = ScatterbrainDatastore.getGlobalHashDb(message.messageHashes)
-                    mDatastore.scatterMessageDao()._insertMessages(message.message)
-                            .subscribeOn(databaseScheduler)
-                            .flatMap { messageid: Long ->
-                                val hashes: MutableList<MessageHashCrossRef> = ArrayList()
-                                for (hashID in hashids) {
-                                    val xref = MessageHashCrossRef(
-                                            messageid,
-                                            hashID
-                                    )
-                                    hashes.add(xref)
-                                }
-                                mDatastore.scatterMessageDao().insertMessagesWithHashes(hashes)
-                                        .subscribeOn(databaseScheduler)
-                            }
-                }.ignoreElement()
+        return Completable.fromAction {
+            mDatastore.scatterMessageDao().insertMessage(message)
+        }.subscribeOn(databaseScheduler)
     }
 
     /**
