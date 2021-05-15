@@ -52,16 +52,22 @@ interface IdentityDao {
     fun insertClientApp(vararg apps: ClientApp): Completable
 
     @Insert
-    fun insertAll(vararg identities: KeylessIdentity): Single<List<Long>>
+    fun __insertAll(identities: KeylessIdentity): Long
 
     @Insert
-    fun insertAll(identities: List<KeylessIdentity>): Single<List<Long>>
+    fun __insertKeys(keys: List<Keys>): List<Long>
 
-    @Insert
-    fun insertHashes(hashes: List<Hashes>): Single<List<Long>>
 
+    @Transaction
     @Insert
-    fun insertKeys(keys: List<Keys>): Single<List<Long>>
+    fun insertIdentity(identity: Identity): Long {
+        val identityID = __insertAll(identity.identity)
+        for (key in identity.keys) {
+            key.identityFK = identityID
+        }
+        __insertKeys(identity.keys)
+        return identityID
+    }
 
     @Delete
     fun delete(identity: KeylessIdentity): Completable

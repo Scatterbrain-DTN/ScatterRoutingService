@@ -84,12 +84,6 @@ abstract class ScatterMessageDao {
         __insertMessagesWithHashes(hashXrefList)
     }
 
-    @Insert
-    abstract fun insertIdentity(identity: KeylessIdentity): Single<Long>
-
-    @Insert
-    abstract fun __insertIdentities(ids: List<KeylessIdentity>): Single<List<Long>>
-
     @Delete
     abstract fun delete(message: HashlessScatterMessage): Completable
 

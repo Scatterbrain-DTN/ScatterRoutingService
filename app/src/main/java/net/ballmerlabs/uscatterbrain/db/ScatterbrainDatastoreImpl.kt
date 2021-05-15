@@ -270,40 +270,23 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private fun insertIdentity(identityObservable: Observable<net.ballmerlabs.uscatterbrain.db.entities.Identity>): Completable {
         return identityObservable
                 .flatMapCompletable { singleid: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
-                    mDatastore.identityDao().insert(singleid.identity)
-                            .subscribeOn(databaseScheduler)
-                            .flatMapCompletable { result: Long ->
-                                Observable.fromIterable(singleid.keys)
-                                        .map { key: Keys ->
-                                            key.identityFK = result
-                                            key
+                    Single.fromCallable { mDatastore.identityDao().insertIdentity(singleid) }
+                            .flatMapCompletable { identityId ->
+                                Observable.fromCallable { if (singleid.clientACL != null) singleid.clientACL else ArrayList() }
+                                        .flatMap<ClientApp> { source: List<ClientApp?>? -> Observable.fromIterable(source) }
+                                        .map { acl: ClientApp ->
+                                            acl.identityFK = identityId
+                                            acl
                                         }
-                                        .reduce(ArrayList(), { list: ArrayList<Keys>, key: Keys ->
-                                            list.add(key)
+                                        .reduce(ArrayList(), { list: ArrayList<ClientApp>, acl: ClientApp ->
+                                            list.add(acl)
                                             list
                                         })
-                                        .flatMapCompletable { l: ArrayList<Keys> ->
-                                            mDatastore.identityDao().insertKeys(l)
+                                        .flatMapCompletable { a: ArrayList<ClientApp> ->
+                                            mDatastore.identityDao().insertClientApps(a)
                                                     .subscribeOn(databaseScheduler)
                                                     .ignoreElement()
                                         }
-                                        .andThen(
-                                                Observable.fromCallable { if (singleid.clientACL != null) singleid.clientACL else ArrayList() }
-                                                        .flatMap<ClientApp> { source: List<ClientApp?>? -> Observable.fromIterable(source) }
-                                                        .map { acl: ClientApp ->
-                                                            acl.identityFK = result
-                                                            acl
-                                                        }
-                                                        .reduce(ArrayList(), { list: ArrayList<ClientApp>, acl: ClientApp ->
-                                                            list.add(acl)
-                                                            list
-                                                        })
-                                                        .flatMapCompletable { a: ArrayList<ClientApp> ->
-                                                            mDatastore.identityDao().insertClientApps(a)
-                                                                    .subscribeOn(databaseScheduler)
-                                                                    .ignoreElement()
-                                                        }
-                                        )
                             }
                 }
     }
