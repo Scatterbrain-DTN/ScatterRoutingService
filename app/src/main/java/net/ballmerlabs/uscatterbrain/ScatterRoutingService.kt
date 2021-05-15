@@ -15,9 +15,10 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.*
+import net.ballmerlabs.uscatterbrain.db.ACL
 import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
+import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore.ACL
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -159,7 +160,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun sendMessage(message: ScatterMessage) {
             checkAccessPermission()
-            mBackend.datastore.insertAndHashFileFromApi(ApiScatterMessage.fromApi(message), ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
+            mBackend.datastore.insertAndHashFileFromApi(ApiScatterMessage.fromApi(message), DEFAULT_BLOCKSIZE)
                     .doOnComplete { asyncRefreshPeers() }
                     .blockingAwait()
         }
@@ -175,7 +176,7 @@ class ScatterRoutingService : LifecycleService() {
                     .flatMapCompletable { m: ScatterMessage ->
                         mBackend.datastore.insertAndHashFileFromApi(
                                 ApiScatterMessage.fromApi(m),
-                                ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
+                                DEFAULT_BLOCKSIZE)
                     }
                     .blockingAwait()
         }
@@ -198,7 +199,7 @@ class ScatterRoutingService : LifecycleService() {
                     .flatMapCompletable { id: ApiIdentity.KeyPair? ->
                         mBackend.datastore.insertAndHashFileFromApi(
                                 ApiScatterMessage.fromApi(message, id),
-                                ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
+                                DEFAULT_BLOCKSIZE)
                     }
                     .doOnComplete { asyncRefreshPeers() }
                     .blockingAwait()

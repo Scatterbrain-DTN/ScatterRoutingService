@@ -22,7 +22,7 @@ import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackend.Applications
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore.*
+import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.entities.*
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -50,8 +50,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         private val preferences: RouterPreferences
 ) : ScatterbrainDatastore {
     private val mOpenFiles: ConcurrentHashMap<Path, OpenFile> = ConcurrentHashMap()
-    private val userFilesDir: File = File(ctx.filesDir, ScatterbrainDatastore.USER_FILES_PATH)
-    private val cacheFilesDir: File = File(ctx.filesDir, ScatterbrainDatastore.CACHE_FILES_PATH)
+    private val userFilesDir: File = File(ctx.filesDir, USER_FILES_PATH)
+    private val cacheFilesDir: File = File(ctx.filesDir, CACHE_FILES_PATH)
     private val userDirectoryObserver: FileObserver
     override fun insertMessagesSync(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable {
         return Completable.fromAction {
@@ -666,7 +666,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         result[DocumentsContract.Document.COLUMN_DISPLAY_NAME] = message.message.userFilename!!
                     } else {
                         result[DocumentsContract.Document.COLUMN_DISPLAY_NAME] =
-                                ScatterbrainDatastore.getDefaultFileNameFromHashes(message.messageHashes)
+                                getDefaultFileNameFromHashes(message.messageHashes)
                     }
                     result[DocumentsContract.Document.COLUMN_FLAGS] = DocumentsContract.Document.FLAG_SUPPORTS_DELETE //TODO: is this enough?
                     result[DocumentsContract.Document.COLUMN_SIZE] = getFileSize(path)
@@ -699,7 +699,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             blocksize,
                             MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString()),
                             path.absolutePath,
-                            ScatterbrainDatastore.getGlobalHash(hashes),
+                            getGlobalHash(hashes),
                             path.name,
                             ScatterbrainApi.getMimeType(path)
                     )
@@ -781,8 +781,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         return@flatMapCompletable copyFile(message.fileDescriptor.fileDescriptor, file)
                                 .andThen(hashFile(file, blocksize))
                                 .flatMapCompletable { hashes: List<ByteString> ->
-                                    val newFile = File(cacheDir, ScatterbrainDatastore.getDefaultFileName(hashes)
-                                            + ScatterbrainDatastore.sanitizeFilename(message.extension))
+                                    val newFile = File(cacheDir, getDefaultFileName(hashes)
+                                            + sanitizeFilename(message.extension))
                                     Log.v(TAG, "filepath from api: " + newFile.absolutePath)
                                     if (!file.renameTo(newFile)) {
                                         return@flatMapCompletable Completable.error(IllegalStateException("failed to rename to $newFile"))
@@ -800,10 +800,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             message.sig,
                                             0,
                                             blocksize,
-                                            ScatterbrainDatastore.sanitizeFilename(message.extension),
+                                            sanitizeFilename(message.extension),
                                             newFile.absolutePath,
-                                            ScatterbrainDatastore.getGlobalHash(hashes),
-                                            ScatterbrainDatastore.sanitizeFilename(message.filename),
+                                            getGlobalHash(hashes),
+                                            sanitizeFilename(message.filename),
                                             MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString())
 
                                     )
@@ -831,8 +831,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             0,
                                             blocksize,
                                             "",
-                                            ScatterbrainDatastore.getNoFilename(message.body),
-                                            ScatterbrainDatastore.getGlobalHash(hashes),
+                                            getNoFilename(message.body),
+                                            getGlobalHash(hashes),
                                             null,
                                             "application/octet-stream"
                                             )
@@ -1087,7 +1087,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             Log.v(TAG, "file closed in user directory; $s")
                             val f = File(userFilesDir, s)
                             if (f.exists() && f.length() > 0) {
-                                insertAndHashLocalFile(f, ScatterbrainDatastore.DEFAULT_BLOCKSIZE)
+                                insertAndHashLocalFile(f, DEFAULT_BLOCKSIZE)
                             } else if (f.length() == 0L) {
                                 Log.e(TAG, "file length was zero, not hashing")
                             } else {

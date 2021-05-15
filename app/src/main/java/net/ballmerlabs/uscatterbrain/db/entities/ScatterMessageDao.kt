@@ -4,6 +4,7 @@ import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.getGlobalHashDb
 
 /**
  * Room Dao containing queries and operations on messages stored
@@ -71,7 +72,7 @@ abstract class ScatterMessageDao {
     fun insertMessage(message: ScatterMessage) {
         val res = __insertHashes(message.messageHashes)
         val messageRes = __insertMessages(message.message)
-        message.message.globalhash = ScatterbrainDatastore.getGlobalHashDb(message.messageHashes)
+        message.message.globalhash = getGlobalHashDb(message.messageHashes)
         val hashXrefList = arrayOfNulls<MessageHashCrossRef>(res.size)
         for (i in res.indices) {
             val xref = MessageHashCrossRef(

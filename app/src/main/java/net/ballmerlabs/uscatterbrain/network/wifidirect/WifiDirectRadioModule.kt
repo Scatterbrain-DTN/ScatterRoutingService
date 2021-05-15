@@ -9,6 +9,8 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage
+import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
+import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
@@ -55,8 +57,8 @@ interface WifiDirectRadioModule {
                                 headerPacket.sessionID!!,
                                 headerPacket.blockSize,
                                 headerPacket.getExtension(),
-                                ScatterbrainDatastore.getDefaultFileName(headerPacket),
-                                ScatterbrainDatastore.getGlobalHash(headerPacket.hashList!!),
+                                getDefaultFileName(headerPacket),
+                                getGlobalHash(headerPacket.hashList!!),
                                 headerPacket.userFilename,
                                 headerPacket.mime
                         ),

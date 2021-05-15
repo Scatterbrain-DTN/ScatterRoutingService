@@ -12,6 +12,8 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
+import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
 import java.io.*
 import java.nio.ByteBuffer
@@ -204,8 +206,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
                 return ""
             }
 
-            val ext: String = ScatterbrainDatastore.getDefaultFileName(this) + "." +
-                    ScatterbrainDatastore.sanitizeFilename(extension!!)
+            val ext: String = getDefaultFileName(this) + "." + sanitizeFilename(extension!!)
             Log.e("debug", "getAutogenFilename: $ext")
             return ext
         }
@@ -269,7 +270,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return file extension
      */
     fun getExtension(): String {
-        return ScatterbrainDatastore.sanitizeFilename(extension!!)
+        return sanitizeFilename(extension!!)
     }
 
     /**

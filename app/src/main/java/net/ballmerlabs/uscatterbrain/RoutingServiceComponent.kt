@@ -13,10 +13,7 @@ import dagger.*
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.RoutingServiceModule
-import net.ballmerlabs.uscatterbrain.db.Datastore
-import net.ballmerlabs.uscatterbrain.db.RouterPreferencesImpl
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastoreImpl
+import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
@@ -86,7 +83,7 @@ interface RoutingServiceComponent {
             @Singleton
             @Provides
             fun provideDatastore(ctx: Context?): Datastore {
-                return Room.databaseBuilder(ctx!!, Datastore::class.java, ScatterbrainDatastore.DATABASE_NAME)
+                return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
                         .build()
             }
 

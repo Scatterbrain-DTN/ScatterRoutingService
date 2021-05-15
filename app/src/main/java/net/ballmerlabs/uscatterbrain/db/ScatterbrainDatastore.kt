@@ -19,6 +19,85 @@ import java.nio.ByteBuffer
 import java.util.*
 import java.util.regex.Pattern
 
+const val DATABASE_NAME = "scatterdb"
+const val DEFAULT_BLOCKSIZE = 1024 * 2
+val FILE_SANITIZE: Pattern = Pattern.compile("^(\\s+.*|.*[\\\\/:\"?*|<>].*|.*\\s+|.*\\.)\$\n")
+const val USER_FILES_PATH = "userFiles"
+const val CACHE_FILES_PATH = "systemFiles"
+
+class ACL(val packageName: String, val appsig: String)
+
+class OpenFile(path: File, append: Boolean) : Closeable {
+    val inputStream: FileInputStream
+    private var mOs: FileOutputStream
+    private val mFile: File = path
+    private val mMode: ScatterbrainDatastore.WriteMode = ScatterbrainDatastore.WriteMode.OVERWRITE
+    private var mLocked: Boolean
+
+    @Throws(IOException::class)
+    override fun close() {
+        inputStream.close()
+        mOs.close()
+    }
+
+    init {
+        mOs = FileOutputStream(mFile, append)
+        inputStream = FileInputStream(mFile)
+        mLocked = false
+    }
+}
+
+fun getDefaultFileNameFromHashes(hashes: List<Hashes>): String {
+    return getDefaultFileName(HashlessScatterMessage.hashes2hash(hashes))
+}
+
+fun sanitizeFilename(name: String): String {
+    return FILE_SANITIZE.matcher(name).replaceAll("-")
+}
+
+fun getNoFilename(body: ByteArray): String {
+    val outhash = ByteArray(GenericHash.BYTES)
+    val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
+    LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
+    LibsodiumInterface.sodium.crypto_generichash_update(state, body, body.size.toLong())
+    LibsodiumInterface.sodium.crypto_generichash_final(state, outhash, outhash.size)
+    val buf = ByteBuffer.wrap(outhash)
+    //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+    return UUID(buf.long, buf.long).toString()
+}
+
+fun getGlobalHash(hashes: List<ByteString>): ByteArray {
+    val outhash = ByteArray(GenericHash.BYTES)
+    val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
+    LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
+    for (bytes in hashes) {
+        LibsodiumInterface.sodium.crypto_generichash_update(state, bytes.toByteArray(), bytes.size().toLong())
+    }
+    LibsodiumInterface.sodium.crypto_generichash_final(state, outhash, outhash.size)
+    return outhash
+}
+
+fun getGlobalHashDb(hashes: List<Hashes>): ByteArray {
+    val outhash = ByteArray(GenericHash.BYTES)
+    val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
+    LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
+    for (bytes in hashes) {
+        LibsodiumInterface.sodium.crypto_generichash_update(state, bytes.hash, bytes.hash.size.toLong())
+    }
+    LibsodiumInterface.sodium.crypto_generichash_final(state, outhash, outhash.size)
+    return outhash
+}
+
+fun getDefaultFileName(hashes: List<ByteString>): String {
+    val buf = ByteBuffer.wrap(getGlobalHash(hashes))
+    //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+    return UUID(buf.long, buf.long).toString()
+}
+
+fun getDefaultFileName(packet: BlockHeaderPacket): String {
+    return getDefaultFileName(packet.hashList!!)
+}
+
 /**
  * interface for scatterbrain datastore
  */
@@ -70,86 +149,5 @@ interface ScatterbrainDatastore {
 
     enum class WriteMode {
         APPEND, OVERWRITE
-    }
-
-    class ACL(val packageName: String, val appsig: String)
-
-    class OpenFile(path: File, append: Boolean) : Closeable {
-        val inputStream: FileInputStream
-        private var mOs: FileOutputStream
-        private val mFile: File = path
-        private val mMode: WriteMode = WriteMode.OVERWRITE
-        private var mLocked: Boolean
-
-        @Throws(IOException::class)
-        override fun close() {
-            inputStream.close()
-            mOs.close()
-        }
-
-        init {
-            mOs = FileOutputStream(mFile, append)
-            inputStream = FileInputStream(mFile)
-            mLocked = false
-        }
-    }
-
-    companion object {
-        fun getDefaultFileNameFromHashes(hashes: List<Hashes>): String {
-            return getDefaultFileName(HashlessScatterMessage.hashes2hash(hashes))
-        }
-
-        fun sanitizeFilename(name: String): String {
-            return FILE_SANITIZE.matcher(name).replaceAll("-")
-        }
-
-        fun getNoFilename(body: ByteArray): String {
-            val outhash = ByteArray(GenericHash.BYTES)
-            val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
-            LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
-            LibsodiumInterface.sodium.crypto_generichash_update(state, body, body.size.toLong())
-            LibsodiumInterface.sodium.crypto_generichash_final(state, outhash, outhash.size)
-            val buf = ByteBuffer.wrap(outhash)
-            //note: this only is safe because crypto_generichash_BYTES_MIN is 16
-            return UUID(buf.long, buf.long).toString()
-        }
-
-        fun getGlobalHash(hashes: List<ByteString>): ByteArray {
-            val outhash = ByteArray(GenericHash.BYTES)
-            val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
-            LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
-            for (bytes in hashes) {
-                LibsodiumInterface.sodium.crypto_generichash_update(state, bytes.toByteArray(), bytes.size().toLong())
-            }
-            LibsodiumInterface.sodium.crypto_generichash_final(state, outhash, outhash.size)
-            return outhash
-        }
-
-        fun getGlobalHashDb(hashes: List<Hashes>): ByteArray {
-            val outhash = ByteArray(GenericHash.BYTES)
-            val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
-            LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
-            for (bytes in hashes) {
-                LibsodiumInterface.sodium.crypto_generichash_update(state, bytes.hash, bytes.hash.size.toLong())
-            }
-            LibsodiumInterface.sodium.crypto_generichash_final(state, outhash, outhash.size)
-            return outhash
-        }
-
-        fun getDefaultFileName(hashes: List<ByteString>): String {
-            val buf = ByteBuffer.wrap(getGlobalHash(hashes))
-            //note: this only is safe because crypto_generichash_BYTES_MIN is 16
-            return UUID(buf.long, buf.long).toString()
-        }
-
-        fun getDefaultFileName(packet: BlockHeaderPacket): String {
-            return getDefaultFileName(packet.hashList!!)
-        }
-
-        const val DATABASE_NAME = "scatterdb"
-        const val DEFAULT_BLOCKSIZE = 1024 * 2
-        private val FILE_SANITIZE: Pattern = Pattern.compile("^(\\s+.*|.*[\\\\/:\"?*|<>].*|.*\\s+|.*\\.)\$\n")
-        const val USER_FILES_PATH = "userFiles"
-        const val CACHE_FILES_PATH = "systemFiles"
     }
 }
