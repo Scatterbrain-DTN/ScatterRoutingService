@@ -51,15 +51,15 @@ interface IdentityDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertClientApp(vararg apps: ClientApp): Completable
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun __insertAll(identities: KeylessIdentity): Long
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun __insertKeys(keys: List<Keys>): List<Long>
 
 
     @Transaction
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertIdentity(identity: Identity): Long {
         val identityID = __insertAll(identity.identity)
         for (key in identity.keys) {

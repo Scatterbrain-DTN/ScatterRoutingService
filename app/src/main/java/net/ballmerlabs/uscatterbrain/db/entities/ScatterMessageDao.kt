@@ -53,21 +53,21 @@ abstract class ScatterMessageDao {
     @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")
     abstract fun getTopHashes(count: Int): Single<List<ByteArray>>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertMessagesWithHashes(messagesWithHashes: Array<MessageHashCrossRef?>): List<Long>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertMessages(messages: List<HashlessScatterMessage>): List<Long>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertMessages(message: HashlessScatterMessage): Long
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertHashes(h: List<Hashes>): List<Long>
 
 
     @Transaction
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertMessage(message: ScatterMessage) {
         val res = __insertHashes(message.messageHashes)
         val messageRes = __insertMessages(message.message)
