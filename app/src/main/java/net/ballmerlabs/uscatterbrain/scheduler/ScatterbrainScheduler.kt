@@ -75,13 +75,6 @@ interface ScatterbrainScheduler {
         }
     }
 
-    class InvalidStateChangeException(private val mState: String) : Exception() {
-        override fun toString(): String {
-            return mState
-        }
-
-    }
-
     val routingServiceState: RoutingServiceState
     fun start()
     fun stop(): Boolean

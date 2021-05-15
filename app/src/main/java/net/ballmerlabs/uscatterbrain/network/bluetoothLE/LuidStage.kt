@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import io.reactivex.Completable
-import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterRoutingService
 import net.ballmerlabs.uscatterbrain.network.LuidPacket

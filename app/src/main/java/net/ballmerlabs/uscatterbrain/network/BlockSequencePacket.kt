@@ -18,7 +18,7 @@ import java.util.*
  * Wrapper class for protocol buffer BlockSequence message
  */
 class BlockSequencePacket private constructor(builder: Builder) : ScatterSerializable {
-    private val mSequenceNumber: Int
+    private val mSequenceNumber: Int = builder.sequenceNumber
     private val mData: ByteString?
     private val mDataOnDisk: File?
     private val mBlockSequence: BlockSequence?
@@ -29,7 +29,6 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
 
 
     init {
-        mSequenceNumber = builder.sequenceNumber
         val d = builder.data
         mDataOnDisk = builder.dataOnDisk
         val tmpbuilder = BlockSequence.newBuilder()
@@ -125,39 +124,12 @@ class BlockSequencePacket private constructor(builder: Builder) : ScatterSeriali
     }
 
     /**
-     * Gets sequence number.
-     *
-     * @return the sequence number
-     */
-    fun getmSequenceNumber(): Int {
-        return mSequenceNumber
-    }
-
-    /**
      * Gets data.
      *
      * @return the data
      */
     fun getmData(): ByteString? {
         return mData
-    }
-
-    /**
-     * Gets data on disk.
-     *
-     * @return the data on disk
-     */
-    fun getmDataOnDisk(): File? {
-        return mDataOnDisk
-    }
-
-    /**
-     * Gets block sequence.
-     *
-     * @return the block sequence
-     */
-    fun getmBlockSequence(): BlockSequence? {
-        return mBlockSequence
     }
 
     /**

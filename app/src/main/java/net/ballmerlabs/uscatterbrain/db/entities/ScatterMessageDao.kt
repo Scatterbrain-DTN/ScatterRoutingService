@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.db.entities
 import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Single
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.getGlobalHashDb
 
 /**

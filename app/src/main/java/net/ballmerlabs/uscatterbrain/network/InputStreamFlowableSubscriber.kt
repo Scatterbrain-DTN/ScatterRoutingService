@@ -21,10 +21,6 @@ class InputStreamFlowableSubscriber(capacity: Int) : InputStreamCallback(capacit
         blocksize = DEFAULT_BLOCKSIZE
     }
 
-    fun setBlocksize(blocksize: Int) {
-        this.blocksize = blocksize
-    }
-
     override fun onSubscribe(s: Subscription) {
         s.request(blocksize * 20.toLong())
         subscription = s

@@ -24,7 +24,6 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.schedulers.Schedulers
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.BuildConfig
@@ -137,10 +136,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             val low = buffer.long
             return UUID(high, low)
         }
-        
-        val GATT_TRUE = byteArrayOf(0)
-        val GATT_FALSE = byteArrayOf(1)
-        val GATT_BUSY = byteArrayOf(2)
 
         /*
          * shortcut to generate a characteristic with the required permissions
@@ -1166,11 +1161,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             get() = lockedCharactersitic.uuid
 
     }
-    
-    data class CachedConnection(
-            val client: CachedLEConnection,
-            val server: CachedLEServerConnection
-    )
 
     init {
         observeTransactionComplete()

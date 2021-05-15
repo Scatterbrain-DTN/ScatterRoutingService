@@ -18,7 +18,6 @@ import net.ballmerlabs.scatterbrainsdk.*
 import net.ballmerlabs.uscatterbrain.db.ACL
 import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
 import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap

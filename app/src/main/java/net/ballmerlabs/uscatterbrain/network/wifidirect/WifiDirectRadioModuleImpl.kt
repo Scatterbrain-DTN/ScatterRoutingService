@@ -14,7 +14,6 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -201,7 +200,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
            }
            if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION)
                    != PackageManager.PERMISSION_GRANTED) {
-               Single.error<WifiP2pInfo>(SecurityException("needs fine location"))
+               Single.error(SecurityException("needs fine location"))
            } else {
                mManager.requestGroupInfo(channel, groupListener)
                subject

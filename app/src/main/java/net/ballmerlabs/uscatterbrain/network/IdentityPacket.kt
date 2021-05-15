@@ -29,7 +29,6 @@ class IdentityPacket private constructor(builder: Builder) :
         MutableMap<String, ByteString> {
     private var mPubKeymap: MutableMap<String, ByteString> = TreeMap()
     private lateinit var mKeystorePrefs: SharedPreferences
-    private val mCtx: Context = builder.context
     private val mIdentity = AtomicReference<ScatterProto.Identity>()
     val name: String?
     private val sig = AtomicReference(ByteString.EMPTY)
@@ -88,7 +87,7 @@ class IdentityPacket private constructor(builder: Builder) :
             return LibsodiumInterface.base64enc(fingeprint)
         }
 
-    fun sumBytes(): ByteString? {
+    private fun sumBytes(): ByteString? {
         if (isEnd) {
             return null
         }
@@ -247,6 +246,40 @@ class IdentityPacket private constructor(builder: Builder) :
                 e.printStackTrace()
                 null
             }
+        }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as Builder
+
+            if (context != other.context) return false
+            if (pubkeyMap != other.pubkeyMap) return false
+            if (scatterbrainPubkey != null) {
+                if (other.scatterbrainPubkey == null) return false
+                if (!scatterbrainPubkey.contentEquals(other.scatterbrainPubkey)) return false
+            } else if (other.scatterbrainPubkey != null) return false
+            if (generateKeypair != other.generateKeypair) return false
+            if (name != other.name) return false
+            if (sig != null) {
+                if (other.sig == null) return false
+                if (!sig.contentEquals(other.sig)) return false
+            } else if (other.sig != null) return false
+            if (gone != other.gone) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = context.hashCode()
+            result = 31 * result + pubkeyMap.hashCode()
+            result = 31 * result + (scatterbrainPubkey?.contentHashCode() ?: 0)
+            result = 31 * result + generateKeypair.hashCode()
+            result = 31 * result + (name?.hashCode() ?: 0)
+            result = 31 * result + (sig?.contentHashCode() ?: 0)
+            result = 31 * result + gone.hashCode()
+            return result
         }
 
     }

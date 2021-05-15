@@ -11,7 +11,6 @@ import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
@@ -30,7 +29,6 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return the blockdata
      */
     private var blockdata: BlockData? = null
-        private set
 
     /**
      * Gets hash list.
@@ -117,11 +115,6 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
             b.filenameVal = builder.filename
             userFilename = builder.filename
         }
-        regenBlockData()
-    }
-
-    fun markEnd() {
-        isEndOfStream = true
         regenBlockData()
     }
 
@@ -421,6 +414,56 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          */
         fun getmFromFingerprint(): ByteArray? {
             return mFromFingerprint
+        }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as Builder
+
+            if (toDisk != other.toDisk) return false
+            if (application != null) {
+                if (other.application == null) return false
+                if (!application.contentEquals(other.application)) return false
+            } else if (other.application != null) return false
+            if (sessionid != other.sessionid) return false
+            if (blockSizeVal != other.blockSizeVal) return false
+            if (mToFingerprint != null) {
+                if (other.mToFingerprint == null) return false
+                if (!mToFingerprint.contentEquals(other.mToFingerprint)) return false
+            } else if (other.mToFingerprint != null) return false
+            if (mFromFingerprint != null) {
+                if (other.mFromFingerprint == null) return false
+                if (!mFromFingerprint.contentEquals(other.mFromFingerprint)) return false
+            } else if (other.mFromFingerprint != null) return false
+            if (extensionVal != other.extensionVal) return false
+            if (hashlist != other.hashlist) return false
+            if (sig != null) {
+                if (other.sig == null) return false
+                if (!sig.contentEquals(other.sig)) return false
+            } else if (other.sig != null) return false
+            if (filename != other.filename) return false
+            if (mime != other.mime) return false
+            if (endofstream != other.endofstream) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = toDisk.hashCode()
+            result = 31 * result + (application?.contentHashCode() ?: 0)
+            result = 31 * result + (sessionid ?: 0)
+            result = 31 * result + (blockSizeVal ?: 0)
+            result = 31 * result + (mToFingerprint?.contentHashCode() ?: 0)
+            result = 31 * result + (mFromFingerprint?.contentHashCode() ?: 0)
+            result = 31 * result + extensionVal.hashCode()
+            result = 31 * result + (hashlist?.hashCode() ?: 0)
+            result = 31 * result + (sig?.contentHashCode() ?: 0)
+            result = 31 * result + (filename?.hashCode() ?: 0)
+            result = 31 * result + (mime?.hashCode() ?: 0)
+            result = 31 * result + endofstream.hashCode()
+            return result
         }
 
         /**

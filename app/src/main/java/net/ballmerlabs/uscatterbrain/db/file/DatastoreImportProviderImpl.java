@@ -156,7 +156,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     }
 
     @Override
-    public Cursor queryDocument(String documentId, String[] projection) throws FileNotFoundException {
+    public Cursor queryDocument(String documentId, String[] projection) {
         Log.v(TAG, "querying file metadata: " + documentId);
         final MatrixCursor result =  new MatrixCursor(
                 (projection == null || projection.length == 0) ? DEFAULT_DOCUMENT_PROJECTION : projection
@@ -306,6 +306,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
     }
 
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     @SuppressLint("CheckResult")
     @Override
     public boolean onCreate() {

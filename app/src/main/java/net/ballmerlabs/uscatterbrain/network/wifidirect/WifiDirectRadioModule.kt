@@ -6,7 +6,6 @@ import io.reactivex.Flowable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName

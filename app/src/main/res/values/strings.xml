@@ -3,7 +3,6 @@
     <string name="permission_access">net.ballmerlabs.scatterroutingservice.permission.ACCESS</string>
     <string name="permission_admin">net.ballmerlabs.scatterroutingservice.permission.ADMIN</string>
     <string name="permission_superuser">net.ballmerlabs.scatterroutingservice.permission.SUPERUSER</string>
-    <string name="permission_group">net.ballmerlabs.scatterroutingservice.SCATTERBRAIN</string>
     <string name="description_group">Permissions to control the scatterbrain router</string>
     <string name="broadcast_message">net.ballmerlabs.scatterroutingservice.broadcast.NETWORK_EVENT</string>
 
