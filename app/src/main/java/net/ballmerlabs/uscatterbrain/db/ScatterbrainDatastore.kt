@@ -2,6 +2,9 @@ package net.ballmerlabs.uscatterbrain.db
 
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
+import com.goterl.lazycode.lazysodium.interfaces.Sign
+import com.sun.jna.Pointer
+import com.sun.jna.ptr.PointerByReference
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
@@ -16,6 +19,7 @@ import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import java.io.*
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.*
 import java.util.regex.Pattern
 
@@ -54,6 +58,71 @@ fun getDefaultFileNameFromHashes(hashes: List<Hashes>): String {
 fun sanitizeFilename(name: String): String {
     return FILE_SANITIZE.matcher(name).replaceAll("-")
 }
+
+
+fun sigSize(message: Verifiable): Int {
+    val tosize = message.toFingerprint?.size?: 0
+    val fromsize = message.fromFingerprint?.size?: 0
+    val applicationSize = message.application.encodeToByteArray().size //UTF-8
+    val extSize = message.extension.encodeToByteArray().size
+    val mimeSize = message.mime.encodeToByteArray().size
+    val userFilenameSize = message.userFilename?.encodeToByteArray()?.size?: 0
+    val toDiskSize = 1
+    val hashSize = message.hashes.fold(0 ) { sum, it -> sum + it.size }
+    return tosize + fromsize + applicationSize + extSize + mimeSize + userFilenameSize +
+            toDiskSize + hashSize
+}
+
+fun sumBytes(message: Verifiable): ByteString {
+    val buf = ByteBuffer.allocate(sigSize(message))
+    buf.put(message.fromFingerprint?: byteArrayOf(0))
+    buf.put(message.toFingerprint?: byteArrayOf(0))
+    buf.put(message.application.encodeToByteArray())
+    buf.put(message.extension.encodeToByteArray())
+    buf.put(message.mime.encodeToByteArray())
+    buf.put(message.userFilename?.encodeToByteArray()?: byteArrayOf(0))
+    var td: Byte = 0
+    if (message.toDisk) td = 1
+    val toDiskBytes = ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).put(td).array()
+    buf.put(toDiskBytes)
+    for (hash in message.hashes) {
+        buf.put(hash)
+    }
+    return ByteString.copyFrom(buf)
+}
+
+/**
+ * Verify ed25519 signature
+ *
+ * @param pubkey the pubkey
+ * @return the boolean
+ */
+fun verifyed25519(pubkey: ByteArray, message: Verifiable): Boolean {
+    if (pubkey.size != Sign.PUBLICKEYBYTES) return false
+    val messagebytes = sumBytes(message)
+    return LibsodiumInterface.sodium.crypto_sign_verify_detached(message.signature,
+            messagebytes.toByteArray(),
+            messagebytes.size().toLong(),
+            pubkey) == 0
+}
+
+
+/**
+ * Sign ed 25519 boolean.
+ *
+ * @param secretkey the secretkey
+ * @return the boolean
+ */
+fun signEd25519(secretkey: ByteArray, message: Verifiable): Boolean {
+    if (secretkey.size != Sign.SECRETKEYBYTES) return false
+    val messagebytes = sumBytes(message)
+    message.signature = ByteArray(Sign.ED25519_BYTES)
+    val p = PointerByReference(Pointer.NULL).pointer
+    return LibsodiumInterface.sodium.crypto_sign_detached(message.signature,
+                    p, messagebytes.toByteArray(), messagebytes.size().toLong(), secretkey) == 0
+}
+
+
 
 fun getNoFilename(body: ByteArray): String {
     val outhash = ByteArray(GenericHash.BYTES)
@@ -95,7 +164,7 @@ fun getDefaultFileName(hashes: List<ByteString>): String {
 }
 
 fun getDefaultFileName(packet: BlockHeaderPacket): String {
-    return getDefaultFileName(packet.hashList!!)
+    return getDefaultFileName(packet.hashList)
 }
 
 /**

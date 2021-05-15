@@ -13,6 +13,7 @@ import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
+import net.ballmerlabs.uscatterbrain.db.sigSize
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
 import java.io.*
 import java.nio.ByteBuffer
@@ -22,7 +23,7 @@ import java.util.*
 /**
  * Wrapper class for protocol buffer blockdata message
  */
-class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializable  {
+class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializable, Verifiable  {
     /**
      * Gets blockdata.
      *
@@ -35,57 +36,64 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      *
      * @return the hash list
      */
-    val hashList: List<ByteString>?
+    val hashList: List<ByteString>
+
+    override val hashes: Array<ByteArray>
+        get() = hashList.map { v -> v.toByteArray() }.toTypedArray()
 
     /**
      * Gets from fingerprint.
      *
      * @return the from fingerprint
      */
-    val fromFingerprint: ByteString?
+    override val fromFingerprint: ByteArray?
 
     /**
      * Gets to fingerprint.
      *
      * @return the to fingerprint
      */
-    val toFingerprint: ByteString?
-    private val extension: String?
+    override val toFingerprint: ByteArray?
+
+    override val extension: String
 
     /**
      * Get signature byte [ ].
      *
      * @return the byte [ ]
      */
-    var signature: ByteArray?
-        private set
+    override var signature: ByteArray? = null
+    set(value) {
+        regenBlockData()
+        field = value
+    }
 
     /**
      * Get application byte [ ].
      *
      * @return the byte [ ]
      */
-    val application: ByteArray?
+    override val application: String
 
     /**
      * Gets session id.
      *
      * @return the session id
      */
-    val sessionID: Int?
-    var toDisk: Boolean
+    val sessionID: Int
+    override val toDisk: Boolean
     var isEndOfStream: Boolean
         private set
     private val mBlocksize: Int
-    val mime: String?
-    var userFilename: String? = null
+    override val mime: String
+    override val userFilename: String?
     override var luid: UUID? = null
         private set
 
 
     init {
         isEndOfStream = builder.endofstream
-        hashList = builder.hashlist
+        hashList = builder.hashlist!!
         this.extension = builder.extensionVal
         signature = if (builder.sig == null) {
             ByteArray(Sign.ED25519_BYTES)
@@ -93,20 +101,20 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
             builder.sig
         }
         toFingerprint = if (builder.getmToFingerprint() != null) {
-            ByteString.copyFrom(builder.getmToFingerprint())
+            builder.getmToFingerprint()
         } else {
-            ByteString.EMPTY
+            byteArrayOf(0)
         }
         fromFingerprint = if (builder.getmFromFingerprint() != null) {
-            ByteString.copyFrom(builder.getmFromFingerprint())
+            builder.getmFromFingerprint()
         } else {
-            ByteString.EMPTY
+            byteArrayOf(0)
         }
-        application = builder.application
-        sessionID = builder.sessionid
+        application = builder.application!!.decodeToString()
+        sessionID = builder.sessionid!!
         toDisk = builder.toDisk
         mBlocksize = builder.blockSizeVal!!
-        mime = builder.mime
+        mime = builder.mime!!
         val b = BlockData.newBuilder()
         if (builder.filename == null) {
             userFilename = autogenFilename
@@ -118,39 +126,6 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
         regenBlockData()
     }
 
-    private fun sumBytes(): ByteString {
-        var messagebytes = ByteString.EMPTY
-        messagebytes = messagebytes.concat(fromFingerprint)
-        messagebytes = messagebytes.concat(toFingerprint)
-        messagebytes = messagebytes.concat(ByteString.copyFrom(application))
-        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(this.extension))
-        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(mime))
-        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(userFilename))
-        var td: Byte = 0
-        if (toDisk) td = 1
-        val toDiskBytes = ByteString.copyFrom(ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).put(td).array())
-        messagebytes = messagebytes.concat(toDiskBytes)
-        for (hash in hashList!!) {
-            messagebytes = messagebytes.concat(hash)
-        }
-        return messagebytes
-    }
-
-    /**
-     * Verifyed 25519 boolean.
-     *
-     * @param pubkey the pubkey
-     * @return the boolean
-     */
-    fun verifyed25519(pubkey: ByteArray): Boolean {
-        if (pubkey.size != Sign.PUBLICKEYBYTES) return false
-        val messagebytes = sumBytes()
-        return LibsodiumInterface.sodium.crypto_sign_verify_detached(blockdata!!.sig.toByteArray(),
-                messagebytes.toByteArray(),
-                messagebytes.size().toLong(),
-                pubkey) == 0
-    }
-
     private fun regenBlockData() {
         if (isEndOfStream) {
             blockdata = BlockData.newBuilder()
@@ -158,9 +133,9 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
                     .build()
         } else {
             blockdata = BlockData.newBuilder()
-                    .setApplicationBytes(ByteString.copyFrom(application))
-                    .setFromFingerprint(fromFingerprint)
-                    .setToFingerprint(toFingerprint)
+                    .setApplication(application)
+                    .setFromFingerprint(ByteString.copyFrom(fromFingerprint))
+                    .setToFingerprint(ByteString.copyFrom(toFingerprint))
                     .setTodisk(toDisk)
                     .setExtension(this.extension)
                     .addAllNexthashes(hashList)
@@ -170,26 +145,6 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
                     .setEndofstream(isEndOfStream)
                     .setSig(ByteString.copyFrom(signature))
                     .build()
-        }
-    }
-
-    /**
-     * Sign ed 25519 boolean.
-     *
-     * @param secretkey the secretkey
-     * @return the boolean
-     */
-    fun signEd25519(secretkey: ByteArray): Boolean {
-        if (secretkey.size != Sign.SECRETKEYBYTES) return false
-        val messagebytes = sumBytes()
-        signature = ByteArray(Sign.ED25519_BYTES)
-        val p = PointerByReference(Pointer.NULL).pointer
-        return if (LibsodiumInterface.sodium.crypto_sign_detached(signature,
-                        p, messagebytes.toByteArray(), messagebytes.size().toLong(), secretkey) == 0) {
-            regenBlockData()
-            true
-        } else {
-            false
         }
     }
 
@@ -248,22 +203,6 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      */
     fun getHash(seqnum: Int): ByteString {
         return blockdata!!.getNexthashes(seqnum)
-    }
-
-    /**
-     * Gets sig.
-     *
-     * @return the sig
-     */
-    val sig: ByteString
-        get() = ByteString.copyFrom(signature)
-
-    /**
-     * Gets file extension
-     * @return file extension
-     */
-    fun getExtension(): String {
-        return sanitizeFilename(extension!!)
     }
 
     /**

@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.db.entities
 
 import androidx.room.*
 import io.reactivex.Completable
+import io.reactivex.Maybe
 import io.reactivex.Single
 
 /**
@@ -21,6 +22,10 @@ interface IdentityDao {
     @Transaction
     @Query("SELECT * FROM identities WHERE fingerprint IN (:fingerprint)")
     fun getIdentityByFingerprint(fingerprint: String): Single<Identity>
+
+    @Transaction
+    @Query("SELECT * FROM identities WHERE fingerprint IN (:fingerprint)")
+    fun getIdentityByFingerprintMaybe(fingerprint: String): Maybe<Identity>
 
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
     fun getByID(ids: List<Long>): Single<List<KeylessIdentity>>

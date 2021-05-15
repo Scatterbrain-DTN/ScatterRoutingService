@@ -730,8 +730,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun getApiMessage(entities: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<MutableList<ScatterMessage>> {
         return entities
-                .map { message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage -> message2message(message) }
-                .reduce(ArrayList(), { list: MutableList<ScatterMessage>, m: ScatterMessage ->
+                .map { message -> message2message(message) }
+                .reduce(ArrayList(), { list , m ->
                     list.add(m)
                     list
                 })
@@ -751,9 +751,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .getByApplication(application)
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable {
-                    source: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> ->
-                    Observable.fromIterable(source)
-                })
+                    source -> Observable.fromIterable(source)
+                }
+        )
                 .blockingGet()
     }
 
