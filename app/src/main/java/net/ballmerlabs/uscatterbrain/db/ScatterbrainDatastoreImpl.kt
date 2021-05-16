@@ -683,7 +683,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param blocksize size of packets
      * @return DocumentsProvider metadata
      */
-    @Synchronized
     override fun insertAndHashLocalFile(path: File, blocksize: Int): Map<String, Serializable> {
         return hashFile(path, blocksize)
                 .flatMapCompletable { hashes: List<ByteString> ->
@@ -876,7 +875,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param path
      * @return id of message deleted
      */
-    @Synchronized
     override fun deleteByPath(path: File): Int {
         return mDatastore.scatterMessageDao()
                 .deleteByPath(path.absolutePath)
