@@ -10,7 +10,10 @@ import android.os.RemoteException
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.LifecycleService
+import com.goterl.lazycode.lazysodium.interfaces.Sign
 import com.jakewharton.rxrelay2.BehaviorRelay
+import com.sun.jna.Pointer
+import com.sun.jna.ptr.PointerByReference
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
@@ -19,6 +22,7 @@ import net.ballmerlabs.uscatterbrain.db.ACL
 import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
 import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
+import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -178,6 +182,36 @@ class ScatterRoutingService : LifecycleService() {
                                 DEFAULT_BLOCKSIZE)
                     }
                     .blockingAwait()
+        }
+
+        /**
+         * signs arbitrary data with a scatterbrain identity.
+         * @param data data to sign
+         * @param identity fingerprint of identiy to sign with
+         * @throws RemoteException if application is not authorized to use identity or if
+         * identity does not exist
+         */
+        override fun signDataDetached(data: ByteArray, identity: String): ByteArray {
+            val acls = mBackend.datastore.getACLs(identity).blockingGet()
+            for (acl in acls!!) {
+                verifyCallingSig(acl)
+            }
+            return mBackend.datastore.getIdentityKey(identity)
+                    .map { keypair ->
+                        val res = ByteArray(Sign.ED25519_BYTES)
+                        val p = PointerByReference(Pointer.NULL).pointer
+                        val status = LibsodiumInterface.sodium.crypto_sign_detached(
+                                res,
+                                p,
+                                data,
+                                data.size.toLong(),
+                                keypair.secretkey
+                        )
+                        if (status != 0) {
+                            throw IllegalStateException("failed to sign: $status")
+                        }
+                        res
+                    }.blockingGet()
         }
 
         /**
