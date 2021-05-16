@@ -1,14 +1,65 @@
 package net.ballmerlabs.uscatterbrain.network
 
+import android.content.res.Resources
 import com.google.protobuf.CodedInputStream
 import com.google.protobuf.MessageLite
 import com.google.protobuf.Parser
+import io.reactivex.Flowable
+import io.reactivex.Observable
+import io.reactivex.Single
+import net.ballmerlabs.uscatterbrain.ScatterProto
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.*
 import java.util.zip.CRC32
+
+
+fun providesToValArray(provides: List<AdvertisePacket.Provides>?): List<Int> {
+    val res: MutableList<Int> = ArrayList()
+    for (p in provides!!) {
+        res.add(p.`val`)
+    }
+    return res
+}
+
+fun valToProvidesArray(vals: List<Int>): List<AdvertisePacket.Provides> {
+    val provides = ArrayList<AdvertisePacket.Provides>()
+    for (i in vals) {
+        for (p in AdvertisePacket.Provides.values()) {
+            if (p.`val` == i) {
+                provides.add(p)
+            }
+        }
+    }
+    return provides
+}
+
+fun providesToVal(provides: AdvertisePacket.Provides): Int {
+    return provides.`val`
+}
+
+fun valToProvides(v: Int): AdvertisePacket.Provides {
+    for (p in AdvertisePacket.Provides.values()) {
+        if (p.`val` == v) {
+            return p
+        }
+    }
+    throw Resources.NotFoundException()
+}
+
+fun protoUUIDtoUUID(uuid: ScatterProto.UUID): UUID {
+    return UUID(uuid.upper, uuid.lower)
+}
+
+fun protoUUIDfromUUID(uuid: UUID?): ScatterProto.UUID {
+    return ScatterProto.UUID.newBuilder()
+            .setLower(uuid!!.leastSignificantBits)
+            .setUpper(uuid.mostSignificantBits)
+            .build()
+}
 
 /**
  * wrapper for parser for protobuf messages that implements its own
@@ -34,6 +85,41 @@ object CRCProtobuf {
         return buffer.array()
     }
 
+    inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
+            parser: ScatterSerializable.Companion.Parser<V, T>,
+            inputStream: InputStream
+    ): Single<T> {
+        return Single.fromCallable {
+            val message = parseFromCRC(parser.parser, inputStream)
+            T::class.java.getConstructor(V::class.java).newInstance(message)
+        }
+    }
+
+
+    inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
+            parser: ScatterSerializable.Companion.Parser<V,T> ,
+            observable: Observable<ByteArray>
+    ): Single<T> {
+        return Single.just(observable)
+                .flatMap { obs ->
+                    val observer = InputStreamObserver(4096) //TODO: optimize buffer size
+                    obs.subscribe(observer)
+                    parseWrapperFromCRC(parser, observer)
+                }
+    }
+
+    inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
+            parser: ScatterSerializable.Companion.Parser<V,T> ,
+            flowable: Flowable<ByteArray>
+    ): Single<T> {
+        return Single.just(flowable)
+                .flatMap { obs ->
+                    val subscriber = InputStreamFlowableSubscriber(4096) //TODO: optimize buffer size
+                    obs.subscribe(subscriber)
+                    parseWrapperFromCRC(parser, subscriber)
+                }
+    }
+    
     fun <T : MessageLite> parseFromCRC(parser: Parser<T>, inputStream: InputStream): T {
         val crc = ByteArray(4)
         val size = ByteArray(4)

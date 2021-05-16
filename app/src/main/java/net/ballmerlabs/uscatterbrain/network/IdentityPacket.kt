@@ -1,77 +1,32 @@
 package net.ballmerlabs.uscatterbrain.network
 
 import android.content.Context
-import android.content.SharedPreferences
-import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
 import com.goterl.lazycode.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
-import io.reactivex.Completable
-import io.reactivex.Flowable
-import io.reactivex.Observable
-import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.ScatterProto
-import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
 import java.io.*
-import java.net.ProtocolException
-import java.security.GeneralSecurityException
 import java.util.*
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * wrapper class for Identity protobuf message
  */
-class IdentityPacket private constructor(builder: Builder) :
-        ScatterSerializable,
+class IdentityPacket(packet: ScatterProto.Identity) :
+        ScatterSerializable<ScatterProto.Identity>(packet),
         MutableMap<String, ByteString> {
-    private var mPubKeymap: MutableMap<String, ByteString> = TreeMap()
-    private lateinit var mKeystorePrefs: SharedPreferences
-    private val mIdentity = AtomicReference<ScatterProto.Identity>()
-    val name: String?
-    private val sig = AtomicReference(ByteString.EMPTY)
-    val pubkey: ByteArray?
-    override var luid: UUID? = null
-        private set
+    val name: String
+        get() = packet.`val`.givenname
 
-
-    init {
-        val sig = builder.sig
-        if (sig != null) {
-            this.sig.set(ByteString.copyFrom(sig))
-        }
-        pubkey = builder.scatterbrainPubkey
-        this.name = builder.name
-        if (builder.ismGenerateKeypair()) {
-            generateKeyPair()
-        }
-        if (builder.gone) {
-            mIdentity.set(ScatterProto.Identity.newBuilder()
-                    .setEnd(true)
-                    .build())
-        } else {
-            mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = ByteString.copyFrom(pubkey)
-            regenIdentity()
-        }
-    }
-
-
-    private fun regenIdentity() {
-        val body = ScatterProto.Identity.Body.newBuilder()
-                .setGivenname(name)
-                .setSig(sig.get())
-                .putAllKeys(mPubKeymap)
-                .build()
-        mIdentity.set(ScatterProto.Identity.newBuilder()
-                .setVal(body)
-                .setEnd(false)
-                .build())
-    }
+    private val sig
+        get() = packet.`val`.sig
+    val pubkey: ByteArray
+        get() = packet.`val`.keysMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]!!.toByteArray()
 
     val isEnd: Boolean
-        get() = mIdentity.get().messageCase == ScatterProto.Identity.MessageCase.END
+        get() = packet.messageCase == ScatterProto.Identity.MessageCase.END
 
     val fingerprint: String
         get() {
@@ -80,7 +35,7 @@ class IdentityPacket private constructor(builder: Builder) :
                     fingeprint,
                     fingeprint.size,
                     pubkey,
-                    pubkey!!.size.toLong(),
+                    pubkey.size.toLong(),
                     null,
                     0
             )
@@ -93,10 +48,10 @@ class IdentityPacket private constructor(builder: Builder) :
         }
         var result = ByteString.EMPTY
         result = result.concat(ByteString.copyFromUtf8(name))
-        val sortedKeys: SortedSet<String> = TreeSet(mPubKeymap.keys)
-        for (key in sortedKeys) {
+        val sorted: SortedSet<String> = TreeSet(packet.`val`.keysMap.keys)
+        for (key in sorted) {
             result = result.concat(ByteString.copyFromUtf8(key))
-            val `val` = mPubKeymap[key] ?: return null
+            val `val` = packet.`val`.keysMap[key] ?: return null
             result = result.concat(`val`)
         }
         return result
@@ -114,7 +69,7 @@ class IdentityPacket private constructor(builder: Builder) :
         }
         if (pubkey!!.size != Sign.PUBLICKEYBYTES) return false
         val messagebytes = sumBytes()
-        return LibsodiumInterface.sodium.crypto_sign_verify_detached(sig.get()!!.toByteArray(),
+        return LibsodiumInterface.sodium.crypto_sign_verify_detached(sig.toByteArray(),
                 messagebytes!!.toByteArray(),
                 messagebytes.size().toLong(),
                 pubkey) == 0
@@ -123,75 +78,12 @@ class IdentityPacket private constructor(builder: Builder) :
     override val type: PacketType
         get() = PacketType.TYPE_IDENTITY
 
-    override fun tagLuid(luid: UUID?) {
-        this.luid = luid
-    }
-
-    /**
-     * Sign ed 25519 boolean.
-     *
-     * @param secretkey the secretkey
-     * @return the boolean
-     */
-    @Synchronized
-    fun signEd25519(secretkey: ByteArray): Boolean {
-        if (secretkey.size != Sign.SECRETKEYBYTES) return false
-        val messagebytes = sumBytes()
-        val sig = ByteArray(Sign.ED25519_BYTES)
-        val p = PointerByReference(Pointer.NULL).pointer
-        return if (LibsodiumInterface.sodium.crypto_sign_detached(sig,
-                        p, messagebytes!!.toByteArray(), messagebytes.size().toLong(), secretkey) == 0) {
-            this.sig.set(ByteString.copyFrom(sig))
-            regenIdentity()
-            true
-        } else {
-            false
-        }
-    }
-
-    override val bytes: ByteArray
-        get() {
-            val os = ByteArrayOutputStream()
-            return try {
-                CRCProtobuf.writeToCRC(mIdentity.get(), os)
-                os.toByteArray()
-            } catch (e: IOException) {
-                byteArrayOf(0) //this should be unreachable
-            }
-        }
-
-    override val byteString: ByteString
-        get() = ByteString.copyFrom(bytes)
-
-    override fun writeToStream(os: OutputStream): Completable {
-        return Completable.fromAction { CRCProtobuf.writeToCRC(mIdentity.get(), os) }
-    }
-
-    override fun writeToStream(fragsize: Int): Flowable<ByteArray> {
-        return Bytes.from(ByteArrayInputStream(bytes), fragsize)
-    }
-
-    @Throws(GeneralSecurityException::class, IOException::class)
-    private fun generateKeyPair() {
-        val privkey = ByteArray(Sign.ED25519_SECRETKEYBYTES)
-        if (pubkey!!.size != Sign.ED25519_PUBLICKEYBYTES) {
-            throw IOException("public key length mismatch")
-        }
-        LibsodiumInterface.sodium.crypto_sign_keypair(pubkey, privkey)
-        mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = ByteString.copyFrom(pubkey)
-        val secretKeyBase64 = LibsodiumInterface.base64enc(privkey)
-        val fingerprint = LibsodiumInterface.base64enc(pubkey)
-        mKeystorePrefs.edit()
-                .putString(fingerprint, secretKeyBase64)
-                .apply()
-        signEd25519(privkey)
-    }
 
     val keymap: Map<String, ByteString>
-        get() = mPubKeymap.toMap()
+        get() = packet.`val`.keysMap
 
     fun getSig(): ByteArray {
-        return sig.get()!!.toByteArray()
+        return sig.toByteArray()
     }
 
     data class Builder(
@@ -201,7 +93,8 @@ class IdentityPacket private constructor(builder: Builder) :
             var generateKeypair: Boolean = false,
             var name: String? = null,
             var sig: ByteArray? = null,
-            var gone: Boolean = false
+            var gone: Boolean = false,
+            var secretkey: ByteArray? = null
             ) {
 
         fun ismGenerateKeypair(): Boolean {
@@ -228,8 +121,51 @@ class IdentityPacket private constructor(builder: Builder) :
             scatterbrainPubkey = pubkey.toByteArray()
         }
 
+        fun sign(secretkey: ByteArray) = apply {
+            this.secretkey = secretkey
+        }
+
+
+
+        private fun sumBytes(): ByteString {
+            if (gone) {
+                throw IllegalStateException("tried to sign an end packet")
+            }
+            var result = ByteString.EMPTY
+            result = result.concat(ByteString.copyFromUtf8(name))
+            val sorted: SortedSet<String> = TreeSet(pubkeyMap.keys)
+            for (key in sorted) {
+                result = result.concat(ByteString.copyFromUtf8(key))
+                val `val` = pubkeyMap[key] ?: throw IllegalStateException("pubkey $key missing")
+                result = result.concat(`val`)
+            }
+            return result
+        }
+
+        /**
+         * Sign ed 25519 boolean.
+         *
+         * @param secretkey the secretkey
+         * @return the boolean
+         */
+        fun signEd25519(): ByteString {
+            if (secretkey!!.size != Sign.SECRETKEYBYTES) throw IllegalStateException("invalid key length")
+            val messagebytes = sumBytes()
+            val sig = ByteArray(Sign.ED25519_BYTES)
+            val p = PointerByReference(Pointer.NULL).pointer
+            return if (LibsodiumInterface.sodium.crypto_sign_detached(sig,
+                            p, messagebytes.toByteArray(), messagebytes.size().toLong(), secretkey) == 0) {
+                ByteString.copyFrom(sig)
+            } else {
+                throw IllegalStateException("failed to sign")
+            }
+        }
+
         fun build(): IdentityPacket? {
             if (!gone) {
+                if (secretkey == null) {
+                    throw IllegalStateException("failed to sign, secret key not set")
+                }
                 if (scatterbrainPubkey == null && !generateKeypair) {
                     return null
                 }
@@ -241,7 +177,21 @@ class IdentityPacket private constructor(builder: Builder) :
                 }
             }
             return try {
-                IdentityPacket(this)
+                val packet = if (gone)
+                    ScatterProto.Identity.newBuilder()
+                            .setEnd(true)
+                            .build()
+                else
+                    ScatterProto.Identity.newBuilder()
+                            .setVal(
+                                    ScatterProto.Identity.Body.newBuilder()
+                                            .setGivenname(name)
+                                            .setSig(signEd25519())
+                                            .putAllKeys(pubkeyMap)
+                                            .build()
+                            )
+                            .build()
+                IdentityPacket(packet)
             } catch (e: Exception) {
                 e.printStackTrace()
                 null
@@ -285,82 +235,54 @@ class IdentityPacket private constructor(builder: Builder) :
     }
 
     override fun isEmpty(): Boolean {
-        return mPubKeymap.isEmpty()
+        return packet.`val`.keysMap.isEmpty()
     }
 
     override fun containsKey(key: String): Boolean {
-        return mPubKeymap.containsKey(key)
+        return packet.`val`.keysMap.containsKey(key)
     }
 
     override fun containsValue(value: ByteString): Boolean {
-        return mPubKeymap.containsValue(value)
+        return packet.`val`.keysMap.containsValue(value)
     }
 
     override operator fun get(key: String): ByteString? {
-        return mPubKeymap[key]
+        return packet.`val`.keysMap[key]
     }
 
     override fun put(key: String, value: ByteString): ByteString? {
-        return mPubKeymap.put(key, value)
+        return packet.`val`.keysMap.put(key, value)
     }
 
     override fun remove(key: String): ByteString? {
-        return mPubKeymap.remove(key)
+        return packet.`val`.keysMap.remove(key)
     }
 
     override fun putAll(from: Map<out String, ByteString>) {
-        mPubKeymap.putAll(from)
+        packet.`val`.keysMap.putAll(from)
     }
 
     override fun clear() {
-        mPubKeymap.clear()
+        packet.`val`.keysMap.clear()
     }
 
     companion object {
-
-        private fun builderFromIs(inputstream: InputStream, context: Context) : Builder {
-            val identity = CRCProtobuf.parseFromCRC(ScatterProto.Identity.parser(), inputstream)
-            val builder = Builder(context)
-            if (identity!!.messageCase == ScatterProto.Identity.MessageCase.VAL) {
-                builder.pubkeyMap = identity.getVal().keysMap
-                builder.setSig(identity.getVal().sig.toByteArray())
-                builder.setName(identity.getVal().givenname)
-                val scatterbrainKey = identity.getVal().keysMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]
-                        ?: throw ProtocolException("scatterbrain key not in map")
-                builder.setScatterbrainPubkey(scatterbrainKey)
-            } else {
-                builder.setEnd()
-            }
-            return builder
-        }
-
-        fun parseFrom(`is`: InputStream, ctx: Context): Single<IdentityPacket> {
-            return Single.fromCallable { IdentityPacket(builderFromIs(`is`, ctx)) }
-        }
-
-        fun parseFrom(flowable: Observable<ByteArray>, ctx: Context): Single<IdentityPacket> {
-            val observer = InputStreamObserver(512) //TODO: find a way to calculate max size
-            flowable.subscribe(observer)
-            return parseFrom(observer, ctx).doFinally { observer.close() }
-        }
-
-        fun parseFrom(flowable: Flowable<ByteArray>, ctx: Context): Single<IdentityPacket> {
-            val observer = InputStreamFlowableSubscriber(512) //TODO: find a way to calculate max size
-            flowable.subscribe(observer)
-            return parseFrom(observer, ctx).doFinally { observer.close() }
-        }
-
         fun newBuilder(ctx: Context): Builder {
             return Builder(ctx)
         }
+        class Parser : ScatterSerializable.Companion.Parser<ScatterProto.Identity, IdentityPacket>(ScatterProto.Identity.parser())
+        fun parser(): Parser {
+            return Parser()
+        }
+
     }
 
     override val size: Int
-        get() = mPubKeymap.size
+        get() = packet.`val`.keysMap.size
     override val entries: MutableSet<MutableMap.MutableEntry<String, ByteString>>
-        get() = mPubKeymap.entries
+        get() = packet.`val`.keysMap.entries
     override val keys: MutableSet<String>
-        get() = mPubKeymap.keys
+        get() = packet.`val`.keysMap.keys
     override val values: MutableCollection<ByteString>
-        get() = mPubKeymap.values
+        get() = packet.`val`.keysMap.values
 }

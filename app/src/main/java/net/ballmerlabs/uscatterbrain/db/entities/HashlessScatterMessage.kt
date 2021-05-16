@@ -35,10 +35,19 @@ data class HashlessScatterMessage(@ColumnInfo
                                   var extension: String, @ColumnInfo(name = "filepath")
                                   var filePath: String, @ColumnInfo(name = "globalhash")
                                   var globalhash: ByteArray, @ColumnInfo
-                                  var userFilename: String? = null, @ColumnInfo
+                                  var userFilename: String = "", @ColumnInfo
                                   var mimeType: String) {
     companion object {
-        fun hash2hashs(hashes: List<ByteString>): List<Hashes> {
+        fun hash2hashs(hashes: List<ByteArray>): List<Hashes> {
+            val result = ArrayList<Hashes>()
+            for (hash in hashes) {
+                val h = Hashes(hash)
+                result.add(h)
+            }
+            return result
+        }
+
+        fun hash2hashsProto(hashes: List<ByteString>): List<Hashes> {
             val result = ArrayList<Hashes>()
             for (hash in hashes) {
                 val h = Hashes(hash.toByteArray())
@@ -47,10 +56,18 @@ data class HashlessScatterMessage(@ColumnInfo
             return result
         }
 
-        fun hashes2hash(hashes: List<Hashes>): List<ByteString> {
+        fun hashes2hashProto(hashes: List<Hashes>): List<ByteString> {
             val result = ArrayList<ByteString>()
             for (hash in hashes) {
                 result.add(ByteString.copyFrom(hash.hash))
+            }
+            return result
+        }
+        
+        fun hashes2hash(hashes: List<Hashes>): List<ByteArray> {
+            val result = ArrayList<ByteArray>()
+            for (hash in hashes) {
+                result.add(hash.hash)
             }
             return result
         }

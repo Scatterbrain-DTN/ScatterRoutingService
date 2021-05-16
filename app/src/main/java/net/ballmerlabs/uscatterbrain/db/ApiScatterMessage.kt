@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.db
 
-import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
@@ -28,20 +27,20 @@ class ApiScatterMessage : ScatterMessage {
         secretkey.set(privateKey)
     }
 
-    private fun sumBytes(hashes: List<ByteString?>): ByteString {
-        var messagebytes = ByteString.EMPTY
-        messagebytes = messagebytes.concat(ByteString.copyFrom(fromFingerprint))
-        messagebytes = messagebytes.concat(ByteString.copyFrom(toFingerprint))
-        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(application))
-        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(this.extension))
-        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(mime))
-        messagebytes = messagebytes.concat(ByteString.copyFromUtf8(filename))
+    private fun sumBytes(hashes: List<ByteArray>): ByteArray {
+        var messagebytes = ByteArray(0)
+        messagebytes += fromFingerprint
+        messagebytes += toFingerprint
+        messagebytes += application.encodeToByteArray()
+        messagebytes += extension.encodeToByteArray()
+        messagebytes += mime.encodeToByteArray()
+        messagebytes += filename.encodeToByteArray()
         var td: Byte = 0
         if (toDisk()) td = 1
-        val toDiskBytes = ByteString.copyFrom(ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).put(td).array())
-        messagebytes = messagebytes.concat(toDiskBytes)
+        val toDiskBytes = ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).put(td).array()
+        messagebytes += toDiskBytes
         for (hash in hashes) {
-            messagebytes = messagebytes.concat(hash)
+            messagebytes += hash
         }
         return messagebytes
     }
@@ -53,14 +52,14 @@ class ApiScatterMessage : ScatterMessage {
      * @return the boolean
      */
     @Synchronized
-    fun signEd25519(hashes: List<ByteString?>) {
+    fun signEd25519(hashes: List<ByteArray>) {
         val pk = secretkey.get() ?: throw IllegalStateException("secret key not set")
         check(pk.size == Sign.SECRETKEYBYTES) { "secret key wrong length" }
         val messagebytes = sumBytes(hashes)
         val localsig = ByteArray(Sign.ED25519_BYTES)
         val p = PointerByReference(Pointer.NULL).pointer
         if (LibsodiumInterface.sodium.crypto_sign_detached(localsig,
-                        p, messagebytes.toByteArray(), messagebytes.size().toLong(), pk) == 0) {
+                        p, messagebytes, messagebytes.size.toLong(), pk) == 0) {
             sig.set(localsig)
         } else {
             secretkey.set(null)

@@ -24,10 +24,7 @@ message BlockData {
     bytes from_fingerprint = 1;
     bytes to_fingerprint = 2;
     string application = 3;
-    oneof filename {
-        string filename_val = 4;
-        bool filename_gone = 5;
-    }
+    string filename = 4;
     string extension = 6;
     string mime = 7;
     uint32 sessionid = 8;

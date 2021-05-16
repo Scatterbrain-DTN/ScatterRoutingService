@@ -8,6 +8,6 @@ interface Verifiable {
     val mime: String
     val toDisk: Boolean
     val hashes: Array<ByteArray>
-    val userFilename: String?
-    var signature: ByteArray?
+    val userFilename: String
+    val signature: ByteArray?
 }

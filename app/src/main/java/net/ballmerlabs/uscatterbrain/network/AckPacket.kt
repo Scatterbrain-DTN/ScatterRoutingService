@@ -6,6 +6,7 @@ import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
+import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.Ack
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
 import java.io.*
@@ -19,64 +20,24 @@ import java.util.*
  * type for that is hard because protocol buffers don't have
  * simple polymorphism
  */
-class AckPacket private constructor(builder: Builder)  : ScatterSerializable {
-    private val mAck: Ack?
-    override var luid: UUID? = null
-        private set
+class AckPacket(packet: Ack)  : ScatterSerializable<Ack>(packet) {
 
     enum class Status {
         OK, ERR, FILE_EXISTS, PROTO_INVALID
     }
-
-    init {
-        val b = Ack.newBuilder()
-        if (builder.message == null) {
-            b.messageNull = true
-        } else {
-            b.messageVal = builder.message
-        }
-        b.status = status2proto(builder.status)
-        mAck = b.build()
-    }
-
-    override val bytes: ByteArray
-        get() {
-            val os = ByteArrayOutputStream()
-            return try {
-                CRCProtobuf.writeToCRC(mAck!!, os)
-                os.toByteArray()
-            } catch (ignored: IOException) {
-                byteArrayOf(0) //this should be unreachable
-            }
-        }
-
-    override val byteString: ByteString
-        get() = ByteString.copyFrom(bytes)
-
-    override fun writeToStream(os: OutputStream): Completable {
-        return Completable.fromAction { CRCProtobuf.writeToCRC(mAck!!, os) }
-    }
-
-    override fun writeToStream(fragsize: Int): Flowable<ByteArray> {
-        return Bytes.from(ByteArrayInputStream(bytes), fragsize)
-    }
-
+    
     override val type: PacketType
         get() = PacketType.TYPE_ACK
-
-    override fun tagLuid(luid: UUID?) {
-        this.luid = luid
-    }
-
+    
     val reason: String
-        get() = if (mAck!!.messageNull) {
+        get() = if (packet.messageNull) {
             ""
         } else {
-            mAck.messageVal
+            packet.messageVal
         }
 
     val status: Status
-        get() = proto2status(mAck!!.status)
+        get() = proto2status(packet.status)
 
     data class Builder(
             var message: String? = null,
@@ -93,26 +54,21 @@ class AckPacket private constructor(builder: Builder)  : ScatterSerializable {
 
         fun build(): AckPacket {
             requireNotNull(status) { "status should not be null" }
-            return AckPacket(this)
+            val builder = Ack.newBuilder()
+            if (message == null) {
+                builder.messageNull = true
+            } else {
+                builder.messageVal = message
+            }
+            return AckPacket(
+                    builder.setStatus(status2proto(status))
+                    .build())
         }
     }
 
     companion object {
-        private fun builderFromIs(inputStream: InputStream) : Builder {
-            val ack  = CRCProtobuf.parseFromCRC(Ack.parser(), inputStream)
-            val builder = Builder()
-            if (ack.messageNull) {
-                builder.setMessage(null)
-                builder.setStatus(null)
-            } else {
-                builder.setMessage(ack.messageVal)
-                builder.setStatus(builder.status)
-            }
-            return builder
-        }
-
         fun parseFrom(inputStream: InputStream): Single<AckPacket> {
-            return Single.fromCallable { AckPacket(builderFromIs(inputStream)) }
+            return Single.fromCallable { AckPacket(CRCProtobuf.parseFromCRC(Ack.parser(), inputStream)) }
         }
 
         fun parseFrom(flowable: Observable<ByteArray>): Single<AckPacket> {
@@ -163,6 +119,10 @@ class AckPacket private constructor(builder: Builder)  : ScatterSerializable {
 
         fun newBuilder(): Builder {
             return Builder()
+        }
+        class Parser : ScatterSerializable.Companion.Parser<Ack, AckPacket>(Ack.parser())
+        fun parser(): Parser {
+            return Parser()
         }
     }
 }

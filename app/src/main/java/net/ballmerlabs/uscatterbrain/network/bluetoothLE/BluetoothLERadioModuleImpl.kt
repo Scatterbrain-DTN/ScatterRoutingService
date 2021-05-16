@@ -196,7 +196,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun getLuidClient(conn: CachedLEConnection): Single<LuidPacket> {
         return conn.readLuid()
-                .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
+                .doOnError { err ->
+                    Log.e(TAG, "error while receiving luid packet: $err")
+                    err.printStackTrace()
+                }
                 .observeOn(clientScheduler)
                 .flatMap { luidPacket: LuidPacket ->
                     if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
@@ -347,19 +350,25 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         Log.v(TAG, "gatt client luid stage")
                         conn.readLuid()
                                 .doOnSuccess { luidPacket: LuidPacket ->
-                                    Log.v(TAG, "client handshake received unhashed luid packet: " + luidPacket.luid)
+                                    Log.v(TAG, "client handshake received unhashed luid packet: " + luidPacket.luidVal)
                                     session.luidStage.setPacket(luidPacket)
                                 }
-                                .doOnError { err: Throwable -> Log.e(TAG, "error while receiving luid packet: $err") }
+                                .doOnError { err ->
+                                    Log.e(TAG, "error while receiving luid packet: $err")
+                                    err.printStackTrace()
+                                }
                                 .flatMapCompletable { luidPacket: LuidPacket ->
                                     session.luidStage.verifyPackets()
                                             .doOnComplete {
                                                 Log.v(TAG, "successfully verified luid packet")
-                                                session.luidMap[session.device.address] = luidPacket.luid
+                                                session.luidMap[session.device.address] = luidPacket.luidVal
                                             } //TODO: stop this
                                 }
                                 .toSingleDefault(TransactionResult<BootstrapRequest>(TransactionResult.STAGE_ADVERTISE, session.device, session.luidStage.remoteHashed))
-                                .doOnError { err: Throwable -> Log.e(TAG, "luid hash verify failed: $err") }
+                                .doOnError { err ->
+                                    Log.e(TAG, "luid hash verify failed: $err")
+                                    err.printStackTrace()
+                                }
                                 .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.remoteHashed))
                     }
 
@@ -426,7 +435,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 error("Assertion failed")
                                             }
                                             val packet = session.votingStage.getSelf(false, selectProvides())
-                                            packet.tagLuid(luidPacket.luid)
+                                            packet.tagLuid(luidPacket.luidVal)
                                             session.votingStage.addPacket(packet)
                                             serverConn.serverNotify(packet)
                                         }.toSingleDefault(Optional.empty())
@@ -533,7 +542,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         .toSingleDefault(Optional.empty())
                             }
                     ) { conn: CachedLEConnection ->
-                        conn.readIdentityPacket(mContext)
+                        conn.readIdentityPacket()
                                 .repeat()
                                 .takeWhile { identityPacket: IdentityPacket? ->
                                     val end = !identityPacket!!.isEnd
@@ -912,9 +921,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 Log.v(TAG, "stating stages")
                                 getLuidClient(clientConnection)
                                         .toObservable()
-                                        .mergeWith(getLuidServer(connection))
+                                        .mergeWith(
+                                                getLuidServer(connection)
+                                                        .doOnError { err -> Log.e(TAG, "server error on retrieving luid $err") }
+                                        )
                                         .subscribeOn(operationsScheduler)
-                                        .doOnError { err -> Log.v(TAG, "error on retrieving luid $err") }
+                                        .doOnError { err -> Log.e(TAG, "client error on retrieving luid $err") }
                                         .firstOrError()
                                         .onErrorResumeNext(Single.never())
                                         .flatMapObservable { luid ->
@@ -942,8 +954,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                             },
                                                             { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
                                                     )
+                                            Log.v(TAG, "initializing session")
                                             initializeProtocol(s, TransactionResult.STAGE_LUID)
-                                                    .flatMapObservable { session: LeDeviceSession ->
+                                                    .doOnError { e -> Log.e(TAG, "failed to initialize protocol $e")}
+                                                    .flatMapObservable { session ->
+                                                        Log.v(TAG, "session initialized")
                                                         val d = connectionRaw.getOnCharacteristicWriteRequest(UUID_SEMAPHOR)
                                                                 .flatMapCompletable { trans ->
                                                                     val remoteluid = bytes2uuid(trans.value)
@@ -977,7 +992,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                          * shouldn't be any races or reentrancy issues
                                                          */
                                                         session.observeStage()
-                                                                .doOnNext { stage: String? -> Log.v(TAG, "handling stage: $stage") }
+                                                                .doOnNext { stage: String -> Log.v(TAG, "handling stage: $stage") }
                                                                 .flatMap {
                                                                     Single.zip(
                                                                             session.singleClient(),
@@ -1067,6 +1082,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     }
                                             
                                         }
+                            }
+                            .doOnError { e ->
+                                Log.e(TAG, "error in session $e")
+                                e.printStackTrace()
                             }
                             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
 

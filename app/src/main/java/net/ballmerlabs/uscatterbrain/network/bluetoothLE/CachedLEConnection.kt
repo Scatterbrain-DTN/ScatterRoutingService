@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.content.Context
 import android.util.Log
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
@@ -111,50 +110,58 @@ class CachedLEConnection(
     }
 
     fun readAdvertise(): Single<AdvertisePacket> {
-        return AdvertisePacket.parseFrom(cachedNotification())
+        return CRCProtobuf.parseWrapperFromCRC(
+                AdvertisePacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readUpgrade(): Single<UpgradePacket> {
-        return UpgradePacket.parseFrom(cachedNotification())
+        return CRCProtobuf.parseWrapperFromCRC(
+                UpgradePacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readBlockHeader(): Single<BlockHeaderPacket> {
-        return BlockHeaderPacket.parseFrom(cachedNotification())
+        return CRCProtobuf.parseWrapperFromCRC(
+                BlockHeaderPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readBlockSequence(): Single<BlockSequencePacket> {
-        return BlockSequencePacket.parseFrom(cachedNotification())
+        return CRCProtobuf.parseWrapperFromCRC(
+                BlockSequencePacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readDeclareHashes(): Single<DeclareHashesPacket> {
-        return DeclareHashesPacket.parseFrom(cachedNotification())
+        return CRCProtobuf.parseWrapperFromCRC(
+                DeclareHashesPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
 
     }
 
     fun readElectLeader(): Single<ElectLeaderPacket> {
-        return ElectLeaderPacket.parseFrom(cachedNotification())
+        return CRCProtobuf.parseWrapperFromCRC(
+                ElectLeaderPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
-    fun readIdentityPacket(context: Context): Single<IdentityPacket> {
-        return IdentityPacket.parseFrom(cachedNotification(), context)
+    fun readIdentityPacket(): Single<IdentityPacket> {
+        return CRCProtobuf.parseWrapperFromCRC(
+                IdentityPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readLuid(): Single<LuidPacket> {
-        return LuidPacket.parseFrom(cachedNotification())
+        return CRCProtobuf.parseWrapperFromCRC(
+                LuidPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }

@@ -153,17 +153,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         return@flatMapCompletable discardStream(stream)
                     } else {
                         return@flatMapCompletable stream.sequencePackets
-                                .flatMap<ByteString> { packet: BlockSequencePacket? ->
+                                .flatMap<ByteArray> { packet: BlockSequencePacket? ->
                                     if (packet!!.verifyHash(stream.headerPacket)) {
-                                        return@flatMap Flowable.just(packet.getmData())
+                                        return@flatMap Flowable.just(packet.data)
                                     } else {
                                         Log.e(TAG, "invalid hash")
-                                        return@flatMap Flowable.error<ByteString>(SecurityException("failed to verify hash"))
+                                        return@flatMap Flowable.error<ByteArray>(SecurityException("failed to verify hash"))
                                     }
                                 }
-                                .reduce { obj: ByteString, other: ByteString? -> obj.concat(other) }
-                                .flatMapCompletable { `val`: ByteString ->
-                                    stream.entity!!.message.body = `val`.toByteArray()
+                                .reduce { obj, other -> obj + other }
+                                .flatMapCompletable { `val` ->
+                                    stream.entity!!.message.body = `val`
                                     insertMessageToRoom(stream.entity)
                                 }.subscribeOn(databaseScheduler)
                     }
@@ -685,7 +685,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      */
     override fun insertAndHashLocalFile(path: File, blocksize: Int): Map<String, Serializable> {
         return hashFile(path, blocksize)
-                .flatMapCompletable { hashes: List<ByteString> ->
+                .flatMapCompletable { hashes ->
                     Log.e(TAG, "hashing local file, len:" + hashes.size)
                     val message = HashlessScatterMessage(
                             null,
@@ -803,7 +803,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     if (message.toDisk()) {
                         return@flatMapCompletable copyFile(message.fileDescriptor.fileDescriptor, file)
                                 .andThen(hashFile(file, blocksize))
-                                .flatMapCompletable { hashes: List<ByteString> ->
+                                .flatMapCompletable { hashes ->
                                     val newFile = File(cacheDir, getDefaultFileName(hashes)
                                             + sanitizeFilename(message.extension))
                                     Log.v(TAG, "filepath from api: " + newFile.absolutePath)
@@ -839,7 +839,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 }.subscribeOn(databaseScheduler)
                     } else {
                         return@flatMapCompletable hashData(message.body, blocksize)
-                                .flatMapCompletable { hashes: List<ByteString> ->
+                                .flatMapCompletable { hashes ->
 
                                     if (message.signable()) {
                                         message.signEd25519(hashes)
@@ -849,14 +849,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             message.identityFingerprint,
                                             message.toFingerprint,
                                             message.fromFingerprint,
-                                            ByteString.copyFromUtf8(message.application).toByteArray(),
+                                            message.application.encodeToByteArray(),
                                             message.sig,
                                             0,
                                             blocksize,
                                             "",
                                             getNoFilename(message.body),
                                             getGlobalHash(hashes),
-                                            null,
+                                            "",
                                             "application/octet-stream"
                                             )
 
@@ -987,13 +987,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun insertSequence(packets: Flowable<BlockSequencePacket>, header: BlockHeaderPacket, path: File): Completable {
         return Single.fromCallable { FileOutputStream(path) }
-                .flatMapCompletable { fileOutputStream: FileOutputStream? ->
+                .flatMapCompletable { fileOutputStream ->
                     packets
                             .concatMapCompletable(Function<BlockSequencePacket, CompletableSource> c@{ blockSequencePacket: BlockSequencePacket? ->
                                 if (!blockSequencePacket!!.verifyHash(header)) {
                                     return@c Completable.error(IllegalStateException("failed to verify hash"))
                                 }
-                                Completable.fromAction { blockSequencePacket.getmData()!!.writeTo(fileOutputStream) }
+                                Completable.fromAction { fileOutputStream.write(blockSequencePacket.data) }
                                         .subscribeOn(databaseScheduler)
                             })
                 }
@@ -1040,22 +1040,22 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 }
     }
 
-    private fun hashData(data: ByteArray, blocksize: Int): Single<MutableList<ByteString>> {
+    private fun hashData(data: ByteArray, blocksize: Int): Single<MutableList<ByteArray>> {
         return Bytes.from(ByteArrayInputStream(data), blocksize)
                 .zipWith(seq, { b: ByteArray, seq: Int ->
                     BlockSequencePacket.newBuilder()
                             .setSequenceNumber(seq)
                             .setData(ByteString.copyFrom(b))
-                            .build().getmData()!!
-                }).reduce(ArrayList(), { list: MutableList<ByteString>, b: ByteString ->
+                            .build().data
+                }).reduce(ArrayList(), { list, b ->
                     list.add(b)
                     list
                 })
     }
 
-    override fun hashFile(path: File, blocksize: Int): Single<List<ByteString>> {
-        return Single.fromCallable<List<ByteString>> {
-            val r: MutableList<ByteString> = ArrayList()
+    override fun hashFile(path: File, blocksize: Int): Single<List<ByteArray>> {
+        return Single.fromCallable<List<ByteArray>> {
+            val r: MutableList<ByteArray> = ArrayList()
             if (!path.exists()) {
                 throw FileAlreadyExistsException("file already exists")
             }
@@ -1068,7 +1068,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         .setSequenceNumber(seqnum)
                         .setData(ByteString.copyFrom(buf, 0, read))
                         .build()
-                r.add(blockSequencePacket.calculateHashByteString())
+                r.add(blockSequencePacket.calculateHash())
                 seqnum++
                 Log.e("debug", "hashing $read")
             }

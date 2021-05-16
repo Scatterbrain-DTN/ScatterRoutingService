@@ -13,7 +13,6 @@ import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Hashes
-import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -52,7 +51,7 @@ class OpenFile(path: File, append: Boolean) : Closeable {
 }
 
 fun getDefaultFileNameFromHashes(hashes: List<Hashes>): String {
-    return getDefaultFileName(HashlessScatterMessage.hashes2hash(hashes))
+    return getDefaultFileNameDb(hashes)
 }
 
 fun sanitizeFilename(name: String): String {
@@ -113,13 +112,16 @@ fun verifyed25519(pubkey: ByteArray, message: Verifiable): Boolean {
  * @param secretkey the secretkey
  * @return the boolean
  */
-fun signEd25519(secretkey: ByteArray, message: Verifiable): Boolean {
-    if (secretkey.size != Sign.SECRETKEYBYTES) return false
+fun signEd25519(secretkey: ByteArray, message: Verifiable): ByteArray {
+    if (secretkey.size != Sign.SECRETKEYBYTES) throw IllegalStateException("wrong keysize")
     val messagebytes = sumBytes(message)
-    message.signature = ByteArray(Sign.ED25519_BYTES)
+    val sig = ByteArray(Sign.ED25519_BYTES)
     val p = PointerByReference(Pointer.NULL).pointer
-    return LibsodiumInterface.sodium.crypto_sign_detached(message.signature,
+    val res = LibsodiumInterface.sodium.crypto_sign_detached(message.signature,
                     p, messagebytes.toByteArray(), messagebytes.size().toLong(), secretkey) == 0
+    if (!res) throw IllegalStateException("failed to sign")
+
+    return sig
 }
 
 
@@ -135,7 +137,18 @@ fun getNoFilename(body: ByteArray): String {
     return UUID(buf.long, buf.long).toString()
 }
 
-fun getGlobalHash(hashes: List<ByteString>): ByteArray {
+fun getGlobalHash(hashes: List<ByteArray>): ByteArray {
+    val outhash = ByteArray(GenericHash.BYTES)
+    val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
+    LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
+    for (bytes in hashes) {
+        LibsodiumInterface.sodium.crypto_generichash_update(state, bytes, bytes.size.toLong())
+    }
+    LibsodiumInterface.sodium.crypto_generichash_final(state, outhash, outhash.size)
+    return outhash
+}
+
+fun getGlobalHashProto(hashes: List<ByteString>): ByteArray {
     val outhash = ByteArray(GenericHash.BYTES)
     val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
     LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
@@ -157,14 +170,27 @@ fun getGlobalHashDb(hashes: List<Hashes>): ByteArray {
     return outhash
 }
 
-fun getDefaultFileName(hashes: List<ByteString>): String {
+
+fun getDefaultFileName(hashes: List<ByteArray>): String {
     val buf = ByteBuffer.wrap(getGlobalHash(hashes))
     //note: this only is safe because crypto_generichash_BYTES_MIN is 16
     return UUID(buf.long, buf.long).toString()
 }
 
+fun getDefaultFileNameDb(hashes: List<Hashes>): String {
+    val buf = ByteBuffer.wrap(getGlobalHashDb(hashes))
+    //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+    return UUID(buf.long, buf.long).toString()
+}
+
+fun getDefaultFileNameProto(hashes: List<ByteString>): String {
+    val buf = ByteBuffer.wrap(getGlobalHashProto(hashes))
+    //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+    return UUID(buf.long, buf.long).toString()
+}
+
 fun getDefaultFileName(packet: BlockHeaderPacket): String {
-    return getDefaultFileName(packet.hashList)
+    return getDefaultFileNameProto(packet.hashList)
 }
 
 /**
@@ -200,7 +226,7 @@ interface ScatterbrainDatastore {
     fun close(path: File): Boolean
     fun open(path: File): Single<OpenFile>
     fun insertFile(stream: BlockDataStream): Completable
-    fun hashFile(path: File, blocksize: Int): Single<List<ByteString>>
+    fun hashFile(path: File, blocksize: Int): Single<List<ByteArray>>
     fun readFile(path: File, blocksize: Int): Flowable<BlockSequencePacket>
     fun readBody(body: ByteArray, blocksize: Int): Flowable<BlockSequencePacket>
     fun getFilePath(packet: BlockHeaderPacket): File

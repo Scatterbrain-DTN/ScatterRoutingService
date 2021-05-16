@@ -1,46 +1,27 @@
 package net.ballmerlabs.uscatterbrain.network
 
 import android.util.Log
-import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
-import com.goterl.lazycode.lazysodium.interfaces.Sign
-import com.sun.jna.Pointer
-import com.sun.jna.ptr.PointerByReference
-import io.reactivex.Completable
-import io.reactivex.Flowable
-import io.reactivex.Observable
-import io.reactivex.Single
+import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
-import net.ballmerlabs.uscatterbrain.db.sigSize
-import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
-import java.io.*
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.util.*
-import kotlin.collections.ArrayList
 
 /**
  * Wrapper class for protocol buffer blockdata message
  */
-class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializable, Verifiable  {
-    /**
-     * Gets blockdata.
-     *
-     * @return the blockdata
-     */
-    private var blockdata: BlockData? = null
-
+class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(blockdata), Verifiable  {
     /**
      * Gets hash list.
      *
      * @return the hash list
      */
-    val hashList: List<ByteString>
+    val hashList
+    get() = packet.nexthashesList
 
-    override val hashes: Array<ByteArray>
+    override val hashes
         get() = hashList.map { v -> v.toByteArray() }.toTypedArray()
+
 
     /**
      * Gets from fingerprint.
@@ -48,6 +29,11 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return the from fingerprint
      */
     override val fromFingerprint: ByteArray?
+        get() {
+            val r = packet.fromFingerprint.toByteArray()
+            return if (r.size == 1) null else r
+        }
+
 
     /**
      * Gets to fingerprint.
@@ -55,21 +41,21 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return the to fingerprint
      */
     override val toFingerprint: ByteArray?
+        get() {
+            val r = packet.toFingerprint.toByteArray()
+            return if (r.size == 1) null else r
+        }
 
     override val extension: String
+        get() = sanitizeFilename(packet.extension)
 
     /**
      * Get signature byte [ ].
      *
      * @return the byte [ ]
      */
-    override var signature: ByteArray? = null
-    set(value) {
-        if (blockdata != null) {
-            regenBlockData()
-        }
-        field = value
-    }
+    override val signature: ByteArray?
+        get() = if (fromFingerprint == null) null else packet.sig.toByteArray()
 
     /**
      * Get application byte [ ].
@@ -77,6 +63,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return the byte [ ]
      */
     override val application: String
+        get() = packet.application
 
     /**
      * Gets session id.
@@ -84,83 +71,22 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return the session id
      */
     val sessionID: Int
+        get() = packet.sessionid
+
     override val toDisk: Boolean
-    val isEndOfStream: Boolean = builder.endofstream
+        get() = packet.todisk
+
+    val isEndOfStream: Boolean
+        get() = packet.endofstream
+
     private val mBlocksize: Int
+        get() = packet.blocksize
+
     override val mime: String
-    override val userFilename: String?
-    override var luid: UUID? = null
-        private set
+        get() = packet.mime
 
-
-    init {
-        if (!isEndOfStream) {
-            hashList = builder.hashlist!!
-            this.extension = builder.extensionVal
-            signature = if (builder.sig == null) {
-                ByteArray(Sign.ED25519_BYTES)
-            } else {
-                builder.sig
-            }
-            toFingerprint = if (builder.getmToFingerprint() != null) {
-                builder.getmToFingerprint()
-            } else {
-                byteArrayOf(0)
-            }
-            fromFingerprint = if (builder.getmFromFingerprint() != null) {
-                builder.getmFromFingerprint()
-            } else {
-                byteArrayOf(0)
-            }
-            application = builder.application!!.decodeToString()
-            sessionID = builder.sessionid!!
-            toDisk = builder.toDisk
-            mBlocksize = builder.blockSizeVal!!
-            mime = builder.mime!!
-            val b = BlockData.newBuilder()
-            if (builder.filename == null) {
-                userFilename = autogenFilename
-                b.filenameGone = true
-            } else {
-                b.filenameVal = builder.filename
-                userFilename = builder.filename
-            }
-        } else {
-            fromFingerprint = null
-            toFingerprint = null
-            hashList = ArrayList<ByteString>()
-            extension = ""
-            application = ""
-            sessionID = -1
-            toDisk = false
-            mBlocksize = -1
-            mime = ""
-            userFilename = null
-        }
-        regenBlockData()
-    }
-
-    private fun regenBlockData() {
-        if (isEndOfStream) {
-            blockdata = BlockData.newBuilder()
-                    .setEndofstream(true)
-                    .build()
-        } else {
-            blockdata = BlockData.newBuilder()
-                    .setApplicationBytes(ByteString.copyFrom(application!!.encodeToByteArray()))
-                    .setFromFingerprint(ByteString.copyFrom(fromFingerprint))
-                    .setToFingerprint(ByteString.copyFrom(toFingerprint))
-                    .setTodisk(toDisk)
-                    .setExtension(this.extension)
-                    .addAllNexthashes(hashList)
-                    .setSessionid(sessionID)
-                    .setBlocksize(mBlocksize)
-                    .setMime(mime)
-                    .setEndofstream(isEndOfStream)
-                    .setSig(ByteString.copyFrom(signature))
-                    .build()
-        }
-    }
+    override val userFilename: String
+    get() = packet.filename
 
     val autogenFilename: String
         get() {
@@ -168,36 +94,10 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
                 return ""
             }
 
-            val ext: String = getDefaultFileName(this) + "." + sanitizeFilename(extension!!)
+            val ext: String = getDefaultFileName(this) + "." + extension
             Log.e("debug", "getAutogenFilename: $ext")
             return ext
         }
-
-    override fun tagLuid(luid: UUID?) {
-        this.luid = luid
-    }
-
-    override val bytes: ByteArray
-        get() {
-            val os = ByteArrayOutputStream()
-            return try {
-                CRCProtobuf.writeToCRC(blockdata!!, os)
-                os.toByteArray()
-            } catch (e: IOException) {
-                byteArrayOf(0) //this should be unreachable
-            }
-        }
-
-    override val byteString: ByteString
-        get() = ByteString.copyFrom(bytes)
-
-    override fun writeToStream(os: OutputStream): Completable {
-        return Completable.fromAction { CRCProtobuf.writeToCRC(blockdata!!, os) }
-    }
-
-    override fun writeToStream(fragsize: Int): Flowable<ByteArray> {
-        return Bytes.from(ByteArrayInputStream(bytes), fragsize)
-    }
 
     override val type: PacketType
         get() = PacketType.TYPE_BLOCKHEADER
@@ -207,7 +107,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return int blocksize
      */
     val blockSize: Int
-        get() = blockdata!!.blocksize
+        get() = packet.blocksize
 
     /**
      * Gets hash.
@@ -216,7 +116,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      * @return the hash
      */
     fun getHash(seqnum: Int): ByteString {
-        return blockdata!!.getNexthashes(seqnum)
+        return packet.getNexthashes(seqnum)
     }
 
     /**
@@ -344,25 +244,21 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
                     throw e
                 }
             }
-            return BlockHeaderPacket(this)
-        }
+            val packet = BlockData.newBuilder()
+                    .setApplicationBytes(ByteString.copyFrom(application!!))
+                    .setFromFingerprint(ByteString.copyFrom(mFromFingerprint))
+                    .setToFingerprint(ByteString.copyFrom(mToFingerprint))
+                    .setTodisk(toDisk)
+                    .setExtension(extensionVal)
+                    .addAllNexthashes(hashlist)
+                    .setSessionid(sessionid!!)
+                    .setBlocksize(blockSizeVal!!)
+                    .setMime(mime)
+                    .setEndofstream(endofstream)
+                    .setSig(ByteString.copyFrom(sig))
+                    .build()
 
-        /**
-         * Gets to fingerprint.
-         *
-         * @return the to fingerprint
-         */
-        fun getmToFingerprint(): ByteArray? {
-            return mToFingerprint
-        }
-
-        /**
-         * Gets from fingerprint.
-         *
-         * @return the from fingerprint
-         */
-        fun getmFromFingerprint(): ByteArray? {
-            return mFromFingerprint
+            return BlockHeaderPacket(packet)
         }
 
         override fun equals(other: Any?): Boolean {
@@ -426,52 +322,6 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
     }
 
     companion object {
-
-        private fun builderFromIs(inputStream: InputStream) : Builder {
-            val blockdata = CRCProtobuf.parseFromCRC(BlockData.parser(), inputStream)
-            val filename: String? = if (blockdata.filenameCase == BlockData.FilenameCase.FILENAME_VAL) {
-                blockdata.filenameVal
-            } else{
-                null
-            }
-
-            return newBuilder()
-                    .setApplication(blockdata!!.applicationBytes.toByteArray())
-                    .setHashes(blockdata.nexthashesList)
-                    .setFromFingerprint(blockdata.fromFingerprint.toByteArray())
-                    .setToFingerprint(blockdata.toFingerprint.toByteArray())
-                    .setSig(blockdata.sig.toByteArray())
-                    .setToDisk(blockdata.todisk)
-                    .setSessionID(blockdata.sessionid)
-                    .setBlockSize(blockdata.blocksize)
-                    .setExtension(blockdata.extension)
-                    .setFilename(filename)
-                    .setMime(blockdata.mime)
-                    .setEndOfStream(blockdata.endofstream)
-        }
-
-        /**
-         * Parse from blockheader packet.
-         *
-         * @param is the is
-         * @return the block header packet
-         */
-        fun parseFrom(`is`: InputStream): Single<BlockHeaderPacket> {
-            return Single.fromCallable { BlockHeaderPacket(builderFromIs(`is`)) }
-        }
-
-        fun parseFrom(flowable: Observable<ByteArray>): Single<BlockHeaderPacket> {
-            val observer = InputStreamObserver(4096) //TODO find a way to calculate max size
-            flowable.subscribe(observer)
-            return parseFrom(observer).doFinally { observer.close() }
-        }
-
-        fun parseFrom(flowable: Flowable<ByteArray>): Single<BlockHeaderPacket> {
-            val observer = InputStreamFlowableSubscriber(4096) //TODO: find a way to calculate max size
-            flowable.subscribe(observer)
-            return parseFrom(observer).doFinally { observer.close() }
-        }
-
         /**
          * New builder builder.
          *
@@ -480,6 +330,11 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
         @kotlin.jvm.JvmStatic
         fun newBuilder(): Builder {
             return Builder()
+        }
+
+        class Parser : ScatterSerializable.Companion.Parser<BlockData, BlockHeaderPacket>(BlockData.parser())
+        fun parser(): Parser {
+            return Parser()
         }
     }
 }

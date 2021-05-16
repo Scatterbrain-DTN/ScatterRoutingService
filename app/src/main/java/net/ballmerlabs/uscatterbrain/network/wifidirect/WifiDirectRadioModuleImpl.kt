@@ -28,7 +28,6 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.InterceptableServerSocke
 import net.ballmerlabs.uscatterbrain.network.wifidirect.InterceptableServerSocket.SocketConnection
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.Companion.TAG
-import org.reactivestreams.Subscription
 import java.net.InetAddress
 import java.net.Socket
 import java.util.*
@@ -255,7 +254,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         Log.v(TAG, "declareHashesSeme")
         return datastore.declareHashesPacket
                 .flatMapObservable { declareHashesPacket: DeclareHashesPacket ->
-                    DeclareHashesPacket.parseFrom(socket.getInputStream())
+                    CRCProtobuf.parseWrapperFromCRC(
+                            DeclareHashesPacket.parser(),
+                            socket.getInputStream()
+                    )
                             .subscribeOn(operationsScheduler)
                             .toObservable()
                             .mergeWith(declareHashesPacket.writeToStream(socket.getOutputStream())
@@ -274,7 +276,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun routingMetadataSeme(socket: Socket, packets: Flowable<RoutingMetadataPacket>): Observable<RoutingMetadataPacket> {
         return Observable.just(socket)
                 .flatMap { sock: Socket ->
-                    RoutingMetadataPacket.parseFrom(sock.getInputStream())
+                    CRCProtobuf.parseWrapperFromCRC(
+                            RoutingMetadataPacket.parser(),
+                            sock.getInputStream()
+                    )
                             .subscribeOn(operationsScheduler)
                             .toObservable()
                             .repeat()
@@ -302,7 +307,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun identityPacketSeme(socket: Socket, packets: Flowable<IdentityPacket>): Observable<IdentityPacket> {
         return Single.just(socket)
                 .flatMapObservable { sock: Socket ->
-                    IdentityPacket.parseFrom(sock.getInputStream(), mContext)
+                    CRCProtobuf.parseWrapperFromCRC(
+                            IdentityPacket.parser(),
+                            sock.getInputStream()
+                            )
                             .subscribeOn(operationsScheduler)
                             .toObservable()
                             .repeat()
@@ -487,7 +495,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     .doOnComplete { Log.v(TAG, "wrote headerpacket to client socket") }
                     .andThen(
                             blockDataStream.sequencePackets
-                                    .doOnNext { packet: BlockSequencePacket? -> Log.v(TAG, "seme writing sequence packet: " + packet!!.getmData()!!.size()) }
+                                    .doOnNext { packet: BlockSequencePacket? -> Log.v(TAG, "seme writing sequence packet: " + packet!!.data.size) }
                                     .concatMapCompletable { sequencePacket: BlockSequencePacket? -> sequencePacket!!.writeToStream(socket.getOutputStream()) }
                                     .doOnComplete { Log.v(TAG, "wrote sequence packets to client socket") }
                     )
@@ -500,16 +508,16 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Completable {
         return serverSocket
                 .flatMapCompletable { socket: Socket ->
-                    stream.doOnSubscribe { disp: Subscription? -> Log.v(TAG, "subscribed to BlockDataStream observable") }
-                            .doOnNext { p: BlockDataStream? -> Log.v(TAG, "writeBlockData processing BlockDataStream") }
+                    stream.doOnSubscribe { Log.v(TAG, "subscribed to BlockDataStream observable") }
+                            .doOnNext { Log.v(TAG, "writeBlockData processing BlockDataStream") }
                             .concatMapCompletable { blockDataStream: BlockDataStream ->
                                 blockDataStream.headerPacket.writeToStream(socket.getOutputStream())
                                         .subscribeOn(operationsScheduler)
                                         .doOnComplete { Log.v(TAG, "server wrote header packet") }
                                         .andThen(
                                                 blockDataStream.sequencePackets
-                                                        .doOnNext { packet: BlockSequencePacket? -> Log.v(TAG, "uke writing sequence packet: " + packet!!.getmData()!!.size()) }
-                                                        .concatMapCompletable { blockSequencePacket: BlockSequencePacket ->
+                                                        .doOnNext { packet -> Log.v(TAG, "uke writing sequence packet: " + packet.data.size) }
+                                                        .concatMapCompletable { blockSequencePacket ->
                                                             blockSequencePacket.writeToStream(socket.getOutputStream())
                                                                     .subscribeOn(operationsScheduler)
                                                         }
@@ -527,7 +535,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return serverSocket
                 .toFlowable()
                 .flatMap { socket: Socket ->
-                    BlockHeaderPacket.parseFrom(socket.getInputStream())
+                    CRCProtobuf.parseWrapperFromCRC(
+                            BlockHeaderPacket.parser(),
+                            socket.getInputStream()
+                    )
                             .subscribeOn(operationsScheduler)
                             .toFlowable()
                             .takeWhile { stream: BlockHeaderPacket ->
@@ -542,12 +553,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         .map {
                                             BlockDataStream(
                                                     headerPacket,
-                                                    BlockSequencePacket.parseFrom(socket.getInputStream())
+                                                    CRCProtobuf.parseWrapperFromCRC(
+                                                            BlockSequencePacket.parser(),
+                                                            socket.getInputStream()
+                                                    )
                                                             .subscribeOn(operationsScheduler)
                                                             .repeat(headerPacket.hashList.size.toLong())
                                                             .doOnNext {
-                                                                packet: BlockSequencePacket ->
-                                                                Log.v(TAG, "uke reading sequence packet: " + packet.getmData()!!.size())
+                                                                packet ->
+                                                                Log.v(TAG, "uke reading sequence packet: " + packet.data.size)
                                                             }
                                                             .doOnComplete { Log.v(TAG, "server read sequence packets") }
                                             )
@@ -575,7 +589,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             socket: Socket
     ): Single<HandshakeResult> {
         return Single.fromCallable<Single<BlockHeaderPacket>> {
-            BlockHeaderPacket.parseFrom(socket.getInputStream())
+            CRCProtobuf.parseWrapperFromCRC(
+                    BlockHeaderPacket.parser(),
+                    socket.getInputStream())
                     .subscribeOn(operationsScheduler)
         }
                 .flatMap { obs: Single<BlockHeaderPacket> -> obs }
@@ -592,19 +608,22 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .map {
                                 BlockDataStream(
                                         header,
-                                        BlockSequencePacket.parseFrom(socket.getInputStream())
+                                        CRCProtobuf.parseWrapperFromCRC(
+                                                BlockSequencePacket.parser(),
+                                                socket.getInputStream()
+                                        )
                                                 .subscribeOn(operationsScheduler)
                                                 .repeat(header.hashList.size.toLong())
-                                                .doOnNext{ packet: BlockSequencePacket ->
-                                                    Log.v(TAG, "seme reading sequence packet: " + packet.getmData()!!.size())
+                                                .doOnNext{ packet ->
+                                                    Log.v(TAG, "seme reading sequence packet: " + packet.data.size)
                                                 }
                                                 .doOnComplete { Log.v(TAG, "seme complete read sequence packets") }
                                 )
                             }
                 }
-                .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
-                .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
-                .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
+                .concatMapSingle { m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
+                .reduce { a, b-> Integer.sum(a, b) }
+                .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                 .toSingle(HandshakeResult(0,0,HandshakeResult.TransactionStatus.STATUS_SUCCESS))
     }
 

@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGatt
 import android.util.Log
+import com.google.protobuf.MessageLite
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleServerConnection
 import io.reactivex.*
@@ -24,7 +25,7 @@ class CachedLEServerConnection(
         private  val scheduler: Scheduler
         ) : Disposable {
     private val disposable = CompositeDisposable()
-    private val packetQueue = PublishRelay.create<ScatterSerializable>()
+    private val packetQueue = PublishRelay.create<ScatterSerializable<out MessageLite>>()
     private val sizeRelay = PublishRelay.create<Int>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
     /*
@@ -45,8 +46,8 @@ class CachedLEServerConnection(
      * @param packet ScatterSerializable message to send
      * @return completable
      */
-    fun serverNotify(
-            packet: ScatterSerializable
+    fun <T : MessageLite>serverNotify(
+            packet: ScatterSerializable<T>
     ): Completable {
         Log.v(TAG, "serverNotify for packet " + packet.type)
         return Completable.fromAction {
