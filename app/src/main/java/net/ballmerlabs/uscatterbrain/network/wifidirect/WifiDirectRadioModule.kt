@@ -75,7 +75,7 @@ interface WifiDirectRadioModule {
 
         @JvmOverloads
         constructor(message: ScatterMessage, packetFlowable: Flowable<BlockSequencePacket>, end: Boolean = false, todisk: Boolean = true) {
-            val builder: BlockHeaderPacket.Builder = BlockHeaderPacket.newBuilder()
+            headerPacket = BlockHeaderPacket.newBuilder()
                     .setToFingerprint(message.message.to)
                     .setFromFingerprint(message.message.from)
                     .setApplication(message.message.application)
@@ -83,13 +83,12 @@ interface WifiDirectRadioModule {
                     .setToDisk(todisk)
                     .setSessionID(message.message.sessionid)
                     .setBlockSize(message.message.blocksize)
-                    .setMime(message.message.mimeType!!)
+                    .setMime(message.message.mimeType)
                     .setExtension(message.message.extension)
                     .setHashes(HashlessScatterMessage.hashes2hash(message.messageHashes))
-            if (end) {
-                builder.setEndOfStream()
-            }
-            headerPacket = builder.build()
+                    .setEndOfStream(end)
+                    .build()
+
             entity = message
             sequencePackets = packetFlowable
                     .doOnComplete { sequenceCompletable.onComplete() }
@@ -99,7 +98,7 @@ interface WifiDirectRadioModule {
         companion object {
             fun endOfStream(): BlockDataStream {
                 return BlockDataStream(
-                        BlockHeaderPacket.newBuilder().setEndOfStream().build(),
+                        BlockHeaderPacket.newBuilder().setEndOfStream(true).build(),
                         Flowable.empty()
                 )
             }

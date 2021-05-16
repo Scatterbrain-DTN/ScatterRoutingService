@@ -19,6 +19,7 @@ import java.io.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
+import kotlin.collections.ArrayList
 
 /**
  * Wrapper class for protocol buffer blockdata message
@@ -64,7 +65,9 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      */
     override var signature: ByteArray? = null
     set(value) {
-        regenBlockData()
+        if (blockdata != null) {
+            regenBlockData()
+        }
         field = value
     }
 
@@ -82,8 +85,7 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
      */
     val sessionID: Int
     override val toDisk: Boolean
-    var isEndOfStream: Boolean
-        private set
+    val isEndOfStream: Boolean = builder.endofstream
     private val mBlocksize: Int
     override val mime: String
     override val userFilename: String?
@@ -92,36 +94,48 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
 
 
     init {
-        isEndOfStream = builder.endofstream
-        hashList = builder.hashlist!!
-        this.extension = builder.extensionVal
-        signature = if (builder.sig == null) {
-            ByteArray(Sign.ED25519_BYTES)
+        if (!isEndOfStream) {
+            hashList = builder.hashlist!!
+            this.extension = builder.extensionVal
+            signature = if (builder.sig == null) {
+                ByteArray(Sign.ED25519_BYTES)
+            } else {
+                builder.sig
+            }
+            toFingerprint = if (builder.getmToFingerprint() != null) {
+                builder.getmToFingerprint()
+            } else {
+                byteArrayOf(0)
+            }
+            fromFingerprint = if (builder.getmFromFingerprint() != null) {
+                builder.getmFromFingerprint()
+            } else {
+                byteArrayOf(0)
+            }
+            application = builder.application!!.decodeToString()
+            sessionID = builder.sessionid!!
+            toDisk = builder.toDisk
+            mBlocksize = builder.blockSizeVal!!
+            mime = builder.mime!!
+            val b = BlockData.newBuilder()
+            if (builder.filename == null) {
+                userFilename = autogenFilename
+                b.filenameGone = true
+            } else {
+                b.filenameVal = builder.filename
+                userFilename = builder.filename
+            }
         } else {
-            builder.sig
-        }
-        toFingerprint = if (builder.getmToFingerprint() != null) {
-            builder.getmToFingerprint()
-        } else {
-            byteArrayOf(0)
-        }
-        fromFingerprint = if (builder.getmFromFingerprint() != null) {
-            builder.getmFromFingerprint()
-        } else {
-            byteArrayOf(0)
-        }
-        application = builder.application!!.decodeToString()
-        sessionID = builder.sessionid!!
-        toDisk = builder.toDisk
-        mBlocksize = builder.blockSizeVal!!
-        mime = builder.mime!!
-        val b = BlockData.newBuilder()
-        if (builder.filename == null) {
-            userFilename = autogenFilename
-            b.filenameGone = true
-        } else {
-            b.filenameVal = builder.filename
-            userFilename = builder.filename
+            fromFingerprint = null
+            toFingerprint = null
+            hashList = ArrayList<ByteString>()
+            extension = ""
+            application = ""
+            sessionID = -1
+            toDisk = false
+            mBlocksize = -1
+            mime = ""
+            userFilename = null
         }
         regenBlockData()
     }
@@ -133,13 +147,13 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
                     .build()
         } else {
             blockdata = BlockData.newBuilder()
-                    .setApplication(application)
+                    .setApplicationBytes(ByteString.copyFrom(application!!.encodeToByteArray()))
                     .setFromFingerprint(ByteString.copyFrom(fromFingerprint))
                     .setToFingerprint(ByteString.copyFrom(toFingerprint))
                     .setTodisk(toDisk)
                     .setExtension(this.extension)
                     .addAllNexthashes(hashList)
-                    .setSessionid(sessionID!!)
+                    .setSessionid(sessionID)
                     .setBlocksize(mBlocksize)
                     .setMime(mime)
                     .setEndofstream(isEndOfStream)
@@ -309,8 +323,8 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
             this.mime = mime
         }
 
-        fun setEndOfStream() = apply {
-            endofstream = true
+        fun setEndOfStream(value: Boolean) = apply {
+            endofstream = value
         }
 
         fun setFilename(filename: String?) = apply {
@@ -324,10 +338,6 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
          */
         fun build(): BlockHeaderPacket {
             if (!endofstream) {
-                requireNotNull(hashlist) { "hashlist was null" }
-
-                // fingerprints and application are required
-                requireNotNull(application) { "application was null" }
                 if (blockSizeVal!! <= 0) {
                     val e = IllegalArgumentException("blocksize not set")
                     e.printStackTrace()
@@ -419,28 +429,25 @@ class BlockHeaderPacket private constructor(builder: Builder) : ScatterSerializa
 
         private fun builderFromIs(inputStream: InputStream) : Builder {
             val blockdata = CRCProtobuf.parseFromCRC(BlockData.parser(), inputStream)
-            val builder = Builder()
-
-            if (blockdata.endofstream) {
-                return builder.setEndOfStream()
-            } else {
-                val filename: String? = if (blockdata.filenameCase == BlockData.FilenameCase.FILENAME_VAL) {
-                    blockdata.filenameVal
-                } else{
-                    null
-                }
-                return builder.setApplication(blockdata!!.applicationBytes.toByteArray())
-                        .setHashes(blockdata.nexthashesList)
-                        .setFromFingerprint(blockdata.fromFingerprint.toByteArray())
-                        .setToFingerprint(blockdata.toFingerprint.toByteArray())
-                        .setSig(blockdata.sig.toByteArray())
-                        .setToDisk(blockdata.todisk)
-                        .setSessionID(blockdata.sessionid)
-                        .setBlockSize(blockdata.blocksize)
-                        .setExtension(blockdata.extension)
-                        .setFilename(filename)
-                        .setMime(blockdata.mime)
+            val filename: String? = if (blockdata.filenameCase == BlockData.FilenameCase.FILENAME_VAL) {
+                blockdata.filenameVal
+            } else{
+                null
             }
+
+            return newBuilder()
+                    .setApplication(blockdata!!.applicationBytes.toByteArray())
+                    .setHashes(blockdata.nexthashesList)
+                    .setFromFingerprint(blockdata.fromFingerprint.toByteArray())
+                    .setToFingerprint(blockdata.toFingerprint.toByteArray())
+                    .setSig(blockdata.sig.toByteArray())
+                    .setToDisk(blockdata.todisk)
+                    .setSessionID(blockdata.sessionid)
+                    .setBlockSize(blockdata.blocksize)
+                    .setExtension(blockdata.extension)
+                    .setFilename(filename)
+                    .setMime(blockdata.mime)
+                    .setEndOfStream(blockdata.endofstream)
         }
 
         /**
