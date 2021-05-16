@@ -738,7 +738,31 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     private fun getApiMessage(entity: Single<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<ScatterMessage> {
-        return entity.map { message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage -> message2message(message) }
+        return entity.map { message-> message2message(message) }
+    }
+
+
+    /**
+     * Takes an observable of ScatterMessage database entities and only
+     * emits entities that pass an e25519 signature check
+     *
+     * NOTE: this only works if the corresponding identity is in the databaes.
+     * TODO: ui element warning of identityless messages
+     */
+    private fun filterMessagesBySigCheck(messages: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>):
+            Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> {
+        return messages.flatMapSingle { message ->
+            val fingerprint = message.message.identity_fingerprint
+            if (fingerprint == null) {
+                Single.just(message)
+            } else {
+                mDatastore.identityDao().getIdentityByFingerprintMaybe(fingerprint)
+                        .zipWith(Maybe.just(message), { id, m -> kotlin.Pair(id, m) })
+                        .filter { pair -> verifyed25519(pair.first.identity.publicKey, pair.second) }
+                        .map { pair -> pair.second }
+                        .toSingle(message)
+            }
+        }
     }
 
     /**
@@ -751,7 +775,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .getByApplication(application)
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable {
-                    source -> Observable.fromIterable(source)
+                    source -> filterMessagesBySigCheck(Observable.fromIterable(source))
                 }
         )
                 .blockingGet()
