@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.network
 
 import android.util.Log
 import com.google.protobuf.ByteString
-import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
@@ -124,19 +123,19 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      */
     data class Builder(
             var toDisk: Boolean = false,
-            var application: ByteArray? = null,
-            var sessionid: Int? = null,
-            var blockSizeVal: Int? = null,
+            var application: String = "",
+            var sessionid: Int = -1,
+            var blockSizeVal: Int = -1,
             var mToFingerprint: ByteArray? = null,
             var mFromFingerprint: ByteArray? = null,
             var extensionVal: String = "",
-            var hashlist: List<ByteString>? = null,
+            var hashlist: List<ByteString> = ArrayList(),
             var sig: ByteArray? = null,
-            var filename: String? = null,
-            var mime: String? = null,
+            var filename: String = "",
+            var mime: String = "",
             var endofstream: Boolean = false,
 
-    ) {
+            ) {
 
         /**
          * Sets the fingerprint for the recipient.
@@ -164,7 +163,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          * @param application bytes for UTF encoded scatterbrain application string
          * @return builder
          */
-        fun setApplication(application: ByteArray) = apply {
+        fun setApplication(application: String) = apply {
             this.application = application
         }
         /**
@@ -227,7 +226,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             endofstream = value
         }
 
-        fun setFilename(filename: String?) = apply {
+        fun setFilename(filename: String) = apply {
             this.filename = filename
         }
 
@@ -238,24 +237,24 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          */
         fun build(): BlockHeaderPacket {
             if (!endofstream) {
-                if (blockSizeVal!! <= 0) {
+                if (blockSizeVal <= 0) {
                     val e = IllegalArgumentException("blocksize not set")
                     e.printStackTrace()
                     throw e
                 }
             }
             val packet = BlockData.newBuilder()
-                    .setApplicationBytes(ByteString.copyFrom(application!!))
-                    .setFromFingerprint(ByteString.copyFrom(mFromFingerprint))
-                    .setToFingerprint(ByteString.copyFrom(mToFingerprint))
+                    .setApplication(application)
+                    .setFromFingerprint(ByteString.copyFrom(mFromFingerprint?: byteArrayOf(0)))
+                    .setToFingerprint(ByteString.copyFrom(mToFingerprint?: byteArrayOf(0)))
                     .setTodisk(toDisk)
                     .setExtension(extensionVal)
                     .addAllNexthashes(hashlist)
-                    .setSessionid(sessionid!!)
-                    .setBlocksize(blockSizeVal!!)
+                    .setSessionid(sessionid)
+                    .setBlocksize(blockSizeVal)
                     .setMime(mime)
                     .setEndofstream(endofstream)
-                    .setSig(ByteString.copyFrom(sig))
+                    .setSig(ByteString.copyFrom(sig?: byteArrayOf(0)))
                     .build()
 
             return BlockHeaderPacket(packet)
@@ -297,7 +296,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
 
         override fun hashCode(): Int {
             var result = toDisk.hashCode()
-            result = 31 * result + (application?.contentHashCode() ?: 0)
             result = 31 * result + (sessionid ?: 0)
             result = 31 * result + (blockSizeVal ?: 0)
             result = 31 * result + (mToFingerprint?.contentHashCode() ?: 0)

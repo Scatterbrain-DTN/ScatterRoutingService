@@ -52,7 +52,7 @@ interface WifiDirectRadioModule {
                                 null,
                                 headerPacket.toFingerprint,
                                 headerPacket.fromFingerprint,
-                                headerPacket.application.encodeToByteArray(),
+                                headerPacket.application,
                                 headerPacket.signature,
                                 headerPacket.sessionID,
                                 headerPacket.blockSize,

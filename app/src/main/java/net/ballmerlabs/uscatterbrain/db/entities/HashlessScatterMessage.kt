@@ -28,7 +28,7 @@ data class HashlessScatterMessage(@ColumnInfo
                                   var identity_fingerprint: String? = null, @ColumnInfo
                                   var to: ByteArray? = null, @ColumnInfo
                                   var from: ByteArray? = null, @ColumnInfo
-                                  var application: ByteArray, @ColumnInfo
+                                  var application: String, @ColumnInfo
                                   var sig: ByteArray? = null, @ColumnInfo
                                   var sessionid: Int, @ColumnInfo
                                   var blocksize: Int, @ColumnInfo

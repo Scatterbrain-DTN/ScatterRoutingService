@@ -22,7 +22,7 @@ data class ScatterMessage(
     get() = message.from
 
     override val application: String
-    get() = message.application.decodeToString()
+    get() = message.application
 
     override val extension: String
     get() = message.extension

@@ -692,7 +692,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             null,
                             null,
                             null,
-                            ByteString.copyFromUtf8(Applications.APPLICATION_FILESHARING).toByteArray(),
+                            Applications.APPLICATION_FILESHARING,
                             null,
                             0,
                             blocksize,
@@ -719,7 +719,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             throw java.lang.IllegalStateException("file doesn't exist")
         }
         return ScatterMessage.newBuilder()
-                .setApplication(String(message.message.application))
+                .setApplication(message.message.application)
                 .setBody(message.message.body)
                 .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
                 .setTo(message.message.to)
@@ -819,7 +819,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             message.identityFingerprint,
                                             message.toFingerprint,
                                             message.fromFingerprint,
-                                            ByteString.copyFromUtf8(message.application).toByteArray(),
+                                            message.application,
                                             message.sig,
                                             0,
                                             blocksize,
@@ -849,7 +849,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             message.identityFingerprint,
                                             message.toFingerprint,
                                             message.fromFingerprint,
-                                            message.application.encodeToByteArray(),
+                                            message.application,
                                             message.sig,
                                             0,
                                             blocksize,

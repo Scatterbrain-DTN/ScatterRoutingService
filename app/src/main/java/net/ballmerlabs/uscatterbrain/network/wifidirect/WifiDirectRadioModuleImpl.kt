@@ -495,8 +495,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     .doOnComplete { Log.v(TAG, "wrote headerpacket to client socket") }
                     .andThen(
                             blockDataStream.sequencePackets
-                                    .doOnNext { packet: BlockSequencePacket? -> Log.v(TAG, "seme writing sequence packet: " + packet!!.data.size) }
-                                    .concatMapCompletable { sequencePacket: BlockSequencePacket? -> sequencePacket!!.writeToStream(socket.getOutputStream()) }
+                                    .doOnNext { packet -> Log.v(TAG, "seme writing sequence packet: " + packet!!.data.size) }
+                                    .concatMapCompletable { sequencePacket -> sequencePacket.writeToStream(socket.getOutputStream()) }
                                     .doOnComplete { Log.v(TAG, "wrote sequence packets to client socket") }
                     )
         }
