@@ -15,7 +15,7 @@ import java.util.*
  * read/write access including the ability to sign and modify the private key
  * This is used for working with identities internally
  */
-open class ApiIdentity protected constructor(builder: Builder) : Identity (
+open class ApiIdentity protected constructor(builder: Builder) : Identity(
         builder.mPubKeymap,
         builder.mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY],
         builder.name,

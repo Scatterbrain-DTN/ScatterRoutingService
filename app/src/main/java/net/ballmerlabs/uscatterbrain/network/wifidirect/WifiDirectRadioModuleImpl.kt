@@ -16,7 +16,7 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.SingleSubject
-import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
@@ -571,7 +571,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
                 .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
                 .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
-                .toSingle(HandshakeResult(0,0,HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+                .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
     }
 
     private val serverSocket: Single<Socket>
@@ -624,7 +624,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .concatMapSingle { m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
                 .reduce { a, b-> Integer.sum(a, b) }
                 .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
-                .toSingle(HandshakeResult(0,0,HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+                .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
     }
 
     companion object {
