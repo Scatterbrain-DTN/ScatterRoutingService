@@ -15,10 +15,10 @@ data class ScatterMessage(
         @Relation(parentColumn = "messageID", entityColumn = "hashID", associateBy = Junction(MessageHashCrossRef::class))
         var messageHashes: List<Hashes>
         ) : Verifiable {
-    override val toFingerprint: ByteArray?
+    override val toFingerprint: String?
     get() = message.to
 
-    override val fromFingerprint: ByteArray?
+    override val fromFingerprint: String?
     get() = message.from
 
     override val application: String

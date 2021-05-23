@@ -26,8 +26,8 @@ import java.util.*
 data class HashlessScatterMessage(@ColumnInfo
                                   var body: ByteArray? = null, @ColumnInfo
                                   var identity_fingerprint: String? = null, @ColumnInfo
-                                  var to: ByteArray? = null, @ColumnInfo
-                                  var from: ByteArray? = null, @ColumnInfo
+                                  var to: String? = null, @ColumnInfo
+                                  var from: String? = null, @ColumnInfo
                                   var application: String, @ColumnInfo
                                   var sig: ByteArray? = null, @ColumnInfo
                                   var sessionid: Int, @ColumnInfo

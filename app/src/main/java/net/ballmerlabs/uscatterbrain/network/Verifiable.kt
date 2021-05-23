@@ -1,8 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network
 
 interface Verifiable {
-    val toFingerprint: ByteArray?
-    val fromFingerprint: ByteArray?
+    val toFingerprint: String?
+    val fromFingerprint: String?
     val application: String
     val extension: String
     val mime: String

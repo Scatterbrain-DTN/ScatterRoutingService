@@ -60,8 +60,8 @@ fun sanitizeFilename(name: String): String {
 
 
 fun sigSize(message: Verifiable): Int {
-    val tosize = message.toFingerprint?.size?: 0
-    val fromsize = message.fromFingerprint?.size?: 0
+    val tosize = message.toFingerprint?.encodeToByteArray()?.size?: 0
+    val fromsize = message.fromFingerprint?.encodeToByteArray()?.size?: 0
     val applicationSize = message.application.encodeToByteArray().size //UTF-8
     val extSize = message.extension.encodeToByteArray().size
     val mimeSize = message.mime.encodeToByteArray().size
@@ -74,8 +74,8 @@ fun sigSize(message: Verifiable): Int {
 
 fun sumBytes(message: Verifiable): ByteString {
     val buf = ByteBuffer.allocate(sigSize(message))
-    buf.put(message.fromFingerprint?: byteArrayOf(0))
-    buf.put(message.toFingerprint?: byteArrayOf(0))
+    buf.put(message.fromFingerprint?.encodeToByteArray()?: byteArrayOf(0))
+    buf.put(message.toFingerprint?.encodeToByteArray()?: byteArrayOf(0))
     buf.put(message.application.encodeToByteArray())
     buf.put(message.extension.encodeToByteArray())
     buf.put(message.mime.encodeToByteArray())

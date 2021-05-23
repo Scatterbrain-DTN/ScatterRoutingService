@@ -21,8 +21,8 @@ message DeclareHashes {
 
 // header + metadata for a file, message or data stream
 message BlockData {
-    bytes from_fingerprint = 1;
-    bytes to_fingerprint = 2;
+    string from_fingerprint = 1;
+    string to_fingerprint = 2;
     string application = 3;
     string filename = 4;
     string extension = 6;

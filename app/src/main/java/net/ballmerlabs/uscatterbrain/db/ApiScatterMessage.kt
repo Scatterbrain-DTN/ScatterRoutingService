@@ -29,8 +29,8 @@ class ApiScatterMessage : ScatterMessage {
 
     private fun sumBytes(hashes: List<ByteArray>): ByteArray {
         var messagebytes = ByteArray(0)
-        messagebytes += fromFingerprint
-        messagebytes += toFingerprint
+        messagebytes += fromFingerprint.encodeToByteArray()
+        messagebytes += toFingerprint.encodeToByteArray()
         messagebytes += application.encodeToByteArray()
         messagebytes += extension.encodeToByteArray()
         messagebytes += mime.encodeToByteArray()

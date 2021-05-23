@@ -27,10 +27,10 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      *
      * @return the from fingerprint
      */
-    override val fromFingerprint: ByteArray?
+    override val fromFingerprint: String?
         get() {
-            val r = packet.fromFingerprint.toByteArray()
-            return if (r.size == 1) null else r
+            val r = packet.fromFingerprint
+            return if (r.isEmpty()) null else r
         }
 
 
@@ -39,10 +39,10 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      *
      * @return the to fingerprint
      */
-    override val toFingerprint: ByteArray?
+    override val toFingerprint: String?
         get() {
-            val r = packet.toFingerprint.toByteArray()
-            return if (r.size == 1) null else r
+            val r = packet.toFingerprint
+            return if (r.isEmpty()) null else r
         }
 
     override val extension: String
@@ -126,8 +126,8 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             var application: String = "",
             var sessionid: Int = -1,
             var blockSizeVal: Int = -1,
-            var mToFingerprint: ByteArray? = null,
-            var mFromFingerprint: ByteArray? = null,
+            var mToFingerprint: String? = null,
+            var mFromFingerprint: String? = null,
             var extensionVal: String = "",
             var hashlist: List<ByteString> = ArrayList(),
             var sig: ByteArray? = null,
@@ -143,7 +143,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          * @param toFingerprint the to fingerprint
          * @return builder
          */
-        fun setToFingerprint(toFingerprint: ByteArray?) = apply {
+        fun setToFingerprint(toFingerprint: String?) = apply {
             mToFingerprint = toFingerprint
         }
 
@@ -153,7 +153,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          * @param fromFingerprint sets the fingerprint for the sender
          * @return builder
          */
-        fun setFromFingerprint(fromFingerprint: ByteArray?) = apply {
+        fun setFromFingerprint(fromFingerprint: String?) = apply {
             mFromFingerprint = fromFingerprint
         }
 
@@ -245,8 +245,8 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             }
             val packet = BlockData.newBuilder()
                     .setApplication(application)
-                    .setFromFingerprint(ByteString.copyFrom(mFromFingerprint?: byteArrayOf(0)))
-                    .setToFingerprint(ByteString.copyFrom(mToFingerprint?: byteArrayOf(0)))
+                    .setFromFingerprint(mFromFingerprint?: "")
+                    .setToFingerprint(mToFingerprint?: "")
                     .setTodisk(toDisk)
                     .setExtension(extensionVal)
                     .addAllNexthashes(hashlist)
@@ -275,11 +275,9 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             if (blockSizeVal != other.blockSizeVal) return false
             if (mToFingerprint != null) {
                 if (other.mToFingerprint == null) return false
-                if (!mToFingerprint.contentEquals(other.mToFingerprint)) return false
             } else if (other.mToFingerprint != null) return false
             if (mFromFingerprint != null) {
                 if (other.mFromFingerprint == null) return false
-                if (!mFromFingerprint.contentEquals(other.mFromFingerprint)) return false
             } else if (other.mFromFingerprint != null) return false
             if (extensionVal != other.extensionVal) return false
             if (hashlist != other.hashlist) return false
@@ -298,8 +296,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             var result = toDisk.hashCode()
             result = 31 * result + (sessionid ?: 0)
             result = 31 * result + (blockSizeVal ?: 0)
-            result = 31 * result + (mToFingerprint?.contentHashCode() ?: 0)
-            result = 31 * result + (mFromFingerprint?.contentHashCode() ?: 0)
             result = 31 * result + extensionVal.hashCode()
             result = 31 * result + (hashlist?.hashCode() ?: 0)
             result = 31 * result + (sig?.contentHashCode() ?: 0)
