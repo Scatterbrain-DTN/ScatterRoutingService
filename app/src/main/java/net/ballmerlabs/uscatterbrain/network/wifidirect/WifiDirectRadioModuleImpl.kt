@@ -254,7 +254,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         Log.v(TAG, "declareHashesSeme")
         return datastore.declareHashesPacket
                 .flatMapObservable { declareHashesPacket: DeclareHashesPacket ->
-                    CRCProtobuf.parseWrapperFromCRC(
+                    ScatterSerializable.parseWrapperFromCRC(
                             DeclareHashesPacket.parser(),
                             socket.getInputStream()
                     )
@@ -276,7 +276,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun routingMetadataSeme(socket: Socket, packets: Flowable<RoutingMetadataPacket>): Observable<RoutingMetadataPacket> {
         return Observable.just(socket)
                 .flatMap { sock: Socket ->
-                    CRCProtobuf.parseWrapperFromCRC(
+                    ScatterSerializable.parseWrapperFromCRC(
                             RoutingMetadataPacket.parser(),
                             sock.getInputStream()
                     )
@@ -307,7 +307,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun identityPacketSeme(socket: Socket, packets: Flowable<IdentityPacket>): Observable<IdentityPacket> {
         return Single.just(socket)
                 .flatMapObservable { sock: Socket ->
-                    CRCProtobuf.parseWrapperFromCRC(
+                    ScatterSerializable.parseWrapperFromCRC(
                             IdentityPacket.parser(),
                             sock.getInputStream()
                             )
@@ -535,7 +535,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return serverSocket
                 .toFlowable()
                 .flatMap { socket: Socket ->
-                    CRCProtobuf.parseWrapperFromCRC(
+                    ScatterSerializable.parseWrapperFromCRC(
                             BlockHeaderPacket.parser(),
                             socket.getInputStream()
                     )
@@ -553,7 +553,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         .map {
                                             BlockDataStream(
                                                     headerPacket,
-                                                    CRCProtobuf.parseWrapperFromCRC(
+                                                    ScatterSerializable.parseWrapperFromCRC(
                                                             BlockSequencePacket.parser(),
                                                             socket.getInputStream()
                                                     )
@@ -589,7 +589,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             socket: Socket
     ): Single<HandshakeResult> {
         return Single.fromCallable<Single<BlockHeaderPacket>> {
-            CRCProtobuf.parseWrapperFromCRC(
+            ScatterSerializable.parseWrapperFromCRC(
                     BlockHeaderPacket.parser(),
                     socket.getInputStream())
                     .subscribeOn(operationsScheduler)
@@ -608,7 +608,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .map {
                                 BlockDataStream(
                                         header,
-                                        CRCProtobuf.parseWrapperFromCRC(
+                                        ScatterSerializable.parseWrapperFromCRC(
                                                 BlockSequencePacket.parser(),
                                                 socket.getInputStream()
                                         )

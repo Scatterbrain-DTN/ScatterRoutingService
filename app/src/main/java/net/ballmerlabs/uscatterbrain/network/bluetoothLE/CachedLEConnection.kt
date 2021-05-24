@@ -110,35 +110,35 @@ class CachedLEConnection(
     }
 
     fun readAdvertise(): Single<AdvertisePacket> {
-        return CRCProtobuf.parseWrapperFromCRC(
+        return ScatterSerializable.parseWrapperFromCRC(
                 AdvertisePacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readUpgrade(): Single<UpgradePacket> {
-        return CRCProtobuf.parseWrapperFromCRC(
+        return ScatterSerializable.parseWrapperFromCRC(
                 UpgradePacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readBlockHeader(): Single<BlockHeaderPacket> {
-        return CRCProtobuf.parseWrapperFromCRC(
+        return ScatterSerializable.parseWrapperFromCRC(
                 BlockHeaderPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readBlockSequence(): Single<BlockSequencePacket> {
-        return CRCProtobuf.parseWrapperFromCRC(
+        return ScatterSerializable.parseWrapperFromCRC(
                 BlockSequencePacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readDeclareHashes(): Single<DeclareHashesPacket> {
-        return CRCProtobuf.parseWrapperFromCRC(
+        return ScatterSerializable.parseWrapperFromCRC(
                 DeclareHashesPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
@@ -146,21 +146,21 @@ class CachedLEConnection(
     }
 
     fun readElectLeader(): Single<ElectLeaderPacket> {
-        return CRCProtobuf.parseWrapperFromCRC(
+        return ScatterSerializable.parseWrapperFromCRC(
                 ElectLeaderPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readIdentityPacket(): Single<IdentityPacket> {
-        return CRCProtobuf.parseWrapperFromCRC(
+        return ScatterSerializable.parseWrapperFromCRC(
                 IdentityPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readLuid(): Single<LuidPacket> {
-        return CRCProtobuf.parseWrapperFromCRC(
+        return ScatterSerializable.parseWrapperFromCRC(
                 LuidPacket.parser(), cachedNotification())
                 .subscribeOn(scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)

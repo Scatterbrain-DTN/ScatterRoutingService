@@ -1,16 +1,10 @@
 package net.ballmerlabs.uscatterbrain.network
 
-import com.github.davidmoten.rx2.Bytes
-import com.google.protobuf.ByteString
-import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
-import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.Ack
-import net.ballmerlabs.uscatterbrain.network.ScatterSerializable.PacketType
-import java.io.*
-import java.util.*
+import java.io.InputStream
 
 /**
  * AckPacket is currently unused
@@ -68,7 +62,7 @@ class AckPacket(packet: Ack)  : ScatterSerializable<Ack>(packet) {
 
     companion object {
         fun parseFrom(inputStream: InputStream): Single<AckPacket> {
-            return Single.fromCallable { AckPacket(CRCProtobuf.parseFromCRC(Ack.parser(), inputStream)) }
+            return Single.fromCallable { AckPacket(parseFromCRC(Ack.parser(), inputStream)) }
         }
 
         fun parseFrom(flowable: Observable<ByteArray>): Single<AckPacket> {
