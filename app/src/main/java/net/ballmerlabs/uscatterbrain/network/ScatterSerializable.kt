@@ -89,13 +89,13 @@ abstract class ScatterSerializable<T : MessageLite>(
 
     val bytes: ByteArray
         get() {
-            val os = ByteArrayOutputStream()
-            return try {
-                writeToCRC(packet, os)
-                os.toByteArray()
-            } catch (e: IOException) {
-                byteArrayOf(0) //this should be unreachable
-            }
+            val size = packet.serializedSize + Int.SIZE_BYTES * 2
+            val buf = ByteBuffer.allocate(size)
+            buf.order(ByteOrder.BIG_ENDIAN).putInt(packet.serializedSize).array()
+            val crc32 = CRC32()
+            crc32.update(buf.array(), 0, packet.serializedSize + Int.SIZE_BYTES)
+            buf.put(longToByte(crc32.value))
+            return buf.array()
         }
 
     val byteString: ByteString
