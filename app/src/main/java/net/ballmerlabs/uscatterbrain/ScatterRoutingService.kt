@@ -3,33 +3,17 @@ package net.ballmerlabs.uscatterbrain
 import android.app.*
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Binder
-import android.os.Build
-import android.os.IBinder
-import android.os.RemoteException
+import android.os.*
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.LifecycleService
-import com.goterl.lazycode.lazysodium.interfaces.Sign
 import com.jakewharton.rxrelay2.BehaviorRelay
-import com.sun.jna.Pointer
-import com.sun.jna.ptr.PointerByReference
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.*
-import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
-import net.ballmerlabs.scatterbrainsdk.Identity
-import net.ballmerlabs.scatterbrainsdk.ScatterMessage
-import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
-import net.ballmerlabs.uscatterbrain.db.ACL
-import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
-import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
-import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
-import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.collections.ArrayList
 
@@ -38,7 +22,15 @@ import kotlin.collections.ArrayList
  */
 class ScatterRoutingService : LifecycleService() {
     private lateinit var mBackend: RoutingServiceBackend
-    private val protocolDisposableSet = Collections.newSetFromMap(ConcurrentHashMap<Disposable, Boolean>())
+    data class Callback(
+            val packageName: String,
+            val disposable: Disposable
+    )
+    private val permissionAccess = getString(R.string.permission_access)
+    private val permissionAdmin = getString(R.string.permission_admin)
+    private val permissionSuperuser = getString(R.string.permission_superuser)
+    private val callbackHandles = ConcurrentHashMap<Int, Callback>()
+    private val callbackNum = AtomicReference(0)
     private val binder: ScatterbrainAPI.Stub = object : ScatterbrainAPI.Stub() {
         private fun checkPermission(permName: String): Boolean {
             val pm = applicationContext.packageManager
@@ -58,38 +50,13 @@ class ScatterRoutingService : LifecycleService() {
                 return packageName ?: ""
             }
 
-        @RequiresApi(api = Build.VERSION_CODES.P)
-        @Synchronized
-        @Throws(RemoteException::class)
-        private fun verifyCallingSig(acl: ACL?) {
-            try {
-                val name = callingPackageName
-                if (name != acl!!.packageName) {
-                    throw RemoteException("invalid packagename, access denied")
-                }
-                val info = packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
-                var failed = true
-                for (signature in info.signingInfo.signingCertificateHistory) {
-                    val sigtoverify = signature.toCharsString()
-                    if (sigtoverify == acl.appsig) {
-                        failed = false
-                    }
-                }
-                if (failed) {
-                    throw RemoteException("invalid signature, access denied")
-                }
-            } catch (e: PackageManager.NameNotFoundException) {
-                throw RemoteException("invalid package name")
-            }
-        }
-
         // fail if access permission is not granted
         @Throws(RemoteException::class)
         private fun checkAccessPermission() {
-            if (checkPermission(getString(R.string.permission_superuser))) {
+            if (checkPermission(permissionSuperuser)) {
                 return
             }
-            if (!checkPermission(getString(R.string.permission_access))) {
+            if (!checkPermission(permissionAccess)) {
                 throw RemoteException(PERMISSION_DENIED_STR)
             }
         }
@@ -97,10 +64,10 @@ class ScatterRoutingService : LifecycleService() {
         // fail if admin permission is not granted
         @Throws(RemoteException::class)
         private fun checkAdminPermission() {
-            if (checkPermission(getString(R.string.permission_superuser))) {
+            if (checkPermission(permissionSuperuser)) {
                 return
             }
-            if (!checkPermission(getString(R.string.permission_admin))) {
+            if (!checkPermission(permissionAdmin)) {
                 throw RemoteException(PERMISSION_DENIED_STR)
             }
         }
@@ -108,7 +75,7 @@ class ScatterRoutingService : LifecycleService() {
         //fail if superuser permission is not granted
         @Throws(RemoteException::class)
         private fun checkSuperuserPermission() {
-            if (!checkPermission(getString(R.string.permission_superuser))) {
+            if (!checkPermission(permissionSuperuser)) {
                 throw RemoteException(PERMISSION_DENIED_STR)
             }
         }
@@ -167,9 +134,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun sendMessage(message: ScatterMessage) {
             checkAccessPermission()
-            mBackend.datastore.insertAndHashFileFromApi(ApiScatterMessage.fromApi(message), DEFAULT_BLOCKSIZE)
-                    .doOnComplete { asyncRefreshPeers() }
-                    .blockingAwait()
+            mBackend.sendMessage(message).blockingAwait()
         }
 
         /**
@@ -179,13 +144,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun sendMessages(messages: List<ScatterMessage>) {
             checkAccessPermission()
-            Observable.fromIterable(messages)
-                    .flatMapCompletable { m: ScatterMessage ->
-                        mBackend.datastore.insertAndHashFileFromApi(
-                                ApiScatterMessage.fromApi(m),
-                                DEFAULT_BLOCKSIZE)
-                    }
-                    .blockingAwait()
+            mBackend.sendMessages(messages).blockingAwait()
         }
 
         /**
@@ -196,26 +155,7 @@ class ScatterRoutingService : LifecycleService() {
          * identity does not exist
          */
         override fun signDataDetached(data: ByteArray, identity: String): ByteArray {
-            val acls = mBackend.datastore.getACLs(identity).blockingGet()
-            for (acl in acls!!) {
-                verifyCallingSig(acl)
-            }
-            return mBackend.datastore.getIdentityKey(identity)
-                    .map { keypair ->
-                        val res = ByteArray(Sign.ED25519_BYTES)
-                        val p = PointerByReference(Pointer.NULL).pointer
-                        val status = LibsodiumInterface.sodium.crypto_sign_detached(
-                                res,
-                                p,
-                                data,
-                                data.size.toLong(),
-                                keypair.secretkey
-                        )
-                        if (status != 0) {
-                            throw IllegalStateException("failed to sign: $status")
-                        }
-                        res
-                    }.blockingGet()
+            return mBackend.signDataDetached(data, identity, callingPackageName).blockingGet()
         }
 
         /**
@@ -228,18 +168,7 @@ class ScatterRoutingService : LifecycleService() {
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(RemoteException::class)
         override fun sendAndSignMessage(message: ScatterMessage, identity: String) {
-            val acls = mBackend.datastore.getACLs(identity).blockingGet()
-            for (acl in acls!!) {
-                verifyCallingSig(acl)
-            }
-            mBackend.datastore.getIdentityKey(identity)
-                    .flatMapCompletable { id: ApiIdentity.KeyPair? ->
-                        mBackend.datastore.insertAndHashFileFromApi(
-                                ApiScatterMessage.fromApi(message, id),
-                                DEFAULT_BLOCKSIZE)
-                    }
-                    .doOnComplete { asyncRefreshPeers() }
-                    .blockingAwait()
+            mBackend.sendAndSignMessage(message, identity, callingPackageName).blockingAwait()
         }
 
         /**
@@ -286,24 +215,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun generateIdentity(name: String): Identity {
             checkAdminPermission()
-            val identity: ApiIdentity = ApiIdentity.newBuilder()
-                    .setName(name)
-                    .sign(ApiIdentity.newPrivateKey())
-                    .build()
-            val ret = mBackend.datastore.insertApiIdentity(identity)
-                    .toSingleDefault(identity)
-                    .doOnSuccess {
-                        val stats = HandshakeResult(1,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS)
-                        val intent = Intent(getString(R.string.broadcast_message))
-                        intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, stats)
-                        sendBroadcast(intent, getString(R.string.permission_access))
-                        asyncRefreshPeers()
-                    }
-                    .blockingGet()
-            if (callingPackageName != applicationContext.packageName) {
-                authorizeApp(identity.fingerprint, callingPackageName)
-            }
-            return ret
+            return mBackend.generateIdentity(name, callingPackageName).blockingGet()
         }
 
         /**
@@ -312,13 +224,9 @@ class ScatterRoutingService : LifecycleService() {
          * @return true if identity removed, false otherwise
          */
         @Throws(RemoteException::class)
-        override fun removeIdentity(identity: String?): Boolean {
-            return mBackend.datastore.deleteIdentities(identity!!)
+        override fun removeIdentity(identity: String): Boolean {
+            return mBackend.removeIdentity(identity, callingPackageName)
                     .toSingleDefault(true)
-                    .doOnError {
-                        e -> Log.e(TAG, "failed to remove identity: $e")
-                        e.printStackTrace()
-                    }
                     .onErrorReturnItem(false)
                     .blockingGet()
         }
@@ -333,15 +241,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun authorizeApp(identity: String, packagename: String) {
             checkSuperuserPermission()
-            try {
-                val info = packageManager.getPackageInfo(packagename, PackageManager.GET_SIGNING_CERTIFICATES)
-                for (signature in info.signingInfo.signingCertificateHistory) {
-                    val sig = signature.toCharsString()
-                    mBackend.datastore.addACLs(identity, packagename, sig).blockingAwait()
-                }
-            } catch (e: PackageManager.NameNotFoundException) {
-                throw RemoteException("invalid package name")
-            }
+            mBackend.authorizeApp(identity, packageName).blockingAwait()
         }
 
         /**
@@ -354,15 +254,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun deauthorizeApp(identity: String, packagename: String) {
             checkSuperuserPermission()
-            try {
-                val info = packageManager.getPackageInfo(packagename, PackageManager.GET_SIGNING_CERTIFICATES)
-                for (signature in info.signingInfo.signingCertificateHistory) {
-                    val sig = signature.toCharsString()
-                    mBackend.datastore.deleteACLs(identity, packagename, sig).blockingAwait()
-                }
-            } catch (e: PackageManager.NameNotFoundException) {
-                throw RemoteException("invalid package name")
-            }
+            mBackend.deauthorizeApp(identity, packageName).blockingAwait()
         }
 
         /**
@@ -402,6 +294,76 @@ class ScatterRoutingService : LifecycleService() {
             checkAccessPermission()
             return mBackend.scheduler.isPassive
         }
+
+        override fun signDataDetachedAsync(data: ByteArray, identity: String): Int {
+            checkAdminPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.signDataDetached(data, identity, callingPackageName)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> broadcastAsyncResult(callingPackageName, handle, res, permissionAdmin) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAdmin) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
+        }
+
+        override fun sendMessagesAsync(messages: MutableList<ScatterMessage>): Int {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.sendMessages(messages)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { broadcastAsyncResult(callingPackageName, handle, permissionAccess) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAccess) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
+        }
+
+        override fun sendMessageAsync(message: ScatterMessage): Int {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.sendMessage(message)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { broadcastAsyncResult(callingPackageName, handle, permissionAccess) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAccess) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
+        }
+
+        override fun sendAndSignMessageAsync(message: ScatterMessage, identity: String): Int {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.sendAndSignMessage(message, identity, callingPackageName)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { broadcastAsyncResult(callingPackageName, handle, permissionAccess) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAccess) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
+        }
+
+        override fun sendAndSignMessagesAsync(message: MutableList<ScatterMessage>, identity: String): Int {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.sendAndSignMessages(message, identity, callingPackageName)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { broadcastAsyncResult(callingPackageName, handle, permissionAccess) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAccess) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
+        }
     }
 
     override fun onBind(i: Intent): IBinder {
@@ -414,31 +376,68 @@ class ScatterRoutingService : LifecycleService() {
         return true
     }
 
-    private fun asyncRefreshPeers() {
-        val disp = AtomicReference<Disposable>()
-        val d = mBackend.radioModule.refreshPeers()
-                .timeout(
-                        mBackend.prefs.getLong(
-                                getString(R.string.pref_transactiontimeout),
-                                RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
-                        ),
-                        TimeUnit.SECONDS
-                )
-                .doFinally {
-                    val d = disp.get()
-                    if (d != null) {
-                        protocolDisposableSet.remove(d)
-                    }
-                }
-                .subscribe(
-                { Log.v(TAG, "async refresh peers successful") },
-                { err ->
-                    Log.e(TAG, "error in async refresh peers: $err")
-                    err.printStackTrace()
-                }
-        )
-        protocolDisposableSet.add(d)
-        disp.set(d)
+
+    private fun generateNewHandle(): Int {
+        return callbackNum.getAndAccumulate(1) { old, new ->
+            val n = old + new
+            if (n > Int.MAX_VALUE)
+                0
+            else
+                n
+        }
+    }
+
+    private inline fun <reified T: Parcelable> broadcastAsyncResult(
+            packageName: String,
+            handle: Int,
+            result: T,
+            permission: String
+    ) {
+        Intent().also { intent ->
+            intent.action = applicationContext.getString(R.string.broadcast_api_result)
+            intent.`package` = packageName
+            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, Bundle().apply {
+                putParcelable(ScatterbrainApi.EXTRA_ASYNC_RESULT, result)
+            })
+            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
+            applicationContext.sendBroadcast(intent, permission)
+        }
+    }
+
+    private fun broadcastAsyncResult(
+            packageName: String,
+            handle: Int,
+            result: ByteArray,
+            permission: String
+    ) {
+        Intent().also { intent ->
+            intent.action = applicationContext.getString(R.string.broadcast_api_result)
+            intent.`package` = packageName
+            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, Bundle().apply {
+                putByteArray(ScatterbrainApi.EXTRA_ASYNC_RESULT, result)
+            })
+            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
+            applicationContext.sendBroadcast(intent, permission)
+        }
+    }
+
+    private fun broadcastAsyncResult(packageName: String, handle: Int, permission: String) {
+        Intent().also { intent ->
+            intent.action = applicationContext.getString(R.string.broadcast_api_result)
+            intent.`package` = packageName
+            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
+            applicationContext.sendBroadcast(intent, permission)
+        }
+    }
+
+    private fun broadcastAsyncError(packageName: String, handle: Int, message: String, permission: String) {
+        Intent().also { intent ->
+            intent.action = applicationContext.getString(R.string.broadcast_api_err)
+            intent.`package` = packageName
+            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, message)
+            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
+            applicationContext.sendBroadcast(intent, permission)
+        }
     }
 
     /*
