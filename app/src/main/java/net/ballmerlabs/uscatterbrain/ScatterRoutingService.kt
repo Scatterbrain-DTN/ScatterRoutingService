@@ -292,6 +292,11 @@ class ScatterRoutingService : LifecycleService() {
             return mBackend.scheduler.isPassive
         }
 
+        override fun clearDatastore() {
+            checkSuperuserPermission()
+            mBackend.datastore.clear()
+        }
+
         override fun signDataDetachedAsync(data: ByteArray, identity: String): Int {
             checkAdminPermission()
             val handle = generateNewHandle()

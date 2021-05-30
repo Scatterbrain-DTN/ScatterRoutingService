@@ -25,6 +25,8 @@
         android:protectionLevel="signature"
         />
 
+    <uses-permission android:name="net.ballmerlabs.scatterroutingservice.permission.SUPERUSER" />
+    <uses-permission android:name="net.ballmerlabs.scatterroutingservice.permission.ACCESS"/>
     <uses-permission android:name="android.permission.BLUETOOTH"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
