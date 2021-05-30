@@ -52,9 +52,10 @@ class ApiTest {
                 broadcastReceiver,
                 binderProvider
         )
-
+        runBlocking { binder.startService() }
         val api = ScatterbrainAPI.Stub.asInterface(b)
         api.clearDatastore()
+        broadcastReceiver.register()
     }
 
     @Test
