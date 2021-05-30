@@ -26,9 +26,6 @@ class ScatterRoutingService : LifecycleService() {
             val packageName: String,
             val disposable: Disposable
     )
-    private val permissionAccess = getString(R.string.permission_access)
-    private val permissionAdmin = getString(R.string.permission_admin)
-    private val permissionSuperuser = getString(R.string.permission_superuser)
     private val callbackHandles = ConcurrentHashMap<Int, Callback>()
     private val callbackNum = AtomicReference(0)
     private val binder: ScatterbrainAPI.Stub = object : ScatterbrainAPI.Stub() {
@@ -53,10 +50,10 @@ class ScatterRoutingService : LifecycleService() {
         // fail if access permission is not granted
         @Throws(RemoteException::class)
         private fun checkAccessPermission() {
-            if (checkPermission(permissionSuperuser)) {
+            if (checkPermission(ScatterbrainApi.PERMISSION_SUPERUSER)) {
                 return
             }
-            if (!checkPermission(permissionAccess)) {
+            if (!checkPermission(ScatterbrainApi.PERMISSION_ACCESS)) {
                 throw RemoteException(PERMISSION_DENIED_STR)
             }
         }
@@ -64,10 +61,10 @@ class ScatterRoutingService : LifecycleService() {
         // fail if admin permission is not granted
         @Throws(RemoteException::class)
         private fun checkAdminPermission() {
-            if (checkPermission(permissionSuperuser)) {
+            if (checkPermission(ScatterbrainApi.PERMISSION_SUPERUSER)) {
                 return
             }
-            if (!checkPermission(permissionAdmin)) {
+            if (!checkPermission(ScatterbrainApi.PERMISSION_ADMIN)) {
                 throw RemoteException(PERMISSION_DENIED_STR)
             }
         }
@@ -75,7 +72,7 @@ class ScatterRoutingService : LifecycleService() {
         //fail if superuser permission is not granted
         @Throws(RemoteException::class)
         private fun checkSuperuserPermission() {
-            if (!checkPermission(permissionSuperuser)) {
+            if (!checkPermission(ScatterbrainApi.PERMISSION_SUPERUSER)) {
                 throw RemoteException(PERMISSION_DENIED_STR)
             }
         }
@@ -302,8 +299,8 @@ class ScatterRoutingService : LifecycleService() {
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { res -> broadcastAsyncResult(callingPackageName, handle, res, permissionAdmin) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAdmin) }
+                            { res -> broadcastAsyncResult(callingPackageName, handle, res, ScatterbrainApi.PERMISSION_ADMIN) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ADMIN) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
             return handle
@@ -316,8 +313,8 @@ class ScatterRoutingService : LifecycleService() {
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { broadcastAsyncResult(callingPackageName, handle, permissionAccess) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAccess) }
+                            { broadcastAsyncResult(callingPackageName, handle, ScatterbrainApi.PERMISSION_ACCESS) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ACCESS) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
             return handle
@@ -330,8 +327,8 @@ class ScatterRoutingService : LifecycleService() {
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { broadcastAsyncResult(callingPackageName, handle, permissionAccess) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAccess) }
+                            { broadcastAsyncResult(callingPackageName, handle, ScatterbrainApi.PERMISSION_ACCESS) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ACCESS) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
             return handle
@@ -344,8 +341,8 @@ class ScatterRoutingService : LifecycleService() {
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { broadcastAsyncResult(callingPackageName, handle, permissionAccess) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAccess) }
+                            { broadcastAsyncResult(callingPackageName, handle, ScatterbrainApi.PERMISSION_ACCESS) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ACCESS) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
             return handle
@@ -358,8 +355,8 @@ class ScatterRoutingService : LifecycleService() {
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { broadcastAsyncResult(callingPackageName, handle, permissionAccess) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), permissionAccess) }
+                            { broadcastAsyncResult(callingPackageName, handle, ScatterbrainApi.PERMISSION_ACCESS) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ACCESS) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
             return handle

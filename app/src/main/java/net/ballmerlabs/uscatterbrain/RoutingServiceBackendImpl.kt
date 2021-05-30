@@ -158,7 +158,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                         val stats = HandshakeResult(1,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS)
                         val intent = Intent(context.getString(R.string.broadcast_message))
                         intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, stats)
-                        context.sendBroadcast(intent, context.getString(R.string.permission_access))
+                        context.sendBroadcast(intent, ScatterbrainApi.PERMISSION_ACCESS)
                         asyncRefreshPeers()
                     }
         }

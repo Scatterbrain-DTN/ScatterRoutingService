@@ -34,7 +34,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         val intent = Intent(context.getString(R.string.broadcast_message))
         
         intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, transactionStats)
-        context.sendBroadcast(intent, context.getString(R.string.permission_access))
+        context.sendBroadcast(intent, ScatterbrainApi.PERMISSION_ACCESS)
     }
 
     override val routingServiceState: RoutingServiceState
