@@ -39,6 +39,10 @@ class ApiTest {
         regularBinder.sendMessage(message)
     }
 
+    suspend fun syncSendMesssages(messages: List<ScatterMessage>) {
+        regularBinder.sendMessages(messages)
+    }
+
     @ExperimentalCoroutinesApi
     @Before
     fun init() {
@@ -105,6 +109,19 @@ class ApiTest {
         runBlocking { binder.sendMessage(list) }
     }
 
+    @Test
+    @Throws(TimeoutException::class)
+    fun sendMessagesSync() {
+        val list = ArrayList<ScatterMessage>()
+        for (x in 0..1000) {
+            val message = ScatterMessage.newBuilder()
+                    .setApplication("testing")
+                    .setBody(Random(0).nextBytes(128))
+                    .build()
+            list.add(message)
+        }
+        runBlocking { syncSendMesssages(list) }
+    }
 
     @Test
     @Throws(TimeoutException::class)
