@@ -438,17 +438,24 @@ class ScatterRoutingService : LifecycleService() {
     }
 
     /*
+     * create dagger components when we have access to context
+     */
+    override fun onCreate() {
+        super.onCreate()
+        val c = DaggerRoutingServiceComponent.builder()
+                .applicationContext(this)
+                ?.build()!!
+        component.accept(c)
+        mBackend = c.scatterRoutingService()!!
+    }
+
+    /*
      * we initialize the service on start instead of on bind since multiple clients
      * may be bound at once
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         try {
-            val c = DaggerRoutingServiceComponent.builder()
-                    .applicationContext(this)
-                    ?.build()!!
-            component.accept(c)
-            mBackend = c.scatterRoutingService()!!
             val channel = NotificationChannel(
                     NOTIFICATION_CHANNEL_FOREGROUND,
                     "fmef",

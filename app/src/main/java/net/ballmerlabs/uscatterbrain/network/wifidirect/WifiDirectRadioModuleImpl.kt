@@ -70,7 +70,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     override fun unregisterReceiver() {
         Log.v(TAG, "unregistering broadcast receier")
-        mContext.unregisterReceiver(mBroadcastReceiver.asReceiver())
+        try {
+            mContext.unregisterReceiver(mBroadcastReceiver.asReceiver())
+        } catch (illegalArgumentException: IllegalArgumentException) {
+            Log.w(TAG, "attempted to unregister nonexistent receiver, ignore.")
+        }
     }
 
     override fun registerReceiver() {
