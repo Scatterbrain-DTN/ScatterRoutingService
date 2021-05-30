@@ -23,6 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.TimeoutException
 import kotlin.jvm.Throws
+import kotlin.random.Random
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 @SmallTest
@@ -88,6 +89,38 @@ class ApiTest {
                 .build()
 
         runBlocking { syncSendMessage(message) }
+    }
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun sendMessages() {
+        val list = ArrayList<ScatterMessage>()
+        for (x in 0..1000) {
+            val message = ScatterMessage.newBuilder()
+                    .setApplication("testing")
+                    .setBody(Random(0).nextBytes(128))
+                    .build()
+            list.add(message)
+        }
+        runBlocking { binder.sendMessage(list) }
+    }
+
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun sendAndSignMessages() {
+        val list = ArrayList<ScatterMessage>()
+        for (x in 0..1000) {
+            val message = ScatterMessage.newBuilder()
+                    .setApplication("testing")
+                    .setBody(Random(0).nextBytes(128))
+                    .build()
+            list.add(message)
+        }
+        runBlocking {
+            val id = binder.generateIdentity("test")
+            binder.sendMessage(list, id.fingerprint)
+        }
     }
 
 
