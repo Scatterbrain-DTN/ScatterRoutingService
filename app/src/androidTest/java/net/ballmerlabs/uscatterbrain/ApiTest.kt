@@ -29,9 +29,14 @@ import kotlin.jvm.Throws
 class ApiTest {
     private val testCoroutineScope = CoroutineScope(Dispatchers.Default)
     private lateinit var binder: BinderWrapper
+    private lateinit var regularBinder: ScatterbrainAPI
 
     @get:Rule
     val serviceRule = ServiceTestRule()
+
+    suspend fun syncSendMessage(message: ScatterMessage) {
+        regularBinder.sendMessage(message)
+    }
 
     @ExperimentalCoroutinesApi
     @Before
@@ -53,8 +58,8 @@ class ApiTest {
                 binderProvider
         )
         runBlocking { binder.startService() }
-        val api = ScatterbrainAPI.Stub.asInterface(b)
-        api.clearDatastore()
+        regularBinder = ScatterbrainAPI.Stub.asInterface(b)
+        regularBinder.clearDatastore()
         broadcastReceiver.register()
     }
 
@@ -72,6 +77,17 @@ class ApiTest {
                 .setBody(byteArrayOf(0))
                 .build()
         runBlocking { binder.sendMessage(message) }
+    }
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun sendMessageSync() {
+        val message = ScatterMessage.newBuilder()
+                .setApplication("testing")
+                .setBody(byteArrayOf(0))
+                .build()
+
+        runBlocking { syncSendMessage(message) }
     }
 
 
