@@ -89,9 +89,10 @@ abstract class ScatterSerializable<T : MessageLite>(
         get() {
             val size = packet.serializedSize + Int.SIZE_BYTES * 2
             val buf = ByteBuffer.allocate(size)
-            buf.order(ByteOrder.BIG_ENDIAN).putInt(packet.serializedSize).array()
+            buf.order(ByteOrder.BIG_ENDIAN).putInt(packet.serializedSize)
             val crc32 = CRC32()
             val bytes = packet.toByteArray()
+            crc32.update(ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.BIG_ENDIAN).putInt(packet.serializedSize).array())
             crc32.update(bytes, 0, bytes.size)
             buf.put(bytes)
             buf.put(longToByte(crc32.value))
@@ -101,8 +102,21 @@ abstract class ScatterSerializable<T : MessageLite>(
     val byteString: ByteString
         get() = ByteString.copyFrom(bytes)
 
+    private fun writeToStreamBlocking(outputStream: OutputStream) {
+        val stream = CRCOutputStream(outputStream)
+        stream.write(
+                ByteBuffer.allocate(Int.SIZE_BYTES)
+                        .order(ByteOrder.BIG_ENDIAN)
+                        .putInt(packet.serializedSize)
+                        .array()
+        )
+        packet.writeTo(stream)
+        outputStream.write(longToByte(stream.crc.value))
+        outputStream.flush()
+    }
+
     fun writeToStream(os: OutputStream, scheduler: Scheduler): Completable {
-        return Completable.fromAction { writeToCRC(packet, os) }
+        return Completable.fromAction { writeToStreamBlocking(os) }
                 .subscribeOn(scheduler)
     }
 
@@ -166,9 +180,9 @@ abstract class ScatterSerializable<T : MessageLite>(
         }
 
         fun <T : MessageLite> parseFromCRC(parser: com.google.protobuf.Parser<T>, inputStream: InputStream): T {
-            val crc = ByteArray(4)
-            val size = ByteArray(4)
-            if (inputStream.read(size) != 4) {
+            val crc = ByteArray(Int.SIZE_BYTES)
+            val size = ByteArray(Int.SIZE_BYTES)
+            if (inputStream.read(size) != Int.SIZE_BYTES) {
                 throw IOException("end of stream")
             }
             val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).int
@@ -182,22 +196,12 @@ abstract class ScatterSerializable<T : MessageLite>(
                 throw IOException("end of stream")
             }
             val crc32 = CRC32()
+            crc32.update(size)
             crc32.update(messageBytes)
             if (crc32.value != bytes2long(crc)) {
                 throw IOException("invalid crc: " + crc32.value + " " + bytes2long(crc))
             }
             return message
-        }
-
-        fun writeToCRC(message: MessageLite, outputStream: OutputStream) {
-            val out = message.toByteArray()
-            outputStream.write(
-                    ByteBuffer.allocate(4).order(ByteOrder.BIG_ENDIAN).putInt(out.size).array()
-            )
-            val crc32 = CRC32()
-            crc32.update(out)
-            outputStream.write(out)
-            outputStream.write(longToByte(crc32.value))
         }
     }
 }
