@@ -44,6 +44,10 @@ interface IdentityDao {
             "SELECT identityID FROM identities WHERE fingerprint = :fp)")
     fun getClientApps(fp: String): Single<List<ClientApp>>
 
+
+    @Query("SELECT packageName FROM clientapp")
+    fun getAllPackageNames(): Single<List<String>>
+
     @Query("SELECT COUNT(*) FROM identities")
     fun getNumIdentities(): Int
 
@@ -51,10 +55,16 @@ interface IdentityDao {
     fun insert(identity: KeylessIdentity): Single<Long>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    fun insertClientApps(clientApps: List<ClientApp>): Single<List<Long>>
+    fun insertClientAppsIgnore(clientApps: List<ClientApp>): Single<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    fun insertClientApp(vararg apps: ClientApp): Completable
+    fun insertClientAppIgnore(vararg apps: ClientApp): Completable
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertClientAppsReplace(clientApps: List<ClientApp>): Single<List<Long>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertClientAppReplace(vararg apps: ClientApp): Completable
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun __insertAll(identities: KeylessIdentity): Long

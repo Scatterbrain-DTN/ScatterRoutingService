@@ -13,6 +13,7 @@ import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
 import io.reactivex.*
 import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.BiFunction
 import io.reactivex.functions.Function
 import net.ballmerlabs.scatterbrainsdk.Identity
@@ -32,6 +33,7 @@ import java.nio.file.Path
 import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -53,6 +55,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val userFilesDir: File = File(ctx.filesDir, USER_FILES_PATH)
     private val cacheFilesDir: File = File(ctx.filesDir, CACHE_FILES_PATH)
     private val userDirectoryObserver: FileObserver
+    private val cachedPackages = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+    private val disposable = CompositeDisposable()
     override fun insertMessagesSync(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable {
         return Completable.fromAction {
             mDatastore.scatterMessageDao().insertMessage(message)
@@ -69,6 +73,44 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .subscribeOn(databaseScheduler)
                 .flatMap<Any> { scatterMessage: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage -> insertMessagesSync(scatterMessage).toObservable() }
                 .ignoreElements()
+    }
+
+    /**
+     * gets a list of known packages that issued api calls in the past.
+     * This is used to avoid api limitations in android 11
+     * @return packages
+     */
+    override fun getPackages(): Single<ArrayList<String>> {
+        return mDatastore.identityDao()
+                .getAllPackageNames()
+                .map { array ->
+                    val list = arrayListOf<String>()
+                    list.addAll(array)
+                    list
+                }
+    }
+
+    /**
+     * registers a calling package with the cached database of package names
+     * this is purely used to avoid api limitations in android 11 regarding
+     * querying package names
+     * @param packageName
+     * @return Completable
+     */
+    override fun updatePackage(packageName: String): Completable {
+        return Completable.defer {
+            if (cachedPackages.contains(packageName)) {
+                Completable.complete()
+            }
+            else {
+                cachedPackages.add(packageName)
+                mDatastore.identityDao().insertClientAppIgnore(ClientApp(
+                        null,
+                        packageName,
+                        null
+                ))
+            }
+        }
     }
 
     /**
@@ -283,7 +325,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             list
                                         })
                                         .flatMapCompletable { a: ArrayList<ClientApp> ->
-                                            mDatastore.identityDao().insertClientApps(a)
+                                            mDatastore.identityDao().insertClientAppsReplace(a)
                                                     .subscribeOn(databaseScheduler)
                                                     .ignoreElement()
                                         }
@@ -355,7 +397,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             packagename,
                             appsig
                     )
-                    mDatastore.identityDao().insertClientApp(app)
+                    mDatastore.identityDao().insertClientAppReplace(app)
                             .subscribeOn(databaseScheduler)
                 }
     }
@@ -617,11 +659,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun getACLs(identity: String): Single<MutableList<ACL>> {
         return mDatastore.identityDao().getClientApps(identity)
                 .subscribeOn(databaseScheduler)
-                .flatMapObservable { source: List<ClientApp> -> Observable.fromIterable(source) }
+                .flatMapObservable { source -> Observable.fromIterable(source) }
+                .filter { app -> app.identityFK != null && app.packageSignature != null }
                 .map { clientApp: ClientApp ->
                     ACL(
                             clientApp.packageName,
-                            clientApp.packageSignature
+                            clientApp.packageSignature!!
                     )
                 }
                 .reduce(ArrayList(), { list: MutableList<ACL>, acl: ACL ->
@@ -1102,6 +1145,16 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     init {
         userDir //create user and cahce directories so we can monitor them
         cacheDir
+        val d = getPackages()
+                .subscribeOn(databaseScheduler)
+                .timeout(5, TimeUnit.SECONDS, databaseScheduler)
+                .subscribe(
+                        { packages -> cachedPackages.addAll(packages)},
+                        {err -> Log.e(TAG, "failed to initialize package cache: $err")}
+                )
+
+        disposable.add(d)
+
         userDirectoryObserver = object : FileObserver(userFilesDir) {
             override fun onEvent(i: Int, s: String?) {
                 when (i) {

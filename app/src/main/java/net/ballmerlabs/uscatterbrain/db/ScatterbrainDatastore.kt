@@ -21,6 +21,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
 import java.util.regex.Pattern
+import kotlin.collections.ArrayList
 
 const val DATABASE_NAME = "scatterdb"
 const val DEFAULT_BLOCKSIZE = 1024 * 2
@@ -240,6 +241,8 @@ interface ScatterbrainDatastore {
     fun insertAndHashFileFromApi(message: ApiScatterMessage, blocksize: Int): Completable
     val declareHashesPacket: Single<DeclareHashesPacket>
     fun getACLs(identity: String): Single<MutableList<ACL>>
+    fun updatePackage(packageName: String): Completable
+    fun getPackages(): Single<ArrayList<String>>
     fun deleteIdentities(vararg fingerprint: String): Completable
 
     enum class WriteMode {

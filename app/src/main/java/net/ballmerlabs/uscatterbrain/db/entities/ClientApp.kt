@@ -15,13 +15,13 @@ import androidx.room.PrimaryKey
 ])
 data class ClientApp(
     @ColumnInfo
-    var identityFK: Long,
+    var identityFK: Long? = null,
 
     @ColumnInfo
     var packageName: String,
 
     @ColumnInfo
-    var packageSignature: String
+    var packageSignature: String? = null
 ) {
     @PrimaryKey(autoGenerate = true)
     var clientAppID: Long? = null

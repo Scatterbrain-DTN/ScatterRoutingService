@@ -44,6 +44,12 @@ class ScatterRoutingService : LifecycleService() {
                 if (packages != null && packages.isNotEmpty()) {
                     packageName = packages[0]
                 }
+                if (packageName != null) {
+                    val disp = mBackend.datastore.updatePackage(packageName).subscribe(
+                            { Log.v(TAG, "updated package name $packageName") },
+                            { err -> Log.e(TAG, "failed to update package $packageName : $err") }
+                    )
+                }
                 return packageName ?: ""
             }
 
@@ -272,6 +278,11 @@ class ScatterRoutingService : LifecycleService() {
                     .toTypedArray()
         }
 
+        override fun getKnownPackages(): MutableList<String> {
+            checkSuperuserPermission()
+            return mBackend.datastore.getPackages().blockingGet().toMutableList()
+        }
+
         /**
          * returns true if active discovery is running
          * @return is discovering
@@ -366,6 +377,38 @@ class ScatterRoutingService : LifecycleService() {
             callbackHandles[handle] = Callback(callingPackageName, disp)
             return handle
         }
+
+
+        override fun getKnownPackagesAsync(): Int {
+            checkSuperuserPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.datastore.getPackages()
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { r ->
+                                broadcastAsyncResult(
+                                        callingPackageName,
+                                        handle,
+                                        Bundle().apply {
+                                            putStringArrayList(ScatterbrainApi.EXTRA_ASYNC_RESULT, r)
+                                        },
+                                        ScatterbrainApi.PERMISSION_SUPERUSER
+                                )
+                            },
+                            { err ->
+                                broadcastAsyncError(
+                                        callingPackageName,
+                                        handle,
+                                        err.toString(),
+                                        ScatterbrainApi.PERMISSION_SUPERUSER
+                                )
+                            }
+                    )
+
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
+        }
     }
 
     override fun onBind(i: Intent): IBinder {
@@ -377,7 +420,6 @@ class ScatterRoutingService : LifecycleService() {
         super.onUnbind(i)
         return true
     }
-
 
     private fun generateNewHandle(): Int {
         return callbackNum.getAndAccumulate(1) { old, new ->
