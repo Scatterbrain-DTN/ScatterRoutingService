@@ -801,7 +801,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
                 .flatMapCompletable { file: File ->
                     if (message.toDisk()) {
-                        return@flatMapCompletable copyFile(message.fileDescriptor.fileDescriptor, file)
+                        copyFile(message.fileDescriptor.fileDescriptor, file)
+                                .subscribeOn(databaseScheduler)
                                 .andThen(hashFile(file, blocksize))
                                 .flatMapCompletable { hashes ->
                                     val newFile = File(cacheDir, getDefaultFileName(hashes)
@@ -838,7 +839,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     insertMessageToRoom(dbmessage)
                                 }.subscribeOn(databaseScheduler)
                     } else {
-                        return@flatMapCompletable hashData(message.body, blocksize)
+                        hashData(message.body, blocksize)
                                 .flatMapCompletable { hashes ->
 
                                     if (message.signable()) {

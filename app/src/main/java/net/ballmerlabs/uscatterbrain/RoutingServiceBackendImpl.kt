@@ -179,7 +179,7 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     override fun sendMessages(messages: List<ScatterMessage>): Completable {
         return Observable.fromIterable(messages)
-                .flatMapCompletable { m: ScatterMessage ->
+                .flatMapCompletable { m ->
                     datastore.insertAndHashFileFromApi(
                             ApiScatterMessage.fromApi(m),
                             DEFAULT_BLOCKSIZE)
