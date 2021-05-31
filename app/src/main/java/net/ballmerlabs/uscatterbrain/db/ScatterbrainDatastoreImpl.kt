@@ -83,6 +83,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun getPackages(): Single<ArrayList<String>> {
         return mDatastore.identityDao()
                 .getAllPackageNames()
+                .subscribeOn(databaseScheduler)
                 .map { array ->
                     val list = arrayListOf<String>()
                     list.addAll(array)
@@ -109,6 +110,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         packageName,
                         null
                 ))
+                        .subscribeOn(databaseScheduler)
             }
         }
     }
