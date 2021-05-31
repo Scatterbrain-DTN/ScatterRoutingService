@@ -5,10 +5,8 @@ import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import com.google.protobuf.CodedInputStream
 import com.google.protobuf.MessageLite
-import io.reactivex.Completable
-import io.reactivex.Flowable
+import io.reactivex.*
 import io.reactivex.Observable
-import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterProto
 import java.io.*
 import java.nio.ByteBuffer
@@ -93,7 +91,9 @@ abstract class ScatterSerializable<T : MessageLite>(
             val buf = ByteBuffer.allocate(size)
             buf.order(ByteOrder.BIG_ENDIAN).putInt(packet.serializedSize).array()
             val crc32 = CRC32()
-            crc32.update(buf.array(), 0, packet.serializedSize + Int.SIZE_BYTES)
+            val bytes = packet.toByteArray()
+            crc32.update(bytes, 0, bytes.size)
+            buf.put(bytes)
             buf.put(longToByte(crc32.value))
             return buf.array()
         }
@@ -101,12 +101,14 @@ abstract class ScatterSerializable<T : MessageLite>(
     val byteString: ByteString
         get() = ByteString.copyFrom(bytes)
 
-    fun writeToStream(os: OutputStream): Completable {
+    fun writeToStream(os: OutputStream, scheduler: Scheduler): Completable {
         return Completable.fromAction { writeToCRC(packet, os) }
+                .subscribeOn(scheduler)
     }
 
-    fun writeToStream(fragsize: Int): Flowable<ByteArray> {
+    fun writeToStream(fragsize: Int, scheduler: Scheduler): Flowable<ByteArray> {
         return Bytes.from(ByteArrayInputStream(bytes), fragsize)
+                .subscribeOn(scheduler)
     }
 
     fun tagLuid(luid: UUID?) {
@@ -123,37 +125,44 @@ abstract class ScatterSerializable<T : MessageLite>(
 
         inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
                 parser: Parser<V, T>,
-                inputStream: InputStream
+                inputStream: InputStream,
+                scheduler: Scheduler
         ): Single<T> {
             return Single.fromCallable {
                 val message = parseFromCRC(parser.parser, inputStream)
                 T::class.java.getConstructor(V::class.java).newInstance(message)
             }
-        }
-
-
-        inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
-                parser: Parser<V,T> ,
-                observable: Observable<ByteArray>
-        ): Single<T> {
-            return Single.just(observable)
-                    .flatMap { obs ->
-                        val observer = InputStreamObserver(4096) //TODO: optimize buffer size
-                        obs.subscribe(observer)
-                        parseWrapperFromCRC(parser, observer)
-                    }
+                    .subscribeOn(scheduler)
         }
 
         inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
                 parser: Parser<V,T> ,
-                flowable: Flowable<ByteArray>
+                flowable: Flowable<ByteArray>,
+                scheduler: Scheduler
         ): Single<T> {
             return Single.just(flowable)
-                    .flatMap { obs ->
+                    .map { obs ->
                         val subscriber = InputStreamFlowableSubscriber(4096) //TODO: optimize buffer size
                         obs.subscribe(subscriber)
-                        parseWrapperFromCRC(parser, subscriber)
+                        val message = parseFromCRC(parser.parser, subscriber)
+                        T::class.java.getConstructor(V::class.java).newInstance(message)
                     }
+                    .subscribeOn(scheduler)
+        }
+
+        inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
+                parser: Parser<V,T> ,
+                observable: Observable<ByteArray>,
+                scheduler: Scheduler
+        ): Single<T> {
+            return Single.just(observable)
+                    .map { obs ->
+                        val subscriber = InputStreamObserver(4096) //TODO: optimize buffer size
+                        obs.subscribe(subscriber)
+                        val message = parseFromCRC(parser.parser, subscriber)
+                        T::class.java.getConstructor(V::class.java).newInstance(message)
+                    }
+                    .subscribeOn(scheduler)
         }
 
         fun <T : MessageLite> parseFromCRC(parser: com.google.protobuf.Parser<T>, inputStream: InputStream): T {

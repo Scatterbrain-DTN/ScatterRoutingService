@@ -144,10 +144,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .map<BlockSequencePacket> { packet: BlockSequencePacket ->
                     if (packet.verifyHash(stream.headerPacket)) {
                         Log.v(TAG, "hash verified")
-                        return@map packet
+                        packet
                     } else {
                         Log.e(TAG, "hash invalid")
-                        return@map null
+                        null
                     }
                 }.ignoreElements()
     }
@@ -177,9 +177,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .subscribeOn(databaseScheduler)
                 .flatMapCompletable { count: Int ->
                     if (count > 0) {
-                        return@flatMapCompletable discardStream(stream)
+                        discardStream(stream)
                     } else {
-                        return@flatMapCompletable insertMessageToRoom(stream.entity)
+                        insertMessageToRoom(stream.entity)
                                 .andThen(insertFile(stream))
                     }
                 }.subscribeOn(databaseScheduler)
@@ -194,15 +194,15 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .subscribeOn(databaseScheduler)
                 .flatMapCompletable { count: Int? ->
                     if (count!! > 0) {
-                        return@flatMapCompletable discardStream(stream)
+                        discardStream(stream)
                     } else {
-                        return@flatMapCompletable stream.sequencePackets
-                                .flatMap<ByteArray> { packet: BlockSequencePacket? ->
+                        stream.sequencePackets
+                                .flatMap { packet: BlockSequencePacket? ->
                                     if (packet!!.verifyHash(stream.headerPacket)) {
-                                        return@flatMap Flowable.just(packet.data)
+                                        Flowable.just(packet.data)
                                     } else {
                                         Log.e(TAG, "invalid hash")
-                                        return@flatMap Flowable.error<ByteArray>(SecurityException("failed to verify hash"))
+                                        Flowable.error<ByteArray>(SecurityException("failed to verify hash"))
                                     }
                                 }
                                 .reduce { obj, other -> obj + other }
@@ -252,14 +252,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnNext { message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage -> Log.v(TAG, "retrieved message: " + message.messageHashes.size) }
                 .zipWith(seq, BiFunction<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage, Int, BlockDataStream> b@{ message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage, s: Int ->
                     if (message.message.body == null) {
-                        return@b BlockDataStream(
+                        BlockDataStream(
                                 message,
                                 readFile(File(message.message.filePath), message.message.blocksize),
                                 s < num - 1,
                                 true
                         )
                     } else {
-                        return@b BlockDataStream(
+                        BlockDataStream(
                                 message,
                                 readBody(message.message.body!!, message.message.blocksize),
                                 s < num - 1,
@@ -517,25 +517,27 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnNext { id -> Log.v(TAG, "inserting identity: ${id.fingerprint}")}
                 .flatMap { i: IdentityPacket ->
                     if (i.isEnd || i.isEmpty()) {
-                        return@flatMap Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
-                    }
-                    val id = KeylessIdentity(
-                            i.name!!,
-                            i.pubkey!!,
-                            i.getSig(),
-                            i.fingerprint,
-                            null
+                        Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
+                    } else {
+                        val id = KeylessIdentity(
+                                i.name,
+                                i.pubkey,
+                                i.getSig(),
+                                i.fingerprint,
+                                null
 
-                    )
-                    val finalIdentity = Identity(
-                            id,
-                            keys2keys(i.keymap)
-                    )
-                    if (!i.verifyed25519(i.pubkey)) {
-                        Log.e(TAG, "identity " + i.name + " " + i.fingerprint + " failed sig check")
-                        return@flatMap Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
+                        )
+                        val finalIdentity = Identity(
+                                id,
+                                keys2keys(i.keymap)
+                        )
+                        if (!i.verifyed25519(i.pubkey)) {
+                            Log.e(TAG, "identity " + i.name + " " + i.fingerprint + " failed sig check")
+                            Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
+                        } else {
+                            Observable.just(finalIdentity)
+                        }
                     }
-                    Observable.just(finalIdentity)
                 }
                 .reduce(ArrayList(), {
                     list: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>,
@@ -613,11 +615,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     list.add(hash)
                     list
                 })
-                .map map@{ hash: ArrayList<ByteArray> ->
+                .map{ hash: ArrayList<ByteArray> ->
                     if (hash.size == 0) {
-                        return@map DeclareHashesPacket.newBuilder().optOut().build()
+                        DeclareHashesPacket.newBuilder().optOut().build()
                     } else {
-                        return@map DeclareHashesPacket.newBuilder().setHashesByte(hash).build()
+                        DeclareHashesPacket.newBuilder().setHashesByte(hash).build()
                     }
                 }
 
@@ -854,34 +856,34 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             + sanitizeFilename(message.extension))
                                     Log.v(TAG, "filepath from api: " + newFile.absolutePath)
                                     if (!file.renameTo(newFile)) {
-                                        return@flatMapCompletable Completable.error(IllegalStateException("failed to rename to $newFile"))
-                                    }
+                                        Completable.error(IllegalStateException("failed to rename to $newFile"))
+                                    } else {
+                                        if (message.signable()) {
+                                            message.signEd25519(hashes)
+                                        }
+                                        val hm = HashlessScatterMessage(
+                                                null,
+                                                message.identityFingerprint,
+                                                message.toFingerprint,
+                                                message.fromFingerprint,
+                                                message.application,
+                                                message.sig,
+                                                0,
+                                                blocksize,
+                                                sanitizeFilename(message.extension),
+                                                newFile.absolutePath,
+                                                getGlobalHash(hashes),
+                                                sanitizeFilename(message.filename),
+                                                MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString())
 
-                                    if (message.signable()) {
-                                        message.signEd25519(hashes)
+                                        )
+                                        val dbmessage = ScatterMessage(
+                                                hm,
+                                                HashlessScatterMessage.hash2hashs(hashes)
+                                        )
+                                        dbmessage.message = hm
+                                        insertMessageToRoom(dbmessage)
                                     }
-                                    val hm = HashlessScatterMessage(
-                                            null,
-                                            message.identityFingerprint,
-                                            message.toFingerprint,
-                                            message.fromFingerprint,
-                                            message.application,
-                                            message.sig,
-                                            0,
-                                            blocksize,
-                                            sanitizeFilename(message.extension),
-                                            newFile.absolutePath,
-                                            getGlobalHash(hashes),
-                                            sanitizeFilename(message.filename),
-                                            MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString())
-
-                                    )
-                                    val dbmessage = ScatterMessage(
-                                            hm,
-                                            HashlessScatterMessage.hash2hashs(hashes)
-                                    )
-                                    dbmessage.message = hm
-                                    insertMessageToRoom(dbmessage)
                                 }.subscribeOn(databaseScheduler)
                     } else {
                         hashData(message.body, blocksize)
@@ -1024,9 +1026,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             if (old == null) {
                 val f = OpenFile(path, false)
                 mOpenFiles[path.toPath()] = f
-                return@fromCallable f
+                f
             } else {
-                return@fromCallable old
+                old
             }
         }
     }
@@ -1037,10 +1039,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     packets
                             .concatMapCompletable(Function<BlockSequencePacket, CompletableSource> c@{ blockSequencePacket: BlockSequencePacket? ->
                                 if (!blockSequencePacket!!.verifyHash(header)) {
-                                    return@c Completable.error(IllegalStateException("failed to verify hash"))
+                                    Completable.error(IllegalStateException("failed to verify hash"))
+                                } else {
+                                    Completable.fromAction { fileOutputStream.write(blockSequencePacket.data) }
+                                            .subscribeOn(databaseScheduler)
                                 }
-                                Completable.fromAction { fileOutputStream.write(blockSequencePacket.data) }
-                                        .subscribeOn(databaseScheduler)
                             })
                 }
     }
@@ -1069,20 +1072,21 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         Log.w(TAG, "copyFile overwriting existing file")
                     }
                     if (!pair.first.valid()) {
-                        return@flatMapCompletable Completable.error(IllegalStateException("invalid file descriptor: " + pair.first))
+                        Completable.error(IllegalStateException("invalid file descriptor: " + pair.first))
+                    } else {
+                        val `is` = FileInputStream(pair.first)
+                        val os = FileOutputStream(pair.second)
+                        Bytes.from(`is`)
+                                .flatMapCompletable { bytes: ByteArray? ->
+                                    Completable.fromAction { os.write(bytes) }
+                                            .subscribeOn(databaseScheduler)
+                                }
+                                .subscribeOn(databaseScheduler)
+                                .doFinally {
+                                    `is`.close()
+                                    os.close()
+                                }
                     }
-                    val `is` = FileInputStream(pair.first)
-                    val os = FileOutputStream(pair.second)
-                    Bytes.from(`is`)
-                            .flatMapCompletable { bytes: ByteArray? ->
-                                Completable.fromAction { os.write(bytes) }
-                                        .subscribeOn(databaseScheduler)
-                            }
-                            .subscribeOn(databaseScheduler)
-                            .doFinally {
-                                `is`.close()
-                                os.close()
-                            }
                 }
     }
 

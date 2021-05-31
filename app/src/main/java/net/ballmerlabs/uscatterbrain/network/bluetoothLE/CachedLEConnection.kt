@@ -111,58 +111,50 @@ class CachedLEConnection(
 
     fun readAdvertise(): Single<AdvertisePacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                AdvertisePacket.parser(), cachedNotification())
-                .subscribeOn(scheduler)
+                AdvertisePacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readUpgrade(): Single<UpgradePacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                UpgradePacket.parser(), cachedNotification())
-                .subscribeOn(scheduler)
+                UpgradePacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readBlockHeader(): Single<BlockHeaderPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                BlockHeaderPacket.parser(), cachedNotification())
-                .subscribeOn(scheduler)
+                BlockHeaderPacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readBlockSequence(): Single<BlockSequencePacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                BlockSequencePacket.parser(), cachedNotification())
-                .subscribeOn(scheduler)
+                BlockSequencePacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readDeclareHashes(): Single<DeclareHashesPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                DeclareHashesPacket.parser(), cachedNotification())
-                .subscribeOn(scheduler)
+                DeclareHashesPacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
 
     }
 
     fun readElectLeader(): Single<ElectLeaderPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                ElectLeaderPacket.parser(), cachedNotification())
-                .subscribeOn(scheduler)
+                ElectLeaderPacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readIdentityPacket(): Single<IdentityPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                IdentityPacket.parser(), cachedNotification())
-                .subscribeOn(scheduler)
+                IdentityPacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     fun readLuid(): Single<LuidPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                LuidPacket.parser(), cachedNotification())
-                .subscribeOn(scheduler)
+                LuidPacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 

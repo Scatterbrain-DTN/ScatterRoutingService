@@ -960,7 +960,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     .flatMapObservable { session ->
                                                         Log.v(TAG, "session initialized")
                                                         val d = connectionRaw.getOnCharacteristicWriteRequest(UUID_SEMAPHOR)
-                                                                .flatMapCompletable { trans ->
+                                                                .concatMapCompletable { trans ->
                                                                     val remoteluid = bytes2uuid(trans.value)
                                                                     val remotesession = sessionCache[remoteluid]
 
@@ -993,7 +993,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                          */
                                                         session.observeStage()
                                                                 .doOnNext { stage: String -> Log.v(TAG, "handling stage: $stage") }
-                                                                .flatMap {
+                                                                .concatMap {
                                                                     Single.zip(
                                                                             session.singleClient(),
                                                                             session.singleServer(),

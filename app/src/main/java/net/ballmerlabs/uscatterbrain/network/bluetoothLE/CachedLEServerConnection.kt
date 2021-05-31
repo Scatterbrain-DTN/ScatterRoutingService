@@ -93,8 +93,7 @@ class CachedLEServerConnection(
                                                             .flatMapCompletable { trans -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null) }
                                                             .andThen(connection.setupIndication(
                                                                     characteristic.uuid,
-                                                                    packet.writeToStream(20)
-                                                                            .subscribeOn(scheduler)
+                                                                    packet.writeToStream(20, scheduler)
                                                             ))
                                                             .doOnError{ err ->
                                                                 Log.e(TAG, "error in gatt server indication $err")
