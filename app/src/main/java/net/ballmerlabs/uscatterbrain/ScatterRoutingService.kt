@@ -244,7 +244,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun authorizeApp(identity: String, packagename: String) {
             checkSuperuserPermission()
-            mBackend.authorizeApp(identity, packageName).blockingAwait()
+            mBackend.authorizeApp(identity, packagename).blockingAwait()
         }
 
         /**
@@ -257,7 +257,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun deauthorizeApp(identity: String, packagename: String) {
             checkSuperuserPermission()
-            mBackend.deauthorizeApp(identity, packageName).blockingAwait()
+            mBackend.deauthorizeApp(identity, packagename).blockingAwait()
         }
 
         /**

@@ -189,6 +189,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     override fun deauthorizeApp(fingerprint: String, packageName: String): Completable {
         return Completable.defer {
             if (packageName == context.packageName) {
+                Log.e(TAG, "attempted to deauthorize ourselves")
                 Completable.complete()
             } else {
                 Observable.just(packageName).flatMap { name ->
@@ -207,6 +208,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     override fun authorizeApp(fingerprint: String, packageName: String): Completable {
         return Completable.defer {
             if (packageName == context.packageName) {
+                Log.e(TAG, "attempted to auauthorize ourselves")
                 Completable.complete()
             } else {
                 Observable.just(packageName).flatMap { name ->
