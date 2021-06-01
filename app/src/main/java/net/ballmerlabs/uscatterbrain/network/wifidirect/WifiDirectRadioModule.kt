@@ -13,6 +13,7 @@ import net.ballmerlabs.uscatterbrain.db.getGlobalHashProto
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
+import java.util.*
 
 /**
  * dagger2 interface for WifiDirectRadioModule
@@ -59,7 +60,9 @@ interface WifiDirectRadioModule {
                                 getDefaultFileName(headerPacket),
                                 getGlobalHashProto(headerPacket.hashList),
                                 headerPacket.userFilename,
-                                headerPacket.mime
+                                headerPacket.mime,
+                                headerPacket.sendDate,
+                                Date().time
                         ),
                         HashlessScatterMessage.hash2hashsProto(headerPacket.hashList)
                 )

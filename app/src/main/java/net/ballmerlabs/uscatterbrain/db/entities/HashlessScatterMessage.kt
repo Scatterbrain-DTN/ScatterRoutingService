@@ -36,7 +36,10 @@ data class HashlessScatterMessage(@ColumnInfo
                                   var filePath: String, @ColumnInfo(name = "globalhash")
                                   var globalhash: ByteArray, @ColumnInfo
                                   var userFilename: String = "", @ColumnInfo
-                                  var mimeType: String) {
+                                  var mimeType: String,
+                                  var sendDate: Long,
+                                  var receiveDate: Long? = null
+) {
     companion object {
         fun hash2hashs(hashes: List<ByteArray>): List<Hashes> {
             val result = ArrayList<Hashes>()

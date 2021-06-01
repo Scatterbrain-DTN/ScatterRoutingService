@@ -235,7 +235,9 @@ interface ScatterbrainDatastore {
     val userDir: File
     fun getFileSize(path: File): Long
     val allIdentities: List<Identity>
-    fun getApiMessages(application: String): List<ScatterMessage>
+    fun getApiMessages(application: String): Single<ArrayList<ScatterMessage>>
+    fun getApiMessagesSendDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>>
+    fun getApiMessagesReceiveDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>>
     fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket>
     fun getApiMessages(id: Long): ScatterMessage
     fun insertAndHashFileFromApi(message: ApiScatterMessage, blocksize: Int): Completable

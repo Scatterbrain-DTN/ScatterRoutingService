@@ -747,7 +747,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             path.absolutePath,
                             getGlobalHash(hashes),
                             path.name,
-                            ScatterbrainApi.getMimeType(path)
+                            ScatterbrainApi.getMimeType(path),
+                            Date().time,
+                            null
                     )
                     val hashedMessage = ScatterMessage(
                             message,
@@ -774,10 +776,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .build()
     }
 
-    private fun getApiMessage(entities: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<MutableList<ScatterMessage>> {
+    private fun getApiMessage(entities: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<ArrayList<ScatterMessage>> {
         return entities
                 .map { message -> message2message(message) }
-                .reduce(ArrayList(), { list , m ->
+                .reduce(java.util.ArrayList<ScatterMessage>(), { list, m ->
                     list.add(m)
                     list
                 })
@@ -816,7 +818,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param application
      * @return list of api messages
      */
-    override fun getApiMessages(application: String): List<ScatterMessage> {
+    override fun getApiMessages(application: String): Single<ArrayList<ScatterMessage>> {
         return getApiMessage(mDatastore.scatterMessageDao()
                 .getByApplication(application)
                 .subscribeOn(databaseScheduler)
@@ -824,7 +826,40 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     source -> filterMessagesBySigCheck(Observable.fromIterable(source))
                 }
         )
-                .blockingGet()
+    }
+
+    /**
+     * Filter messages by start and end date when message was received
+     * @param application
+     * @param start
+     * @param end
+     *
+     * @return list of api messages
+     */
+    override fun getApiMessagesReceiveDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>> {
+        return getApiMessage(
+                mDatastore.scatterMessageDao()
+                        .getByReceiveDate(application, start.time, end.time)
+                        .subscribeOn(databaseScheduler)
+                        .flatMapObservable { s -> filterMessagesBySigCheck(Observable.fromIterable(s)) }
+        )
+    }
+
+    /**
+     * Filter messages by start and end date when message was sent
+     * @param application
+     * @param start
+     * @param end
+     *
+     * @return list of api messages
+     */
+    override fun getApiMessagesSendDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>> {
+        return getApiMessage(
+                mDatastore.scatterMessageDao()
+                        .getBySendDate(application, start.time, end.time)
+                        .subscribeOn(databaseScheduler)
+                        .flatMapObservable { s -> filterMessagesBySigCheck(Observable.fromIterable(s)) }
+        )
     }
 
     /**
@@ -874,8 +909,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 newFile.absolutePath,
                                                 getGlobalHash(hashes),
                                                 sanitizeFilename(message.filename),
-                                                MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString())
-
+                                                MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
+                                                Date().time,
+                                                null
                                         )
                                         val dbmessage = ScatterMessage(
                                                 hm,
@@ -905,7 +941,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             getNoFilename(message.body),
                                             getGlobalHash(hashes),
                                             "",
-                                            "application/octet-stream"
+                                            "application/octet-stream",
+                                            Date().time,
+                                            null
                                             )
 
                                     val dbmessage = ScatterMessage(

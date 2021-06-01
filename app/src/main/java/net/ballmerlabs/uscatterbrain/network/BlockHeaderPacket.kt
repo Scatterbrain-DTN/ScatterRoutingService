@@ -5,6 +5,8 @@ import com.google.protobuf.ByteString
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
+import java.util.*
+import kotlin.collections.ArrayList
 
 /**
  * Wrapper class for protocol buffer blockdata message
@@ -33,6 +35,8 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             return if (r.isEmpty()) null else r
         }
 
+    override val sendDate: Long
+        get() = packet.sendDate
 
     /**
      * Gets to fingerprint.
@@ -134,7 +138,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             var filename: String = "",
             var mime: String = "",
             var endofstream: Boolean = false,
-
+            var sendDate: Date = Date()
             ) {
 
         /**
@@ -230,6 +234,10 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             this.filename = filename
         }
 
+        fun setDate(date: Date) = apply {
+            this.sendDate = date
+        }
+
         /**
          * Build block header packet.
          *
@@ -252,6 +260,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
                     .addAllNexthashes(hashlist)
                     .setSessionid(sessionid)
                     .setBlocksize(blockSizeVal)
+                    .setSendDate(sendDate.time)
                     .setMime(mime)
                     .setEndofstream(endofstream)
                     .setSig(ByteString.copyFrom(sig?: byteArrayOf(0)))
