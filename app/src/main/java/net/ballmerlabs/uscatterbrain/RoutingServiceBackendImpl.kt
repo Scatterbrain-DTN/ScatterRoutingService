@@ -21,7 +21,6 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.ACL
-import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
 import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
@@ -116,13 +115,10 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .flatMapObservable { Observable.fromIterable(it) }
                 .flatMapCompletable { acl -> verifyCallingSig(acl, callingPackageName) }
                 .andThen(
-                        datastore.getIdentityKey(identity)
-                            .flatMapCompletable { id: ApiIdentity.KeyPair ->
-                                datastore.insertAndHashFileFromApi(
-                                        ApiScatterMessage.fromApi(message, id),
-                                        DEFAULT_BLOCKSIZE)
-                            }
-                            .doOnComplete { asyncRefreshPeers() }
+                        datastore.insertAndHashFileFromApi(
+                                message,
+                                DEFAULT_BLOCKSIZE)
+                                .doOnComplete { asyncRefreshPeers() }
                 )
 
     }
@@ -132,14 +128,11 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .flatMapObservable { Observable.fromIterable(it) }
                 .flatMapCompletable { acl -> verifyCallingSig(acl, callingPackageName) }
                 .andThen(
-                        datastore.getIdentityKey(identity)
-                                .flatMapCompletable { id ->
-                                    Observable.fromIterable(messages)
-                                            .flatMapCompletable { message ->
-                                                datastore.insertAndHashFileFromApi(
-                                                        ApiScatterMessage.fromApi(message, id),
-                                                        DEFAULT_BLOCKSIZE)
-                                            }
+                        Observable.fromIterable(messages)
+                                .flatMapCompletable { message ->
+                                    datastore.insertAndHashFileFromApi(
+                                            message,
+                                            DEFAULT_BLOCKSIZE)
                                 }
                                 .doOnComplete { asyncRefreshPeers() }
                 )
@@ -173,7 +166,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     }
 
     override fun sendMessage(message: ScatterMessage): Completable {
-        return datastore.insertAndHashFileFromApi(ApiScatterMessage.fromApi(message), DEFAULT_BLOCKSIZE)
+        return datastore.insertAndHashFileFromApi(message, DEFAULT_BLOCKSIZE)
                 .doOnComplete { asyncRefreshPeers() }
     }
 
@@ -181,8 +174,9 @@ class RoutingServiceBackendImpl @Inject constructor(
         return Observable.fromIterable(messages)
                 .flatMapCompletable { m ->
                     datastore.insertAndHashFileFromApi(
-                            ApiScatterMessage.fromApi(m),
-                            DEFAULT_BLOCKSIZE)
+                            m,
+                            DEFAULT_BLOCKSIZE
+                    )
                 }
     }
 

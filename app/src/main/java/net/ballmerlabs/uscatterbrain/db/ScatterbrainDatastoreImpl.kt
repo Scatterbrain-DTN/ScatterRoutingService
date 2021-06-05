@@ -773,7 +773,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
                 .setTo(message.message.to)
                 .setFrom(message.message.from)
-                .build()
+                .build()!!
     }
 
     private fun getApiMessage(entities: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<ArrayList<ScatterMessage>> {
@@ -879,11 +879,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param blocksize blocksize
      * @return completable
      */
-    override fun insertAndHashFileFromApi(message: ApiScatterMessage, blocksize: Int): Completable {
+    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int): Completable {
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
                 .flatMapCompletable { file: File ->
-                    if (message.toDisk()) {
-                        copyFile(message.fileDescriptor.fileDescriptor, file)
+                    if (message.toDisk) {
+                        copyFile(message.fileDescriptor!!.fileDescriptor, file)
                                 .subscribeOn(databaseScheduler)
                                 .andThen(hashFile(file, blocksize))
                                 .flatMapCompletable { hashes ->
@@ -893,22 +893,19 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     if (!file.renameTo(newFile)) {
                                         Completable.error(IllegalStateException("failed to rename to $newFile"))
                                     } else {
-                                        if (message.signable()) {
-                                            message.signEd25519(hashes)
-                                        }
                                         val hm = HashlessScatterMessage(
                                                 null,
-                                                message.identityFingerprint,
+                                                message.fromFingerprint,
                                                 message.toFingerprint,
                                                 message.fromFingerprint,
                                                 message.application,
-                                                message.sig,
+                                                null,
                                                 0,
                                                 blocksize,
                                                 message.extension,
                                                 newFile.absolutePath,
                                                 getGlobalHash(hashes),
-                                                message.filename,
+                                                message.filename!! ,
                                                 MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
                                                 Date().time,
                                                 null
@@ -922,35 +919,42 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     }
                                 }.subscribeOn(databaseScheduler)
                     } else {
-                        hashData(message.body, blocksize)
+                        hashData(message.body!!, blocksize)
                                 .flatMapCompletable { hashes ->
-
-                                    if (message.signable()) {
-                                        message.signEd25519(hashes)
-                                    }
                                     val hm = HashlessScatterMessage(
                                             message.body,
-                                            message.identityFingerprint,
+                                            message.fromFingerprint,
                                             message.toFingerprint,
                                             message.fromFingerprint,
                                             message.application,
-                                            message.sig,
+                                            null,
                                             0,
                                             blocksize,
                                             "",
-                                            getNoFilename(message.body),
+                                            getNoFilename(message.body!!),
                                             getGlobalHash(hashes),
                                             "",
                                             "application/octet-stream",
                                             Date().time,
                                             null
                                             )
-
                                     val dbmessage = ScatterMessage(
                                             hm,
                                             HashlessScatterMessage.hash2hashs(hashes)
                                     )
-                                    insertMessageToRoom(dbmessage)
+
+                                    Completable.defer {
+
+                                        if (message.shouldSign) {
+                                            getIdentityKey(message.fromFingerprint!!)
+                                                    .flatMapCompletable { keypair ->
+                                                        dbmessage.message.sig = signEd25519(keypair.secretkey, dbmessage)
+                                                        insertMessageToRoom(dbmessage)
+                                                    }
+                                        } else {
+                                            insertMessageToRoom(dbmessage)
+                                        }
+                                    }
                                 }
                     }
                 }
