@@ -268,6 +268,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     socket.getOutputStream(),
                                     operationsScheduler
                             ))
+                            .subscribeOn(operationsScheduler)
                 }
                 .firstOrError()
     }
@@ -289,7 +290,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     )
                             .toObservable()
                             .repeat()
-                            .takeWhile { routingMetadataPacket: RoutingMetadataPacket ->
+                            .takeWhile { routingMetadataPacket ->
                                 val end = !routingMetadataPacket.isEmpty
                                 if (!end) {
                                     Log.v(TAG, "routingMetadata seme end of stream")
@@ -297,8 +298,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 end
                             } //TODO: timeout here
                             .mergeWith(packets.concatMapCompletable { p: RoutingMetadataPacket ->
+                                Log.e("debug", "writing routing metadata")
                                 p.writeToStream(sock.getOutputStream(), operationsScheduler)
                             })
+                            .subscribeOn(operationsScheduler)
                 }
     }
 
@@ -330,6 +333,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 p.writeToStream(sock.getOutputStream(), operationsScheduler)
                                         .doOnComplete { Log.v(TAG, "wrote single identity packet") }
                             })
+                            .subscribeOn(operationsScheduler)
                 }.doOnComplete { Log.v(TAG, "identity packets complete") }
     }
 
@@ -361,7 +365,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 + upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE))
         return when {
             upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
-                    === ConnectionRole.ROLE_UKE -> {
+                    == ConnectionRole.ROLE_UKE -> {
                 retryDelay(createGroup(
                         upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                         upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
@@ -402,7 +406,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
             }
             upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
-                    === ConnectionRole.ROLE_SEME -> {
+                    == ConnectionRole.ROLE_SEME -> {
                 retryDelay(connectToGroup(
                         upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                         upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
@@ -518,7 +522,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .doOnNext { Log.v(TAG, "writeBlockData processing BlockDataStream") }
                             .concatMapCompletable { blockDataStream: BlockDataStream ->
                                 blockDataStream.headerPacket.writeToStream(socket.getOutputStream(), operationsScheduler)
-                                        .subscribeOn(operationsScheduler)
                                         .doOnComplete { Log.v(TAG, "server wrote header packet") }
                                         .andThen(
                                                 blockDataStream.sequencePackets
@@ -596,7 +599,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun readBlockDataSeme(
             socket: Socket
     ): Single<HandshakeResult> {
-        return Single.fromCallable<Single<BlockHeaderPacket>> {
+        return Single.fromCallable {
             ScatterSerializable.parseWrapperFromCRC(
                     BlockHeaderPacket.parser(),
                     socket.getInputStream(),
@@ -622,7 +625,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                 socket.getInputStream(),
                                                 operationsScheduler
                                         )
-                                                .subscribeOn(operationsScheduler)
                                                 .repeat(header.hashList.size.toLong())
                                                 .doOnNext{ packet ->
                                                     Log.v(TAG, "seme reading sequence packet: " + packet.data.size)

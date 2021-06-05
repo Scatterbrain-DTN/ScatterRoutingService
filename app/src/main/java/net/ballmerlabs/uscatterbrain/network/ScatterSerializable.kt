@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network
 
 import android.content.res.Resources
+import android.util.Log
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import com.google.protobuf.CodedInputStream
@@ -104,6 +105,7 @@ abstract class ScatterSerializable<T : MessageLite>(
 
     private fun writeToStreamBlocking(outputStream: OutputStream) {
         val stream = CRCOutputStream(outputStream)
+        Log.e("debug", "writing serializedSize ${packet.serializedSize}")
         stream.write(
                 ByteBuffer.allocate(Int.SIZE_BYTES)
                         .order(ByteOrder.BIG_ENDIAN)
@@ -189,6 +191,7 @@ abstract class ScatterSerializable<T : MessageLite>(
                 throw IOException("end of stream")
             }
             val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).int
+            Log.e("debug", "reading serializedSize $s")
             if (s > MESSAGE_SIZE_CAP) {
                 throw IOException("invalid message size")
             }
