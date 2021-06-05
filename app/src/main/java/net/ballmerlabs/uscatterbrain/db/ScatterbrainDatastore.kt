@@ -240,7 +240,7 @@ interface ScatterbrainDatastore {
     fun getApiMessagesReceiveDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>>
     fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket>
     fun getApiMessages(id: Long): ScatterMessage
-    fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int): Completable
+    fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, sign: String? = null): Completable
     val declareHashesPacket: Single<DeclareHashesPacket>
     fun getACLs(identity: String): Single<MutableList<ACL>>
     fun updatePackage(packageName: String): Completable

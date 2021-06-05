@@ -879,7 +879,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param blocksize blocksize
      * @return completable
      */
-    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int): Completable {
+    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, sign: String?): Completable {
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
                 .flatMapCompletable { file: File ->
                     if (message.toDisk) {
@@ -945,8 +945,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
                                     Completable.defer {
 
-                                        if (message.shouldSign) {
-                                            getIdentityKey(message.fromFingerprint!!)
+                                        if (sign != null) {
+                                            getIdentityKey(sign)
                                                     .flatMapCompletable { keypair ->
                                                         dbmessage.message.sig = signEd25519(keypair.secretkey, dbmessage)
                                                         insertMessageToRoom(dbmessage)

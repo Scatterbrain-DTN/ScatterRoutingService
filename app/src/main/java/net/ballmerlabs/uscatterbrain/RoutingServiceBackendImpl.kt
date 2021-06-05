@@ -117,7 +117,9 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .andThen(
                         datastore.insertAndHashFileFromApi(
                                 message,
-                                DEFAULT_BLOCKSIZE)
+                                DEFAULT_BLOCKSIZE,
+                                identity
+                        )
                                 .doOnComplete { asyncRefreshPeers() }
                 )
 
@@ -132,7 +134,9 @@ class RoutingServiceBackendImpl @Inject constructor(
                                 .flatMapCompletable { message ->
                                     datastore.insertAndHashFileFromApi(
                                             message,
-                                            DEFAULT_BLOCKSIZE)
+                                            DEFAULT_BLOCKSIZE,
+                                            identity
+                                    )
                                 }
                                 .doOnComplete { asyncRefreshPeers() }
                 )
