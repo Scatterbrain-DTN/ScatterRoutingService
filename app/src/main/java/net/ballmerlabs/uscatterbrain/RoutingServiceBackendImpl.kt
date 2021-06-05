@@ -132,6 +132,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .andThen(
                         Observable.fromIterable(messages)
                                 .flatMapCompletable { message ->
+                                    Log.e("debug", "inserting file")
                                     datastore.insertAndHashFileFromApi(
                                             message,
                                             DEFAULT_BLOCKSIZE,
@@ -140,6 +141,10 @@ class RoutingServiceBackendImpl @Inject constructor(
                                 }
                                 .doOnComplete { asyncRefreshPeers() }
                 )
+                .doOnError { err ->
+                    Log.e(TAG, "failed sendAndSignMessages: $err")
+                    err.printStackTrace()
+                }
     }
 
     override fun generateIdentity(name: String, callingPackageName: String): Single<Identity> {
@@ -185,12 +190,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     }
 
     override fun deauthorizeApp(fingerprint: String, packageName: String): Completable {
-        return Completable.defer {
-            if (packageName == context.packageName) {
-                Log.e(TAG, "attempted to deauthorize ourselves")
-                Completable.complete()
-            } else {
-                Observable.just(packageName).flatMap { name ->
+        return Observable.just(packageName).flatMap { name ->
                     val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
                     Observable.fromIterable(info.signingInfo.signingCertificateHistory.asIterable())
                 }
@@ -198,18 +198,10 @@ class RoutingServiceBackendImpl @Inject constructor(
                             val sig = signature.toCharsString()
                             datastore.deleteACLs(fingerprint, packageName, sig)
                         }
-            }
-
-        }
     }
 
     override fun authorizeApp(fingerprint: String, packageName: String): Completable {
-        return Completable.defer {
-            if (packageName == context.packageName) {
-                Log.e(TAG, "attempted to auauthorize ourselves")
-                Completable.complete()
-            } else {
-                Observable.just(packageName).flatMap { name ->
+        return Observable.just(packageName).flatMap { name ->
                     val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
                     Observable.fromIterable(info.signingInfo.signingCertificateHistory.asIterable())
                 }
@@ -217,9 +209,6 @@ class RoutingServiceBackendImpl @Inject constructor(
                             val sig = signature.toCharsString()
                             datastore.addACLs(fingerprint, packageName, sig)
                         }
-            }
-
-        }
 
     }
 

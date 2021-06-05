@@ -649,9 +649,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun getIdentityKey(identity: String): Single<ApiIdentity.KeyPair> {
         return mDatastore.identityDao().getIdentityByFingerprint(identity)
                 .subscribeOn(databaseScheduler)
-                .map { id: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
-                    checkNotNull(id!!.identity.privatekey) { "private key not found" }
-                    ApiIdentity.KeyPair(id.identity.publicKey, id.identity.privatekey!!)
+                .map { id ->
+                    checkNotNull(id.identity.privatekey) { "private key not found" }
+                    ApiIdentity.KeyPair(id.identity.privatekey!!, id.identity.publicKey)
                 }
     }
 
@@ -915,7 +915,16 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 HashlessScatterMessage.hash2hashs(hashes)
                                         )
                                         dbmessage.message = hm
-                                        insertMessageToRoom(dbmessage)
+                                        if (sign != null) {
+                                            getIdentityKey(sign)
+                                                    .flatMapCompletable { keypair ->
+                                                        Log.e("debug", "signing message")
+                                                        dbmessage.message.sig = signEd25519(keypair.secretkey, dbmessage)
+                                                        insertMessageToRoom(dbmessage)
+                                                    }
+                                        } else {
+                                            insertMessageToRoom(dbmessage)
+                                        }
                                     }
                                 }.subscribeOn(databaseScheduler)
                     } else {
@@ -943,17 +952,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             HashlessScatterMessage.hash2hashs(hashes)
                                     )
 
-                                    Completable.defer {
-
-                                        if (sign != null) {
-                                            getIdentityKey(sign)
-                                                    .flatMapCompletable { keypair ->
-                                                        dbmessage.message.sig = signEd25519(keypair.secretkey, dbmessage)
-                                                        insertMessageToRoom(dbmessage)
-                                                    }
-                                        } else {
-                                            insertMessageToRoom(dbmessage)
-                                        }
+                                    if (sign != null) {
+                                        getIdentityKey(sign)
+                                                .flatMapCompletable { keypair ->
+                                                    dbmessage.message.sig = signEd25519(keypair.secretkey, dbmessage)
+                                                    insertMessageToRoom(dbmessage)
+                                                }
+                                    } else {
+                                        insertMessageToRoom(dbmessage)
                                     }
                                 }
                     }
