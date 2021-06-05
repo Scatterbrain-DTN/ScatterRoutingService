@@ -18,6 +18,14 @@ import java.util.concurrent.atomic.AtomicReference
 class ApiScatterMessage : ScatterMessage {
     private val secretkey = AtomicReference<ByteArray?>()
 
+    override fun getFilename(): String {
+        return sanitizeFilename(super.getFilename())
+    }
+
+    override fun getExtension(): String {
+        return sanitizeFilename(super.getExtension())
+    }
+
     private constructor(builder: Builder) : super(builder) {
         secretkey.set(builder.privatekey)
     }

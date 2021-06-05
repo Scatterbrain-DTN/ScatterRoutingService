@@ -888,7 +888,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 .andThen(hashFile(file, blocksize))
                                 .flatMapCompletable { hashes ->
                                     val newFile = File(cacheDir, getDefaultFileName(hashes)
-                                            + sanitizeFilename(message.extension))
+                                            + message.extension)
                                     Log.v(TAG, "filepath from api: " + newFile.absolutePath)
                                     if (!file.renameTo(newFile)) {
                                         Completable.error(IllegalStateException("failed to rename to $newFile"))
@@ -905,10 +905,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 message.sig,
                                                 0,
                                                 blocksize,
-                                                sanitizeFilename(message.extension),
+                                                message.extension,
                                                 newFile.absolutePath,
                                                 getGlobalHash(hashes),
-                                                sanitizeFilename(message.filename),
+                                                message.filename,
                                                 MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
                                                 Date().time,
                                                 null
