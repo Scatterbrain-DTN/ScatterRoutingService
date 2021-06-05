@@ -25,6 +25,14 @@ abstract class ScatterMessageDao {
     abstract fun getByID(vararg ids: Long): Single<ScatterMessage>
 
     @Transaction
+    @Query("SELECT * FROM messages WHERE (application = :application) AND (receiveDate BETWEEN :start AND :end)")
+    abstract fun getByReceiveDate(application: String, start: Long, end: Long): Single<List<ScatterMessage>>
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE (application = :application) AND (sendDate BETWEEN :start AND :end)")
+    abstract fun getBySendDate(application: String, start: Long, end: Long): Single<List<ScatterMessage>>
+
+    @Transaction
     @Query("SELECT * FROM messages WHERE filePath IN (:filePaths)")
     abstract fun getByFilePath(vararg filePaths: String): Single<List<ScatterMessage>>
 

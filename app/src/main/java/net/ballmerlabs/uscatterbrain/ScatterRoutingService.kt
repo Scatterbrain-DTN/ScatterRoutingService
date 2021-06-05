@@ -104,7 +104,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun getByApplication(application: String): List<ScatterMessage> {
             checkAccessPermission()
-            return mBackend.datastore.getApiMessages(application)
+            return mBackend.datastore.getApiMessages(application).blockingGet()
         }
 
         /**
@@ -306,6 +306,45 @@ class ScatterRoutingService : LifecycleService() {
         override fun clearDatastore() {
             checkSuperuserPermission()
             mBackend.datastore.clear()
+        }
+
+        override fun getByApplicationDate(application: String, startDate: Long, endDate: Long): MutableList<ScatterMessage> {
+            checkAccessPermission()
+            return mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate)).blockingGet()
+        }
+
+        override fun getByApplicationAsync(application: String): Int {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.datastore.getApiMessages(application)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> broadcastAsyncResult(callingPackageName, handle,
+                                    Bundle().apply {
+                                        putParcelableArrayList(ScatterbrainApi.EXTRA_ASYNC_RESULT, res)
+                            }, ScatterbrainApi.PERMISSION_ADMIN) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ADMIN) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
+        }
+
+        override fun getByApplicationDateAsync(application: String, startDate: Long, endDate: Long): Int {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate))
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> broadcastAsyncResult(callingPackageName, handle,
+                                    Bundle().apply {
+                                        putParcelableArrayList(ScatterbrainApi.EXTRA_ASYNC_RESULT, res)
+                                    }, ScatterbrainApi.PERMISSION_ADMIN) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ADMIN) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
         }
 
         override fun signDataDetachedAsync(data: ByteArray, identity: String): Int {

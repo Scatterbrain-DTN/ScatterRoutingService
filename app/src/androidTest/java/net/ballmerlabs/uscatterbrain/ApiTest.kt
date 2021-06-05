@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import androidx.test.core.app.ApplicationProvider
@@ -53,10 +54,9 @@ class ApiTest {
 
         val b: IBinder = serviceRule.bindService(bindIntet)
         val binderProvider: BinderProvider = MockBinderProvider(b)
-        val broadcastReceiver= ScatterbrainBroadcastReceiverImpl(
-                ApplicationProvider.getApplicationContext(),
-                testCoroutineScope
-        )
+        val broadcastReceiver= ScatterbrainBroadcastReceiverImpl()
+        broadcastReceiver.coroutineScope = testCoroutineScope
+        broadcastReceiver.context = ApplicationProvider.getApplicationContext()
         binder = BinderWrapperImpl(
                 ApplicationProvider.getApplicationContext(),
                 broadcastReceiver,
