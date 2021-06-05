@@ -61,12 +61,12 @@ fun sanitizeFilename(name: String): String {
 
 
 fun sigSize(message: Verifiable): Int {
-    val tosize = message.toFingerprint?.encodeToByteArray()?.size?: 0
-    val fromsize = message.fromFingerprint?.encodeToByteArray()?.size?: 0
+    val tosize = message.toFingerprint?.encodeToByteArray()?.size?: 1
+    val fromsize = message.fromFingerprint?.encodeToByteArray()?.size?: 1
     val applicationSize = message.application.encodeToByteArray().size //UTF-8
     val extSize = message.extension.encodeToByteArray().size
     val mimeSize = message.mime.encodeToByteArray().size
-    val userFilenameSize = message.userFilename?.encodeToByteArray()?.size?: 0
+    val userFilenameSize = message.userFilename.encodeToByteArray().size
     val toDiskSize = 1
     val hashSize = message.hashes.fold(0 ) { sum, it -> sum + it.size }
     return tosize + fromsize + applicationSize + extSize + mimeSize + userFilenameSize +
@@ -80,7 +80,7 @@ fun sumBytes(message: Verifiable): ByteString {
     buf.put(message.application.encodeToByteArray())
     buf.put(message.extension.encodeToByteArray())
     buf.put(message.mime.encodeToByteArray())
-    buf.put(message.userFilename?.encodeToByteArray()?: byteArrayOf(0))
+    buf.put(message.userFilename.encodeToByteArray() ?: byteArrayOf(0))
     var td: Byte = 0
     if (message.toDisk) td = 1
     val toDiskBytes = ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).put(td).array()
@@ -100,7 +100,8 @@ fun sumBytes(message: Verifiable): ByteString {
 fun verifyed25519(pubkey: ByteArray, message: Verifiable): Boolean {
     if (pubkey.size != Sign.PUBLICKEYBYTES) return false
     val messagebytes = sumBytes(message)
-    return LibsodiumInterface.sodium.crypto_sign_verify_detached(message.signature,
+    return LibsodiumInterface.sodium.crypto_sign_verify_detached(
+            message.signature!!,
             messagebytes.toByteArray(),
             messagebytes.size().toLong(),
             pubkey) == 0
@@ -118,8 +119,13 @@ fun signEd25519(secretkey: ByteArray, message: Verifiable): ByteArray {
     val messagebytes = sumBytes(message)
     val sig = ByteArray(Sign.ED25519_BYTES)
     val p = PointerByReference(Pointer.NULL).pointer
-    val res = LibsodiumInterface.sodium.crypto_sign_detached(message.signature,
-                    p, messagebytes.toByteArray(), messagebytes.size().toLong(), secretkey) == 0
+    val res = LibsodiumInterface.sodium.crypto_sign_detached(
+            sig,
+            p,
+            messagebytes.toByteArray(),
+            messagebytes.size().toLong(),
+            secretkey
+    ) == 0
     if (!res) throw IllegalStateException("failed to sign")
 
     return sig
