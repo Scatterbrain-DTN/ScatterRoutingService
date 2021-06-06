@@ -240,7 +240,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.v(TAG, "transaction complete, randomizing luid")
                     releaseWakeLock()
                 }
-        ) { err: Throwable -> Log.e(TAG, "error in transactionCompleteRelay $err") }
+        ) { err ->
+            Log.e(TAG, "error in transactionCompleteRelay $err")
+            releaseWakeLock()
+        }
         mGattDisposable.add(d)
     }
 
@@ -766,7 +769,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         ScanFilter.Builder()
                                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
                                 .build())
-                        .map { scanResult: ScanResult ->
+                        .map { scanResult ->
+                            acquireWakelock()
                             Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
                             establishConnection(
                                     scanResult.bleDevice,
