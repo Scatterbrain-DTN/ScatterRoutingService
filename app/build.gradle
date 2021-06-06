@@ -9,7 +9,7 @@ def protobuf_version = "3.11.1"
 android {
     buildToolsVersion "29.0.3"
     defaultConfig {
-        minSdkVersion 29
+        minSdkVersion 21
         targetSdkVersion 30
         compileSdkVersion 30
         versionCode 1
