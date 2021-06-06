@@ -71,8 +71,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun insertMessages(messages: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Completable {
         return Observable.fromIterable(messages)
                 .subscribeOn(databaseScheduler)
-                .flatMap<Any> { scatterMessage: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage -> insertMessages(scatterMessage).toObservable() }
-                .ignoreElements()
+                .flatMapCompletable{ scatterMessage -> insertMessages(scatterMessage) }
     }
 
     /**
@@ -148,19 +147,21 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * Insert a blockdatastream to both database and disk
      */
     private fun insertMessageWithDisk(stream: BlockDataStream): Completable {
-        val filePath = getFilePath(stream.headerPacket)
-        Log.e(TAG, "inserting message at filePath $filePath")
-        stream.entity!!.message.filePath = filePath.absolutePath
-        return mDatastore.scatterMessageDao().messageCountSingle(filePath.absolutePath)
-                .subscribeOn(databaseScheduler)
-                .flatMapCompletable { count: Int ->
-                    if (count > 0) {
-                        discardStream(stream)
-                    } else {
-                        insertMessages(stream.entity)
-                                .andThen(insertFile(stream))
-                    }
-                }.subscribeOn(databaseScheduler)
+        return Completable.defer {
+            val filePath = getFilePath(stream.headerPacket)
+            Log.e(TAG, "inserting message at filePath $filePath")
+            stream.entity!!.message.filePath = filePath.absolutePath
+            mDatastore.scatterMessageDao().messageCountSingle(filePath.absolutePath)
+                    .subscribeOn(databaseScheduler)
+                    .flatMapCompletable { count: Int ->
+                        if (count > 0) {
+                            discardStream(stream)
+                        } else {
+                            insertMessages(stream.entity)
+                                    .andThen(insertFile(stream))
+                        }
+                    }.subscribeOn(databaseScheduler)
+        }
     }
 
     /**

@@ -56,11 +56,16 @@ fun getDefaultFileNameFromHashes(hashes: List<Hashes>): String {
 }
 
 fun sanitizeFilename(name: String): String {
-    if (FILE_SANITIZE.matcher(name).matches()) {
-        return name
+    return if (FILE_SANITIZE.matcher(name).matches()) {
+        name
     } else {
-        throw SecurityException("invalid filename $name")
+        UUID.randomUUID().toString()
     }
+}
+
+
+fun isValidFilename(name: String): Boolean {
+    return FILE_SANITIZE.matcher(name).matches()
 }
 
 

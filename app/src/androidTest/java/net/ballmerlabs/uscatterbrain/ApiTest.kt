@@ -161,18 +161,21 @@ class ApiTest {
         }
     }
 
-    @Test(expected = SecurityException::class)
+    @Test
     @Throws(TimeoutException::class)
     fun preventSimpleDirectoryTraversalAttack() {
         val filename = "../fmef"
-        sanitizeFilename(filename)
+        assert(sanitizeFilename(filename) != filename)
+        assert(!sanitizeFilename(filename).contains(".."))
     }
 
     @Test
     @Throws(TimeoutException::class)
     fun allowsNormalFilename() {
-        sanitizeFilename("fmef")
-        sanitizeFilename("fmef_text")
+        val i = "fmef"
+        val x = "fmef_text"
+        assert(sanitizeFilename(i) == i)
+        assert(sanitizeFilename(x) == x)
     }
 
 
