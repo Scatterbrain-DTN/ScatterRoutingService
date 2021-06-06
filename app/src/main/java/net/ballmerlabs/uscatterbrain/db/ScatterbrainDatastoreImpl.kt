@@ -160,8 +160,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             insertMessages(stream.entity)
                                     .andThen(insertFile(stream))
                         }
-                    }.subscribeOn(databaseScheduler)
+                    }
+                    .subscribeOn(databaseScheduler)
         }
+                .doOnError { err ->
+                    Log.e(TAG, "error inserting messsage $err")
+                    err.printStackTrace()
+                }
+                .onErrorResumeNext { discardStream(stream) }
     }
 
     /**
@@ -191,6 +197,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 }.subscribeOn(databaseScheduler)
                     }
                 }
+                .doOnError { err ->
+                    Log.e(TAG, "error inserting messsage $err")
+                    err.printStackTrace()
+                }
+                .onErrorResumeNext { discardStream(stream) }
     }
 
     /**
