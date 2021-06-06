@@ -4,9 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import io.reactivex.disposables.Disposable
-import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
-import net.ballmerlabs.uscatterbrain.R
+import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler.RoutingServiceState
 import java.util.concurrent.atomic.AtomicReference
@@ -31,7 +30,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private var isAdvertising = false
     private val globalDisposable = AtomicReference<Disposable?>()
     private fun broadcastTransactionResult(transactionStats: HandshakeResult?) {
-        val intent = Intent(context.getString(R.string.broadcast_message))
+        val intent = Intent(ScatterbrainApi.BROADCAST_EVENT)
         
         intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, transactionStats)
         context.sendBroadcast(intent, ScatterbrainApi.PERMISSION_ACCESS)

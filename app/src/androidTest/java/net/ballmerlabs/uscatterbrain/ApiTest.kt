@@ -18,12 +18,15 @@ import net.ballmerlabs.scatterbrainsdk.internal.MockBinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.BinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.BinderWrapperImpl
 import net.ballmerlabs.scatterbrainsdk.internal.ScatterbrainBroadcastReceiverImpl
+import org.junit.Assert
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.lang.IllegalStateException
 import java.util.concurrent.TimeoutException
 import kotlin.jvm.Throws
+import kotlin.math.exp
 import kotlin.random.Random
 
 @RunWith(AndroidJUnit4ClassRunner::class)
@@ -137,6 +140,22 @@ class ApiTest {
         runBlocking {
             val id = binder.generateIdentity("test")
             binder.sendMessage(list, id.fingerprint)
+        }
+    }
+
+    @Test(expected = IllegalStateException::class)
+    @Throws(TimeoutException::class)
+    fun signMessageHandleErr() {
+        val list = ArrayList<ScatterMessage>()
+        for (x in 0..2) {
+            val message = ScatterMessage.newBuilder()
+                    .setApplication("testing")
+                    .setBody(Random(0).nextBytes(128))
+                    .build()
+            list.add(message)
+        }
+        runBlocking {
+            binder.sendMessage(list, "fmef_invalid")
         }
     }
 

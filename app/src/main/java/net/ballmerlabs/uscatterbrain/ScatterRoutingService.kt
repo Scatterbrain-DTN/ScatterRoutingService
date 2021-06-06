@@ -477,7 +477,7 @@ class ScatterRoutingService : LifecycleService() {
             permission: String
     ) {
         Intent().also { intent ->
-            intent.action = applicationContext.getString(R.string.broadcast_api_result)
+            intent.action = ScatterbrainApi.BROADCAST_RESULT
             intent.`package` = packageName
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, Bundle().apply {
                 putParcelable(ScatterbrainApi.EXTRA_ASYNC_RESULT, result)
@@ -494,7 +494,7 @@ class ScatterRoutingService : LifecycleService() {
             permission: String
     ) {
         Intent().also { intent ->
-            intent.action = applicationContext.getString(R.string.broadcast_api_result)
+            intent.action = ScatterbrainApi.BROADCAST_RESULT
             intent.`package` = packageName
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, Bundle().apply {
                 putByteArray(ScatterbrainApi.EXTRA_ASYNC_RESULT, result)
@@ -506,7 +506,7 @@ class ScatterRoutingService : LifecycleService() {
 
     private fun broadcastAsyncResult(packageName: String, handle: Int, permission: String) {
         Intent().also { intent ->
-            intent.action = applicationContext.getString(R.string.broadcast_api_result)
+            intent.action = ScatterbrainApi.BROADCAST_RESULT
             intent.`package` = packageName
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
             applicationContext.sendBroadcast(intent, permission)
@@ -515,7 +515,7 @@ class ScatterRoutingService : LifecycleService() {
 
     private fun broadcastAsyncError(packageName: String, handle: Int, message: String, permission: String) {
         Intent().also { intent ->
-            intent.action = applicationContext.getString(R.string.broadcast_api_err)
+            intent.action = ScatterbrainApi.BROADCAST_ERROR
             intent.`package` = packageName
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, message)
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
