@@ -232,32 +232,34 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             count: Int,
             delareHashes: DeclareHashesPacket
     ): Observable<BlockDataStream> {
-        Log.v(TAG, "called getTopRandomMessages")
-        val num = min(count, mDatastore.scatterMessageDao().messageCount())
-        return mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, delareHashes.hashes)
-                .subscribeOn(databaseScheduler)
-                .doOnSubscribe { Log.v(TAG, "subscribed to getTopRandoMessages") }
-                .toFlowable()
-                .flatMap { source -> Flowable.fromIterable(source) }
-                .doOnNext { message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size) }
-                .zipWith(seq, { message, s ->
-                    if (message.message.body == null) {
-                        BlockDataStream(
-                                message,
-                                readFile(File(message.message.filePath), message.message.blocksize),
-                                s < num - 1,
-                                true
-                        )
-                    } else {
-                        BlockDataStream(
-                                message,
-                                readBody(message.message.body!!, message.message.blocksize),
-                                s < num - 1,
-                                false
-                        )
-                    }
-                }).toObservable()
-                .defaultIfEmpty(BlockDataStream.endOfStream())
+        return Observable.defer {
+            Log.v(TAG, "called getTopRandomMessages $count")
+            val num = min(count, mDatastore.scatterMessageDao().messageCount())
+            mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, delareHashes.hashes)
+                    .subscribeOn(databaseScheduler)
+                    .doOnSubscribe { Log.v(TAG, "subscribed to getTopRandoMessages") }
+                    .toFlowable()
+                    .flatMap { source -> Flowable.fromIterable(source) }
+                    .doOnNext { message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size) }
+                    .zipWith(seq, { message, s ->
+                        if (message.message.body == null) {
+                            BlockDataStream(
+                                    message,
+                                    readFile(File(message.message.filePath), message.message.blocksize),
+                                    s < num - 1,
+                                    true
+                            )
+                        } else {
+                            BlockDataStream(
+                                    message,
+                                    readBody(message.message.body!!, message.message.blocksize),
+                                    s < num - 1,
+                                    false
+                            )
+                        }
+                    }).toObservable()
+                    .defaultIfEmpty(BlockDataStream.endOfStream())
+        }
     }
 
     private val seq: Flowable<Int>
