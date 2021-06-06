@@ -33,14 +33,7 @@ import kotlin.random.Random
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 @SmallTest
-class ApiTest {
-    private val testCoroutineScope = CoroutineScope(Dispatchers.Default)
-    private lateinit var binder: BinderWrapper
-    private lateinit var regularBinder: ScatterbrainAPI
-
-    @get:Rule
-    val serviceRule = ServiceTestRule()
-
+class ApiTest: TestBase() {
     suspend fun syncSendMessage(message: ScatterMessage) {
         regularBinder.sendMessage(message)
     }
@@ -49,29 +42,6 @@ class ApiTest {
         regularBinder.sendMessages(messages)
     }
 
-    @ExperimentalCoroutinesApi
-    @Before
-    fun init() {
-        val bindIntet = Intent(
-                ApplicationProvider.getApplicationContext(),
-                ScatterRoutingService::class.java
-        )
-
-        val b: IBinder = serviceRule.bindService(bindIntet)
-        val binderProvider: BinderProvider = MockBinderProvider(b)
-        val broadcastReceiver= ScatterbrainBroadcastReceiverImpl()
-        broadcastReceiver.coroutineScope = testCoroutineScope
-        broadcastReceiver.context = ApplicationProvider.getApplicationContext()
-        binder = BinderWrapperImpl(
-                ApplicationProvider.getApplicationContext(),
-                broadcastReceiver,
-                binderProvider
-        )
-        runBlocking { binder.startService() }
-        regularBinder = ScatterbrainAPI.Stub.asInterface(b)
-        regularBinder.clearDatastore()
-        broadcastReceiver.register()
-    }
 
     @Test
     @Throws(TimeoutException::class)

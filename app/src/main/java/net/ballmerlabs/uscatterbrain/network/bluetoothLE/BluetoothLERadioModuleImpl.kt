@@ -34,6 +34,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Conne
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
+import java.lang.IllegalArgumentException
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.util.*
@@ -519,12 +520,19 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             return@addStage conn.readUpgrade()
                                     .doOnSuccess { Log.v(TAG, "client handshake received upgrade packet") }
                                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving upgrade packet: $err") }
-                                    .map { upgradePacket: UpgradePacket ->
-                                        val request: BootstrapRequest = WifiDirectBootstrapRequest.create(
-                                                upgradePacket,
-                                                ConnectionRole.ROLE_UKE
+                                    .flatMap { upgradePacket ->
+                                        if (upgradePacket.provides == AdvertisePacket.Provides.WIFIP2P)
+                                            wifiDirectRadioModule.createGroup()
+                                        else
+                                            Single.error(IllegalArgumentException("invalid provides"))
+                                    }
+                                    .map { bootstrapRequest ->
+                                        TransactionResult(
+                                                TransactionResult.STAGE_SUSPEND,
+                                                session.device,
+                                                session.luidStage.remoteHashed,
+                                                result = bootstrapRequest
                                         )
-                                        TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.remoteHashed, result = request)
                                     }
                         } else {
                             return@addStage Single.just(TransactionResult<BootstrapRequest>(
