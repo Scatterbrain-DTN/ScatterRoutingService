@@ -253,9 +253,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * via offloaded scanning, but NOT for keeping it awake.
      */
     private fun acquireWakelock() {
-        wakeLock.updateAndGet {
-            powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, mContext.getString(R.string.wakelock_tag))
-                    .apply { acquire(10*60*1000) }
+        wakeLock.updateAndGet { p ->
+            p ?: powerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    mContext.getString(R.string.wakelock_tag
+                    )
+            ).apply { acquire(10*60*1000) }
         }
     }
 
