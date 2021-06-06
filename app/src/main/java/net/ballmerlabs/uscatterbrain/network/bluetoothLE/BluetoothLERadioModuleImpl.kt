@@ -1066,6 +1066,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                 }
                                                                 .doOnError { err ->
                                                                     Log.e(TAG, "session ${session.remoteLuid} ended with error $err")
+                                                                    err.printStackTrace()
                                                                     when(err) {
                                                                         is BleDisconnectedException -> session.stage = TransactionResult.STAGE_TERMINATE
                                                                         else -> session.stage = TransactionResult.STAGE_SUSPEND

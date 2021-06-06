@@ -28,8 +28,6 @@ import net.ballmerlabs.uscatterbrain.db.entities.*
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import java.io.*
-import java.nio.file.FileAlreadyExistsException
-import java.nio.file.Path
 import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
@@ -573,22 +571,26 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @return flowable of identitity packets
      */
     override fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket> {
-        val num = min(count, mDatastore.identityDao().getNumIdentities())
-        return mDatastore.identityDao().getTopRandom(num)
+        return mDatastore.identityDao().getNumIdentities()
                 .subscribeOn(databaseScheduler)
-                .flatMapObservable { source -> Observable.fromIterable(source) }
-                .doOnComplete { Log.v(TAG, "datastore retrieved identities: $num") }
-                .doOnNext { Log.v(TAG, "retrieved single identity") }
-                .toFlowable(BackpressureStrategy.BUFFER)
-                .zipWith(seq, { identity, seq ->
-                    IdentityPacket.newBuilder(ctx)
-                            .setName(identity.identity.givenName)
-                            .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
-                            .setSig(identity.identity.signature)
-                            .setEnd(seq < num - 1)
-                            .build()!!
-                })
-                .defaultIfEmpty(IdentityPacket.newBuilder(ctx).setEnd().build()!!)
+                .map { n -> min(count, n) }
+                .flatMapPublisher { num ->
+                    mDatastore.identityDao().getTopRandom(num)
+                            .subscribeOn(databaseScheduler)
+                            .flatMapObservable { source -> Observable.fromIterable(source) }
+                            .doOnComplete { Log.v(TAG, "datastore retrieved identities: $num") }
+                            .doOnNext { Log.v(TAG, "retrieved single identity") }
+                            .toFlowable(BackpressureStrategy.BUFFER)
+                            .zipWith(seq, { identity, seq ->
+                                IdentityPacket.newBuilder(ctx)
+                                        .setName(identity.identity.givenName)
+                                        .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
+                                        .setSig(identity.identity.signature)
+                                        .setEnd(seq < num - 1)
+                                        .build()!!
+                            })
+                            .defaultIfEmpty(IdentityPacket.newBuilder(ctx).setEnd().build()!!)
+                }
     }
 
     /**
