@@ -118,7 +118,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         //TODO: we read and discard packets here because currently, but eventually
         // it would be a good idea to check the hash first and add support for aborting the transfer
         return stream.sequencePackets
-                .map<BlockSequencePacket> { packet: BlockSequencePacket ->
+                .map<BlockSequencePacket> { packet ->
                     if (packet.verifyHash(stream.headerPacket)) {
                         Log.v(TAG, "hash verified")
                         packet
@@ -153,7 +153,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             stream.entity!!.message.filePath = filePath.absolutePath
             mDatastore.scatterMessageDao().messageCountSingle(filePath.absolutePath)
                     .subscribeOn(databaseScheduler)
-                    .flatMapCompletable { count: Int ->
+                    .flatMapCompletable { count->
                         if (count > 0) {
                             discardStream(stream)
                         } else {
@@ -176,12 +176,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         discardStream(stream)
                     } else {
                         stream.sequencePackets
-                                .flatMap { packet: BlockSequencePacket? ->
-                                    if (packet!!.verifyHash(stream.headerPacket)) {
+                                .flatMap { packet ->
+                                    if (packet.verifyHash(stream.headerPacket)) {
                                         Flowable.just(packet.data)
                                     } else {
                                         Log.e(TAG, "invalid hash")
-                                        Flowable.error<ByteArray>(SecurityException("failed to verify hash"))
+                                        Flowable.error(SecurityException("failed to verify hash"))
                                     }
                                 }
                                 .reduce { obj, other -> obj + other }
@@ -201,7 +201,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      */
     override fun readBody(body: ByteArray, blocksize: Int): Flowable<BlockSequencePacket> {
         return Bytes.from(ByteArrayInputStream(body), blocksize)
-                .zipWith(seq, { bytes: ByteArray, seq: Int ->
+                .zipWith(seq, { bytes, seq ->
                     BlockSequencePacket.newBuilder()
                             .setData(ByteString.copyFrom(bytes))
                             .setSequenceNumber(seq)
@@ -227,9 +227,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .subscribeOn(databaseScheduler)
                 .doOnSubscribe { Log.v(TAG, "subscribed to getTopRandoMessages") }
                 .toFlowable()
-                .flatMap { source: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> -> Flowable.fromIterable(source) }
-                .doOnNext { message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage -> Log.v(TAG, "retrieved message: " + message.messageHashes.size) }
-                .zipWith(seq, BiFunction<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage, Int, BlockDataStream> b@{ message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage, s: Int ->
+                .flatMap { source -> Flowable.fromIterable(source) }
+                .doOnNext { message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size) }
+                .zipWith(seq, { message, s ->
                     if (message.message.body == null) {
                         BlockDataStream(
                                 message,
@@ -262,7 +262,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override val allFiles: Observable<String>
         get() = mDatastore.scatterMessageDao().allFiles
                 .toObservable()
-                .flatMap { source: List<String> -> Observable.fromIterable(source) }
+                .flatMap { source -> Observable.fromIterable(source) }
 
     /**
      * Retrieves a message by an identity room entity
@@ -274,7 +274,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return mDatastore.scatterMessageDao().getByIdentity(id.fingerprint)
                 .subscribeOn(databaseScheduler)
                 .toObservable()
-                .flatMap { source: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage?>? -> Observable.fromIterable(source) }
+                .flatMap { source -> Observable.fromIterable(source) }
     }
 
     /**
@@ -286,26 +286,26 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return mDatastore.scatterMessageDao().getByFilePath(path)
                 .subscribeOn(databaseScheduler)
                 .toObservable()
-                .flatMap<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> { source: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage?>? -> Observable.fromIterable(source) }
+                .flatMap { source -> Observable.fromIterable(source) }
                 .firstOrError()
     }
 
     private fun insertIdentity(identityObservable: Observable<net.ballmerlabs.uscatterbrain.db.entities.Identity>): Completable {
         return identityObservable
-                .flatMapCompletable { singleid: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
+                .flatMapCompletable { singleid ->
                     Single.fromCallable { mDatastore.identityDao().insertIdentity(singleid) }
                             .flatMapCompletable { identityId ->
                                 Observable.fromCallable { if (singleid.clientACL != null) singleid.clientACL else ArrayList() }
-                                        .flatMap<ClientApp> { source: List<ClientApp?>? -> Observable.fromIterable(source) }
+                                        .flatMap { source -> Observable.fromIterable(source) }
                                         .map { acl: ClientApp ->
                                             acl.identityFK = identityId
                                             acl
                                         }
-                                        .reduce(ArrayList(), { list: ArrayList<ClientApp>, acl: ClientApp ->
+                                        .reduce(ArrayList<ClientApp>(), { list, acl ->
                                             list.add(acl)
                                             list
                                         })
-                                        .flatMapCompletable { a: ArrayList<ClientApp> ->
+                                        .flatMapCompletable { a ->
                                             mDatastore.identityDao().insertClientAppsReplace(a)
                                                     .subscribeOn(databaseScheduler)
                                                     .ignoreElement()
@@ -334,7 +334,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun insertIdentity(vararg ids: net.ballmerlabs.uscatterbrain.db.entities.Identity): Completable {
         return Single.just(ids)
-                .flatMapCompletable { identities: Array<out net.ballmerlabs.uscatterbrain.db.entities.Identity> ->
+                .flatMapCompletable { identities ->
                     insertIdentity(Observable.fromArray(*identities))
                             .subscribeOn(databaseScheduler)
 
@@ -343,7 +343,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun insertIdentity(ids: List<net.ballmerlabs.uscatterbrain.db.entities.Identity>): Completable {
         return Single.just(ids)
-                .flatMapCompletable { identities: List<net.ballmerlabs.uscatterbrain.db.entities.Identity>? ->
+                .flatMapCompletable { identities ->
                     insertIdentity(Observable.fromIterable(identities))
                             .subscribeOn(databaseScheduler)
                 }
@@ -372,9 +372,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun addACLs(identityFingerprint: String, packagename: String, appsig: String): Completable {
         return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
                 .subscribeOn(databaseScheduler)
-                .flatMapCompletable { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
+                .flatMapCompletable { identity ->
                     val app = ClientApp(
-                            identity!!.identity.identityID!!,
+                            identity.identity.identityID!!,
                             packagename,
                             appsig
                     )
@@ -392,9 +392,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun deleteACLs(identityFingerprint: String, packageName: String, appsig: String): Completable {
         return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
                 .subscribeOn(databaseScheduler)
-                .flatMapCompletable { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
+                .flatMapCompletable { identity ->
                     val app = ClientApp(
-                            identity!!.identity.identityID!!,
+                            identity.identity.identityID!!,
                             packageName,
                             appsig
                     )
@@ -410,7 +410,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      */
     override fun insertApiIdentity(identity: ApiIdentity): Completable {
         return Single.just(identity)
-                .map { dbidentity: ApiIdentity ->
+                .map { dbidentity ->
                     val kid = KeylessIdentity(
                             dbidentity.givenname,
                             dbidentity.getmScatterbrainPubKey(),
@@ -422,7 +422,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             kid,
                             keys2keysBytes(identity.getmPubKeymap())
                     )
-                }.flatMapCompletable { ids: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
+                }.flatMapCompletable { ids ->
                     this.insertIdentity(ids)
                 }
     }
@@ -434,7 +434,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      */
     override fun insertApiIdentities(identities: List<Identity>): Completable {
         return Observable.fromIterable(identities)
-                .map { identity: Identity ->
+                .map { identity ->
                     val kid = KeylessIdentity(
                             identity.givenname,
                             identity.getmScatterbrainPubKey(),
@@ -446,10 +446,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             kid,
                             keys2keysBytes(identity.getmPubKeymap())
                     )
-                }.reduce(ArrayList(), { list: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>, id: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
+                }.reduce(ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>(), { list, id ->
                     list.add(id)
                     list
-                }).flatMapCompletable { ids: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity> ->
+                }).flatMapCompletable { ids ->
                     this.insertIdentity(ids)
                 }
     }
@@ -494,7 +494,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun insertIdentityPacket(identity: List<IdentityPacket>): Completable {
         return Observable.fromIterable(identity)
                 .doOnNext { id -> Log.v(TAG, "inserting identity: ${id.fingerprint}")}
-                .flatMap { i: IdentityPacket ->
+                .flatMap { i ->
                     if (i.isEnd || i.isEmpty()) {
                         Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
                     } else {
@@ -518,13 +518,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         }
                     }
                 }
-                .reduce(ArrayList(), {
-                    list: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>,
-                    id: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
+                .reduce(ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>(), { list, id ->
                     list.add(id)
                     list
                 })
-                .flatMapCompletable { ids: ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity> ->
+                .flatMapCompletable { ids ->
                     this.insertIdentity(ids)
                 }
     }
@@ -538,7 +536,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return mDatastore.identityDao().getIdentitiesWithRelations(ids)
                 .subscribeOn(databaseScheduler)
                 .toObservable()
-                .flatMap { idlist: List<net.ballmerlabs.uscatterbrain.db.entities.Identity?>? ->
+                .flatMap { idlist ->
                     Observable.fromIterable(idlist)
                             .map { relation: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
                                 val keylist: MutableMap<String, ByteString> = HashMap(relation!!.keys.size)
@@ -565,11 +563,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         val num = min(count, mDatastore.identityDao().getNumIdentities())
         return mDatastore.identityDao().getTopRandom(num)
                 .subscribeOn(databaseScheduler)
-                .flatMapObservable<net.ballmerlabs.uscatterbrain.db.entities.Identity> { source: List<net.ballmerlabs.uscatterbrain.db.entities.Identity?>? -> Observable.fromIterable(source) }
+                .flatMapObservable { source -> Observable.fromIterable(source) }
                 .doOnComplete { Log.v(TAG, "datastore retrieved identities: $num") }
                 .doOnNext { Log.v(TAG, "retrieved single identity") }
                 .toFlowable(BackpressureStrategy.BUFFER)
-                .zipWith(seq, { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity, seq: Int ->
+                .zipWith(seq, { identity, seq ->
                     IdentityPacket.newBuilder(ctx)
                             .setName(identity.identity.givenName)
                             .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
@@ -588,13 +586,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 preferences.getInt(ctx.getString(R.string.pref_declarehashescap), 512)
         )
                 .subscribeOn(databaseScheduler)
-                .doOnSuccess { p: List<ByteArray> -> Log.v(TAG, "retrieved declareHashesPacket from datastore: " + p.size) }
-                .flatMapObservable { source: List<ByteArray> -> Observable.fromIterable(source) }
-                .reduce(ArrayList(), { list: ArrayList<ByteArray>, hash: ByteArray ->
+                .doOnSuccess { p -> Log.v(TAG, "retrieved declareHashesPacket from datastore: " + p.size) }
+                .flatMapObservable { source -> Observable.fromIterable(source) }
+                .reduce(ArrayList<ByteArray>(), { list, hash ->
                     list.add(hash)
                     list
                 })
-                .map{ hash: ArrayList<ByteArray> ->
+                .map { hash ->
                     if (hash.size == 0) {
                         DeclareHashesPacket.newBuilder().optOut().build()
                     } else {
@@ -610,9 +608,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun getApiIdentityByFingerprint(fingerprint: String): ApiIdentity {
         return mDatastore.identityDao().getIdentityByFingerprint(fingerprint)
                 .subscribeOn(databaseScheduler)
-                .map { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
+                .map { identity ->
                     ApiIdentity.newBuilder()
-                            .setName(identity!!.identity.givenName)
+                            .setName(identity.identity.givenName)
                             .addKeys(keys2map(identity.keys))
                             .setSig(identity.identity.signature)
                             .setHasPrivateKey(identity.identity.privatekey != null)
@@ -644,13 +642,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable { source -> Observable.fromIterable(source) }
                 .filter { app -> app.identityFK != null && app.packageSignature != null }
-                .map { clientApp: ClientApp ->
+                .map { clientApp ->
                     ACL(
                             clientApp.packageName,
                             clientApp.packageSignature!!
                     )
                 }
-                .reduce(ArrayList(), { list: MutableList<ACL>, acl: ACL ->
+                .reduce(ArrayList(), { list, acl ->
                     list.add(acl)
                     list
                 })
@@ -662,17 +660,15 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override val allIdentities: List<Identity>
         get() = mDatastore.identityDao().all
                 .subscribeOn(databaseScheduler)
-                .flatMapObservable {
-                    source: List<net.ballmerlabs.uscatterbrain.db.entities.Identity> ->
-                    Observable.fromIterable(source) }
-                .map { identity: net.ballmerlabs.uscatterbrain.db.entities.Identity ->
+                .flatMapObservable { source -> Observable.fromIterable(source) }
+                .map { identity ->
                     ApiIdentity.newBuilder()
                             .setName(identity.identity.givenName)
                             .addKeys(keys2map(identity.keys))
                             .setSig(identity.identity.signature)
                             .setHasPrivateKey(identity.identity.privatekey != null)
                             .build()
-                }.reduce(ArrayList(), { list: ArrayList<Identity>, id: ApiIdentity ->
+                }.reduce(ArrayList<Identity>(), { list, id ->
                     list.add(id)
                     list
                 }).blockingGet()
@@ -684,22 +680,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      */
     override fun getFileMetadataSync(path: File): Map<String, Serializable> {
         return getMessageByPath(path.absolutePath)
-                .map { message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage ->
+                .map { message ->
                     val result = HashMap<String, Serializable>()
                     result[DocumentsContract.Document.COLUMN_DOCUMENT_ID] = message.message.filePath
-                    result[DocumentsContract.Document.COLUMN_MIME_TYPE] = message.message.mimeType!!
-                    if (message.message.userFilename != null) {
-                        result[DocumentsContract.Document.COLUMN_DISPLAY_NAME] = message.message.userFilename!!
-                    } else {
-                        result[DocumentsContract.Document.COLUMN_DISPLAY_NAME] =
-                                getDefaultFileNameFromHashes(message.messageHashes)
-                    }
+                    result[DocumentsContract.Document.COLUMN_MIME_TYPE] = message.message.mimeType
+                    result[DocumentsContract.Document.COLUMN_DISPLAY_NAME] = message.message.userFilename
                     result[DocumentsContract.Document.COLUMN_FLAGS] = DocumentsContract.Document.FLAG_SUPPORTS_DELETE //TODO: is this enough?
                     result[DocumentsContract.Document.COLUMN_SIZE] = getFileSize(path)
                     result[DocumentsContract.Document.COLUMN_SUMMARY] = "shared via scatterbrain"
                     result
                 }
-                .onErrorReturn { err: Throwable? -> HashMap() }
+                .onErrorReturn { HashMap() }
                 .blockingGet()
     }
 
