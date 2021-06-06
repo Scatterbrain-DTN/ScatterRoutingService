@@ -4,6 +4,7 @@ import android.util.Log
 import com.google.protobuf.ByteString
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
+import net.ballmerlabs.uscatterbrain.db.isValidFilename
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import java.util.*
 import kotlin.collections.ArrayList
@@ -67,6 +68,9 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      */
     override val application: String
         get() = packet.application
+
+    val isValidFilename: Boolean
+    get() = isValidFilename(packet.filename)
 
     /**
      * Gets session id.
