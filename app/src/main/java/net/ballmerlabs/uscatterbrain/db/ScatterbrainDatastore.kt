@@ -25,7 +25,7 @@ import kotlin.collections.ArrayList
 
 const val DATABASE_NAME = "scatterdb"
 const val DEFAULT_BLOCKSIZE = 1024 * 2
-val FILE_SANITIZE: Pattern = Pattern.compile("^(\\s+.*|.*[\\\\/:\"?*|<>].*|.*\\s+|.*\\.)\$\n")
+val FILE_SANITIZE: Pattern = Pattern.compile("^[a-zA-Z0-9_-]+$")
 const val USER_FILES_PATH = "userFiles"
 const val CACHE_FILES_PATH = "systemFiles"
 
@@ -56,7 +56,11 @@ fun getDefaultFileNameFromHashes(hashes: List<Hashes>): String {
 }
 
 fun sanitizeFilename(name: String): String {
-    return FILE_SANITIZE.matcher(name).replaceAll("-")
+    if (FILE_SANITIZE.matcher(name).matches()) {
+        return name
+    } else {
+        throw SecurityException("invalid filename")
+    }
 }
 
 

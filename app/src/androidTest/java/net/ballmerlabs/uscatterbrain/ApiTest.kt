@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
@@ -18,6 +19,7 @@ import net.ballmerlabs.scatterbrainsdk.internal.MockBinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.BinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.BinderWrapperImpl
 import net.ballmerlabs.scatterbrainsdk.internal.ScatterbrainBroadcastReceiverImpl
+import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import org.junit.Assert
 import org.junit.Before
 import org.junit.Rule
@@ -157,6 +159,20 @@ class ApiTest {
         runBlocking {
             binder.sendMessage(list, "fmef_invalid")
         }
+    }
+
+    @Test(expected = SecurityException::class)
+    @Throws(TimeoutException::class)
+    fun preventSimpleDirectoryTraversalAttack() {
+        val filename = "../fmef"
+        sanitizeFilename(filename)
+    }
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun allowsNormalFilename() {
+        sanitizeFilename("fmef")
+        sanitizeFilename("fmef_text")
     }
 
 
