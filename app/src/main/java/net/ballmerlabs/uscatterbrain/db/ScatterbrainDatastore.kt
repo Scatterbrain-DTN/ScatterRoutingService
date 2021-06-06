@@ -25,7 +25,7 @@ import kotlin.collections.ArrayList
 
 const val DATABASE_NAME = "scatterdb"
 const val DEFAULT_BLOCKSIZE = 1024 * 2
-val FILE_SANITIZE: Pattern = Pattern.compile("^[a-zA-Z0-9_-]+$")
+val FILE_SANITIZE: Pattern = Pattern.compile("^[a-zA-Z0-9_-]*$")
 const val USER_FILES_PATH = "userFiles"
 const val CACHE_FILES_PATH = "systemFiles"
 
@@ -59,7 +59,7 @@ fun sanitizeFilename(name: String): String {
     if (FILE_SANITIZE.matcher(name).matches()) {
         return name
     } else {
-        throw SecurityException("invalid filename")
+        throw SecurityException("invalid filename $name")
     }
 }
 
@@ -208,10 +208,9 @@ fun getDefaultFileName(packet: BlockHeaderPacket): String {
  * interface for scatterbrain datastore
  */
 interface ScatterbrainDatastore {
-    fun insertMessagesSync(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable
+    fun insertMessages(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable
     fun insertMessage(stream: BlockDataStream): Completable
     fun insertMessages(messages: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Completable
-    fun insertMessageToRoom(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable
     fun getTopRandomMessages(
             count: Int,
             delareHashes: DeclareHashesPacket

@@ -57,7 +57,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val userDirectoryObserver: FileObserver
     private val cachedPackages = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val disposable = CompositeDisposable()
-    override fun insertMessagesSync(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable {
+    override fun insertMessages(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable {
         return Completable.fromAction {
             mDatastore.scatterMessageDao().insertMessage(message)
         }.subscribeOn(databaseScheduler)
@@ -68,10 +68,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param messages list of room entities to insert
      * @return list of primary keys for rows inserted
      */
-    private fun insertMessagesSync(messages: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Completable {
+    override fun insertMessages(messages: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Completable {
         return Observable.fromIterable(messages)
                 .subscribeOn(databaseScheduler)
-                .flatMap<Any> { scatterMessage: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage -> insertMessagesSync(scatterMessage).toObservable() }
+                .flatMap<Any> { scatterMessage: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage -> insertMessages(scatterMessage).toObservable() }
                 .ignoreElements()
     }
 
@@ -113,28 +113,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         .subscribeOn(databaseScheduler)
             }
         }
-    }
-
-    /**
-     * Asynchronously inserts a list of messages into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param messages room entities to insert
-     * @return future returning list of ids inserted
-     */
-    override fun insertMessages(messages: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Completable {
-        return insertMessagesSync(messages)
-    }
-
-    /**
-     * Asynchronously inserts a single message into the datastore, allows tracking result
-     * via provided callback
-     *
-     * @param message room entity to insert
-     * @return future returning id of row inserted
-     */
-    override fun insertMessageToRoom(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable {
-        return insertMessagesSync(message)
     }
 
     private fun discardStream(stream: BlockDataStream): Completable {
@@ -179,7 +157,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     if (count > 0) {
                         discardStream(stream)
                     } else {
-                        insertMessageToRoom(stream.entity)
+                        insertMessages(stream.entity)
                                 .andThen(insertFile(stream))
                     }
                 }.subscribeOn(databaseScheduler)
@@ -208,7 +186,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 .reduce { obj, other -> obj + other }
                                 .flatMapCompletable { `val` ->
                                     stream.entity!!.message.body = `val`
-                                    insertMessageToRoom(stream.entity)
+                                    insertMessages(stream.entity)
                                 }.subscribeOn(databaseScheduler)
                     }
                 }
@@ -755,7 +733,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             message,
                             HashlessScatterMessage.hash2hashs(hashes)
                     )
-                    insertMessageToRoom(hashedMessage)
+                    insertMessages(hashedMessage)
                 }.toSingleDefault(getFileMetadataSync(path))
                 .blockingGet()
     }
@@ -920,10 +898,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                     .flatMapCompletable { keypair ->
                                                         Log.e("debug", "signing message")
                                                         dbmessage.message.sig = signEd25519(keypair.secretkey, dbmessage)
-                                                        insertMessageToRoom(dbmessage)
+                                                        insertMessages(dbmessage)
                                                     }
                                         } else {
-                                            insertMessageToRoom(dbmessage)
+                                            insertMessages(dbmessage)
                                         }
                                     }
                                 }.subscribeOn(databaseScheduler)
@@ -956,10 +934,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                         getIdentityKey(sign)
                                                 .flatMapCompletable { keypair ->
                                                     dbmessage.message.sig = signEd25519(keypair.secretkey, dbmessage)
-                                                    insertMessageToRoom(dbmessage)
+                                                    insertMessages(dbmessage)
                                                 }
                                     } else {
-                                        insertMessageToRoom(dbmessage)
+                                        insertMessages(dbmessage)
                                     }
                                 }
                     }
