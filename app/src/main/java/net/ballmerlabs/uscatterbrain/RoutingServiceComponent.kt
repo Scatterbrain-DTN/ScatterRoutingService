@@ -77,7 +77,6 @@ interface RoutingServiceComponent {
         @Singleton
         abstract fun provideWifiDirectBroadcastReceiver(impl: WifiDirectBroadcastReceiverImpl): WifiDirectBroadcastReceiver
 
-        @Module
         companion object {
             @Singleton
             @Provides
