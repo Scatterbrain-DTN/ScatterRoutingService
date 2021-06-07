@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
+import kotlin.collections.HashMap
 
 /**
  * Bluetooth low energy transport implementation.
@@ -512,27 +513,40 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             TransactionResult.STAGE_UPGRADE,
                             { serverConn: CachedLEServerConnection ->
                                 Log.v(TAG, "gatt server upgrade stage")
-                                serverBootstrapWifiDirect(session, serverConn)
+                                if (session.role == ConnectionRole.ROLE_UKE) {
+                                    wifiDirectRadioModule.createGroup()
+                                            .flatMap { bootstrap ->
+                                                val upgradePacket = bootstrap.toUpgrade(session.upgradeStage!!.sessionID)
+                                                serverConn.serverNotify(upgradePacket)
+                                                        .toSingleDefault(Optional.of(bootstrap))
+                                            }
+                                } else{
+                                    Single.just(Optional.empty<BootstrapRequest>())
+                                }
                             }
                     ) { conn: CachedLEConnection ->
                         Log.v(TAG, "gatt client upgrade stage")
-                        if (session.role == ConnectionRole.ROLE_UKE) {
+                        if (session.role == ConnectionRole.ROLE_SEME) {
                             return@addStage conn.readUpgrade()
                                     .doOnSuccess { Log.v(TAG, "client handshake received upgrade packet") }
                                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving upgrade packet: $err") }
-                                    .flatMap { upgradePacket ->
-                                        if (upgradePacket.provides == AdvertisePacket.Provides.WIFIP2P)
-                                            wifiDirectRadioModule.createGroup()
-                                        else
-                                            Single.error(IllegalArgumentException("invalid provides"))
-                                    }
-                                    .map { bootstrapRequest ->
-                                        TransactionResult(
-                                                TransactionResult.STAGE_SUSPEND,
-                                                session.device,
-                                                session.luidStage.remoteHashed,
-                                                result = bootstrapRequest
-                                        )
+                                    .map { upgradePacket ->
+                                        if (upgradePacket.provides == AdvertisePacket.Provides.WIFIP2P) {
+                                            val request = WifiDirectBootstrapRequest.create(upgradePacket, ConnectionRole.ROLE_SEME)
+                                            TransactionResult(
+                                                    TransactionResult.STAGE_SUSPEND,
+                                                    session.device,
+                                                    session.luidStage.remoteHashed,
+                                                    result = request
+                                            )
+                                        } else{
+                                            TransactionResult(
+                                                    TransactionResult.STAGE_TERMINATE,
+                                                    session.device,
+                                                    session.luidStage.remoteHashed,
+                                                    err = true
+                                            )
+                                        }
                                     }
                         } else {
                             return@addStage Single.just(TransactionResult<BootstrapRequest>(
@@ -660,23 +674,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         connectionCache.computeIfPresent(device) { _, value ->
             value.dispose()
             null
-        }
-    }
-    
-    /* attempt to bootstrap to wifi direct using upgrade packet (gatt server version) */
-    private fun serverBootstrapWifiDirect(session: LeDeviceSession, serverConn: CachedLEServerConnection): Single<Optional<BootstrapRequest>> {
-        return if (session.role == ConnectionRole.ROLE_SEME) {
-            session.upgradeStage!!.upgrade
-                    .flatMap { upgradePacket: UpgradePacket ->
-                        val request: BootstrapRequest = WifiDirectBootstrapRequest.create(
-                                upgradePacket,
-                                ConnectionRole.ROLE_SEME
-                        )
-                        serverConn.serverNotify(upgradePacket)
-                                .toSingleDefault(Optional.of(request))
-                    }
-        } else {
-            Single.just(Optional.empty())
         }
     }
 

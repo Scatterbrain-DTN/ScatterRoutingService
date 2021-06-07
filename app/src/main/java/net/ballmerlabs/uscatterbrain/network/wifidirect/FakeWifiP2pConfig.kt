@@ -7,7 +7,7 @@ import android.os.Parcelable
 
 class FakeWifiP2pConfig(
         val passphrase: String? = "",
-        val deviceAddress: String? = "",
+        val deviceAddress: String? = "02:00:00:00:00:00",
         val networkName: String? = "",
         val netId: Int = NETWORK_ID_PERSISTENT,
         val groupOwnerBand: Int = GROUP_OWNER_BAND_AUTO,

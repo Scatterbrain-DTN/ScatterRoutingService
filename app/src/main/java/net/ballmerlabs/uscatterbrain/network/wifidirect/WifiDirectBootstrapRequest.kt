@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.os.Parcel
+import android.util.Log
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
@@ -21,13 +22,15 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
         role = getSerializableExtra(KEY_ROLE) as ConnectionRole
     }
 
-    private constructor(passphrase: String, role: ConnectionRole) : super() {
-        this.passphrase = passphrase
-        name = "DIRECT-scatterbrain"
-        this.role = role
-        putStringExtra(KEY_NAME, name)
-        putStringExtra(KEY_PASSPHRASE, passphrase)
-        putSerializableExtra(KEY_ROLE, role)
+    fun toUpgrade(session: Int): UpgradePacket {
+        return UpgradePacket.newBuilder()
+                .setProvides(AdvertisePacket.Provides.WIFIP2P)
+                .setSessionID(session)
+                .setMetadata(HashMap<String,String>().apply {
+                    put(KEY_NAME, name)
+                    put(KEY_PASSPHRASE, passphrase)
+                })
+                .build()!!
     }
 
     private constructor(passphrase: String, name: String, role: ConnectionRole) : super() {
@@ -40,14 +43,9 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
     }
 
     companion object {
-        const val DEFAULT_NAME = "DIRECT-scatterbrain"
         const val KEY_NAME = "p2p-groupname"
         const val KEY_PASSPHRASE = "p2p-passphrase"
         const val KEY_ROLE = "p2p-role"
-        fun create(passphrase: String, role: ConnectionRole): WifiDirectBootstrapRequest {
-            return WifiDirectBootstrapRequest(passphrase, role)
-        }
-
 
         fun create(passphrase: String, name: String, role: ConnectionRole): WifiDirectBootstrapRequest {
             return WifiDirectBootstrapRequest(passphrase, name, role)
@@ -61,6 +59,7 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
                     ?: throw IllegalArgumentException("name was null")
             val passphrase = packet.metadata[KEY_PASSPHRASE]
                     ?: throw IllegalArgumentException("passphrase was null")
+
             return WifiDirectBootstrapRequest(passphrase, name, role)
         }
     }
