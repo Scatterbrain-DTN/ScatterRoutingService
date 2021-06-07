@@ -1,25 +1,23 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.content.Context
+import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Parcel
+import android.util.Log
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import io.reactivex.plugins.RxJavaPlugins
-import kotlinx.coroutines.runBlocking
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.Companion.SHARED_PREFS
 import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiverImpl
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.TimeoutException
-import kotlin.jvm.Throws
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 @SmallTest
@@ -72,4 +70,21 @@ class WifiDirectTest {
         assert(radioModule.createGroup().blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
     }
 
+    @Test
+    @Throws(TimeoutException::class)
+    fun testHack() {
+        val pass = "fmefthisisahorriblepassphrase"
+        val name = "DIRECT-fmoo"
+        val fakeConfig = FakeWifiP2pConfig(
+                passphrase = pass,
+                networkName = name
+        )
+
+        val parcel = Parcel.obtain()
+        parcel.writeString(WifiP2pConfig::class.java.name)
+        fakeConfig.writeToParcel(parcel, 0)
+        parcel.setDataPosition(0)
+        val config = parcel.readParcelable<WifiP2pConfig>(WifiP2pConfig::class.java.classLoader)!!
+        Log.e("debug", config.toString())
+    }
 }

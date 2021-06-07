@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.wifi.p2p.*
+import android.os.Bundle
 import android.os.Looper
+import android.os.Parcel
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import io.reactivex.*
@@ -125,7 +127,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                 override fun onFailure(reason: Int) {
                     Log.e(TAG, "failed to create group: " + reasonCodeToString(reason))
-                    if (groupRetry.getAndUpdate { v: Int -> v - 1 } > 0 && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    if (groupRetry.getAndSet(groupRetry.get()+1) > 0 && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                         mManager.createGroup(channel, this)
                     }
                 }
@@ -195,10 +197,16 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                    mManager.requestConnectionInfo(channel, infoListener)
                } else {
                    if (!groupConnectInProgress.getAndUpdate { true }) {
-                       val config = WifiP2pConfig.Builder()
-                               .setPassphrase(passphrase)
-                               .setNetworkName(name)
-                               .build()
+                       val fakeConfig = FakeWifiP2pConfig(
+                               passphrase = passphrase,
+                               networkName = name
+                       )
+                       val parcel = Parcel.obtain()
+                       parcel.writeString(WifiP2pConfig::class.java.name)
+                       fakeConfig.writeToParcel(parcel, 0)
+                       parcel.setDataPosition(0)
+                       val config = parcel.readParcelable<WifiP2pConfig>(WifiP2pConfig::class.java.classLoader)!!
+
                        retryDelay(initiateConnection(config), 20, 1)
                                .andThen(awaitConnection(timeout))
                                .subscribe(subject)
