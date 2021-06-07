@@ -79,7 +79,6 @@ interface RoutingServiceComponent {
 
         @Module
         companion object {
-            @JvmStatic
             @Singleton
             @Provides
             fun provideDatastore(ctx: Context?): Datastore {
@@ -87,65 +86,55 @@ interface RoutingServiceComponent {
                         .build()
             }
 
-            @JvmStatic
             @Singleton
             @Provides
             fun providesChannel(ctx: Context?, wifiP2pManager: WifiP2pManager?): WifiP2pManager.Channel {
                 return wifiP2pManager!!.initialize(ctx, ctx!!.mainLooper, null)
             }
 
-            @JvmStatic
             @Provides
             fun providesWifiP2pManager(ctx: Context?): WifiP2pManager {
                 return ctx!!.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
             }
 
-            @JvmStatic
             @Provides
             @Named(NamedSchedulers.DATABASE)
             fun provideDatabaseScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
             }
 
-            @JvmStatic
             @Provides
             @Named(NamedSchedulers.OPERATIONS)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
             }
 
-            @JvmStatic
             @Provides
             fun provideRxBleClient(ctx: Context?): RxBleClient {
                 return RxBleClient.create(ctx!!)
             }
 
-            @JvmStatic
             @Provides
             fun providesRxBleServer(context: Context?): RxBleServer {
                 return RxBleServer.create(context!!)
             }
 
-            @JvmStatic
             @Provides
             @Named(NamedSchedulers.BLE_CLIENT)
             fun provideBleClientScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
             }
 
-            @JvmStatic
             @Provides
             fun provideLeAdvertiser(): BluetoothLeAdvertiser {
                 return BluetoothAdapter.getDefaultAdapter().bluetoothLeAdvertiser
             }
 
-            @JvmStatic
             @Provides
             fun providesSharedPreferences(context: Context?): SharedPreferences {
                 return context!!.getSharedPreferences(SHARED_PREFS, Context.MODE_PRIVATE)
             }
 
-            @JvmStatic
             @Provides
             fun providesPowerManager(context: Context?): PowerManager {
                 return context!!.getSystemService(Context.POWER_SERVICE) as PowerManager
