@@ -43,9 +43,6 @@ class IdentityPacket(packet: ScatterProto.Identity) :
         }
 
     private fun sumBytes(): ByteString? {
-        if (isEnd) {
-            return null
-        }
         var result = ByteString.EMPTY
         result = result.concat(ByteString.copyFromUtf8(name))
         val sorted: SortedSet<String> = TreeSet(packet.`val`.keysMap.keys)

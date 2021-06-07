@@ -45,7 +45,7 @@ open class ApiIdentity protected constructor(builder: Builder) : Identity(
         private fun sumBytes(): ByteString {
             var result = ByteString.EMPTY
             result = result.concat(ByteString.copyFromUtf8(name))
-            val sortedKeys: SortedSet<String?> = TreeSet(mPubKeymap.keys)
+            val sortedKeys: SortedSet<String> = TreeSet(mPubKeymap.keys)
             for (key in sortedKeys) {
                 result = result.concat(ByteString.copyFromUtf8(key))
                 val k = mPubKeymap[key] ?: throw ConcurrentModificationException()
@@ -119,10 +119,10 @@ open class ApiIdentity protected constructor(builder: Builder) : Identity(
             require(!(sig == null && signPair == null)) { "sig should be set" }
             require(!(sig != null && signPair != null)) { "cannot sign and set sig simultaneously" }
             if (signPair != null) {
-                signEd25519(signPair!!.secretkey)
                 mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = signPair!!.publickey
                 pubkey = signPair!!.publickey
                 privkey = signPair!!.secretkey
+                signEd25519(signPair!!.secretkey)
                 hasPrivateKey = true
             } else {
                 require(mPubKeymap.containsKey(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY)) { "key map does not contain scatterbrain pubkey" }

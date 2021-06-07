@@ -19,6 +19,7 @@ import net.ballmerlabs.scatterbrainsdk.internal.MockBinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.BinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.BinderWrapperImpl
 import net.ballmerlabs.scatterbrainsdk.internal.ScatterbrainBroadcastReceiverImpl
+import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import org.junit.Assert
 import org.junit.Before
@@ -146,6 +147,15 @@ class ApiTest: TestBase() {
         val x = "fmef_text"
         assert(sanitizeFilename(i) == i)
         assert(sanitizeFilename(x) == x)
+    }
+
+    @Test
+    fun identityVerification() {
+        val identity: ApiIdentity = ApiIdentity.newBuilder()
+                .setName("test")
+                .sign(ApiIdentity.newPrivateKey())
+                .build()
+
     }
 
 
