@@ -581,7 +581,7 @@ class ScatterRoutingService : LifecycleService() {
     }
 
     companion object {
-        const val PROTO_VERSION = 5
+        const val PROTO_VERSION = 6
         const val TAG = "ScatterRoutingService"
         private val component = BehaviorRelay.create<RoutingServiceComponent>()
         private const val NOTIFICATION_CHANNEL_FOREGROUND = "foreground"
