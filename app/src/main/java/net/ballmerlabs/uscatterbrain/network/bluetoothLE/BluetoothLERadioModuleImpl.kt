@@ -46,6 +46,23 @@ import javax.inject.Named
 import javax.inject.Singleton
 import kotlin.collections.HashMap
 
+data class OptionalBootstrap<T>(
+        val item: T? = null
+) {
+    val isPresent: Boolean
+    get() = item != null
+    companion object {
+        fun <T> of(v: T): OptionalBootstrap<T> {
+            return OptionalBootstrap(v)
+        }
+        
+        fun <T> empty(): OptionalBootstrap<T> {
+            return OptionalBootstrap<T>(null)
+        }
+    }
+}
+
+
 /**
  * Bluetooth low energy transport implementation.
  * This transport provides devices discovery, data transfer,
@@ -352,7 +369,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 Log.v(TAG, "gatt server luid stage")
                                 serverConn.serverNotify(session.luidStage.selfUnhashedPacket)
                                         .doOnError{ err -> Log.e(TAG, "luid server failed $err")}
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection->
                         Log.v(TAG, "gatt client luid stage")
@@ -389,7 +406,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             l@{ serverConn ->
                                 Log.v(TAG, "gatt server advertise stage")
                                 return@l serverConn.serverNotify(AdvertiseStage.self)
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         Log.v(TAG, "gatt client advertise stage")
@@ -416,7 +433,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 }
                                 session.votingStage.addPacket(packet)
                                 serverConn.serverNotify(packet)
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         Log.v(TAG, "gatt client election hashed stage")
@@ -446,7 +463,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             packet.tagLuid(luidPacket.luidVal)
                                             session.votingStage.addPacket(packet)
                                             serverConn.serverNotify(packet)
-                                        }.toSingleDefault(Optional.empty())
+                                        }.toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         Log.v(TAG, "gatt client election stage")
@@ -518,10 +535,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             .flatMap { bootstrap ->
                                                 val upgradePacket = bootstrap.toUpgrade(session.upgradeStage!!.sessionID)
                                                 serverConn.serverNotify(upgradePacket)
-                                                        .toSingleDefault(Optional.of(bootstrap))
+                                                        .toSingleDefault(OptionalBootstrap.of(bootstrap))
                                             }
                                 } else{
-                                    Single.just(Optional.empty<BootstrapRequest>())
+                                    Single.just(OptionalBootstrap.empty<BootstrapRequest>())
                                 }
                             }
                     ) { conn: CachedLEConnection ->
@@ -567,7 +584,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         preferences.getInt(mContext.getString(R.string.pref_identitycap), 32)
                                 )
                                         .concatMapCompletable { packet: IdentityPacket -> serverConn.serverNotify(packet) }
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         conn.readIdentityPacket()
@@ -598,7 +615,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 Log.v(TAG, "gatt server declareHashes stage")
                                 datastore.declareHashesPacket
                                         .flatMapCompletable { packet: DeclareHashesPacket -> serverConn.serverNotify(packet) }
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         conn.readDeclareHashes()
@@ -632,7 +649,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                 .andThen(message.sequencePackets.concatMapCompletable { packet: BlockSequencePacket ->
                                                                     serverConn.serverNotify(packet) })
                                                     }
-                                        }.toSingleDefault(Optional.empty())
+                                        }.toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         conn.readBlockHeader()
@@ -1027,7 +1044,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                                 resetSession(session)
                                                                             }
                                                                             // retry on error
-                                                                            .onErrorReturnItem(android.util.Pair(Optional.empty(), TransactionResult(
+                                                                            .onErrorReturnItem(android.util.Pair(OptionalBootstrap.empty(), TransactionResult(
                                                                                     TransactionResult.STAGE_ADVERTISE,
                                                                                     device.bluetoothDevice,
                                                                                     luid.hashAsUUID!!
@@ -1051,7 +1068,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                             return@map pair.second.result
                                                                         }
                                                                         else -> {
-                                                                            return@map pair.first.get()
+                                                                            return@map pair.first.item
                                                                         }
                                                                     }
                                                                 }
