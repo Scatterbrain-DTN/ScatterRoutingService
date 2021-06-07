@@ -7,6 +7,7 @@ import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 
+
 /**
  * BootstrapRequest with convenience functions for wifi direct bootstraps
  */

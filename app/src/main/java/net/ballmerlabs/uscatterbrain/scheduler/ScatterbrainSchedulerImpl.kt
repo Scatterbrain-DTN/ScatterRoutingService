@@ -53,10 +53,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 .subscribe(
                         { res: HandshakeResult? -> Log.v(TAG, "finished transaction: $res") }
                 ) { err: Throwable -> Log.e(TAG, "error in transaction: $err") }
-        globalDisposable.getAndUpdate { disp: Disposable? ->
-            disp?.dispose()
-            d
-        }
+        val disp = globalDisposable.getAndSet(null)
+        disp?.dispose()
     }
 
     @Synchronized
@@ -67,10 +65,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         isAdvertising = false
         bluetoothLEModule.stopAdvertise()
         bluetoothLEModule.stopServer()
-        globalDisposable.getAndUpdate { disp: Disposable? ->
-            disp?.dispose()
-            null
-        }
+        val disp = globalDisposable.getAndSet(null)
+        disp?.dispose()
         return true
     }
 
