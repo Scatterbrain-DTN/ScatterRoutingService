@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.wifi.p2p.*
-import android.os.Bundle
 import android.os.Looper
 import android.os.Parcel
 import android.util.Log
@@ -196,7 +195,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                        group.networkName.equals(name)) {
                    mManager.requestConnectionInfo(channel, infoListener)
                } else {
-                   if (!groupConnectInProgress.getAndUpdate { true }) {
+                   if (!groupConnectInProgress.getAndSet(true)) {
                        val fakeConfig = FakeWifiP2pConfig(
                                passphrase = passphrase,
                                networkName = name
@@ -245,7 +244,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                     override fun onFailure(reason: Int) {
                         Log.e(TAG, "failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(reason))
-                        if (connectRetry.getAndUpdate { v: Int -> v - 1 } > 0) {
+                        if (connectRetry.getAndSet(connectRetry.get() - 1) > 0) {
                             mManager.connect(channel, config, this)
                         } else {
                             subject.onError(IllegalStateException("failed to connect to group: " + reasonCodeToString(reason)))
@@ -589,7 +588,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             }
                 }
                 .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
-                .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
+                .reduce { a, b -> a + b }
                 .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                 .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
     }
@@ -599,7 +598,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .flatMapObservable { obj: InterceptableServerSocket -> obj.observeConnections() }
                 .map { conn -> conn.socket }
                 .firstOrError()
-                .doOnSuccess { n: Socket? -> Log.v(TAG, "accepted server socket") }
+                .doOnSuccess { Log.v(TAG, "accepted server socket") }
 
     /*
      * read blockdata packets as SEME and stream into datastore. Even if a transfer is interrupted we should still have
@@ -643,7 +642,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             }
                 }
                 .concatMapSingle { m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
-                .reduce { a, b-> Integer.sum(a, b) }
+                .reduce { a, b-> a + b }
                 .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                 .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
     }
