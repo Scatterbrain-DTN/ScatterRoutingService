@@ -34,6 +34,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Conne
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
+import java.lang.IllegalArgumentException
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.util.*
@@ -43,6 +44,25 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
+import kotlin.NoSuchElementException
+import kotlin.collections.HashMap
+
+data class OptionalBootstrap<T>(
+        val item: T? = null
+) {
+    val isPresent: Boolean
+    get() = item != null
+    companion object {
+        fun <T> of(v: T): OptionalBootstrap<T> {
+            return OptionalBootstrap(v)
+        }
+        
+        fun <T> empty(): OptionalBootstrap<T> {
+            return OptionalBootstrap<T>(null)
+        }
+    }
+}
+
 
 /**
  * Bluetooth low energy transport implementation.
@@ -85,7 +105,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         private val powerManager: PowerManager,
         private val preferences: RouterPreferences
 ) : BluetoothLEModule {
-    private val wakeLock = AtomicReference<WakeLock?>()
+    private val wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            mContext.getString(R.string.wakelock_tag
+            ))
 
     companion object {
         const val TAG = "BluetoothLE"
@@ -240,7 +263,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.v(TAG, "transaction complete, randomizing luid")
                     releaseWakeLock()
                 }
-        ) { err: Throwable -> Log.e(TAG, "error in transactionCompleteRelay $err") }
+        ) { err ->
+            Log.e(TAG, "error in transactionCompleteRelay $err")
+            releaseWakeLock()
+        }
         mGattDisposable.add(d)
     }
 
@@ -250,14 +276,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * via offloaded scanning, but NOT for keeping it awake.
      */
     private fun acquireWakelock() {
-        wakeLock.updateAndGet {
-            powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, mContext.getString(R.string.wakelock_tag))
-                    .apply { acquire(10*60*1000) }
-        }
+        wakeLock.acquire(10*60*1000)
     }
 
     private fun releaseWakeLock() {
-        wakeLock.getAndUpdate { null }?.release()
+        wakeLock.release()
     }
 
     private val powerSave: String?
@@ -344,7 +367,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 Log.v(TAG, "gatt server luid stage")
                                 serverConn.serverNotify(session.luidStage.selfUnhashedPacket)
                                         .doOnError{ err -> Log.e(TAG, "luid server failed $err")}
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection->
                         Log.v(TAG, "gatt client luid stage")
@@ -381,7 +404,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             l@{ serverConn ->
                                 Log.v(TAG, "gatt server advertise stage")
                                 return@l serverConn.serverNotify(AdvertiseStage.self)
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         Log.v(TAG, "gatt client advertise stage")
@@ -408,7 +431,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 }
                                 session.votingStage.addPacket(packet)
                                 serverConn.serverNotify(packet)
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         Log.v(TAG, "gatt client election hashed stage")
@@ -438,7 +461,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             packet.tagLuid(luidPacket.luidVal)
                                             session.votingStage.addPacket(packet)
                                             serverConn.serverNotify(packet)
-                                        }.toSingleDefault(Optional.empty())
+                                        }.toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         Log.v(TAG, "gatt client election stage")
@@ -505,20 +528,40 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             TransactionResult.STAGE_UPGRADE,
                             { serverConn: CachedLEServerConnection ->
                                 Log.v(TAG, "gatt server upgrade stage")
-                                serverBootstrapWifiDirect(session, serverConn)
+                                if (session.role == ConnectionRole.ROLE_UKE) {
+                                    wifiDirectRadioModule.createGroup()
+                                            .flatMap { bootstrap ->
+                                                val upgradePacket = bootstrap.toUpgrade(session.upgradeStage!!.sessionID)
+                                                serverConn.serverNotify(upgradePacket)
+                                                        .toSingleDefault(OptionalBootstrap.of(bootstrap))
+                                            }
+                                } else{
+                                    Single.just(OptionalBootstrap.empty<BootstrapRequest>())
+                                }
                             }
                     ) { conn: CachedLEConnection ->
                         Log.v(TAG, "gatt client upgrade stage")
-                        if (session.role == ConnectionRole.ROLE_UKE) {
+                        if (session.role == ConnectionRole.ROLE_SEME) {
                             return@addStage conn.readUpgrade()
                                     .doOnSuccess { Log.v(TAG, "client handshake received upgrade packet") }
                                     .doOnError { err: Throwable -> Log.e(TAG, "error while receiving upgrade packet: $err") }
-                                    .map { upgradePacket: UpgradePacket ->
-                                        val request: BootstrapRequest = WifiDirectBootstrapRequest.create(
-                                                upgradePacket,
-                                                ConnectionRole.ROLE_UKE
-                                        )
-                                        TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.remoteHashed, result = request)
+                                    .map { upgradePacket ->
+                                        if (upgradePacket.provides == AdvertisePacket.Provides.WIFIP2P) {
+                                            val request = WifiDirectBootstrapRequest.create(upgradePacket, ConnectionRole.ROLE_SEME)
+                                            TransactionResult(
+                                                    TransactionResult.STAGE_SUSPEND,
+                                                    session.device,
+                                                    session.luidStage.remoteHashed,
+                                                    result = request
+                                            )
+                                        } else{
+                                            TransactionResult(
+                                                    TransactionResult.STAGE_TERMINATE,
+                                                    session.device,
+                                                    session.luidStage.remoteHashed,
+                                                    err = true
+                                            )
+                                        }
                                     }
                         } else {
                             return@addStage Single.just(TransactionResult<BootstrapRequest>(
@@ -539,7 +582,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         preferences.getInt(mContext.getString(R.string.pref_identitycap), 32)
                                 )
                                         .concatMapCompletable { packet: IdentityPacket -> serverConn.serverNotify(packet) }
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         conn.readIdentityPacket()
@@ -570,7 +613,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 Log.v(TAG, "gatt server declareHashes stage")
                                 datastore.declareHashesPacket
                                         .flatMapCompletable { packet: DeclareHashesPacket -> serverConn.serverNotify(packet) }
-                                        .toSingleDefault(Optional.empty())
+                                        .toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         conn.readDeclareHashes()
@@ -604,7 +647,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                 .andThen(message.sequencePackets.concatMapCompletable { packet: BlockSequencePacket ->
                                                                     serverConn.serverNotify(packet) })
                                                     }
-                                        }.toSingleDefault(Optional.empty())
+                                        }.toSingleDefault(OptionalBootstrap.empty())
                             }
                     ) { conn: CachedLEConnection ->
                         conn.readBlockHeader()
@@ -627,9 +670,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     end
                                 }
                                 .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
-                                .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
+                                .reduce { a, b -> a+b }
                                 .toSingle()
-                                .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
+                                .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                                 .map { res: HandshakeResult ->
                                     transactionCompleteRelay.accept(res)
                                     TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.remoteHashed)
@@ -643,26 +686,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private fun removeConnection(device: String) {
-        connectionCache.computeIfPresent(device) { _, value ->
-            value.dispose()
-            null
-        }
-    }
-    
-    /* attempt to bootstrap to wifi direct using upgrade packet (gatt server version) */
-    private fun serverBootstrapWifiDirect(session: LeDeviceSession, serverConn: CachedLEServerConnection): Single<Optional<BootstrapRequest>> {
-        return if (session.role == ConnectionRole.ROLE_SEME) {
-            session.upgradeStage!!.upgrade
-                    .flatMap { upgradePacket: UpgradePacket ->
-                        val request: BootstrapRequest = WifiDirectBootstrapRequest.create(
-                                upgradePacket,
-                                ConnectionRole.ROLE_SEME
-                        )
-                        serverConn.serverNotify(upgradePacket)
-                                .toSingleDefault(Optional.of(request))
-                    }
-        } else {
-            Single.just(Optional.empty())
+        try {
+            val disp = connectionCache.remove(device)
+            disp?.dispose()
+        } catch (exception: NoSuchElementException) {
+            Log.w(TAG, "tried to remove nonexistent connection $device")
         }
     }
 
@@ -753,67 +781,63 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     private fun discoverOnce(forever: Boolean): Disposable {
         Log.d(TAG, "discover once called")
-        return discoveryDispoable.updateAndGet{
-            d ->
-            if (d != null) d
-            else {
-                val newd = mClient.scanBleDevices(
-                        ScanSettings.Builder()
-                                .setScanMode(parseScanMode())
-                                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                                .setShouldCheckLocationServicesState(true)
-                                .build(),
-                        ScanFilter.Builder()
-                                .setServiceUuid(ParcelUuid(SERVICE_UUID))
-                                .build())
-                        .map { scanResult: ScanResult ->
-                            Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
-                            establishConnection(
-                                    scanResult.bleDevice,
-                                    Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)
-                            )
-                            /*
-                             * WAIT? why are we not doing anything with our gatt connections??
-                             * see the comment in startServer() for why
-                             */
+        val d = CompositeDisposable()
+        val disp = discoveryDispoable.getAndSet(d)
+        disp?.dispose()
+        val newd = mClient.scanBleDevices(
+                ScanSettings.Builder()
+                        .setScanMode(parseScanMode())
+                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                        .setShouldCheckLocationServicesState(true)
+                        .build(),
+                ScanFilter.Builder()
+                        .setServiceUuid(ParcelUuid(SERVICE_UUID))
+                        .build())
+                .map { scanResult ->
+                    acquireWakelock()
+                    Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
+                    establishConnection(
+                            scanResult.bleDevice,
+                            Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)
+                    )
+                    /*
+                     * WAIT? why are we not doing anything with our gatt connections??
+                     * see the comment in startServer() for why
+                     */
 
-                        }
-                        .ignoreElements()
-                        .repeat()
-                        .retry()
-                        .doOnError { err: Throwable -> Log.e(TAG, "error with initial handshake: $err") }
-                        .subscribe(
-                                { Log.v(TAG, "handshake completed") },
-                                { err: Throwable ->
-                                    Log.e(TAG, """
+                }
+                .ignoreElements()
+                .repeat()
+                .retry()
+                .doOnError { err: Throwable -> Log.e(TAG, "error with initial handshake: $err") }
+                .subscribe(
+                        { Log.v(TAG, "handshake completed") },
+                        { err: Throwable ->
+                            Log.e(TAG, """
                                 handshake failed: $err
                                 ${Arrays.toString(err.stackTrace)}
                                 """.trimIndent())
-                                }
-                        )
-                if (!forever) {
-                    val timeoutDisp = Completable.fromAction {}
-                            .delay(
-                                    preferences.getLong(
-                                            mContext.getString(R.string.pref_transactiontimeout),
-                                            RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT),
-                                    TimeUnit.SECONDS
-                            )
-                            .subscribe(
-                                    {
-                                        Log.v(TAG, "scan timed out")
-                                        discoveryDispoable.getAndUpdate { compositeDisposable: Disposable? ->
-                                            compositeDisposable?.dispose()
-                                            null
-                                        }
-                                    }
-                            ) { err: Throwable -> Log.e(TAG, "error while timing out scan: $err") }
-                    mGattDisposable.add(timeoutDisp)
-                }
-                newd
-            }
-
+                        }
+                )
+        if (!forever) {
+            val timeoutDisp = Completable.fromAction {}
+                    .delay(
+                            preferences.getLong(
+                                    mContext.getString(R.string.pref_transactiontimeout),
+                                    RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT),
+                            TimeUnit.SECONDS
+                    )
+                    .subscribe(
+                            {
+                                val globaldisp = discoveryDispoable.getAndSet(null)
+                                globaldisp.dispose()
+                                d.dispose()
+                            }
+                    ) { err: Throwable -> Log.e(TAG, "error while timing out scan: $err") }
+            mGattDisposable.add(timeoutDisp)
         }
+        d.add(newd)
+        return d
     }
 
     /**
@@ -931,13 +955,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         .onErrorResumeNext(Single.never())
                                         .flatMapObservable { luid ->
                                             Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
-                                            val s = sessionCache.getOrDefault(luid.hashAsUUID!!, LeDeviceSession(
-                                                    device.bluetoothDevice, 
-                                                    myLuid.get(),
-                                                    clientConnection, 
-                                                    connection,
-                                                    luid
-                                            ))
+                                            val s = sessionCache[luid.hashAsUUID!!]?: LeDeviceSession(
+                                            device.bluetoothDevice,
+                                            myLuid.get(),
+                                            clientConnection,
+                                            connection,
+                                            luid
+                                            )
 
                                             sessionCache.putIfAbsent(luid.hashAsUUID!!, s)
 
@@ -1015,7 +1039,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                                 resetSession(session)
                                                                             }
                                                                             // retry on error
-                                                                            .onErrorReturnItem(android.util.Pair(Optional.empty(), TransactionResult(
+                                                                            .onErrorReturnItem(android.util.Pair(OptionalBootstrap.empty(), TransactionResult(
                                                                                     TransactionResult.STAGE_ADVERTISE,
                                                                                     device.bluetoothDevice,
                                                                                     luid.hashAsUUID!!
@@ -1039,7 +1063,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                             return@map pair.second.result
                                                                         }
                                                                         else -> {
-                                                                            return@map pair.first.get()
+                                                                            return@map pair.first.item
                                                                         }
                                                                     }
                                                                 }
@@ -1051,6 +1075,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                 }
                                                                 .doOnError { err ->
                                                                     Log.e(TAG, "session ${session.remoteLuid} ended with error $err")
+                                                                    err.printStackTrace()
                                                                     when(err) {
                                                                         is BleDisconnectedException -> session.stage = TransactionResult.STAGE_TERMINATE
                                                                         else -> session.stage = TransactionResult.STAGE_SUSPEND

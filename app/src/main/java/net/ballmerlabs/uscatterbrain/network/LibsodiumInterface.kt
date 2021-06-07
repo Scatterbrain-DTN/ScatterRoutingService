@@ -22,11 +22,11 @@ object LibsodiumInterface {
             return mSodiumInstance!!.sodium
         }
 
-    fun base64enc(data: ByteArray?): String {
-        return Base64.getEncoder().encodeToString(data)
+    fun base64enc(data: ByteArray): String {
+        return android.util.Base64.encode(data, android.util.Base64.DEFAULT).decodeToString()
     }
 
-    fun base64dec(data: String?): ByteArray {
-        return Base64.getDecoder().decode(data)
+    fun base64dec(data: String): ByteArray {
+        return android.util.Base64.decode(data, android.util.Base64.DEFAULT)
     }
 }

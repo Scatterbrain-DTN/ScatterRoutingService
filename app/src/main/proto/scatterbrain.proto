@@ -30,9 +30,10 @@ message BlockData {
     uint32 sessionid = 8;
     bool todisk = 9;
     bool endofstream = 10;
-    repeated bytes nexthashes= 11; //size of this is fragment count
-    uint32 blocksize = 12;
-    bytes sig = 13;
+    uint64 send_date = 11;
+    repeated bytes nexthashes= 12; //size of this is fragment count
+    uint32 blocksize = 13;
+    bytes sig = 14;
 }
 
 // body of file, message, or data stream.

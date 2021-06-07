@@ -39,6 +39,9 @@ data class ScatterMessage(
     override val signature: ByteArray?
         get() = message.sig
 
+    override val sendDate: Long
+        get() = message.sendDate
+
     override val userFilename: String
         get() = message.userFilename
         }

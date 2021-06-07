@@ -9,5 +9,6 @@ interface Verifiable {
     val toDisk: Boolean
     val hashes: Array<ByteArray>
     val userFilename: String
+    val sendDate: Long
     val signature: ByteArray?
 }

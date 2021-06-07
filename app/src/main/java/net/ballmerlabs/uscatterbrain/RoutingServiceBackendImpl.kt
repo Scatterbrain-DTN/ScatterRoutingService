@@ -1,12 +1,12 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
+import android.content.pm.Signature
 import android.os.RemoteException
 import android.util.Log
-import androidx.annotation.RequiresApi
 import com.goterl.lazycode.lazysodium.interfaces.Sign
 import com.polidea.rxandroidble2.internal.RxBleLog
 import com.sun.jna.Pointer
@@ -21,7 +21,6 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.ACL
-import net.ballmerlabs.uscatterbrain.db.ApiScatterMessage
 import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
@@ -61,27 +60,46 @@ class RoutingServiceBackendImpl @Inject constructor(
         RxBleLog.setLogLevel(RxBleLog.DEBUG) //TODO: disable this in production
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.P)
+    /**
+     * verify the signature of the calling package to determine if it can
+     * access the current api call.
+     *
+     * TODO: on devices lower than api28 we do NOT support multiple signatures
+     * This is a workaround for
+     * https://android.googlesource.com/platform/tools/base/+/master/lint/libs/lint-checks/src/main/java/com/android/tools/lint/checks/GetSignaturesDetector.java#62
+     *
+     */
+    @SuppressLint("PackageManagerGetSignatures")
     @Synchronized
     @Throws(RemoteException::class)
     private fun verifyCallingSig(acl: ACL, callingPackageName: String) :Completable {
         return Completable.fromAction {
             try {
-                val name = callingPackageName
-                if (name != acl.packageName) {
+                if (callingPackageName != acl.packageName) {
                     throw RemoteException("invalid packagename, access denied")
                 }
-                val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
-                var failed = true
-                for (signature in info.signingInfo.signingCertificateHistory) {
-                    val sigtoverify = signature.toCharsString()
-                    if (sigtoverify == acl.appsig) {
-                        failed = false
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    val info = context.packageManager.getPackageInfo(callingPackageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                    var failed = true
+                    for (signature in info.signingInfo.signingCertificateHistory) {
+                        val sigtoverify = signature.toCharsString()
+                        if (sigtoverify == acl.appsig) {
+                            failed = false
+                        }
                     }
+                    if (failed) {
+                        throw RemoteException("invalid signature, access denied")
+                    }
+                } else {
+                    val info = context.packageManager.getPackageInfo(callingPackageName, PackageManager.GET_SIGNATURES)
+                    for (sig in info.signatures) {
+                        if (sig.toCharsString() != acl.appsig) {
+                            throw RemoteException("invalid signature, access denied")
+                        }
+                    }
+
                 }
-                if (failed) {
-                    throw RemoteException("invalid signature, access denied")
-                }
+
             } catch (e: PackageManager.NameNotFoundException) {
                 throw RemoteException("invalid package name")
             }
@@ -116,13 +134,12 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .flatMapObservable { Observable.fromIterable(it) }
                 .flatMapCompletable { acl -> verifyCallingSig(acl, callingPackageName) }
                 .andThen(
-                        datastore.getIdentityKey(identity)
-                            .flatMapCompletable { id: ApiIdentity.KeyPair ->
-                                datastore.insertAndHashFileFromApi(
-                                        ApiScatterMessage.fromApi(message, id),
-                                        DEFAULT_BLOCKSIZE)
-                            }
-                            .doOnComplete { asyncRefreshPeers() }
+                        datastore.insertAndHashFileFromApi(
+                                message,
+                                DEFAULT_BLOCKSIZE,
+                                identity
+                        )
+                                .doOnComplete { asyncRefreshPeers() }
                 )
 
     }
@@ -132,17 +149,21 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .flatMapObservable { Observable.fromIterable(it) }
                 .flatMapCompletable { acl -> verifyCallingSig(acl, callingPackageName) }
                 .andThen(
-                        datastore.getIdentityKey(identity)
-                                .flatMapCompletable { id ->
-                                    Observable.fromIterable(messages)
-                                            .flatMapCompletable { message ->
-                                                datastore.insertAndHashFileFromApi(
-                                                        ApiScatterMessage.fromApi(message, id),
-                                                        DEFAULT_BLOCKSIZE)
-                                            }
+                        Observable.fromIterable(messages)
+                                .flatMapCompletable { message ->
+                                    Log.e("debug", "inserting file")
+                                    datastore.insertAndHashFileFromApi(
+                                            message,
+                                            DEFAULT_BLOCKSIZE,
+                                            identity
+                                    )
                                 }
                                 .doOnComplete { asyncRefreshPeers() }
                 )
+                .doOnError { err ->
+                    Log.e(TAG, "failed sendAndSignMessages: $err")
+                    err.printStackTrace()
+                }
     }
 
     override fun generateIdentity(name: String, callingPackageName: String): Single<Identity> {
@@ -156,7 +177,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                     .toSingleDefault(identity)
                     .doOnSuccess {
                         val stats = HandshakeResult(1,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS)
-                        val intent = Intent(context.getString(R.string.broadcast_message))
+                        val intent = Intent(ScatterbrainApi.BROADCAST_EVENT)
                         intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, stats)
                         context.sendBroadcast(intent, ScatterbrainApi.PERMISSION_ACCESS)
                         asyncRefreshPeers()
@@ -173,7 +194,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     }
 
     override fun sendMessage(message: ScatterMessage): Completable {
-        return datastore.insertAndHashFileFromApi(ApiScatterMessage.fromApi(message), DEFAULT_BLOCKSIZE)
+        return datastore.insertAndHashFileFromApi(message, DEFAULT_BLOCKSIZE)
                 .doOnComplete { asyncRefreshPeers() }
     }
 
@@ -181,47 +202,39 @@ class RoutingServiceBackendImpl @Inject constructor(
         return Observable.fromIterable(messages)
                 .flatMapCompletable { m ->
                     datastore.insertAndHashFileFromApi(
-                            ApiScatterMessage.fromApi(m),
-                            DEFAULT_BLOCKSIZE)
+                            m,
+                            DEFAULT_BLOCKSIZE
+                    )
                 }
     }
 
-    override fun deauthorizeApp(fingerprint: String, packageName: String): Completable {
-        return Completable.defer {
-            if (packageName == context.packageName) {
-                Log.e(TAG, "attempted to deauthorize ourselves")
-                Completable.complete()
+    @SuppressLint("PackageManagerGetSignatures")
+    private fun getSigs(name: String): Observable<Signature> {
+        return Observable.defer {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
+                Observable.fromIterable(info.signingInfo.signingCertificateHistory.asIterable())
             } else {
-                Observable.just(packageName).flatMap { name ->
-                    val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
-                    Observable.fromIterable(info.signingInfo.signingCertificateHistory.asIterable())
-                }
+                val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNATURES)
+                Observable.fromIterable(info.signatures.toMutableList())
+            }
+        }
+    }
+
+    override fun deauthorizeApp(fingerprint: String, packageName: String): Completable {
+        return Observable.just(packageName).flatMap { name -> getSigs(name)}
                         .flatMapCompletable { signature ->
                             val sig = signature.toCharsString()
                             datastore.deleteACLs(fingerprint, packageName, sig)
                         }
-            }
-
-        }
     }
 
     override fun authorizeApp(fingerprint: String, packageName: String): Completable {
-        return Completable.defer {
-            if (packageName == context.packageName) {
-                Log.e(TAG, "attempted to auauthorize ourselves")
-                Completable.complete()
-            } else {
-                Observable.just(packageName).flatMap { name ->
-                    val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
-                    Observable.fromIterable(info.signingInfo.signingCertificateHistory.asIterable())
-                }
+        return Observable.just(packageName).flatMap { name -> getSigs(name)}
                         .flatMapCompletable { signature ->
                             val sig = signature.toCharsString()
                             datastore.addACLs(fingerprint, packageName, sig)
                         }
-            }
-
-        }
 
     }
 

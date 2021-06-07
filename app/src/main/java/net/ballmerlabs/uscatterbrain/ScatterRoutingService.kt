@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.*
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
@@ -104,7 +105,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun getByApplication(application: String): List<ScatterMessage> {
             checkAccessPermission()
-            return mBackend.datastore.getApiMessages(application)
+            return mBackend.datastore.getApiMessages(application).blockingGet()
         }
 
         /**
@@ -308,6 +309,45 @@ class ScatterRoutingService : LifecycleService() {
             mBackend.datastore.clear()
         }
 
+        override fun getByApplicationDate(application: String, startDate: Long, endDate: Long): MutableList<ScatterMessage> {
+            checkAccessPermission()
+            return mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate)).blockingGet()
+        }
+
+        override fun getByApplicationAsync(application: String): Int {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.datastore.getApiMessages(application)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> broadcastAsyncResult(callingPackageName, handle,
+                                    Bundle().apply {
+                                        putParcelableArrayList(ScatterbrainApi.EXTRA_ASYNC_RESULT, res)
+                            }, ScatterbrainApi.PERMISSION_ADMIN) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ADMIN) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
+        }
+
+        override fun getByApplicationDateAsync(application: String, startDate: Long, endDate: Long): Int {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate))
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> broadcastAsyncResult(callingPackageName, handle,
+                                    Bundle().apply {
+                                        putParcelableArrayList(ScatterbrainApi.EXTRA_ASYNC_RESULT, res)
+                                    }, ScatterbrainApi.PERMISSION_ADMIN) },
+                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ADMIN) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+            return handle
+        }
+
         override fun signDataDetachedAsync(data: ByteArray, identity: String): Int {
             checkAdminPermission()
             val handle = generateNewHandle()
@@ -421,14 +461,14 @@ class ScatterRoutingService : LifecycleService() {
         return true
     }
 
+    @Synchronized
     private fun generateNewHandle(): Int {
-        return callbackNum.getAndAccumulate(1) { old, new ->
-            val n = old + new
-            if (n > Int.MAX_VALUE)
-                0
-            else
-                n
-        }
+        val old = callbackNum.get()
+        var n = old + 1
+        if (n > Int.MAX_VALUE)
+            n = 0
+        callbackNum.set(n)
+        return n
     }
 
     private inline fun <reified T: Parcelable> broadcastAsyncResult(
@@ -438,7 +478,7 @@ class ScatterRoutingService : LifecycleService() {
             permission: String
     ) {
         Intent().also { intent ->
-            intent.action = applicationContext.getString(R.string.broadcast_api_result)
+            intent.action = ScatterbrainApi.BROADCAST_RESULT
             intent.`package` = packageName
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, Bundle().apply {
                 putParcelable(ScatterbrainApi.EXTRA_ASYNC_RESULT, result)
@@ -455,7 +495,7 @@ class ScatterRoutingService : LifecycleService() {
             permission: String
     ) {
         Intent().also { intent ->
-            intent.action = applicationContext.getString(R.string.broadcast_api_result)
+            intent.action = ScatterbrainApi.BROADCAST_RESULT
             intent.`package` = packageName
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, Bundle().apply {
                 putByteArray(ScatterbrainApi.EXTRA_ASYNC_RESULT, result)
@@ -467,7 +507,7 @@ class ScatterRoutingService : LifecycleService() {
 
     private fun broadcastAsyncResult(packageName: String, handle: Int, permission: String) {
         Intent().also { intent ->
-            intent.action = applicationContext.getString(R.string.broadcast_api_result)
+            intent.action = ScatterbrainApi.BROADCAST_RESULT
             intent.`package` = packageName
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
             applicationContext.sendBroadcast(intent, permission)
@@ -476,7 +516,7 @@ class ScatterRoutingService : LifecycleService() {
 
     private fun broadcastAsyncError(packageName: String, handle: Int, message: String, permission: String) {
         Intent().also { intent ->
-            intent.action = applicationContext.getString(R.string.broadcast_api_err)
+            intent.action = ScatterbrainApi.BROADCAST_ERROR
             intent.`package` = packageName
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, message)
             intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
@@ -503,16 +543,18 @@ class ScatterRoutingService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         try {
-            val channel = NotificationChannel(
-                    NOTIFICATION_CHANNEL_FOREGROUND,
-                    "fmef",
-                    NotificationManager.IMPORTANCE_DEFAULT
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                        NOTIFICATION_CHANNEL_FOREGROUND,
+                        "fmef",
+                        NotificationManager.IMPORTANCE_DEFAULT
+                )
+                val manager = getSystemService(NotificationManager::class.java)
+                manager.createNotificationChannel(channel)
+            }
             val notificationIntent = Intent(this, ScatterRoutingService::class.java)
             val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, 0)
-            val notification = Notification.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
+            val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
                     .setContentTitle("ScatterRoutingService")
                     .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
                     .setSmallIcon(R.drawable.ic_launcher_background)
@@ -539,7 +581,7 @@ class ScatterRoutingService : LifecycleService() {
     }
 
     companion object {
-        const val PROTO_VERSION = 5
+        const val PROTO_VERSION = 6
         const val TAG = "ScatterRoutingService"
         private val component = BehaviorRelay.create<RoutingServiceComponent>()
         private const val NOTIFICATION_CHANNEL_FOREGROUND = "foreground"

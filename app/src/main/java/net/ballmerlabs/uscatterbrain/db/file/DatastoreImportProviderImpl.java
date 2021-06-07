@@ -253,9 +253,9 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         final File f;
         final String parent;
         if (parentDocumentId.equals(USER_ROOT_ID)) {
-            parent = datastore.getUserDir().toPath().toString();
+            parent = datastore.getUserDir().getAbsolutePath();
         } else if (parentDocumentId.equals(CACHE_ROOT_ID)) {
-            parent = datastore.getCacheDir().toPath().toString();
+            parent = datastore.getCacheDir().getAbsolutePath();
         } else {
             parent = parentDocumentId;
         }

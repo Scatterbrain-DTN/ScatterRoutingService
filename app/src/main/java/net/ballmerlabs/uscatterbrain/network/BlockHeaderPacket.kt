@@ -4,7 +4,10 @@ import android.util.Log
 import com.google.protobuf.ByteString
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
+import net.ballmerlabs.uscatterbrain.db.isValidFilename
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
+import java.util.*
+import kotlin.collections.ArrayList
 
 /**
  * Wrapper class for protocol buffer blockdata message
@@ -33,6 +36,8 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             return if (r.isEmpty()) null else r
         }
 
+    override val sendDate: Long
+        get() = packet.sendDate
 
     /**
      * Gets to fingerprint.
@@ -64,6 +69,9 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
     override val application: String
         get() = packet.application
 
+    val isValidFilename: Boolean
+    get() = isValidFilename(packet.filename)
+
     /**
      * Gets session id.
      *
@@ -85,7 +93,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
         get() = packet.mime
 
     override val userFilename: String
-    get() = packet.filename
+    get() = sanitizeFilename(packet.filename)
 
     val autogenFilename: String
         get() {
@@ -122,19 +130,19 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      * The type Builder.
      */
     data class Builder(
-            var toDisk: Boolean = false,
-            var application: String = "",
-            var sessionid: Int = -1,
-            var blockSizeVal: Int = -1,
-            var mToFingerprint: String? = null,
-            var mFromFingerprint: String? = null,
-            var extensionVal: String = "",
-            var hashlist: List<ByteString> = ArrayList(),
-            var sig: ByteArray? = null,
-            var filename: String = "",
-            var mime: String = "",
-            var endofstream: Boolean = false,
-
+            private  var toDisk: Boolean = false,
+            private var application: String = "",
+            private var sessionid: Int = -1,
+            private var blockSizeVal: Int = -1,
+            private var mToFingerprint: String? = null,
+            private var mFromFingerprint: String? = null,
+            private var extensionVal: String = "",
+            private var hashlist: List<ByteString> = ArrayList(),
+            private var sig: ByteArray? = null,
+            private var filename: String = "",
+            private var mime: String = "",
+            private var endofstream: Boolean = false,
+            private var sendDate: Date = Date()
             ) {
 
         /**
@@ -202,7 +210,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          * @return builder
          */
         fun setExtension(ext: String) = apply {
-            this.extensionVal = ext
+            this.extensionVal = sanitizeFilename(ext)
         }
 
         /**
@@ -227,7 +235,11 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
         }
 
         fun setFilename(filename: String) = apply {
-            this.filename = filename
+            this.filename = sanitizeFilename(filename)
+        }
+
+        fun setDate(date: Date) = apply {
+            this.sendDate = date
         }
 
         /**
@@ -252,6 +264,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
                     .addAllNexthashes(hashlist)
                     .setSessionid(sessionid)
                     .setBlocksize(blockSizeVal)
+                    .setSendDate(sendDate.time)
                     .setMime(mime)
                     .setEndofstream(endofstream)
                     .setSig(ByteString.copyFrom(sig?: byteArrayOf(0)))

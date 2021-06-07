@@ -3,6 +3,19 @@ package net.ballmerlabs.uscatterbrain.network
 import java.nio.BufferOverflowException
 import java.nio.ByteBuffer
 
+private fun floorDiv(x: Int, y: Int): Int {
+    var r = x / y
+    // if the signs are different and modulo not zero, round down
+    if (x xor y < 0 && r * y != x) {
+        r--
+    }
+    return r
+}
+
+private fun floorMod(x: Int, y: Int): Int {
+    return x - floorDiv(x, y) * y
+}
+
 /**
  * this is a component of the system for parsing BLE indications
  * into protobuf messages. It is a zero-copy circular buffer for
@@ -11,7 +24,7 @@ import java.nio.ByteBuffer
 class CircularBuffer(private val writeBuffer: ByteBuffer) {
     private val readBuffer: ByteBuffer = writeBuffer.duplicate()
     fun size(): Int {
-        return Math.floorMod(writeBuffer.position() - readBuffer.position(), writeBuffer.capacity())
+        return floorMod(writeBuffer.position() - readBuffer.position(), writeBuffer.capacity())
     }
 
     fun get(): Byte {

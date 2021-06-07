@@ -1,9 +1,6 @@
 <resources>
     <string name="app_name">ScatterRoutingService</string>
     <string name="description_group">Permissions to control the scatterbrain router</string>
-    <string name="broadcast_message">net.ballmerlabs.scatterroutingservice.broadcast.NETWORK_EVENT</string>
-    <string name="broadcast_api_result">net.ballmerlabs.scatterroutingservice.broadcast.API_RESULT</string>
-    <string name="broadcast_api_err">net.ballmerlabs.scatterroutingserice.broadcast.API_ERROR</string>
 
     <!-- preferences -->
     <string name="pref_declarehashescap">declarehashescap</string>

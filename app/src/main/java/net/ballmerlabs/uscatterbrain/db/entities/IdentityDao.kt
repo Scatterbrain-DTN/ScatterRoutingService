@@ -49,7 +49,7 @@ interface IdentityDao {
     fun getAllPackageNames(): Single<List<String>>
 
     @Query("SELECT COUNT(*) FROM identities")
-    fun getNumIdentities(): Int
+    fun getNumIdentities(): Single<Int>
 
     @Insert
     fun insert(identity: KeylessIdentity): Single<Long>
