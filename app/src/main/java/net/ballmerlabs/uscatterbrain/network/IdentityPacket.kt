@@ -26,7 +26,7 @@ class IdentityPacket(packet: ScatterProto.Identity) :
         get() = packet.`val`.keysMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]!!.toByteArray()
 
     val isEnd: Boolean
-        get() = packet.messageCase == ScatterProto.Identity.MessageCase.END
+        get() = packet.end
 
     val fingerprint: String
         get() {
@@ -119,6 +119,7 @@ class IdentityPacket(packet: ScatterProto.Identity) :
 
         fun setScatterbrainPubkey(pubkey: ByteString) = apply {
             scatterbrainPubkey = pubkey.toByteArray()
+            pubkeyMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = pubkey
         }
 
         fun sign(secretkey: ByteArray) = apply {
@@ -148,14 +149,14 @@ class IdentityPacket(packet: ScatterProto.Identity) :
          * @param secretkey the secretkey
          * @return the boolean
          */
-        fun signEd25519(): ByteString {
+        fun signEd25519(): ByteArray {
             if (secretkey!!.size != Sign.SECRETKEYBYTES) throw IllegalStateException("invalid key length")
             val messagebytes = sumBytes()
             val sig = ByteArray(Sign.ED25519_BYTES)
             val p = PointerByReference(Pointer.NULL).pointer
             return if (LibsodiumInterface.sodium.crypto_sign_detached(sig,
                             p, messagebytes.toByteArray(), messagebytes.size().toLong(), secretkey) == 0) {
-                ByteString.copyFrom(sig)
+                sig
             } else {
                 throw IllegalStateException("failed to sign")
             }
@@ -163,7 +164,7 @@ class IdentityPacket(packet: ScatterProto.Identity) :
 
         fun build(): IdentityPacket? {
             if (!gone) {
-                if (secretkey == null) {
+                if (secretkey == null && sig == null) {
                     throw IllegalStateException("failed to sign, secret key not set")
                 }
                 if (scatterbrainPubkey == null && !generateKeypair) {
@@ -186,7 +187,7 @@ class IdentityPacket(packet: ScatterProto.Identity) :
                             .setVal(
                                     ScatterProto.Identity.Body.newBuilder()
                                             .setGivenname(name)
-                                            .setSig(signEd25519())
+                                            .setSig(ByteString.copyFrom(sig?: signEd25519()))
                                             .putAllKeys(pubkeyMap)
                                             .build()
                             )

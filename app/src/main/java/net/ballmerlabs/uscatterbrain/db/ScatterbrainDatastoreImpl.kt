@@ -504,6 +504,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      */
     override fun insertIdentityPacket(identity: List<IdentityPacket>): Completable {
         return Observable.fromIterable(identity)
+                .filter { i -> !i.isEnd}
                 .doOnNext { id -> Log.v(TAG, "inserting identity: ${id.fingerprint}")}
                 .flatMap { i ->
                     if (i.isEnd || i.isEmpty()) {
@@ -586,10 +587,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                         .setName(identity.identity.givenName)
                                         .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
                                         .setSig(identity.identity.signature)
-                                        .setEnd(seq < num - 1)
                                         .build()!!
                             })
-                            .defaultIfEmpty(IdentityPacket.newBuilder(ctx).setEnd().build()!!)
+                            .concatWith(Single.just(IdentityPacket.newBuilder(ctx).setEnd().build()!!))
                 }
     }
 
