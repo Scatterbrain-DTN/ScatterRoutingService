@@ -23,7 +23,7 @@ interface WifiDirectRadioModule {
     fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest): Single<HandshakeResult>
     fun unregisterReceiver()
     fun registerReceiver()
-    fun createGroup(name: String, passphrase: String): Completable
+    fun createGroup(): Single<WifiDirectBootstrapRequest>
     fun removeGroup(): Completable
 
     /**

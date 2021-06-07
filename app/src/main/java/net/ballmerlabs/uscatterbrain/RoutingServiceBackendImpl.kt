@@ -1,12 +1,12 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
+import android.content.pm.Signature
 import android.os.RemoteException
 import android.util.Log
-import androidx.annotation.RequiresApi
 import com.goterl.lazycode.lazysodium.interfaces.Sign
 import com.polidea.rxandroidble2.internal.RxBleLog
 import com.sun.jna.Pointer
@@ -60,27 +60,46 @@ class RoutingServiceBackendImpl @Inject constructor(
         RxBleLog.setLogLevel(RxBleLog.DEBUG) //TODO: disable this in production
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.P)
+    /**
+     * verify the signature of the calling package to determine if it can
+     * access the current api call.
+     *
+     * TODO: on devices lower than api28 we do NOT support multiple signatures
+     * This is a workaround for
+     * https://android.googlesource.com/platform/tools/base/+/master/lint/libs/lint-checks/src/main/java/com/android/tools/lint/checks/GetSignaturesDetector.java#62
+     *
+     */
+    @SuppressLint("PackageManagerGetSignatures")
     @Synchronized
     @Throws(RemoteException::class)
     private fun verifyCallingSig(acl: ACL, callingPackageName: String) :Completable {
         return Completable.fromAction {
             try {
-                val name = callingPackageName
-                if (name != acl.packageName) {
+                if (callingPackageName != acl.packageName) {
                     throw RemoteException("invalid packagename, access denied")
                 }
-                val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
-                var failed = true
-                for (signature in info.signingInfo.signingCertificateHistory) {
-                    val sigtoverify = signature.toCharsString()
-                    if (sigtoverify == acl.appsig) {
-                        failed = false
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    val info = context.packageManager.getPackageInfo(callingPackageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                    var failed = true
+                    for (signature in info.signingInfo.signingCertificateHistory) {
+                        val sigtoverify = signature.toCharsString()
+                        if (sigtoverify == acl.appsig) {
+                            failed = false
+                        }
                     }
+                    if (failed) {
+                        throw RemoteException("invalid signature, access denied")
+                    }
+                } else {
+                    val info = context.packageManager.getPackageInfo(callingPackageName, PackageManager.GET_SIGNATURES)
+                    for (sig in info.signatures) {
+                        if (sig.toCharsString() != acl.appsig) {
+                            throw RemoteException("invalid signature, access denied")
+                        }
+                    }
+
                 }
-                if (failed) {
-                    throw RemoteException("invalid signature, access denied")
-                }
+
             } catch (e: PackageManager.NameNotFoundException) {
                 throw RemoteException("invalid package name")
             }
@@ -189,11 +208,21 @@ class RoutingServiceBackendImpl @Inject constructor(
                 }
     }
 
+    @SuppressLint("PackageManagerGetSignatures")
+    private fun getSigs(name: String): Observable<Signature> {
+        return Observable.defer {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
+                Observable.fromIterable(info.signingInfo.signingCertificateHistory.asIterable())
+            } else {
+                val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNATURES)
+                Observable.fromIterable(info.signatures.toMutableList())
+            }
+        }
+    }
+
     override fun deauthorizeApp(fingerprint: String, packageName: String): Completable {
-        return Observable.just(packageName).flatMap { name ->
-                    val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
-                    Observable.fromIterable(info.signingInfo.signingCertificateHistory.asIterable())
-                }
+        return Observable.just(packageName).flatMap { name -> getSigs(name)}
                         .flatMapCompletable { signature ->
                             val sig = signature.toCharsString()
                             datastore.deleteACLs(fingerprint, packageName, sig)
@@ -201,10 +230,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     }
 
     override fun authorizeApp(fingerprint: String, packageName: String): Completable {
-        return Observable.just(packageName).flatMap { name ->
-                    val info = context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES)
-                    Observable.fromIterable(info.signingInfo.signingCertificateHistory.asIterable())
-                }
+        return Observable.just(packageName).flatMap { name -> getSigs(name)}
                         .flatMapCompletable { signature ->
                             val sig = signature.toCharsString()
                             datastore.addACLs(fingerprint, packageName, sig)

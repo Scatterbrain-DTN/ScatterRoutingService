@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.*
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
@@ -460,14 +461,14 @@ class ScatterRoutingService : LifecycleService() {
         return true
     }
 
+    @Synchronized
     private fun generateNewHandle(): Int {
-        return callbackNum.getAndAccumulate(1) { old, new ->
-            val n = old + new
-            if (n > Int.MAX_VALUE)
-                0
-            else
-                n
-        }
+        val old = callbackNum.get()
+        var n = old + 1
+        if (n > Int.MAX_VALUE)
+            n = 0
+        callbackNum.set(n)
+        return n
     }
 
     private inline fun <reified T: Parcelable> broadcastAsyncResult(
@@ -542,16 +543,18 @@ class ScatterRoutingService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         try {
-            val channel = NotificationChannel(
-                    NOTIFICATION_CHANNEL_FOREGROUND,
-                    "fmef",
-                    NotificationManager.IMPORTANCE_DEFAULT
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                        NOTIFICATION_CHANNEL_FOREGROUND,
+                        "fmef",
+                        NotificationManager.IMPORTANCE_DEFAULT
+                )
+                val manager = getSystemService(NotificationManager::class.java)
+                manager.createNotificationChannel(channel)
+            }
             val notificationIntent = Intent(this, ScatterRoutingService::class.java)
             val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, 0)
-            val notification = Notification.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
+            val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
                     .setContentTitle("ScatterRoutingService")
                     .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
                     .setSmallIcon(R.drawable.ic_launcher_background)
@@ -578,7 +581,7 @@ class ScatterRoutingService : LifecycleService() {
     }
 
     companion object {
-        const val PROTO_VERSION = 5
+        const val PROTO_VERSION = 6
         const val TAG = "ScatterRoutingService"
         private val component = BehaviorRelay.create<RoutingServiceComponent>()
         private const val NOTIFICATION_CHANNEL_FOREGROUND = "foreground"

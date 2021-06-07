@@ -110,7 +110,7 @@ class VotingStage : LeDeviceSession.Stage {
         return Single.fromCallable {
             val providesBuckets: MutableMap<AdvertisePacket.Provides, Int> = EnumMap(AdvertisePacket.Provides::class.java)
             for (packet in unhashedPackets) {
-                providesBuckets.putIfAbsent(packet.provides, 0)
+                providesBuckets[packet.provides] = 0
                 providesBuckets[packet.provides] = providesBuckets[packet.provides]!! + 1
             }
             if (HashSet(providesBuckets.values).size != providesBuckets.values.size) {

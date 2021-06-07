@@ -110,7 +110,7 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     }
 
     companion object {
-        private const val TAG = "WifiDirectBroadcastReceiver"
+        private const val TAG = "WifiBroadcastReceiver"
     }
 
 }

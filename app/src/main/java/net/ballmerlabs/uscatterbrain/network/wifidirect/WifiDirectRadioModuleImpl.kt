@@ -5,10 +5,9 @@ import android.content.Context
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.wifi.p2p.*
-import android.os.Build
 import android.os.Looper
+import android.os.Parcel
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import io.reactivex.*
 import io.reactivex.Observable
@@ -51,7 +50,6 @@ import javax.inject.Singleton
  * Manually setting the group passphrase requires a very new API level (android 10 or above)
  * TODO: this might be able to be fixed without violating private api ban by manually serializing parcelables
  */
-@RequiresApi(api = Build.VERSION_CODES.Q)
 @Singleton
 class WifiDirectRadioModuleImpl @Inject constructor(
         private val mManager: WifiP2pManager,
@@ -95,52 +93,62 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     /**
      * create a wifi direct group with this device as the owner
-     * @param name group name. MUST start with DIRECT-* or creation will fail
-     * @param passphrase group PSK. minimum 8 characters
      */
-    override fun createGroup(name: String, passphrase: String): Completable {
-        return Completable.defer {
-            val config = WifiP2pConfig.Builder()
-                    .setNetworkName(name)
-                    .setPassphrase(passphrase)
-                    .build()
+    override fun createGroup(): Single<WifiDirectBootstrapRequest> {
+        return Single.defer {
             val groupRetry = AtomicReference(5)
-            val subject = CompletableSubject.create()
+            val subject = SingleSubject.create<WifiDirectBootstrapRequest>()
 
+
+            val groupListener = WifiP2pManager.GroupInfoListener { groupInfo ->
+                if (groupInfo != null && groupInfo.isGroupOwner) {
+                    val bootstrap = WifiDirectBootstrapRequest.create(
+                            groupInfo.passphrase,
+                            groupInfo.networkName,
+                            ConnectionRole.ROLE_UKE
+                    )
+                    subject.onSuccess(bootstrap)
+                } else if (groupInfo != null) {
+                    subject.onError(IllegalStateException("group created but not owner"))
+                }
+            }
 
             val listener: WifiP2pManager.ActionListener = object : WifiP2pManager.ActionListener {
                 override fun onSuccess() {
                     Log.v(TAG, "successfully created group!")
                     groupOperationInProgress.set(false)
+                    if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                        subject.onError(SecurityException("cannot create group without fine location permisison"))
+                        return
+                    }
+                    mManager.requestGroupInfo(channel, groupListener)
                 }
 
                 override fun onFailure(reason: Int) {
                     Log.e(TAG, "failed to create group: " + reasonCodeToString(reason))
-                    if (groupRetry.getAndUpdate { v: Int -> v - 1 } > 0 && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    if (groupRetry.getAndSet(groupRetry.get()+1) > 0 && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                         mManager.createGroup(channel, this)
                     }
                 }
             }
 
-            val groupListener = WifiP2pManager.GroupInfoListener { groupInfo ->
-                if (groupInfo != null && groupInfo.isGroupOwner && groupInfo.passphrase.equals(passphrase) &&
-                        groupInfo.networkName.equals(name)) {
-                    subject.onComplete()
-                } else {
-                    mManager.createGroup(channel, config, listener)
-                    mBroadcastReceiver.observeConnectionInfo()
-                            .doOnSubscribe { Log.e(TAG, "subscribed") }
-                            .doOnError { err -> Log.e(TAG, "createGroup error: $err")}
-                            .doOnNext { t: WifiP2pInfo -> Log.e(TAG, "received a WifiP2pInfo: $t") }
-                            .takeUntil { wifiP2pInfo: WifiP2pInfo -> (wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner) }
-                            .ignoreElements()
-                            .doOnComplete { Log.v(TAG, "createGroup return success") }
-                            .doFinally { groupOperationInProgress.set(false) }
-                            .subscribe(subject)
-                }
-            }
-            mManager.requestGroupInfo(channel, groupListener)
-            subject
+            mManager.createGroup(channel, listener)
+            mBroadcastReceiver.observeConnectionInfo()
+                    .doOnSubscribe { Log.e(TAG, "subscribed") }
+                    .doOnError { err -> Log.e(TAG, "createGroup error: $err")}
+                    .doOnNext { t ->
+                        Log.e(TAG, "received a WifiP2pInfo: $t")
+                        if (t.groupFormed && t.isGroupOwner) {
+                            mManager.requestGroupInfo(channel, groupListener)
+                        }
+                    }
+                    .takeUntil { wifiP2pInfo-> (wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner) }
+                    .ignoreElements()
+                    .doOnComplete { Log.v(TAG, "createGroup return success") }
+                    .doFinally { groupOperationInProgress.set(false) }
+                    .doOnComplete {
+                    }
+                    .andThen(subject)
         }
     }
     
@@ -187,11 +195,17 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                        group.networkName.equals(name)) {
                    mManager.requestConnectionInfo(channel, infoListener)
                } else {
-                   if (!groupConnectInProgress.getAndUpdate { true }) {
-                       val config = WifiP2pConfig.Builder()
-                               .setPassphrase(passphrase)
-                               .setNetworkName(name)
-                               .build()
+                   if (!groupConnectInProgress.getAndSet(true)) {
+                       val fakeConfig = FakeWifiP2pConfig(
+                               passphrase = passphrase,
+                               networkName = name
+                       )
+                       val parcel = Parcel.obtain()
+                       parcel.writeString(WifiP2pConfig::class.java.name)
+                       fakeConfig.writeToParcel(parcel, 0)
+                       parcel.setDataPosition(0)
+                       val config = parcel.readParcelable<WifiP2pConfig>(WifiP2pConfig::class.java.classLoader)!!
+
                        retryDelay(initiateConnection(config), 20, 1)
                                .andThen(awaitConnection(timeout))
                                .subscribe(subject)
@@ -230,7 +244,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                     override fun onFailure(reason: Int) {
                         Log.e(TAG, "failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(reason))
-                        if (connectRetry.getAndUpdate { v: Int -> v - 1 } > 0) {
+                        if (connectRetry.getAndSet(connectRetry.get() - 1) > 0) {
                             mManager.connect(channel, config, this)
                         } else {
                             subject.onError(IllegalStateException("failed to connect to group: " + reasonCodeToString(reason)))
@@ -366,14 +380,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return when {
             upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                     == ConnectionRole.ROLE_UKE -> {
-                retryDelay(createGroup(
-                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
-                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
-                ),10, 1)
-                        .andThen(
-                                routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
-                                        .ignoreElements()
-                        )
+                routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
+                        .ignoreElements()
                         .andThen(
                                 identityPacketUke(datastore.getTopRandomIdentities(20))
                                         .reduce(ArrayList(), { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
@@ -580,7 +588,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             }
                 }
                 .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
-                .reduce { a: Int?, b: Int? -> Integer.sum(a!!, b!!) }
+                .reduce { a, b -> a + b }
                 .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                 .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
     }
@@ -590,7 +598,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .flatMapObservable { obj: InterceptableServerSocket -> obj.observeConnections() }
                 .map { conn -> conn.socket }
                 .firstOrError()
-                .doOnSuccess { n: Socket? -> Log.v(TAG, "accepted server socket") }
+                .doOnSuccess { Log.v(TAG, "accepted server socket") }
 
     /*
      * read blockdata packets as SEME and stream into datastore. Even if a transfer is interrupted we should still have
@@ -634,7 +642,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             }
                 }
                 .concatMapSingle { m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
-                .reduce { a, b-> Integer.sum(a, b) }
+                .reduce { a, b-> a + b }
                 .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                 .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
     }

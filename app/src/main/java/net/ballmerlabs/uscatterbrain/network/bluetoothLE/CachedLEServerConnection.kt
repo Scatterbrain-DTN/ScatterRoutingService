@@ -64,7 +64,7 @@ class CachedLEServerConnection(
     }
 
     companion object {
-        const val TAG = "CachedLEServerConnection"
+        const val TAG = "LEServerConn"
     }
 
     init {
