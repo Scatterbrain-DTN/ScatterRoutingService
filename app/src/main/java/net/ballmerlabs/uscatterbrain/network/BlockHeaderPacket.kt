@@ -310,10 +310,10 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             result = 31 * result + sessionid
             result = 31 * result + blockSizeVal
             result = 31 * result + extensionVal.hashCode()
-            result = 31 * result + hashlist?.hashCode()
+            result = 31 * result + hashlist.hashCode()
             result = 31 * result + (sig?.contentHashCode() ?: 0)
-            result = 31 * result + filename?.hashCode()
-            result = 31 * result + mime?.hashCode()
+            result = 31 * result + filename.hashCode()
+            result = 31 * result + mime.hashCode()
             result = 31 * result + endofstream.hashCode()
             return result
         }

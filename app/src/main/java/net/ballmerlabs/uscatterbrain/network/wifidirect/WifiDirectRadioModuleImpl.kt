@@ -561,7 +561,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 end
                             } //TODO: timeout here
                             .flatMap { headerPacket: BlockHeaderPacket ->
-                                Flowable.range(0, headerPacket.hashList!!.size)
+                                Flowable.range(0, headerPacket.hashList.size)
                                         .map {
                                             BlockDataStream(
                                                     headerPacket,
@@ -617,7 +617,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     end
                 }
                 .flatMap { header: BlockHeaderPacket ->
-                    Flowable.range(0, header.hashList!!.size)
+                    Flowable.range(0, header.hashList.size)
                             .map {
                                 BlockDataStream(
                                         header,

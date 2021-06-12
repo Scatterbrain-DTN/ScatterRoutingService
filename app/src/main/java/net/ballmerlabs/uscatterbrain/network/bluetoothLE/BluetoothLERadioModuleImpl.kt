@@ -648,7 +648,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         conn.readBlockHeader()
                                 .toFlowable()
                                 .flatMap { blockHeaderPacket: BlockHeaderPacket ->
-                                    Flowable.range(0, blockHeaderPacket.hashList!!.size)
+                                    Flowable.range(0, blockHeaderPacket.hashList.size)
                                             .map {
                                                 BlockDataStream(
                                                         blockHeaderPacket,
