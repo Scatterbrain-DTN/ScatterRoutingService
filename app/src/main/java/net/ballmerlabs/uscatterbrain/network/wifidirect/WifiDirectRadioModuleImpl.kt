@@ -6,7 +6,6 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.wifi.p2p.*
 import android.os.Looper
-import android.os.Parcel
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import io.reactivex.*
@@ -48,7 +47,6 @@ import javax.inject.Singleton
  * TODO: wait for multiple LE handshakes and batch bootstrap requests maybe?
  *
  * Manually setting the group passphrase requires a very new API level (android 10 or above)
- * TODO: this might be able to be fixed without violating private api ban by manually serializing parcelables
  */
 @Singleton
 class WifiDirectRadioModuleImpl @Inject constructor(
@@ -200,13 +198,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                passphrase = passphrase,
                                networkName = name
                        )
-                       val parcel = Parcel.obtain()
-                       parcel.writeString(WifiP2pConfig::class.java.name)
-                       fakeConfig.writeToParcel(parcel, 0)
-                       parcel.setDataPosition(0)
-                       val config = parcel.readParcelable<WifiP2pConfig>(WifiP2pConfig::class.java.classLoader)!!
 
-                       retryDelay(initiateConnection(config), 20, 1)
+                       retryDelay(initiateConnection(fakeConfig.asConfig()), 20, 1)
                                .andThen(awaitConnection(timeout))
                                .subscribe(subject)
                    } else {
@@ -568,7 +561,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 end
                             } //TODO: timeout here
                             .flatMap { headerPacket: BlockHeaderPacket ->
-                                Flowable.range(0, headerPacket.hashList!!.size)
+                                Flowable.range(0, headerPacket.hashList.size)
                                         .map {
                                             BlockDataStream(
                                                     headerPacket,
@@ -624,7 +617,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     end
                 }
                 .flatMap { header: BlockHeaderPacket ->
-                    Flowable.range(0, header.hashList!!.size)
+                    Flowable.range(0, header.hashList.size)
                             .map {
                                 BlockDataStream(
                                         header,

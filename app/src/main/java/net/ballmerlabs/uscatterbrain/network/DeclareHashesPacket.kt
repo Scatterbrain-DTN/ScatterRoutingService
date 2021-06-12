@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network
 
 import com.google.protobuf.ByteString
-import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.DeclareHashes
 
 /**

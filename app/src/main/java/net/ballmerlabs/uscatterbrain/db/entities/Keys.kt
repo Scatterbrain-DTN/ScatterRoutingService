@@ -51,9 +51,3 @@ data class Keys(
     }
 }
 
-/**
- * helper class to query Room database by identity foreign key
- */
-data class JustIdentiyFK(
-        val identityFK: Long
-)
