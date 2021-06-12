@@ -89,7 +89,7 @@ fun sumBytes(message: Verifiable): ByteString {
     buf.put(message.application.encodeToByteArray())
     buf.put(message.extension.encodeToByteArray())
     buf.put(message.mime.encodeToByteArray())
-    buf.put(message.userFilename.encodeToByteArray() ?: byteArrayOf(0))
+    buf.put(message.userFilename.encodeToByteArray())
     var td: Byte = 0
     if (message.toDisk) td = 1
     val toDiskBytes = ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).put(td).array()
@@ -206,7 +206,7 @@ fun getDefaultFileNameProto(hashes: List<ByteString>): String {
 }
 
 fun getDefaultFileName(packet: BlockHeaderPacket): String {
-    return getDefaultFileNameProto(packet.hashList)
+    return getDefaultFileName(packet.hashList)
 }
 
 /**

@@ -18,11 +18,11 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      *
      * @return the hash list
      */
-    val hashList
-    get() = packet.nexthashesList
+    val hashList: List<ByteArray>
+    get() = packet.nexthashesList.map { v -> v.toByteArray() }
 
     override val hashes
-        get() = hashList.map { v -> v.toByteArray() }.toTypedArray()
+        get() = hashList.toTypedArray()
 
 
     /**
@@ -307,13 +307,13 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
 
         override fun hashCode(): Int {
             var result = toDisk.hashCode()
-            result = 31 * result + (sessionid ?: 0)
-            result = 31 * result + (blockSizeVal ?: 0)
+            result = 31 * result + sessionid
+            result = 31 * result + blockSizeVal
             result = 31 * result + extensionVal.hashCode()
-            result = 31 * result + (hashlist?.hashCode() ?: 0)
+            result = 31 * result + hashlist?.hashCode()
             result = 31 * result + (sig?.contentHashCode() ?: 0)
-            result = 31 * result + (filename?.hashCode() ?: 0)
-            result = 31 * result + (mime?.hashCode() ?: 0)
+            result = 31 * result + filename?.hashCode()
+            result = 31 * result + mime?.hashCode()
             result = 31 * result + endofstream.hashCode()
             return result
         }

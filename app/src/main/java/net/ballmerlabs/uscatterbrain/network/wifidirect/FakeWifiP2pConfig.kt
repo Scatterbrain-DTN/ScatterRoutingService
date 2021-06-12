@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
-import android.net.wifi.p2p.WifiP2pGroup
 import android.os.Parcel
 import android.os.Parcelable
 

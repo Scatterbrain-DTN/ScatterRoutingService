@@ -10,7 +10,6 @@ import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.os.ParcelUuid
 import android.os.PowerManager
-import android.os.PowerManager.WakeLock
 import android.util.Log
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.jakewharton.rxrelay2.BehaviorRelay
@@ -18,7 +17,6 @@ import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.*
 import com.polidea.rxandroidble2.exceptions.BleDisconnectedException
 import com.polidea.rxandroidble2.scan.ScanFilter
-import com.polidea.rxandroidble2.scan.ScanResult
 import com.polidea.rxandroidble2.scan.ScanSettings
 import io.reactivex.*
 import io.reactivex.Observable
@@ -34,7 +32,6 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Conne
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
-import java.lang.IllegalArgumentException
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.util.*
@@ -44,8 +41,6 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
-import kotlin.NoSuchElementException
-import kotlin.collections.HashMap
 
 data class OptionalBootstrap<T>(
         val item: T? = null
@@ -58,7 +53,7 @@ data class OptionalBootstrap<T>(
         }
         
         fun <T> empty(): OptionalBootstrap<T> {
-            return OptionalBootstrap<T>(null)
+            return OptionalBootstrap(null)
         }
     }
 }
@@ -102,7 +97,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         private val mClient: RxBleClient,
         private val wifiDirectRadioModule: WifiDirectRadioModule,
         private val datastore: ScatterbrainDatastore,
-        private val powerManager: PowerManager,
+        powerManager: PowerManager,
         private val preferences: RouterPreferences
 ) : BluetoothLEModule {
     private val wakeLock = powerManager.newWakeLock(
@@ -536,7 +531,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         .toSingleDefault(OptionalBootstrap.of(bootstrap))
                                             }
                                 } else{
-                                    Single.just(OptionalBootstrap.empty<BootstrapRequest>())
+                                    Single.just(OptionalBootstrap.empty())
                                 }
                             }
                     ) { conn: CachedLEConnection ->

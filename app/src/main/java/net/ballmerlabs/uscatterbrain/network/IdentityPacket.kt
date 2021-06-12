@@ -143,7 +143,6 @@ class IdentityPacket(packet: ScatterProto.Identity) :
         /**
          * Sign ed 25519 boolean.
          *
-         * @param secretkey the secretkey
          * @return the boolean
          */
         fun signEd25519(): ByteArray {

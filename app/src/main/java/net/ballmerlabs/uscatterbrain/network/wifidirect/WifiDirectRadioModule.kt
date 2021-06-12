@@ -9,6 +9,7 @@ import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
+import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.db.getGlobalHashProto
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
@@ -58,13 +59,13 @@ interface WifiDirectRadioModule {
                                 headerPacket.blockSize,
                                 headerPacket.extension,
                                 getDefaultFileName(headerPacket),
-                                getGlobalHashProto(headerPacket.hashList),
+                                getGlobalHash(headerPacket.hashList),
                                 headerPacket.userFilename,
                                 headerPacket.mime,
                                 headerPacket.sendDate,
                                 Date().time
                         ),
-                        HashlessScatterMessage.hash2hashsProto(headerPacket.hashList)
+                        HashlessScatterMessage.hash2hashs(headerPacket.hashList)
                 )
             }
         }

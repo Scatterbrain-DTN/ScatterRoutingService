@@ -6,7 +6,6 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.wifi.p2p.*
 import android.os.Looper
-import android.os.Parcel
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import io.reactivex.*

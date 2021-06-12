@@ -508,7 +508,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnNext { id -> Log.v(TAG, "inserting identity: ${id.fingerprint}")}
                 .flatMap { i ->
                     if (i.isEnd || i.isEmpty()) {
-                        Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
+                        Observable.never()
                     } else {
                         val id = KeylessIdentity(
                                 i.name,
@@ -524,7 +524,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         )
                         if (!i.verifyed25519(i.pubkey)) {
                             Log.e(TAG, "identity " + i.name + " " + i.fingerprint + " failed sig check")
-                            Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
+                            Observable.never()
                         } else {
                             Observable.just(finalIdentity)
                         }
@@ -758,7 +758,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
                 .setTo(message.message.to)
                 .setFrom(message.message.from)
-                .build()!!
+                .build()
     }
 
     private fun getApiMessage(entities: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<ArrayList<ScatterMessage>> {

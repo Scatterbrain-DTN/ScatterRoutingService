@@ -1,45 +1,24 @@
 package net.ballmerlabs.uscatterbrain
 
-import android.content.Context
-import android.content.Intent
-import android.os.IBinder
-import android.util.Log
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
-import androidx.test.rule.ServiceTestRule
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import net.ballmerlabs.scatterbrainsdk.BinderWrapper
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
-import net.ballmerlabs.scatterbrainsdk.ScatterbrainAPI
-import net.ballmerlabs.scatterbrainsdk.internal.MockBinderProvider
-import net.ballmerlabs.scatterbrainsdk.internal.BinderProvider
-import net.ballmerlabs.scatterbrainsdk.internal.BinderWrapperImpl
-import net.ballmerlabs.scatterbrainsdk.internal.ScatterbrainBroadcastReceiverImpl
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
-import org.junit.Assert
-import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.lang.IllegalStateException
 import java.util.concurrent.TimeoutException
-import kotlin.jvm.Throws
-import kotlin.math.exp
 import kotlin.random.Random
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 @SmallTest
 class ApiTest: TestBase() {
-    suspend fun syncSendMessage(message: ScatterMessage) {
+    fun syncSendMessage(message: ScatterMessage) {
         regularBinder.sendMessage(message)
     }
 
-    suspend fun syncSendMesssages(messages: List<ScatterMessage>) {
+    fun syncSendMesssages(messages: List<ScatterMessage>) {
         regularBinder.sendMessages(messages)
     }
 
