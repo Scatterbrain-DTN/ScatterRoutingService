@@ -15,8 +15,6 @@ class FakeWifiP2pConfig(
         val wpsInfo: WpsInfo? = WpsInfo(),
 ) : Parcelable {
 
-    constructor(parcel: Parcel) : this()
-
     fun asConfig(): WifiP2pConfig {
         val parcel = Parcel.obtain()
         parcel.writeString(WifiP2pConfig::class.java.name)
