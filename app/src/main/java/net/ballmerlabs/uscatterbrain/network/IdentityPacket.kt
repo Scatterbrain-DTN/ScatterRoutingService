@@ -8,7 +8,6 @@ import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.ScatterProto
-import java.io.*
 import java.util.*
 
 /**
