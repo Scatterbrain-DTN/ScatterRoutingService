@@ -16,8 +16,8 @@ import net.ballmerlabs.uscatterbrain.db.entities.*
             Keys::class,
             ClientApp::class
                    ],
-        version = 4,
-        exportSchema = false
+        version = 5,
+        exportSchema = true
 )
 abstract class Datastore : RoomDatabase() {
     abstract fun identityDao(): IdentityDao

@@ -36,6 +36,7 @@ import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
 import kotlin.collections.ArrayList
+import kotlin.math.floor
 import kotlin.math.min
 
 /**
@@ -213,6 +214,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .zipWith(seq, { bytes, seq ->
                     BlockSequencePacket.newBuilder()
                             .setData(ByteString.copyFrom(bytes))
+                            .setEnd(seq >= floor(body.size.toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                             .setSequenceNumber(seq)
                             .build()
                 })
@@ -239,24 +241,24 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .toFlowable()
                     .flatMap { source -> Flowable.fromIterable(source) }
                     .doOnNext { message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size) }
-                    .zipWith(seq, { message, s ->
+
+                    .map { message ->
                         if (message.message.body == null) {
                             BlockDataStream(
                                     message,
-                                    readFile(File(message.message.filePath), message.message.blocksize),
-                                    s < num - 1,
+                                    readFile(File(message.message.filePath), DEFAULT_BLOCKSIZE),
                                     true
                             )
                         } else {
                             BlockDataStream(
                                     message,
-                                    readBody(message.message.body!!, message.message.blocksize),
-                                    s < num - 1,
+                                    readBody(message.message.body!!, DEFAULT_BLOCKSIZE),
                                     false
                             )
                         }
-                    }).toObservable()
-                    .defaultIfEmpty(BlockDataStream.endOfStream())
+                    }
+                    .toObservable()
+                    .concatWith(Single.just(BlockDataStream.endOfStream()))
         }
     }
 
@@ -729,7 +731,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             Applications.APPLICATION_FILESHARING,
                             null,
                             0,
-                            blocksize,
                             MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString()),
                             path.absolutePath,
                             getGlobalHash(hashes),
@@ -888,7 +889,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 message.application,
                                                 null,
                                                 0,
-                                                blocksize,
                                                 message.extension,
                                                 newFile.absolutePath,
                                                 getGlobalHash(hashes),
@@ -925,7 +925,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             message.application,
                                             null,
                                             0,
-                                            blocksize,
                                             "",
                                             getNoFilename(message.body!!),
                                             getGlobalHash(hashes),
@@ -1169,10 +1168,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnSubscribe { Log.v(TAG, "subscribed to readFile") }
                 .flatMap {
                     Bytes.from(path, blocksize)
-                            .zipWith(seq, { bytes: ByteArray, seqnum: Int ->
+                            .zipWith(seq, { bytes, seqnum ->
                                 Log.e("debug", "reading " + bytes.size)
                                 BlockSequencePacket.newBuilder()
                                         .setSequenceNumber(seqnum)
+                                        .setEnd(seqnum >= floor(path.length().toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                                         .setData(ByteString.copyFrom(bytes))
                                         .build()
                             }).subscribeOn(databaseScheduler)

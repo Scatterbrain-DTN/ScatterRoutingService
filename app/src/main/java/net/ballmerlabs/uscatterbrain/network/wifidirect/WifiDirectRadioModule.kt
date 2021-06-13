@@ -52,7 +52,6 @@ interface WifiDirectRadioModule {
                                 headerPacket.application,
                                 headerPacket.signature,
                                 headerPacket.sessionID,
-                                headerPacket.blockSize,
                                 headerPacket.extension,
                                 getDefaultFileName(headerPacket),
                                 getGlobalHash(headerPacket.hashList),
@@ -69,13 +68,13 @@ interface WifiDirectRadioModule {
 
 
         fun await(): Completable {
-            return sequencePackets.ignoreElements()
+            return sequenceCompletable
         }
 
         val toDisk: Boolean
             get() = headerPacket.toDisk
 
-        constructor(message: ScatterMessage, packetFlowable: Flowable<BlockSequencePacket>, end: Boolean = false, todisk: Boolean = true): this(
+        constructor(message: ScatterMessage, packetFlowable: Flowable<BlockSequencePacket>, todisk: Boolean = true): this(
                 headerPacket = BlockHeaderPacket.newBuilder()
                         .setToFingerprint(message.message.to)
                         .setFromFingerprint(message.message.from)
@@ -83,11 +82,10 @@ interface WifiDirectRadioModule {
                         .setSig(message.message.sig)
                         .setToDisk(todisk)
                         .setSessionID(message.message.sessionid)
-                        .setBlockSize(message.message.blocksize)
                         .setMime(message.message.mimeType)
                         .setExtension(message.message.extension)
                         .setHashes(HashlessScatterMessage.hashes2hashProto(message.messageHashes))
-                        .setEndOfStream(end)
+                        .setEndOfStream(false)
                         .build(),
                 entity = message,
                 sequencePacketsParam = packetFlowable

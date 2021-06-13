@@ -24,8 +24,8 @@ import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 
 const val DATABASE_NAME = "scatterdb"
-const val DEFAULT_BLOCKSIZE = 1024 * 2
-val FILE_SANITIZE: Pattern = Pattern.compile("^[a-zA-Z0-9_-]*$")
+const val DEFAULT_BLOCKSIZE = 1024 * 512
+val FILE_SANITIZE: Pattern = Pattern.compile("^[a-zA-Z0-9_()-]*$")
 const val USER_FILES_PATH = "userFiles"
 const val CACHE_FILES_PATH = "systemFiles"
 

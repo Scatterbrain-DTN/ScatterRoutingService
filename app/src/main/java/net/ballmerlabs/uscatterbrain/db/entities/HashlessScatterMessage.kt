@@ -31,7 +31,6 @@ data class HashlessScatterMessage(@ColumnInfo
                                   var application: String, @ColumnInfo
                                   var sig: ByteArray? = null, @ColumnInfo
                                   var sessionid: Int, @ColumnInfo
-                                  var blocksize: Int, @ColumnInfo
                                   var extension: String, @ColumnInfo(name = "filepath")
                                   var filePath: String, @ColumnInfo(name = "globalhash")
                                   var globalhash: ByteArray, @ColumnInfo
