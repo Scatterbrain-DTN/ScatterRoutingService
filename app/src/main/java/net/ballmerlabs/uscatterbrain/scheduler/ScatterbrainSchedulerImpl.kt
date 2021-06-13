@@ -51,8 +51,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 .doOnSubscribe { isDiscovering = true }
                 .doOnDispose { isDiscovering = false }
                 .subscribe(
-                        { res: HandshakeResult? -> Log.v(TAG, "finished transaction: $res") }
-                ) { err: Throwable -> Log.e(TAG, "error in transaction: $err") }
+                        { res -> Log.v(TAG, "finished transaction: ${res.success}") }
+                ) { err -> Log.e(TAG, "error in transaction: $err") }
         val disp = globalDisposable.getAndSet(null)
         disp?.dispose()
     }

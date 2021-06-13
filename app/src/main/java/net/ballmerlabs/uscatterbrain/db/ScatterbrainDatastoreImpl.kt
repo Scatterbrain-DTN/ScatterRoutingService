@@ -241,24 +241,24 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .toFlowable()
                     .flatMap { source -> Flowable.fromIterable(source) }
                     .doOnNext { message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size) }
-                    .zipWith(seq, { message, s ->
+
+                    .map { message ->
                         if (message.message.body == null) {
                             BlockDataStream(
                                     message,
                                     readFile(File(message.message.filePath), DEFAULT_BLOCKSIZE),
-                                    s < num - 1,
                                     true
                             )
                         } else {
                             BlockDataStream(
                                     message,
                                     readBody(message.message.body!!, DEFAULT_BLOCKSIZE),
-                                    s < num - 1,
                                     false
                             )
                         }
-                    }).toObservable()
-                    .defaultIfEmpty(BlockDataStream.endOfStream())
+                    }
+                    .toObservable()
+                    .concatWith(Single.just(BlockDataStream.endOfStream()))
         }
     }
 
@@ -1168,7 +1168,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnSubscribe { Log.v(TAG, "subscribed to readFile") }
                 .flatMap {
                     Bytes.from(path, blocksize)
-                            .zipWith(seq, { bytes: ByteArray, seqnum: Int ->
+                            .zipWith(seq, { bytes, seqnum ->
                                 Log.e("debug", "reading " + bytes.size)
                                 BlockSequencePacket.newBuilder()
                                         .setSequenceNumber(seqnum)

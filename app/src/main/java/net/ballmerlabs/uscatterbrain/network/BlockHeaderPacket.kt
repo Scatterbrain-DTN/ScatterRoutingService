@@ -90,7 +90,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
         get() = packet.mime
 
     override val userFilename: String
-    get() = sanitizeFilename(packet.filename)
+    get() = packet.filename
 
     val autogenFilename: String
         get() {

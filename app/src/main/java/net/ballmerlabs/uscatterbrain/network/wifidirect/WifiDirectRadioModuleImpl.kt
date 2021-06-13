@@ -11,7 +11,6 @@ import androidx.core.app.ActivityCompat
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
@@ -389,10 +388,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                     )
                                             )
                                         }
-                        ).flatMap { stats: HandshakeResult? ->
+                        ).flatMap { stats ->
                             declareHashesUke()
                                     .doOnSuccess { Log.v(TAG, "received declare hashes packet uke") }
-                                    .flatMap { declareHashesPacket: DeclareHashesPacket ->
+                                    .flatMap { declareHashesPacket ->
                                         readBlockDataUke()
                                                 .toObservable()
                                                 .mergeWith(
@@ -401,7 +400,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                                         preferences.getInt(mContext.getString(R.string.pref_blockdatacap), 100),
                                                                         declareHashesPacket
                                                                 ).toFlowable(BackpressureStrategy.BUFFER)
-                                                        ))
+                                                        ).toObservable())
                                                 .reduce(stats, { obj: HandshakeResult?, stats: HandshakeResult? -> obj!!.from(stats) })
                                     }
                         }
@@ -415,7 +414,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 ), 10, 1)
                         .flatMap { info: WifiP2pInfo ->
                             getTcpSocket(info.groupOwnerAddress)
-                                    .flatMap { socket: Socket ->
+                                    .flatMap { socket ->
                                         routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
                                                 .ignoreElements()
                                                 .andThen(
@@ -428,7 +427,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                     list.add(packet)
                                                     list
                                                 })
-                                                .flatMap { p: ArrayList<IdentityPacket> ->
+                                                .flatMap { p ->
                                                     datastore.insertIdentityPacket(p).toSingleDefault(
                                                             HandshakeResult(
                                                                     p.size,
@@ -437,20 +436,20 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                             )
                                                     )
                                                 }
-                                                .flatMap { stats: HandshakeResult ->
+                                                .flatMap { stats ->
                                                     declareHashesSeme(socket)
                                                             .doOnSuccess { Log.v(TAG, "received declare hashes packet seme") }
-                                                            .flatMapObservable { declareHashesPacket: DeclareHashesPacket ->
+                                                            .flatMapObservable { declareHashesPacket ->
                                                                 readBlockDataSeme(socket)
                                                                         .toObservable()
                                                                         .mergeWith(writeBlockDataSeme(socket, datastore.getTopRandomMessages(32, declareHashesPacket)
-                                                                                .toFlowable(BackpressureStrategy.BUFFER)))
+                                                                                .toFlowable(BackpressureStrategy.BUFFER)).toObservable())
                                                             }
                                                             .reduce(stats, { obj, st -> obj.from(st) })
                                                 }
                                     }
                         }
-                        .doOnSubscribe { disp: Disposable? -> Log.v(TAG, "subscribed to writeBlockData") }
+                        .doOnSubscribe { Log.v(TAG, "subscribed to writeBlockData") }
             }
             else -> {
                 Single.error(IllegalStateException("invalid role"))
@@ -487,9 +486,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun <T> retryDelay(single: Single<T>, count: Int, seconds: Int): Single<T> {
         return single
                 .doOnError { err -> Log.e(TAG, "retryDelay caught exception: $err")}
-                .retryWhen { errors: Flowable<Throwable> ->
+                .retryWhen { errors ->
                     errors
-                            .zipWith(Flowable.range(1, count), { _: Throwable, i: Int -> i })
+                            .zipWith(Flowable.range(1, count), { _, i: Int -> i })
                             .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
                 }
     }
@@ -499,7 +498,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             socket: Socket,
             stream: Flowable<BlockDataStream>
     ): Completable {
-        return stream.concatMapCompletable { blockDataStream: BlockDataStream ->
+        return stream.concatMapCompletable { blockDataStream ->
             blockDataStream.headerPacket.writeToStream(socket.getOutputStream(), operationsScheduler)
                     .doOnComplete { Log.v(TAG, "wrote headerpacket to client socket") }
                     .andThen(
@@ -518,10 +517,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             stream: Flowable<BlockDataStream>
     ): Completable {
         return serverSocket
-                .flatMapCompletable { socket: Socket ->
+                .flatMapCompletable { socket ->
                     stream.doOnSubscribe { Log.v(TAG, "subscribed to BlockDataStream observable") }
                             .doOnNext { Log.v(TAG, "writeBlockData processing BlockDataStream") }
-                            .concatMapCompletable { blockDataStream: BlockDataStream ->
+                            .concatMapCompletable { blockDataStream ->
                                 blockDataStream.headerPacket.writeToStream(socket.getOutputStream(), operationsScheduler)
                                         .doOnComplete { Log.v(TAG, "server wrote header packet") }
                                         .andThen(
@@ -545,7 +544,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     private fun readBlockDataUke(): Single<HandshakeResult> {
         return serverSocket
-                .toFlowable()
                 .flatMap { socket ->
                     ScatterSerializable.parseWrapperFromCRC(
                             BlockHeaderPacket.parser(),
@@ -553,38 +551,35 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             operationsScheduler
                     )
                             .doOnSuccess { header -> Log.v(TAG, "uke reading header ${header.userFilename}") }
-                            .toFlowable()
-                            .takeWhile { stream ->
-                                val end = !stream.isEndOfStream
-                                if (end) {
-                                    Log.v(TAG, "uke end of stream")
-                                }
-                                end
-                            } //TODO: timeout here
-                            .map { headerPacket: BlockHeaderPacket ->
-                                            BlockDataStream(
-                                                    headerPacket,
-                                                    ScatterSerializable.parseWrapperFromCRC(
-                                                            BlockSequencePacket.parser(),
-                                                            socket.getInputStream(),
-                                                            operationsScheduler
-                                                    )
-                                                            .repeat()
-                                                            .takeUntil { p -> p.isEnd }
-                                                            .doOnNext {
-                                                                packet ->
-                                                                Log.v(TAG, "uke reading sequence packet: " + packet.data.size)
-                                                            }
-                                                            .doOnComplete { Log.v(TAG, "server read sequence packets") }
+                            .flatMap { headerPacket ->
+                                if (headerPacket.isEndOfStream) {
+                                    Single.just(0)
+                                } else {
+                                    val m = BlockDataStream(
+                                            headerPacket,
+                                            ScatterSerializable.parseWrapperFromCRC(
+                                                    BlockSequencePacket.parser(),
+                                                    socket.getInputStream(),
+                                                    operationsScheduler
                                             )
+                                                    .repeat()
+                                                    .takeUntil { p -> p.isEnd }
+                                                    .doOnNext { packet ->
+                                                        Log.v(TAG, "uke reading sequence packet: " + packet.data.size)
+                                                    }
+                                                    .doOnComplete { Log.v(TAG, "server read sequence packets") }
+                                    )
+                                    datastore.insertMessage(m).andThen(m.await()).toSingleDefault(1)
+                                }
                             }
+                            .repeat()
+                            .takeWhile { n -> n > 0 }
+                            .reduce { a, b -> a + b }
+                            .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
+                            .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+                            .doOnError { e -> Log.e(TAG, "uke: error when reading message: $e") }
+                            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                 }
-                .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
-                .reduce { a, b -> a + b }
-                .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
-                .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
-                .doOnError { e -> Log.e(TAG, "uke: error when reading message: $e") }
-                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
 
     }
 
@@ -608,31 +603,29 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     operationsScheduler
             )
                 .doOnSuccess { header -> Log.v(TAG, "seme reading header ${header.userFilename}") }
-                .toFlowable()
-                .takeWhile { stream ->
-                    val end = !stream.isEndOfStream
-                    if (end) {
-                        Log.v(TAG, "seme end of stream")
-                    }
-                    end
-                }
-                .map { header ->
-                                BlockDataStream(
-                                        header,
-                                        ScatterSerializable.parseWrapperFromCRC(
-                                                BlockSequencePacket.parser(),
-                                                socket.getInputStream(),
-                                                operationsScheduler
-                                        )
-                                                .repeat()
-                                                .takeUntil { p -> p.isEnd }
-                                                .doOnNext{ packet ->
-                                                    Log.v(TAG, "seme reading sequence packet: " + packet.data.size)
-                                                }
-                                                .doOnComplete { Log.v(TAG, "seme complete read sequence packets") }
+                .flatMap { header ->
+                    if (header.isEndOfStream) {
+                        Single.just(0)
+                    } else {
+                        val m = BlockDataStream(
+                                header,
+                                ScatterSerializable.parseWrapperFromCRC(
+                                        BlockSequencePacket.parser(),
+                                        socket.getInputStream(),
+                                        operationsScheduler
                                 )
+                                        .repeat()
+                                        .takeUntil { p -> p.isEnd }
+                                        .doOnNext { packet ->
+                                            Log.v(TAG, "seme reading sequence packet: " + packet.data.size)
+                                        }
+                                        .doOnComplete { Log.v(TAG, "seme complete read sequence packets") }
+                        )
+                        datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(1)
+                    }
                 }
-                .concatMapSingle { m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
+                .repeat()
+                .takeWhile { n -> n > 0 }
                 .reduce { a, b -> a + b }
                 .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                 .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
