@@ -238,6 +238,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
                     .setSessionid(sessionid)
                     .setSendDate(sendDate.time)
                     .setMime(mime)
+                    .setTtl(0)
                     .setEndofstream(endofstream)
                     .setSig(ByteString.copyFrom(sig?: byteArrayOf(0)))
                     .build()

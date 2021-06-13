@@ -25,6 +25,7 @@ message BlockData {
     string to_fingerprint = 2;
     string application = 3;
     string filename = 4;
+    uint32 ttl = 5;
     string extension = 6;
     string mime = 7;
     uint32 sessionid = 8;
