@@ -86,9 +86,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
     val isEndOfStream: Boolean
         get() = packet.endofstream
 
-    private val mBlocksize: Int
-        get() = packet.blocksize
-
     override val mime: String
         get() = packet.mime
 
@@ -108,13 +105,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
 
     override val type: PacketType
         get() = PacketType.TYPE_BLOCKHEADER
-
-    /**
-     * Gets the blocksize
-     * @return int blocksize
-     */
-    val blockSize: Int
-        get() = packet.blocksize
 
     /**
      * Gets hash.
@@ -213,15 +203,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             this.extensionVal = sanitizeFilename(ext)
         }
 
-        /**
-         * Sets blocksize
-         * @param blockSize
-         * @return builder
-         */
-        fun setBlockSize(blockSize: Int) = apply {
-            this.blockSizeVal = blockSize
-        }
-
         fun setSig(sig: ByteArray?) = apply {
             this.sig = sig
         }
@@ -263,7 +244,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
                     .setExtension(extensionVal)
                     .addAllNexthashes(hashlist)
                     .setSessionid(sessionid)
-                    .setBlocksize(blockSizeVal)
                     .setSendDate(sendDate.time)
                     .setMime(mime)
                     .setEndofstream(endofstream)

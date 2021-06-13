@@ -243,14 +243,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         if (message.message.body == null) {
                             BlockDataStream(
                                     message,
-                                    readFile(File(message.message.filePath), message.message.blocksize),
+                                    readFile(File(message.message.filePath), DEFAULT_BLOCKSIZE),
                                     s < num - 1,
                                     true
                             )
                         } else {
                             BlockDataStream(
                                     message,
-                                    readBody(message.message.body!!, message.message.blocksize),
+                                    readBody(message.message.body!!, DEFAULT_BLOCKSIZE),
                                     s < num - 1,
                                     false
                             )
@@ -729,7 +729,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             Applications.APPLICATION_FILESHARING,
                             null,
                             0,
-                            blocksize,
                             MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString()),
                             path.absolutePath,
                             getGlobalHash(hashes),
@@ -888,7 +887,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 message.application,
                                                 null,
                                                 0,
-                                                blocksize,
                                                 message.extension,
                                                 newFile.absolutePath,
                                                 getGlobalHash(hashes),
@@ -925,7 +923,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             message.application,
                                             null,
                                             0,
-                                            blocksize,
                                             "",
                                             getNoFilename(message.body!!),
                                             getGlobalHash(hashes),
@@ -1173,6 +1170,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 Log.e("debug", "reading " + bytes.size)
                                 BlockSequencePacket.newBuilder()
                                         .setSequenceNumber(seqnum)
+                                        .setEnd(seqnum >= (path.length() / DEFAULT_BLOCKSIZE))
                                         .setData(ByteString.copyFrom(bytes))
                                         .build()
                             }).subscribeOn(databaseScheduler)

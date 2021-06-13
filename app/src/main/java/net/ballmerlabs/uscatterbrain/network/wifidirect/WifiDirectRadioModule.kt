@@ -52,7 +52,6 @@ interface WifiDirectRadioModule {
                                 headerPacket.application,
                                 headerPacket.signature,
                                 headerPacket.sessionID,
-                                headerPacket.blockSize,
                                 headerPacket.extension,
                                 getDefaultFileName(headerPacket),
                                 getGlobalHash(headerPacket.hashList),
@@ -83,7 +82,6 @@ interface WifiDirectRadioModule {
                         .setSig(message.message.sig)
                         .setToDisk(todisk)
                         .setSessionID(message.message.sessionid)
-                        .setBlockSize(message.message.blocksize)
                         .setMime(message.message.mimeType)
                         .setExtension(message.message.extension)
                         .setHashes(HashlessScatterMessage.hashes2hashProto(message.messageHashes))
