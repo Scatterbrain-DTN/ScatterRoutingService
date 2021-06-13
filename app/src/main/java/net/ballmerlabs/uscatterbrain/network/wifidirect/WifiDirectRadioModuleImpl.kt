@@ -561,9 +561,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 }
                                 end
                             } //TODO: timeout here
-                            .flatMap { headerPacket: BlockHeaderPacket ->
-                                Flowable.range(0, headerPacket.hashList.size)
-                                        .map {
+                            .map { headerPacket: BlockHeaderPacket ->
                                             BlockDataStream(
                                                     headerPacket,
                                                     ScatterSerializable.parseWrapperFromCRC(
@@ -571,14 +569,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                             socket.getInputStream(),
                                                             operationsScheduler
                                                     )
-                                                            .repeat(headerPacket.hashList.size.toLong())
+                                                            .repeat()
+                                                            .takeUntil { p -> p.isEnd }
                                                             .doOnNext {
                                                                 packet ->
                                                                 Log.v(TAG, "uke reading sequence packet: " + packet.data.size)
                                                             }
                                                             .doOnComplete { Log.v(TAG, "server read sequence packets") }
                                             )
-                                        }
                             }
                 }
                 .concatMapSingle { m: BlockDataStream -> datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0) }
@@ -618,9 +616,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
                     end
                 }
-                .flatMap { header ->
-                    Flowable.range(0, header.hashList.size)
-                            .map {
+                .map { header ->
                                 BlockDataStream(
                                         header,
                                         ScatterSerializable.parseWrapperFromCRC(
@@ -628,13 +624,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                 socket.getInputStream(),
                                                 operationsScheduler
                                         )
-                                                .repeat(header.hashList.size.toLong())
+                                                .repeat()
+                                                .takeUntil { p -> p.isEnd }
                                                 .doOnNext{ packet ->
                                                     Log.v(TAG, "seme reading sequence packet: " + packet.data.size)
                                                 }
                                                 .doOnComplete { Log.v(TAG, "seme complete read sequence packets") }
                                 )
-                            }
                 }
                 .concatMapSingle { m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
                 .reduce { a, b -> a + b }

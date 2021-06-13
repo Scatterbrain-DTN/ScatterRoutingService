@@ -123,7 +123,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             private  var toDisk: Boolean = false,
             private var application: String = "",
             private var sessionid: Int = -1,
-            private var blockSizeVal: Int = -1,
             private var mToFingerprint: String? = null,
             private var mFromFingerprint: String? = null,
             private var extensionVal: String = "",
@@ -229,13 +228,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          * @return the block header packet
          */
         fun build(): BlockHeaderPacket {
-            if (!endofstream) {
-                if (blockSizeVal <= 0) {
-                    val e = IllegalArgumentException("blocksize not set")
-                    e.printStackTrace()
-                    throw e
-                }
-            }
             val packet = BlockData.newBuilder()
                     .setApplication(application)
                     .setFromFingerprint(mFromFingerprint?: "")
@@ -265,7 +257,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
                 if (!application.contentEquals(other.application)) return false
             } else if (other.application != null) return false
             if (sessionid != other.sessionid) return false
-            if (blockSizeVal != other.blockSizeVal) return false
             if (mToFingerprint != null) {
                 if (other.mToFingerprint == null) return false
             } else if (other.mToFingerprint != null) return false
@@ -288,7 +279,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
         override fun hashCode(): Int {
             var result = toDisk.hashCode()
             result = 31 * result + sessionid
-            result = 31 * result + blockSizeVal
             result = 31 * result + extensionVal.hashCode()
             result = 31 * result + hashlist.hashCode()
             result = 31 * result + (sig?.contentHashCode() ?: 0)
@@ -303,7 +293,6 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          */
         init {
             sessionid = -1
-            blockSizeVal = -1
             mime = "application/octet-stream"
         }
     }

@@ -36,6 +36,7 @@ import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
 import kotlin.collections.ArrayList
+import kotlin.math.floor
 import kotlin.math.min
 
 /**
@@ -213,6 +214,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .zipWith(seq, { bytes, seq ->
                     BlockSequencePacket.newBuilder()
                             .setData(ByteString.copyFrom(bytes))
+                            .setEnd(seq >= floor(body.size.toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                             .setSequenceNumber(seq)
                             .build()
                 })
@@ -1170,7 +1172,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 Log.e("debug", "reading " + bytes.size)
                                 BlockSequencePacket.newBuilder()
                                         .setSequenceNumber(seqnum)
-                                        .setEnd(seqnum >= (path.length() / DEFAULT_BLOCKSIZE))
+                                        .setEnd(seqnum >= floor(path.length().toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                                         .setData(ByteString.copyFrom(bytes))
                                         .build()
                             }).subscribeOn(databaseScheduler)
