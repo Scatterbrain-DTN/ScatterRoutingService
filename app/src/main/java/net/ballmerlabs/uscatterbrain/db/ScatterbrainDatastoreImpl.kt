@@ -322,6 +322,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                     .ignoreElement()
                                         }
                             }
+                            .doOnError { e-> Log.e(TAG, "failed to insert identity: $e") }
+                            .onErrorComplete()
                 }
     }
 
