@@ -446,7 +446,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                                         .mergeWith(writeBlockDataSeme(socket, datastore.getTopRandomMessages(32, declareHashesPacket)
                                                                                 .toFlowable(BackpressureStrategy.BUFFER)))
                                                             }
-                                                            .reduce(stats, { obj: HandshakeResult, st: HandshakeResult -> obj.from(st) })
+                                                            .reduce(stats, { obj, st -> obj.from(st) })
                                                 }
                                     }
                         }
@@ -546,14 +546,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun readBlockDataUke(): Single<HandshakeResult> {
         return serverSocket
                 .toFlowable()
-                .flatMap { socket: Socket ->
+                .flatMap { socket ->
                     ScatterSerializable.parseWrapperFromCRC(
                             BlockHeaderPacket.parser(),
                             socket.getInputStream(),
                             operationsScheduler
                     )
+                            .doOnSuccess { header -> Log.v(TAG, "uke reading header ${header.userFilename}") }
                             .toFlowable()
-                            .takeWhile { stream: BlockHeaderPacket ->
+                            .takeWhile { stream ->
                                 val end = !stream.isEndOfStream
                                 if (end) {
                                     Log.v(TAG, "uke end of stream")
@@ -584,6 +585,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .reduce { a, b -> a + b }
                 .map { i: Int? -> HandshakeResult(0, i!!, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                 .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+                .doOnError { e -> Log.e(TAG, "uke: error when reading message: $e") }
+                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+
     }
 
     private val serverSocket: Single<Socket>
@@ -600,23 +604,21 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun readBlockDataSeme(
             socket: Socket
     ): Single<HandshakeResult> {
-        return Single.fromCallable {
-            ScatterSerializable.parseWrapperFromCRC(
+        return ScatterSerializable.parseWrapperFromCRC(
                     BlockHeaderPacket.parser(),
                     socket.getInputStream(),
                     operationsScheduler
             )
-        }
-                .flatMap { obs: Single<BlockHeaderPacket> -> obs }
+                .doOnSuccess { header -> Log.v(TAG, "seme reading header ${header.userFilename}") }
                 .toFlowable()
-                .takeWhile { stream: BlockHeaderPacket ->
+                .takeWhile { stream ->
                     val end = !stream.isEndOfStream
                     if (end) {
                         Log.v(TAG, "seme end of stream")
                     }
                     end
                 }
-                .flatMap { header: BlockHeaderPacket ->
+                .flatMap { header ->
                     Flowable.range(0, header.hashList.size)
                             .map {
                                 BlockDataStream(
@@ -635,9 +637,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             }
                 }
                 .concatMapSingle { m -> datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler).toSingleDefault(0) }
-                .reduce { a, b-> a + b }
+                .reduce { a, b -> a + b }
                 .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
                 .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+                .doOnError { e -> Log.e(TAG, "seme: error when reading message: $e") }
+                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
     }
 
     companion object {
