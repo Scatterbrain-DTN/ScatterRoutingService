@@ -135,10 +135,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @return completable
      */
     override fun insertMessage(stream: BlockDataStream): Completable {
-        return if (stream.toDisk) {
-            insertMessageWithDisk(stream)
-        } else {
-            insertMessagesWithoutDisk(stream)
+        return Completable.defer {
+            stream.entity?.message?.receiveDate = Date().time
+            if (stream.toDisk) {
+                insertMessageWithDisk(stream)
+            } else {
+                insertMessagesWithoutDisk(stream)
+            }
         }
     }
 
