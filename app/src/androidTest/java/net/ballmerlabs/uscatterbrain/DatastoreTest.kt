@@ -66,4 +66,19 @@ class DatastoreTest {
         assert(datastore.getApiMessages("fmef").blockingGet().size == 1)
     }
 
+    @Test
+    fun insertAndDeleteMessage() {
+        for (x in 0..5) {
+            val file = File.createTempFile("test", "jpeg", ctx.cacheDir)
+            file.outputStream().write(byteArrayOf(1))
+            val apiMessage = ScatterMessage.newBuilder()
+                    .setApplication("fmef")
+                    .setFile(file)
+                    .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE).blockingAwait()
+            val m = datastore.getApiMessages("fmef").blockingGet()
+            datastore.deleteMessage(m[0])
+        }
+    }
+
 }

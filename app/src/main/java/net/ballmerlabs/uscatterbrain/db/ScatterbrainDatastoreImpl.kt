@@ -736,6 +736,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return hashFile(path, blocksize)
                 .flatMapCompletable { hashes ->
                     Log.e(TAG, "hashing local file, len:" + hashes.size)
+                    val globalhash = getGlobalHash(hashes)
                     val message = HashlessScatterMessage(
                             null,
                             null,
@@ -746,11 +747,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             0,
                             MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString()),
                             path.absolutePath,
-                            getGlobalHash(hashes),
+                            globalhash,
                             path.name,
                             ScatterbrainApi.getMimeType(path),
                             Date().time,
-                            null
+                            null,
+                            hashAsUUID(globalhash)
                     )
                     val hashedMessage = ScatterMessage(
                             message,
@@ -773,12 +775,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .setApplication(message.message.application)
                     .setFile(r)
                     .setTo(message.message.to)
+                    .setId(hashAsUUID(message.message.globalhash))
                     .setFrom(message.message.from)
                     .build()
         } else {
             ScatterMessage.newBuilder()
                     .setApplication(message.message.application)
                     .setBody(message.message.body)
+                    .setId(hashAsUUID(message.message.globalhash))
                     .setTo(message.message.to)
                     .setFrom(message.message.from)
                     .build()
@@ -953,7 +957,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             "application/octet-stream",
                                             Date().time,
                                             null
-                                            )
+                                    )
                                     val dbmessage = ScatterMessage(
                                             hm,
                                             HashlessScatterMessage.hash2hashs(hashes)
@@ -1084,6 +1088,29 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 f
             } else {
                 old
+            }
+        }
+    }
+
+    override fun deleteMessage(message: HashlessScatterMessage): Completable {
+        return mDatastore.scatterMessageDao().delete(message)
+                .andThen(deleteFile(File(message.filePath)))
+    }
+
+    override fun deleteMessage(message: File): Completable {
+        return mDatastore.scatterMessageDao().getByFilePath(message.absolutePath)
+                .flatMapObservable { m -> Observable.fromIterable(m) }
+                .flatMapCompletable { m -> deleteMessage(m.message) }
+
+    }
+
+    override fun deleteMessage(message: ScatterMessage): Completable {
+        return Completable.defer {
+            if (message.id == null) {
+                Completable.error(IllegalArgumentException("message not inserted"))
+            } else {
+                mDatastore.scatterMessageDao().getByUUID(message.id!!.uuid)
+                        .flatMapCompletable { m -> deleteMessage(m.message) }
             }
         }
     }

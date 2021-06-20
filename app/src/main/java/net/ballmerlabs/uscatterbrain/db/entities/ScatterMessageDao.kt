@@ -4,6 +4,7 @@ import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.db.getGlobalHashDb
+import java.util.*
 
 /**
  * Room Dao containing queries and operations on messages stored
@@ -23,6 +24,10 @@ abstract class ScatterMessageDao {
     @Transaction
     @Query("SELECT * FROM messages WHERE messageID IN (:ids)")
     abstract fun getByID(vararg ids: Long): Single<ScatterMessage>
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE uuid = :uuids")
+    abstract fun getByUUID(uuids: UUID): Single<ScatterMessage>
 
     @Transaction
     @Query("SELECT * FROM messages WHERE (application = :application) AND (receiveDate BETWEEN :start AND :end)")

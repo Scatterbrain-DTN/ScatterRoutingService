@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.db
 
+import android.util.Log
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
 import com.goterl.lazycode.lazysodium.interfaces.Sign
@@ -13,6 +14,7 @@ import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Hashes
+import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -175,6 +177,19 @@ fun getGlobalHashProto(hashes: List<ByteString>): ByteArray {
     return outhash
 }
 
+fun hashAsUUID(hash: ByteArray): UUID {
+    return when {
+        hash.size != GenericHash.BYTES -> {
+            throw IllegalArgumentException("hash size wrong: ${hash.size}")
+        }
+        else -> {
+            val buf = ByteBuffer.wrap(hash)
+            //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+            UUID(buf.long, buf.long)
+        }
+    }
+}
+
 fun getGlobalHashDb(hashes: List<Hashes>): ByteArray {
     val outhash = ByteArray(GenericHash.BYTES)
     val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
@@ -261,6 +276,9 @@ interface ScatterbrainDatastore {
     fun getPackages(): Single<ArrayList<String>>
     fun deleteIdentities(vararg fingerprint: String): Completable
     fun trimDatastore(cap: Date): Completable
+    fun deleteMessage(message: HashlessScatterMessage): Completable
+    fun deleteMessage(message: File): Completable
+    fun deleteMessage(message: ScatterMessage): Completable
 
     enum class WriteMode {
         APPEND, OVERWRITE
