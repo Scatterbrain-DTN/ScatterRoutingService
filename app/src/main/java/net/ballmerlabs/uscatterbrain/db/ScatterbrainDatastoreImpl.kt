@@ -755,7 +755,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             }
             ScatterMessage.newBuilder()
                     .setApplication(message.message.application)
-                    .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
+                    .setFile(r)
                     .setTo(message.message.to)
                     .setFrom(message.message.from)
                     .build()
