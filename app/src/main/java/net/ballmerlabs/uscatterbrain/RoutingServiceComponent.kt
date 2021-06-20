@@ -16,6 +16,7 @@ import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.RoutingServiceModul
 import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
+import net.ballmerlabs.uscatterbrain.db.migration.Migrate6
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
@@ -82,6 +83,7 @@ interface RoutingServiceComponent {
             @Provides
             fun provideDatastore(ctx: Context?): Datastore {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
+                        .addMigrations(Migrate6())
                         .build()
             }
 

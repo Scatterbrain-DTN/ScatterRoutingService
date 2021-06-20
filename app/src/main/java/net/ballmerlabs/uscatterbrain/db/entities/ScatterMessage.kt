@@ -16,10 +16,10 @@ data class ScatterMessage(
         var messageHashes: List<Hashes>
         ) : Verifiable {
     override val toFingerprint: String?
-    get() = message.to
+    get() = message.recipient_fingerprint
 
     override val fromFingerprint: String?
-    get() = message.from
+    get() = message.identity_fingerprint
 
     override val application: String
     get() = message.application

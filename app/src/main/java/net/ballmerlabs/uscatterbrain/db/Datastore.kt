@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.db
 
 import androidx.room.*
+import androidx.room.migration.AutoMigrationSpec
 import net.ballmerlabs.uscatterbrain.db.entities.*
 import java.util.*
 
@@ -31,10 +32,7 @@ class UuidTypeConverter {
             ClientApp::class
                    ],
         version = 6,
-        exportSchema = true,
-        autoMigrations = [
-            AutoMigration(from = 5, to = 6)
-        ]
+        exportSchema = true
 )
 @TypeConverters(UuidTypeConverter::class)
 abstract class Datastore : RoomDatabase() {

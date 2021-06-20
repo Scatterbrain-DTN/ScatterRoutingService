@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.db
 import android.content.Context
 import android.net.Uri
 import android.os.FileObserver
-import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import android.util.Log
 import android.util.Pair
@@ -741,7 +740,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             null,
                             null,
                             null,
-                            null,
                             Applications.APPLICATION_FILESHARING,
                             null,
                             0,
@@ -774,17 +772,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             ScatterMessage.newBuilder()
                     .setApplication(message.message.application)
                     .setFile(r)
-                    .setTo(message.message.to)
+                    .setTo(message.message.recipient_fingerprint)
                     .setId(hashAsUUID(message.message.globalhash))
-                    .setFrom(message.message.from)
+                    .setFrom(message.message.identity_fingerprint)
                     .build()
         } else {
             ScatterMessage.newBuilder()
                     .setApplication(message.message.application)
                     .setBody(message.message.body)
                     .setId(hashAsUUID(message.message.globalhash))
-                    .setTo(message.message.to)
-                    .setFrom(message.message.from)
+                    .setTo(message.message.recipient_fingerprint)
+                    .setFrom(message.message.identity_fingerprint)
                     .build()
         }
     }
@@ -910,7 +908,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 null,
                                                 message.fromFingerprint,
                                                 message.toFingerprint,
-                                                message.fromFingerprint,
                                                 message.application,
                                                 null,
                                                 0,
@@ -946,7 +943,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             message.body,
                                             message.fromFingerprint,
                                             message.toFingerprint,
-                                            message.fromFingerprint,
                                             message.application,
                                             null,
                                             0,

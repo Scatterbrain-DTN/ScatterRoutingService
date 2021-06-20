@@ -9,6 +9,7 @@ import io.reactivex.plugins.RxJavaPlugins
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.*
+import net.ballmerlabs.uscatterbrain.db.migration.Migrate6
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,6 +29,7 @@ class DatastoreTest {
     fun init() {
         ctx = ApplicationProvider.getApplicationContext()
         database = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
+                .addMigrations(Migrate6())
                 .build()
         val prefs = RouterPreferencesImpl(
                 ctx.getSharedPreferences(RoutingServiceComponent.SHARED_PREFS, Context.MODE_PRIVATE)
