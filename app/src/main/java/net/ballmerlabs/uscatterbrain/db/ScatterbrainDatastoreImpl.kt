@@ -158,8 +158,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         if (count > 0) {
                             discardStream(stream)
                         } else {
-                            insertMessages(stream.entity)
-                                    .andThen(insertFile(stream))
+                            insertFile(stream)
+                                    .flatMapCompletable { size ->
+                                        stream.entity.message.fileSize = size
+                                        insertMessages(stream.entity)
+                                    }
                         }
                     }
                     .subscribeOn(databaseScheduler)
@@ -178,8 +181,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private fun insertMessagesWithoutDisk(stream: BlockDataStream): Completable {
         return mDatastore.scatterMessageDao().messageCountSingle(stream.headerPacket.autogenFilename)
                 .subscribeOn(databaseScheduler)
-                .flatMapCompletable { count: Int? ->
-                    if (count!! > 0) {
+                .flatMapCompletable { count ->
+                    if (count > 0) {
                         discardStream(stream)
                     } else {
                         stream.sequencePackets
@@ -192,8 +195,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     }
                                 }
                                 .reduce { obj, other -> obj + other }
-                                .flatMapCompletable { `val` ->
-                                    stream.entity!!.message.body = `val`
+                                .flatMapCompletable { bytes ->
+                                    stream.entity!!.message.body = bytes
+                                    stream.entity.message.fileSize = bytes.size.toLong()
                                     insertMessages(stream.entity)
                                 }.subscribeOn(databaseScheduler)
                     }
@@ -754,8 +758,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             ScatterbrainApi.getMimeType(path),
                             Date().time,
                             Date().time,
-                            hashAsUUID(globalhash)
-                    )
+                            hashAsUUID(globalhash),
+                            path.length()
+                            )
                     val hashedMessage = ScatterMessage(
                             message,
                             HashlessScatterMessage.hash2hashs(hashes)
@@ -921,7 +926,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 message.filename!! ,
                                                 MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
                                                 Date().time,
-                                                Date().time
+                                                Date().time,
+                                                fileSize = newFile.length()
                                         )
                                         val dbmessage = ScatterMessage(
                                                 hm,
@@ -956,7 +962,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             "",
                                             "application/octet-stream",
                                             Date().time,
-                                            Date().time
+                                            Date().time,
+                                            fileSize = message.body!!.size.toLong()
                                     )
                                     val dbmessage = ScatterMessage(
                                             hm,
@@ -1133,7 +1140,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     /**
      * insert blockdatastream with isFile to datastore
      */
-    override fun insertFile(stream: BlockDataStream): Completable {
+    override fun insertFile(stream: BlockDataStream): Single<Long> {
         val file = getFilePath(stream.headerPacket)
         Log.v(TAG, "insertFile: $file")
         return Completable.fromAction {
@@ -1145,6 +1152,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 stream.headerPacket,
                 file
         ))
+                .toSingleDefault(file.length())
     }
 
     private fun copyFile(old: FileDescriptor, file: File): Completable {

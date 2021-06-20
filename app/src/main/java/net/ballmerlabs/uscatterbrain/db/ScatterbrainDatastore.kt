@@ -255,7 +255,7 @@ interface ScatterbrainDatastore {
     fun isOpen(path: File): Boolean
     fun close(path: File): Boolean
     fun open(path: File): Single<OpenFile>
-    fun insertFile(stream: BlockDataStream): Completable
+    fun insertFile(stream: BlockDataStream): Single<Long>
     fun hashFile(path: File, blocksize: Int): Single<List<ByteArray>>
     fun readFile(path: File, blocksize: Int): Flowable<BlockSequencePacket>
     fun readBody(body: ByteArray, blocksize: Int): Flowable<BlockSequencePacket>

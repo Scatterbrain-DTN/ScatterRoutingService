@@ -57,7 +57,8 @@ interface WifiDirectRadioModule {
                                 headerPacket.userFilename,
                                 headerPacket.mime,
                                 headerPacket.sendDate,
-                                Date().time
+                                Date().time,
+                                fileSize = -1
                         ),
                         HashlessScatterMessage.hash2hashs(headerPacket.hashList)
                 ),
