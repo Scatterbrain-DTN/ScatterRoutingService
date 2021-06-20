@@ -41,7 +41,7 @@ data class HashlessScatterMessage(
         var userFilename: String = "",
         var mimeType: String,
         var sendDate: Long,
-        var receiveDate: Long? = null,
+        var receiveDate: Long,
         @ColumnInfo(name = "uuid", defaultValue = "") var uuid: UUID = hashAsUUID(globalhash)
 ) {
     companion object {

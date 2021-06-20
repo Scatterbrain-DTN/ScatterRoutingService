@@ -306,7 +306,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun trimDatastore(cap: Date): Completable {
-        return mDatastore.scatterMessageDao().getByReceiveDate(cap.time, Date().time)
+        return mDatastore.scatterMessageDao().getByReceiveDate(0, cap.time)
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable { list -> Observable.fromIterable(list) }
                 .flatMapCompletable { scatterMessage ->
@@ -749,7 +749,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             path.name,
                             ScatterbrainApi.getMimeType(path),
                             Date().time,
-                            null,
+                            Date().time,
                             hashAsUUID(globalhash)
                     )
                     val hashedMessage = ScatterMessage(
@@ -917,7 +917,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 message.filename!! ,
                                                 MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
                                                 Date().time,
-                                                null
+                                                Date().time
                                         )
                                         val dbmessage = ScatterMessage(
                                                 hm,
@@ -952,7 +952,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             "",
                                             "application/octet-stream",
                                             Date().time,
-                                            null
+                                            Date().time
                                     )
                                     val dbmessage = ScatterMessage(
                                             hm,
