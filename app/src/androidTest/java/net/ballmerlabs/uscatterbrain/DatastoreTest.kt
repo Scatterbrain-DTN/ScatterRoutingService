@@ -79,7 +79,9 @@ class DatastoreTest {
                     .build()
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE).blockingAwait()
             val m = datastore.getApiMessages("fmef").blockingGet()
-            datastore.deleteMessage(m[0])
+            assert(m.size == 1)
+            datastore.deleteMessage(m[0]).blockingAwait()
+            assert(datastore.getApiMessages("fmef").blockingGet().size == 0)
         }
     }
 
