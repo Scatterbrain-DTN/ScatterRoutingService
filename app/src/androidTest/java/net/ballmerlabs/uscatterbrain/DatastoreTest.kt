@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.content.Context
+import android.os.ParcelFileDescriptor
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
@@ -11,6 +12,7 @@ import net.ballmerlabs.uscatterbrain.db.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import kotlin.jvm.Throws
 
 @RunWith(AndroidJUnit4ClassRunner::class)
@@ -37,6 +39,7 @@ class DatastoreTest {
                 scheduler,
                 prefs
         )
+        database.clearAllTables()
     }
 
 
@@ -45,6 +48,19 @@ class DatastoreTest {
         val apiMessage = ScatterMessage.newBuilder()
                 .setApplication("fmef")
                 .setBody(byteArrayOf(1))
+                .build()
+        datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE).blockingAwait()
+        assert(datastore.getApiMessages("fmef").blockingGet().size == 1)
+    }
+
+
+    @Test
+    fun insertMessageWithFile() {
+        val file = File.createTempFile("test", "jpeg", ctx.cacheDir)
+        file.outputStream().write(byteArrayOf(1))
+        val apiMessage = ScatterMessage.newBuilder()
+                .setApplication("fmef")
+                .setFile(file)
                 .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE).blockingAwait()
         assert(datastore.getApiMessages("fmef").blockingGet().size == 1)
