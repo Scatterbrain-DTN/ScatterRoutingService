@@ -42,7 +42,7 @@ class WifiDirectTest {
                 scheduler
         )
 
-        database = Room.databaseBuilder(ctx, Datastore::class.java, DATABASE_NAME)
+        database = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
                 .build()
 
         val prefs = RouterPreferencesImpl(ctx.getSharedPreferences(SHARED_PREFS, Context.MODE_PRIVATE))

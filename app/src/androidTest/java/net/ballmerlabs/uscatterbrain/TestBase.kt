@@ -27,7 +27,7 @@ abstract class TestBase {
 
     @ExperimentalCoroutinesApi
     @Before
-    fun init() {
+    open fun init() {
         val bindIntet = Intent(
                 ApplicationProvider.getApplicationContext(),
                 ScatterRoutingService::class.java

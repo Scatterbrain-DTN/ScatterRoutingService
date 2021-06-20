@@ -762,19 +762,27 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     private fun message2message(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): ScatterMessage {
-        val f = File(message.message.filePath)
-        val r: File = if (f.exists()) {
-            f
+        return if (message.message.body == null) {
+            val f = File(message.message.filePath)
+            val r: File = if (f.exists()) {
+                f
+            } else {
+                throw java.lang.IllegalStateException("file doesn't exist")
+            }
+            ScatterMessage.newBuilder()
+                    .setApplication(message.message.application)
+                    .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
+                    .setTo(message.message.to)
+                    .setFrom(message.message.from)
+                    .build()
         } else {
-            throw java.lang.IllegalStateException("file doesn't exist")
+            ScatterMessage.newBuilder()
+                    .setApplication(message.message.application)
+                    .setBody(message.message.body)
+                    .setTo(message.message.to)
+                    .setFrom(message.message.from)
+                    .build()
         }
-        return ScatterMessage.newBuilder()
-                .setApplication(message.message.application)
-                .setBody(message.message.body)
-                .setFile(r, ParcelFileDescriptor.MODE_READ_ONLY)
-                .setTo(message.message.to)
-                .setFrom(message.message.from)
-                .build()
     }
 
     private fun getApiMessage(entities: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<ArrayList<ScatterMessage>> {
