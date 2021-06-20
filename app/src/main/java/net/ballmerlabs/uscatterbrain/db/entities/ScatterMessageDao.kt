@@ -29,8 +29,16 @@ abstract class ScatterMessageDao {
     abstract fun getByReceiveDate(application: String, start: Long, end: Long): Single<List<ScatterMessage>>
 
     @Transaction
+    @Query("SELECT * FROM messages WHERE (receiveDate BETWEEN :start AND :end)")
+    abstract fun getByReceiveDate(start: Long, end: Long): Single<List<ScatterMessage>>
+
+    @Transaction
     @Query("SELECT * FROM messages WHERE (application = :application) AND (sendDate BETWEEN :start AND :end)")
     abstract fun getBySendDate(application: String, start: Long, end: Long): Single<List<ScatterMessage>>
+
+    @Transaction
+    @Query("DELETE FROM messages WHERE receiveDate BETWEEN :start AND :end")
+    abstract fun deleteByDate(start: Long, end: Long): Single<Int>
 
     @Transaction
     @Query("SELECT * FROM messages WHERE filePath IN (:filePaths)")

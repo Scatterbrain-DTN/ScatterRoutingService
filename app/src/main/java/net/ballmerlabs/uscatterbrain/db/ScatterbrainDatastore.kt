@@ -260,6 +260,7 @@ interface ScatterbrainDatastore {
     fun updatePackage(packageName: String): Completable
     fun getPackages(): Single<ArrayList<String>>
     fun deleteIdentities(vararg fingerprint: String): Completable
+    fun trimDatastore(cap: Date): Completable
 
     enum class WriteMode {
         APPEND, OVERWRITE

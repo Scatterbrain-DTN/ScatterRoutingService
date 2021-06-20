@@ -306,6 +306,16 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .firstOrError()
     }
 
+    override fun trimDatastore(cap: Date): Completable {
+        return mDatastore.scatterMessageDao().getByReceiveDate(cap.time, Date().time)
+                .subscribeOn(databaseScheduler)
+                .flatMapObservable { list -> Observable.fromIterable(list) }
+                .flatMapCompletable { scatterMessage ->
+                    mDatastore.scatterMessageDao().delete(scatterMessage.message)
+                            .andThen(deleteFile(File(scatterMessage.message.filePath)))
+                }
+    }
+
     private fun insertIdentity(identityObservable: Observable<net.ballmerlabs.uscatterbrain.db.entities.Identity>): Completable {
         return identityObservable
                 .flatMapCompletable { singleid ->
