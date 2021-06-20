@@ -306,7 +306,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun trimDatastore(cap: Date): Completable {
-        return mDatastore.scatterMessageDao().getByReceiveDate(0, cap.time)
+        return trimDatastore(Date(0), cap)
+    }
+
+    override fun trimDatastore(start: Date, end: Date): Completable {
+        return mDatastore.scatterMessageDao().getByReceiveDate(start.time, end.time)
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable { list -> Observable.fromIterable(list) }
                 .flatMapCompletable { scatterMessage ->

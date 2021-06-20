@@ -276,6 +276,7 @@ interface ScatterbrainDatastore {
     fun getPackages(): Single<ArrayList<String>>
     fun deleteIdentities(vararg fingerprint: String): Completable
     fun trimDatastore(cap: Date): Completable
+    fun trimDatastore(start: Date, end: Date): Completable
     fun deleteMessage(message: HashlessScatterMessage): Completable
     fun deleteMessage(message: File): Completable
     fun deleteMessage(message: ScatterMessage): Completable
