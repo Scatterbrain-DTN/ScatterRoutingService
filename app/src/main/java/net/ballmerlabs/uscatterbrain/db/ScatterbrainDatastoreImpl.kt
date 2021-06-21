@@ -367,6 +367,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 }
     }
 
+    override fun incrementShareCount(globalhash: ByteArray): Completable {
+        return mDatastore.scatterMessageDao().incrementShareCount(globalhash)
+                .flatMapCompletable { v ->
+                    Log.e("debug", "incrementShareCount $v")
+                    if (v == 1)
+                        Completable.complete()
+                    else Completable.error(IllegalStateException("failed to increment share count"))
+                }
+                .subscribeOn(databaseScheduler)
+    }
+
     private fun insertIdentity(vararg ids: net.ballmerlabs.uscatterbrain.db.entities.Identity): Completable {
         return Single.just(ids)
                 .flatMapCompletable { identities ->

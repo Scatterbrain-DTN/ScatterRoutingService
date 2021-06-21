@@ -65,6 +65,13 @@ abstract class ScatterMessageDao {
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
     abstract fun getTopRandom(count: Int): Single<List<ScatterMessage>>
 
+
+    @Query("SELECT SUM(fileSize) FROM messages")
+    abstract fun getTotalSize(): Single<Int>
+
+    @Query("UPDATE messages SET shareCount = shareCount + 1 WHERE globalhash = :globalhash")
+    abstract fun incrementShareCount(globalhash: ByteArray): Single<Int>
+
     @Transaction
     @Query("SELECT * FROM messages WHERE globalhash NOT IN (:globalhashes)" +
             "ORDER BY RANDOM() LIMIT :count")

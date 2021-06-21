@@ -280,6 +280,7 @@ interface ScatterbrainDatastore {
     fun deleteMessage(message: HashlessScatterMessage): Completable
     fun deleteMessage(message: File): Completable
     fun deleteMessage(message: ScatterMessage): Completable
+    fun incrementShareCount(globalhash: ByteArray): Completable
 
 
     enum class WriteMode {

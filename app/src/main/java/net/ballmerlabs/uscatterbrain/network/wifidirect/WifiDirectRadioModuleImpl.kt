@@ -18,6 +18,8 @@ import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.getGlobalHash
+import net.ballmerlabs.uscatterbrain.db.getGlobalHashProto
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
@@ -509,6 +511,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     }
                                     .doOnComplete { Log.v(TAG, "wrote sequence packets to client socket") }
                     )
+                    .andThen(datastore.incrementShareCount(getGlobalHash(blockDataStream.headerPacket.hashList)))
         }
     }
 
@@ -534,6 +537,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                         }
                                                         .doOnComplete { Log.v(TAG, "server wrote sequence packets") }
                                         )
+                                        .andThen(datastore.incrementShareCount(getGlobalHash(blockDataStream.headerPacket.hashList)))
                             }
                 }
     }
