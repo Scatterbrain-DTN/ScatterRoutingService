@@ -269,7 +269,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     private val seq: Flowable<Int>
-        get() = Flowable.generate(Callable { 0 }, BiFunction { state: Int, emitter: Emitter<Int> ->
+        get() = Flowable.generate(Callable { 0 }, BiFunction { state, emitter ->
             emitter.onNext(state)
             state + 1
         })
@@ -330,7 +330,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .flatMapCompletable { identityId ->
                                 Observable.fromCallable { if (singleid.clientACL != null) singleid.clientACL else ArrayList() }
                                         .flatMap { source -> Observable.fromIterable(source) }
-                                        .map { acl: ClientApp ->
+                                        .map { acl ->
                                             acl.identityFK = identityId
                                             acl
                                         }
@@ -574,8 +574,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .toObservable()
                 .flatMap { idlist ->
                     Observable.fromIterable(idlist)
-                            .map { relation: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
-                                val keylist: MutableMap<String, ByteString> = HashMap(relation!!.keys.size)
+                            .map { relation ->
+                                val keylist: MutableMap<String, ByteString> = HashMap(relation.keys.size)
                                 for (keys in relation.keys) {
                                     keylist[keys.key] = ByteString.copyFrom(keys.value)
                                 }
@@ -901,7 +901,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      */
     override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, sign: String?): Completable {
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
-                .flatMapCompletable { file: File ->
+                .flatMapCompletable { file ->
                     if (message.toDisk) {
                         copyFile(message.fileDescriptor!!.fileDescriptor, file)
                                 .subscribeOn(databaseScheduler)
@@ -1126,7 +1126,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Single.fromCallable { FileOutputStream(path) }
                 .flatMapCompletable { fileOutputStream ->
                     packets
-                            .concatMapCompletable(Function<BlockSequencePacket, CompletableSource> c@{ blockSequencePacket: BlockSequencePacket? ->
+                            .concatMapCompletable(Function<BlockSequencePacket, CompletableSource> c@{ blockSequencePacket ->
                                 if (!blockSequencePacket!!.verifyHash(header)) {
                                     Completable.error(IllegalStateException("failed to verify hash"))
                                 } else {
@@ -1157,7 +1157,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun copyFile(old: FileDescriptor, file: File): Completable {
         return Single.just(Pair(old, file))
-                .flatMapCompletable { pair: Pair<FileDescriptor, File> ->
+                .flatMapCompletable { pair ->
                     if (!pair.second.createNewFile()) {
                         Log.w(TAG, "copyFile overwriting existing file")
                     }
@@ -1167,7 +1167,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         val `is` = FileInputStream(pair.first)
                         val os = FileOutputStream(pair.second)
                         Bytes.from(`is`)
-                                .flatMapCompletable { bytes: ByteArray? ->
+                                .flatMapCompletable { bytes ->
                                     Completable.fromAction { os.write(bytes) }
                                             .subscribeOn(databaseScheduler)
                                 }
@@ -1182,7 +1182,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun hashData(data: ByteArray, blocksize: Int): Single<MutableList<ByteArray>> {
         return Bytes.from(ByteArrayInputStream(data), blocksize)
-                .zipWith(seq, { b: ByteArray, seq: Int ->
+                .zipWith(seq, { b, seq ->
                     BlockSequencePacket.newBuilder()
                             .setSequenceNumber(seq)
                             .setData(ByteString.copyFrom(b))
