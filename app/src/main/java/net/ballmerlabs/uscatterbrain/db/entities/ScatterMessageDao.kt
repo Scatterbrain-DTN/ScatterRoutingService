@@ -71,6 +71,11 @@ abstract class ScatterMessageDao {
     abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>): Single<List<ScatterMessage>>
 
     @Transaction
+    @Query("SELECT * FROM messages WHERE globalhash NOT IN (:globalhashes)" +
+            "AND fileSize < :sizeLimit ORDER BY RANDOM() LIMIT :count")
+    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>, sizeLimit: Long): Single<List<ScatterMessage>>
+
+    @Transaction
     @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")
     abstract fun getTopHashes(count: Int): Single<List<ByteArray>>
 
