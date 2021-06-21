@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.db
 
 import androidx.room.*
+import androidx.room.migration.AutoMigrationSpec
 import net.ballmerlabs.uscatterbrain.db.entities.*
 import java.util.*
 
@@ -30,14 +31,23 @@ class UuidTypeConverter {
             Keys::class,
             ClientApp::class
                    ],
-        version = 7,
+        version = 10,
         exportSchema = true,
-        autoMigrations = [
-            AutoMigration(from = 6, to = 7)
-        ]
+        autoMigrations = []
 )
 @TypeConverters(UuidTypeConverter::class)
 abstract class Datastore : RoomDatabase() {
     abstract fun identityDao(): IdentityDao
     abstract fun scatterMessageDao(): ScatterMessageDao
+
+    @DeleteColumn(
+        tableName = "messages",
+        columnName = "from"
+    )
+    @RenameColumn(
+            tableName = "messages",
+            fromColumnName = "to",
+            toColumnName = "recipient_fingerprint"
+    )
+    class MigrationSpec9: AutoMigrationSpec {}
 }

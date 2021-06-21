@@ -11,8 +11,10 @@ import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.Companion.SHARED_PREFS
-import net.ballmerlabs.uscatterbrain.db.*
-import net.ballmerlabs.uscatterbrain.db.migration.Migrate6
+import net.ballmerlabs.uscatterbrain.db.Datastore
+import net.ballmerlabs.uscatterbrain.db.RouterPreferencesImpl
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastoreImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import org.junit.Before
@@ -44,7 +46,7 @@ class WifiDirectTest {
         )
 
         database = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
-                .addMigrations(Migrate6())
+                .fallbackToDestructiveMigration()
                 .build()
 
         val prefs = RouterPreferencesImpl(ctx.getSharedPreferences(SHARED_PREFS, Context.MODE_PRIVATE))

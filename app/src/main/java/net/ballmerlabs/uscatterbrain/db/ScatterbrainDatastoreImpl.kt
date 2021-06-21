@@ -914,19 +914,19 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                         Completable.error(IllegalStateException("failed to rename to $newFile"))
                                     } else {
                                         val hm = HashlessScatterMessage(
-                                                null,
-                                                message.fromFingerprint,
-                                                message.toFingerprint,
-                                                message.application,
-                                                null,
-                                                0,
-                                                message.extension,
-                                                newFile.absolutePath,
-                                                getGlobalHash(hashes),
-                                                message.filename!! ,
-                                                MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
-                                                Date().time,
-                                                Date().time,
+                                               body =  null,
+                                                identity_fingerprint = message.fromFingerprint,
+                                                recipient_fingerprint = message.toFingerprint,
+                                                application = message.application,
+                                                sig = null,
+                                                sessionid = 0,
+                                                extension = message.extension,
+                                                filePath = newFile.absolutePath,
+                                                globalhash = getGlobalHash(hashes),
+                                                userFilename = message.filename!! ,
+                                                mimeType = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
+                                                sendDate = Date().time,
+                                               receiveDate = Date().time,
                                                 fileSize = newFile.length()
                                         )
                                         val dbmessage = ScatterMessage(

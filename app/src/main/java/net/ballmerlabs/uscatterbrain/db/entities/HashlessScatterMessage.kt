@@ -29,21 +29,22 @@ import java.util.*
         ]
 )
 data class HashlessScatterMessage(
-        var body: ByteArray? = null,
-        var identity_fingerprint: String? = null,
-        var recipient_fingerprint: String? = null,
+        var body: ByteArray?,
+        var identity_fingerprint: String?,
+        var recipient_fingerprint: String?,
         var application: String,
-        var sig: ByteArray? = null,
+        var sig: ByteArray?,
         var sessionid: Int,
         var extension: String,
         @ColumnInfo(name = "filepath") var filePath: String,
         @ColumnInfo(name = "globalhash") var globalhash: ByteArray,
         var userFilename: String = "",
-        var mimeType: String,
+        var mimeType: String = "application/octet-stream",
         var sendDate: Long,
-        var receiveDate: Long?,
-        @ColumnInfo(name = "uuid", defaultValue = "") var uuid: UUID = hashAsUUID(globalhash),
-        var fileSize: Long
+        var receiveDate: Long,
+        @ColumnInfo(name = "uuid", defaultValue = "0000-0000-0000-000000000000") var uuid: UUID = hashAsUUID(globalhash),
+        @ColumnInfo(defaultValue = "-1") var fileSize: Long,
+        @ColumnInfo(defaultValue = "0") var shareCount: Int = 0
         ) {
     companion object {
         fun hash2hashs(hashes: List<ByteArray>): List<Hashes> {
@@ -84,18 +85,4 @@ data class HashlessScatterMessage(
     /* override equals() and hashCode() to make linter happy */
     @PrimaryKey(autoGenerate = true)
     var messageID: Long? = null
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as HashlessScatterMessage
-
-        if (!globalhash.contentEquals(other.globalhash)) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        return globalhash.contentHashCode()
-    }
 }
