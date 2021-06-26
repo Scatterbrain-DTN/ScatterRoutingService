@@ -17,7 +17,8 @@ android {
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments += [
-                        "room.incremental": "true"
+                        "room.incremental": "true",
+                        "room.schemaLocation": "$projectDir/schemas".toString()
                 ]
             }
         }
@@ -37,6 +38,11 @@ android {
     compileOptions {
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
+    }
+
+    sourceSets{
+        main.java.srcDirs += "${protobuf.generatedFilesBaseDir}/main/javalite"
+        androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
     }
 
     useLibrary 'android.test.base'
@@ -67,16 +73,12 @@ protobuf {
     }
 }
 
-sourceSets{
-    main.java.srcDirs += "${protobuf.generatedFilesBaseDir}/main/javalite"
-}
-
 dependencies {
     implementation project(':scatterbrainSDK')
     def lifecycle_version = "2.3.1"
     implementation 'androidx.appcompat:appcompat:1.3.0'
     implementation "com.google.protobuf:protobuf-javalite:$protobuf_version"
-    implementation "androidx.room:room-runtime:2.3.0"
+    implementation "androidx.room:room-runtime:2.4.0-alpha02"
     // Because RxAndroid releases are few and far between, it is recommended you also
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     // (see https://github.com/ReactiveX/RxJava/releases for latest 3.x.x version)
@@ -85,7 +87,7 @@ dependencies {
     androidTestImplementation project(':scatterbrainSDK')
     implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.1'
     implementation "com.polidea.rxandroidble2:rxandroidble:1.11.1"
-    kapt "androidx.room:room-compiler:2.3.0" // For Kotlin use kapt instead of annotationProcessor
+    kapt "androidx.room:room-compiler:2.4.0-alpha02" // For Kotlin use kapt instead of annotationProcessor
     implementation "androidx.lifecycle:lifecycle-service:$lifecycle_version"
     // The following Espresso dependency can be either "implementation"
     // or "androidTestImplementation", depending on whether you want the
@@ -100,6 +102,8 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
     // Optional -- UI testing with UI Automator
     androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.2.0'
+    androidTestImplementation "androidx.room:room-testing:2.4.0-alpha02"
+
     //robolectric and spock
     testImplementation  'org.codehaus.groovy:groovy:2.4.7:grooid'
     testImplementation 'com.github.hkhc:electricspock:0.9'
@@ -118,13 +122,13 @@ dependencies {
     implementation 'io.reactivex.rxjava2:rxjava:2.2.17'
     implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
 
-    implementation 'androidx.room:room-rxjava2:2.3.0'
+    implementation 'androidx.room:room-rxjava2:2.4.0-alpha02'
 
     implementation 'com.github.davidmoten:rxjava2-extras:0.1.38'
     implementation "androidx.core:core-ktx:1.5.0"
     androidTestImplementation 'androidx.test:core:1.3.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation 'com.google.firebase:firebase-crashlytics:18.0.0'
+    implementation 'com.google.firebase:firebase-crashlytics:18.0.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.3'
 }
 repositories {

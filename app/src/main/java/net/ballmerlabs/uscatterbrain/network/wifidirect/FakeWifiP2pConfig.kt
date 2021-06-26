@@ -1,7 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.net.wifi.WpsInfo
-import android.net.wifi.p2p.WifiP2pGroup
+import android.net.wifi.p2p.WifiP2pConfig
 import android.os.Parcel
 import android.os.Parcelable
 
@@ -15,8 +15,13 @@ class FakeWifiP2pConfig(
         val wpsInfo: WpsInfo? = WpsInfo(),
 ) : Parcelable {
 
-    constructor(parcel: Parcel) : this(
-    )
+    fun asConfig(): WifiP2pConfig {
+        val parcel = Parcel.obtain()
+        parcel.writeString(WifiP2pConfig::class.java.name)
+        this.writeToParcel(parcel, 0)
+        parcel.setDataPosition(0)
+        return parcel.readParcelable(WifiP2pConfig::class.java.classLoader)!!
+    }
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
         parcel.writeString(deviceAddress)

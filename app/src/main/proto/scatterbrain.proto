@@ -25,6 +25,7 @@ message BlockData {
     string to_fingerprint = 2;
     string application = 3;
     string filename = 4;
+    uint32 ttl = 5;
     string extension = 6;
     string mime = 7;
     uint32 sessionid = 8;
@@ -32,16 +33,16 @@ message BlockData {
     bool endofstream = 10;
     uint64 send_date = 11;
     repeated bytes nexthashes= 12; //size of this is fragment count
-    uint32 blocksize = 13;
-    bytes sig = 14;
+    bytes sig = 13;
 }
 
 // body of file, message, or data stream.
 message BlockSequence {
     uint32 seqnum = 1;
+    bool end = 2;
     oneof data {
-        bytes data_contents = 2;
-        bool data_native = 3;
+        bytes data_contents = 3;
+        bool data_native = 4;
     }
 }
 

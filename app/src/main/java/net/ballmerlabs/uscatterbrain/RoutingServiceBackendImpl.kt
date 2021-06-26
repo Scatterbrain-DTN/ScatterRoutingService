@@ -137,6 +137,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                         datastore.insertAndHashFileFromApi(
                                 message,
                                 DEFAULT_BLOCKSIZE,
+                                callingPackageName,
                                 identity
                         )
                                 .doOnComplete { asyncRefreshPeers() }
@@ -155,6 +156,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                                     datastore.insertAndHashFileFromApi(
                                             message,
                                             DEFAULT_BLOCKSIZE,
+                                            callingPackageName,
                                             identity
                                     )
                                 }
@@ -193,17 +195,18 @@ class RoutingServiceBackendImpl @Inject constructor(
                 }
     }
 
-    override fun sendMessage(message: ScatterMessage): Completable {
-        return datastore.insertAndHashFileFromApi(message, DEFAULT_BLOCKSIZE)
+    override fun sendMessage(message: ScatterMessage, callingPackageName: String): Completable {
+        return datastore.insertAndHashFileFromApi(message, DEFAULT_BLOCKSIZE, callingPackageName)
                 .doOnComplete { asyncRefreshPeers() }
     }
 
-    override fun sendMessages(messages: List<ScatterMessage>): Completable {
+    override fun sendMessages(messages: List<ScatterMessage>, callingPackageName: String): Completable {
         return Observable.fromIterable(messages)
                 .flatMapCompletable { m ->
                     datastore.insertAndHashFileFromApi(
                             m,
-                            DEFAULT_BLOCKSIZE
+                            DEFAULT_BLOCKSIZE,
+                            callingPackageName
                     )
                 }
     }

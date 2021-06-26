@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.network
 
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
-import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockSequence
 import java.io.File
 import java.nio.ByteBuffer
@@ -25,6 +24,9 @@ class BlockSequencePacket(packet: BlockSequence) : ScatterSerializable<BlockSequ
 
     val isNative: Boolean
     get() = packet.dataCase == BlockSequence.DataCase.DATA_NATIVE
+
+    val isEnd: Boolean
+    get() = packet.end
 
     /**
      * Verify the hash of this message against its header
@@ -78,7 +80,8 @@ class BlockSequencePacket(packet: BlockSequence) : ScatterSerializable<BlockSequ
             var sequenceNumber: Int = 0,
             var data: ByteString? = null,
             val dataOnDisk: File? = null,
-            var onDisk: Boolean = false
+            var onDisk: Boolean = false,
+            var end: Boolean = false
     )
     /**
      * Instantiates a new Builder.
@@ -106,6 +109,14 @@ class BlockSequencePacket(packet: BlockSequence) : ScatterSerializable<BlockSequ
         }
 
         /**
+         * Sets end of stream
+         * @param end
+         */
+        fun setEnd(end: Boolean) = apply {
+            this.end = end
+        }
+
+        /**
          * Build block sequence packet.
          *
          * @return the block sequence packet
@@ -117,6 +128,7 @@ class BlockSequencePacket(packet: BlockSequence) : ScatterSerializable<BlockSequ
             } else {
                 builder.dataNative = true
             }
+            builder.end = this.end
             return BlockSequencePacket(builder.setSeqnum(sequenceNumber).build())
         }
     }

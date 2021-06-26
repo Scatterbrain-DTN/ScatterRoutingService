@@ -15,11 +15,7 @@ import kotlin.math.min
 class InputStreamFlowableSubscriber(capacity: Int) : InputStreamCallback(capacity), FlowableSubscriber<ByteArray?> {
     private var isDisposed = false
     private var subscription: Subscription? = null
-    private var blocksize: Int
-
-    init {
-        blocksize = DEFAULT_BLOCKSIZE
-    }
+    private var blocksize: Int = DEFAULT_BLOCKSIZE
 
     override fun onSubscribe(s: Subscription) {
         s.request(blocksize * 20.toLong())

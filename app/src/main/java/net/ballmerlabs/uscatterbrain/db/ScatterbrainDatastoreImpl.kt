@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.db
 import android.content.Context
 import android.net.Uri
 import android.os.FileObserver
-import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import android.util.Log
 import android.util.Pair
@@ -32,10 +31,12 @@ import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
 import kotlin.collections.ArrayList
+import kotlin.math.floor
 import kotlin.math.min
 
 /**
@@ -134,11 +135,22 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @return completable
      */
     override fun insertMessage(stream: BlockDataStream): Completable {
-        return if (stream.toDisk) {
-            insertMessageWithDisk(stream)
-        } else {
-            insertMessagesWithoutDisk(stream)
-        }
+        return Completable.defer {
+            stream.entity?.message?.receiveDate = Date().time
+            if (stream.toDisk) {
+                insertMessageWithDisk(stream)
+            } else {
+                insertMessagesWithoutDisk(stream)
+            }
+        }.andThen(trimDatastore(
+                Date(Date().time - 120),
+                getMax(), //TODO: parameterize this
+
+        ))
+    }
+
+    private fun getMax(): Long {
+        return preferences.getInt(ctx.getString(R.string.pref_sizecap), 4096).toLong() * 1024 * 1024
     }
 
     /**
@@ -155,8 +167,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         if (count > 0) {
                             discardStream(stream)
                         } else {
-                            insertMessages(stream.entity)
-                                    .andThen(insertFile(stream))
+                            insertFile(stream)
+                                    .flatMapCompletable { size ->
+                                        stream.entity.message.fileSize = size
+                                        insertMessages(stream.entity)
+                                    }
                         }
                     }
                     .subscribeOn(databaseScheduler)
@@ -175,8 +190,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private fun insertMessagesWithoutDisk(stream: BlockDataStream): Completable {
         return mDatastore.scatterMessageDao().messageCountSingle(stream.headerPacket.autogenFilename)
                 .subscribeOn(databaseScheduler)
-                .flatMapCompletable { count: Int? ->
-                    if (count!! > 0) {
+                .flatMapCompletable { count ->
+                    if (count > 0) {
                         discardStream(stream)
                     } else {
                         stream.sequencePackets
@@ -189,8 +204,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     }
                                 }
                                 .reduce { obj, other -> obj + other }
-                                .flatMapCompletable { `val` ->
-                                    stream.entity!!.message.body = `val`
+                                .flatMapCompletable { bytes ->
+                                    stream.entity!!.message.body = bytes
+                                    stream.entity.message.fileSize = bytes.size.toLong()
                                     insertMessages(stream.entity)
                                 }.subscribeOn(databaseScheduler)
                     }
@@ -213,6 +229,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .zipWith(seq, { bytes, seq ->
                     BlockSequencePacket.newBuilder()
                             .setData(ByteString.copyFrom(bytes))
+                            .setEnd(seq >= floor(body.size.toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                             .setSequenceNumber(seq)
                             .build()
                 })
@@ -239,29 +256,29 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .toFlowable()
                     .flatMap { source -> Flowable.fromIterable(source) }
                     .doOnNext { message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size) }
-                    .zipWith(seq, { message, s ->
+
+                    .map { message ->
                         if (message.message.body == null) {
                             BlockDataStream(
                                     message,
-                                    readFile(File(message.message.filePath), message.message.blocksize),
-                                    s < num - 1,
+                                    readFile(File(message.message.filePath), DEFAULT_BLOCKSIZE),
                                     true
                             )
                         } else {
                             BlockDataStream(
                                     message,
-                                    readBody(message.message.body!!, message.message.blocksize),
-                                    s < num - 1,
+                                    readBody(message.message.body!!, DEFAULT_BLOCKSIZE),
                                     false
                             )
                         }
-                    }).toObservable()
-                    .defaultIfEmpty(BlockDataStream.endOfStream())
+                    }
+                    .toObservable()
+                    .concatWith(Single.just(BlockDataStream.endOfStream()))
         }
     }
 
     private val seq: Flowable<Int>
-        get() = Flowable.generate(Callable { 0 }, BiFunction { state: Int, emitter: Emitter<Int> ->
+        get() = Flowable.generate(Callable { 0 }, BiFunction { state, emitter ->
             emitter.onNext(state)
             state + 1
         })
@@ -301,6 +318,60 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .firstOrError()
     }
 
+    override fun trimDatastore(cap: Date, max: Long, limit: Int?): Completable {
+        return trimDatastore(Date(0), cap, max, limit = limit)
+    }
+
+    private fun trimOnce(start: Date, end: Date): Single<Long> {
+        return mDatastore.scatterMessageDao().getByReceiveDatePriority(start.time, end.time, 1)
+                .subscribeOn(databaseScheduler)
+                .flatMapObservable { list -> Observable.fromIterable(list) }
+                .flatMapSingle { scatterMessage ->
+                    mDatastore.scatterMessageDao().delete(scatterMessage.message)
+                            .andThen(deleteFile(File(scatterMessage.message.filePath)))
+                            .toSingleDefault(scatterMessage.message.fileSize)
+                }
+                .firstOrError()
+    }
+
+    private fun trimOnce(packageName: String): Single<Long> {
+        return mDatastore.scatterMessageDao().getByReceiveDatePriority(packageName, 1)
+                .subscribeOn(databaseScheduler)
+                .flatMapObservable { list -> Observable.fromIterable(list) }
+                .flatMapSingle { scatterMessage ->
+                    mDatastore.scatterMessageDao().delete(scatterMessage.message)
+                            .andThen(deleteFile(File(scatterMessage.message.filePath)))
+                            .toSingleDefault(scatterMessage.message.fileSize)
+                }
+                .firstOrError()
+    }
+
+    override fun trimDatastore(packageName: String, max: Long): Completable {
+        return mDatastore.scatterMessageDao().getTotalSize()
+                .subscribeOn(databaseScheduler)
+                .flatMapCompletable { size ->
+                    trimOnce(packageName)
+                            .repeat()
+                            .scan(size) { s, v -> s + v }
+                            .takeUntil {  v -> v <= max  }
+                            .ignoreElements()
+                }
+                .onErrorComplete()
+    }
+
+    override fun trimDatastore(start: Date, end: Date, max: Long, limit: Int?): Completable {
+        return mDatastore.scatterMessageDao().getTotalSize()
+                .subscribeOn(databaseScheduler)
+                .flatMapCompletable { size ->
+                    trimOnce(start, end)
+                            .repeat()
+                            .scan(size) { s, v -> s + v }
+                            .takeUntil {  v -> v <= max  }
+                            .ignoreElements()
+                }
+                .onErrorComplete()
+    }
+
     private fun insertIdentity(identityObservable: Observable<net.ballmerlabs.uscatterbrain.db.entities.Identity>): Completable {
         return identityObservable
                 .flatMapCompletable { singleid ->
@@ -308,7 +379,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .flatMapCompletable { identityId ->
                                 Observable.fromCallable { if (singleid.clientACL != null) singleid.clientACL else ArrayList() }
                                         .flatMap { source -> Observable.fromIterable(source) }
-                                        .map { acl: ClientApp ->
+                                        .map { acl ->
                                             acl.identityFK = identityId
                                             acl
                                         }
@@ -322,6 +393,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                     .ignoreElement()
                                         }
                             }
+                            .doOnError { e-> Log.e(TAG, "failed to insert identity: $e") }
+                            .onErrorComplete()
                 }
     }
 
@@ -340,6 +413,24 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .flatMapCompletable { l ->
                     mDatastore.identityDao().deleteIdentityByFingerprint(l)
                             .subscribeOn(databaseScheduler)
+                }
+    }
+
+    override fun incrementShareCount(message: BlockHeaderPacket): Completable {
+        return Single.just(message)
+                .flatMapCompletable { m ->
+                    if (m.isEndOfStream) {
+                        Completable.complete()
+                    } else {
+                        mDatastore.scatterMessageDao().incrementShareCount(getGlobalHash(m.hashList))
+                                .flatMapCompletable { v ->
+                                    Log.e("debug", "incrementShareCount $v")
+                                    if (v == 1)
+                                        Completable.complete()
+                                    else Completable.error(IllegalStateException("failed to increment share count"))
+                                }
+                                .subscribeOn(databaseScheduler)
+                    }
                 }
     }
 
@@ -508,7 +599,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnNext { id -> Log.v(TAG, "inserting identity: ${id.fingerprint}")}
                 .flatMap { i ->
                     if (i.isEnd || i.isEmpty()) {
-                        Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
+                        Observable.never()
                     } else {
                         val id = KeylessIdentity(
                                 i.name,
@@ -524,7 +615,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         )
                         if (!i.verifyed25519(i.pubkey)) {
                             Log.e(TAG, "identity " + i.name + " " + i.fingerprint + " failed sig check")
-                            Observable.never<net.ballmerlabs.uscatterbrain.db.entities.Identity>()
+                            Observable.never()
                         } else {
                             Observable.just(finalIdentity)
                         }
@@ -550,8 +641,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .toObservable()
                 .flatMap { idlist ->
                     Observable.fromIterable(idlist)
-                            .map { relation: net.ballmerlabs.uscatterbrain.db.entities.Identity? ->
-                                val keylist: MutableMap<String, ByteString> = HashMap(relation!!.keys.size)
+                            .map { relation ->
+                                val keylist: MutableMap<String, ByteString> = HashMap(relation.keys.size)
                                 for (keys in relation.keys) {
                                     keylist[keys.key] = ByteString.copyFrom(keys.value)
                                 }
@@ -719,22 +810,24 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return hashFile(path, blocksize)
                 .flatMapCompletable { hashes ->
                     Log.e(TAG, "hashing local file, len:" + hashes.size)
+                    val globalhash = getGlobalHash(hashes)
                     val message = HashlessScatterMessage(
-                            null,
-                            null,
-                            null,
-                            null,
-                            Applications.APPLICATION_FILESHARING,
-                            null,
-                            0,
-                            blocksize,
-                            MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString()),
-                            path.absolutePath,
-                            getGlobalHash(hashes),
-                            path.name,
-                            ScatterbrainApi.getMimeType(path),
-                            Date().time,
-                            null
+                            body = null,
+                            identity_fingerprint = null,
+                            recipient_fingerprint = null,
+                            application = Applications.APPLICATION_FILESHARING,
+                            sig = null,
+                            sessionid = 0,
+                            extension = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString()),
+                            filePath = path.absolutePath,
+                            globalhash = globalhash,
+                            userFilename = path.name,
+                            mimeType = ScatterbrainApi.getMimeType(path),
+                            sendDate = Date().time,
+                            receiveDate = Date().time,
+                            uuid = hashAsUUID(globalhash),
+                            fileSize = path.length(),
+                            packageName = ""
                     )
                     val hashedMessage = ScatterMessage(
                             message,
@@ -756,15 +849,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             ScatterMessage.newBuilder()
                     .setApplication(message.message.application)
                     .setFile(r)
-                    .setTo(message.message.to)
-                    .setFrom(message.message.from)
+                    .setTo(message.message.recipient_fingerprint)
+                    .setId(message.message.uuid)
+                    .setFrom(message.message.identity_fingerprint)
                     .build()
         } else {
             ScatterMessage.newBuilder()
                     .setApplication(message.message.application)
                     .setBody(message.message.body)
-                    .setTo(message.message.to)
-                    .setFrom(message.message.from)
+                    .setId(message.message.uuid)
+                    .setTo(message.message.recipient_fingerprint)
+                    .setFrom(message.message.identity_fingerprint)
                     .build()
         }
     }
@@ -872,9 +967,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param blocksize blocksize
      * @return completable
      */
-    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, sign: String?): Completable {
+    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, packageName: String, sign: String?): Completable {
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
-                .flatMapCompletable { file: File ->
+                .flatMapCompletable { file ->
                     if (message.toDisk) {
                         copyFile(message.fileDescriptor!!.fileDescriptor, file)
                                 .subscribeOn(databaseScheduler)
@@ -887,21 +982,21 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                         Completable.error(IllegalStateException("failed to rename to $newFile"))
                                     } else {
                                         val hm = HashlessScatterMessage(
-                                                null,
-                                                message.fromFingerprint,
-                                                message.toFingerprint,
-                                                message.fromFingerprint,
-                                                message.application,
-                                                null,
-                                                0,
-                                                blocksize,
-                                                message.extension,
-                                                newFile.absolutePath,
-                                                getGlobalHash(hashes),
-                                                message.filename!! ,
-                                                MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
-                                                Date().time,
-                                                null
+                                                body =  null,
+                                                identity_fingerprint = message.fromFingerprint,
+                                                recipient_fingerprint = message.toFingerprint,
+                                                application = message.application,
+                                                sig = null,
+                                                sessionid = 0,
+                                                extension = message.extension,
+                                                filePath = newFile.absolutePath,
+                                                globalhash = getGlobalHash(hashes),
+                                                userFilename = message.filename!! ,
+                                                mimeType = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
+                                                sendDate = Date().time,
+                                               receiveDate = Date().time,
+                                                fileSize = newFile.length(),
+                                                packageName = packageName
                                         )
                                         val dbmessage = ScatterMessage(
                                                 hm,
@@ -924,22 +1019,22 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         hashData(message.body!!, blocksize)
                                 .flatMapCompletable { hashes ->
                                     val hm = HashlessScatterMessage(
-                                            message.body,
-                                            message.fromFingerprint,
-                                            message.toFingerprint,
-                                            message.fromFingerprint,
-                                            message.application,
-                                            null,
-                                            0,
-                                            blocksize,
-                                            "",
-                                            getNoFilename(message.body!!),
-                                            getGlobalHash(hashes),
-                                            "",
-                                            "application/octet-stream",
-                                            Date().time,
-                                            null
-                                            )
+                                            body = message.body,
+                                            identity_fingerprint = message.fromFingerprint,
+                                            recipient_fingerprint = message.toFingerprint,
+                                            application = message.application,
+                                            sig = null,
+                                            sessionid = 0,
+                                            extension = "",
+                                            filePath = getNoFilename(message.body!!),
+                                            globalhash = getGlobalHash(hashes),
+                                            userFilename = "",
+                                            mimeType = "application/octet-stream",
+                                            sendDate = Date().time,
+                                            receiveDate = Date().time,
+                                            fileSize = message.body!!.size.toLong(),
+                                            packageName = packageName
+                                    )
                                     val dbmessage = ScatterMessage(
                                             hm,
                                             HashlessScatterMessage.hash2hashs(hashes)
@@ -957,6 +1052,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 }
                     }
                 }
+                .andThen(trimDatastore(packageName, getMax()))
     }
 
     /**
@@ -1074,11 +1170,34 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         }
     }
 
+    override fun deleteMessage(message: HashlessScatterMessage): Completable {
+        return mDatastore.scatterMessageDao().delete(message)
+                .andThen(deleteFile(File(message.filePath)))
+    }
+
+    override fun deleteMessage(message: File): Completable {
+        return mDatastore.scatterMessageDao().getByFilePath(message.absolutePath)
+                .flatMapObservable { m -> Observable.fromIterable(m) }
+                .flatMapCompletable { m -> deleteMessage(m.message) }
+
+    }
+
+    override fun deleteMessage(message: ScatterMessage): Completable {
+        return Completable.defer {
+            if (message.id == null) {
+                Completable.error(IllegalArgumentException("message not inserted"))
+            } else {
+                mDatastore.scatterMessageDao().getByUUID(message.id!!.uuid)
+                        .flatMapCompletable { m -> deleteMessage(m.message) }
+            }
+        }
+    }
+
     private fun insertSequence(packets: Flowable<BlockSequencePacket>, header: BlockHeaderPacket, path: File): Completable {
         return Single.fromCallable { FileOutputStream(path) }
                 .flatMapCompletable { fileOutputStream ->
                     packets
-                            .concatMapCompletable(Function<BlockSequencePacket, CompletableSource> c@{ blockSequencePacket: BlockSequencePacket? ->
+                            .concatMapCompletable(Function<BlockSequencePacket, CompletableSource> c@{ blockSequencePacket ->
                                 if (!blockSequencePacket!!.verifyHash(header)) {
                                     Completable.error(IllegalStateException("failed to verify hash"))
                                 } else {
@@ -1092,7 +1211,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     /**
      * insert blockdatastream with isFile to datastore
      */
-    override fun insertFile(stream: BlockDataStream): Completable {
+    override fun insertFile(stream: BlockDataStream): Single<Long> {
         val file = getFilePath(stream.headerPacket)
         Log.v(TAG, "insertFile: $file")
         return Completable.fromAction {
@@ -1104,11 +1223,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 stream.headerPacket,
                 file
         ))
+                .toSingleDefault(file.length())
     }
 
     private fun copyFile(old: FileDescriptor, file: File): Completable {
         return Single.just(Pair(old, file))
-                .flatMapCompletable { pair: Pair<FileDescriptor, File> ->
+                .flatMapCompletable { pair ->
                     if (!pair.second.createNewFile()) {
                         Log.w(TAG, "copyFile overwriting existing file")
                     }
@@ -1118,7 +1238,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         val `is` = FileInputStream(pair.first)
                         val os = FileOutputStream(pair.second)
                         Bytes.from(`is`)
-                                .flatMapCompletable { bytes: ByteArray? ->
+                                .flatMapCompletable { bytes ->
                                     Completable.fromAction { os.write(bytes) }
                                             .subscribeOn(databaseScheduler)
                                 }
@@ -1133,7 +1253,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun hashData(data: ByteArray, blocksize: Int): Single<MutableList<ByteArray>> {
         return Bytes.from(ByteArrayInputStream(data), blocksize)
-                .zipWith(seq, { b: ByteArray, seq: Int ->
+                .zipWith(seq, { b, seq ->
                     BlockSequencePacket.newBuilder()
                             .setSequenceNumber(seq)
                             .setData(ByteString.copyFrom(b))
@@ -1175,10 +1295,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnSubscribe { Log.v(TAG, "subscribed to readFile") }
                 .flatMap {
                     Bytes.from(path, blocksize)
-                            .zipWith(seq, { bytes: ByteArray, seqnum: Int ->
+                            .zipWith(seq, { bytes, seqnum ->
                                 Log.e("debug", "reading " + bytes.size)
                                 BlockSequencePacket.newBuilder()
                                         .setSequenceNumber(seqnum)
+                                        .setEnd(seqnum >= floor(path.length().toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                                         .setData(ByteString.copyFrom(bytes))
                                         .build()
                             }).subscribeOn(databaseScheduler)
@@ -1206,15 +1327,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             override fun onEvent(i: Int, s: String?) {
                 when (i) {
                     CLOSE_WRITE -> {
-                        if (s != null) {
+                        if (s != null && s.isNotEmpty()) {
                             Log.v(TAG, "file closed in user directory; $s")
                             val f = File(userFilesDir, s)
-                            if (f.exists() && f.length() > 0) {
-                                insertAndHashLocalFile(f, DEFAULT_BLOCKSIZE)
-                            } else if (f.length() == 0L) {
-                                Log.e(TAG, "file length was zero, not hashing")
-                            } else {
-                                Log.e(TAG, "closed file does not exist, race condition??!")
+                            if (!f.isDirectory) {
+                                if (f.exists() && f.length() > 0) {
+                                    insertAndHashLocalFile(f, DEFAULT_BLOCKSIZE)
+                                } else if (f.length() == 0L) {
+                                    Log.e(TAG, "file length was zero, not hashing")
+                                } else {
+                                    Log.e(TAG, "closed file does not exist, race condition??!")
+                                }
                             }
                         }
                     }

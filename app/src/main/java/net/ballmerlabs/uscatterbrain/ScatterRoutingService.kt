@@ -138,7 +138,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun sendMessage(message: ScatterMessage) {
             checkAccessPermission()
-            mBackend.sendMessage(message).blockingAwait()
+            mBackend.sendMessage(message, callingPackageName).blockingAwait()
         }
 
         /**
@@ -148,7 +148,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun sendMessages(messages: List<ScatterMessage>) {
             checkAccessPermission()
-            mBackend.sendMessages(messages).blockingAwait()
+            mBackend.sendMessages(messages, callingPackageName).blockingAwait()
         }
 
         /**
@@ -365,7 +365,7 @@ class ScatterRoutingService : LifecycleService() {
         override fun sendMessagesAsync(messages: MutableList<ScatterMessage>): Int {
             checkAccessPermission()
             val handle = generateNewHandle()
-            val disp = mBackend.sendMessages(messages)
+            val disp = mBackend.sendMessages(messages, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
@@ -379,7 +379,7 @@ class ScatterRoutingService : LifecycleService() {
         override fun sendMessageAsync(message: ScatterMessage): Int {
             checkAccessPermission()
             val handle = generateNewHandle()
-            val disp = mBackend.sendMessage(message)
+            val disp = mBackend.sendMessage(message, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(

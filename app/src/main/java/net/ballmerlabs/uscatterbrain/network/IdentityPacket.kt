@@ -8,7 +8,6 @@ import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.ScatterProto
-import java.io.*
 import java.util.*
 
 /**
@@ -143,7 +142,6 @@ class IdentityPacket(packet: ScatterProto.Identity) :
         /**
          * Sign ed 25519 boolean.
          *
-         * @param secretkey the secretkey
          * @return the boolean
          */
         fun signEd25519(): ByteArray {

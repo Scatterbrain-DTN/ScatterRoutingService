@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.os.Parcel
-import android.util.Log
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
