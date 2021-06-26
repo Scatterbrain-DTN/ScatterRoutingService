@@ -4,6 +4,7 @@ import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.db.getGlobalHashDb
+import java.util.*
 
 /**
  * Room Dao containing queries and operations on messages stored
@@ -25,12 +26,32 @@ abstract class ScatterMessageDao {
     abstract fun getByID(vararg ids: Long): Single<ScatterMessage>
 
     @Transaction
+    @Query("SELECT * FROM messages WHERE uuid = :uuids")
+    abstract fun getByUUID(uuids: UUID): Single<ScatterMessage>
+
+    @Transaction
     @Query("SELECT * FROM messages WHERE (application = :application) AND (receiveDate BETWEEN :start AND :end)")
     abstract fun getByReceiveDate(application: String, start: Long, end: Long): Single<List<ScatterMessage>>
 
     @Transaction
+    @Query("SELECT * FROM messages WHERE (receiveDate BETWEEN :start AND :end)")
+    abstract fun getByReceiveDate(start: Long, end: Long): Single<List<ScatterMessage>>
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE (receiveDate BETWEEN :start AND :end) ORDER BY shareCount DESC LIMIT :limit")
+    abstract fun getByReceiveDatePriority(start: Long, end: Long, limit: Int): Single<List<ScatterMessage>>
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE packageName = :packageName ORDER BY shareCount DESC LIMIT :limit")
+    abstract fun getByReceiveDatePriority(packageName: String, limit: Int): Single<List<ScatterMessage>>
+
+    @Transaction
     @Query("SELECT * FROM messages WHERE (application = :application) AND (sendDate BETWEEN :start AND :end)")
     abstract fun getBySendDate(application: String, start: Long, end: Long): Single<List<ScatterMessage>>
+
+    @Transaction
+    @Query("DELETE FROM messages WHERE receiveDate BETWEEN :start AND :end")
+    abstract fun deleteByDate(start: Long, end: Long): Single<Int>
 
     @Transaction
     @Query("SELECT * FROM messages WHERE filePath IN (:filePaths)")
@@ -52,10 +73,22 @@ abstract class ScatterMessageDao {
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
     abstract fun getTopRandom(count: Int): Single<List<ScatterMessage>>
 
+
+    @Query("SELECT SUM(fileSize) FROM messages")
+    abstract fun getTotalSize(): Single<Long>
+
+    @Query("UPDATE messages SET shareCount = shareCount + 1 WHERE globalhash = :globalhash")
+    abstract fun incrementShareCount(globalhash: ByteArray): Single<Int>
+
     @Transaction
     @Query("SELECT * FROM messages WHERE globalhash NOT IN (:globalhashes)" +
             "ORDER BY RANDOM() LIMIT :count")
     abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>): Single<List<ScatterMessage>>
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE globalhash NOT IN (:globalhashes)" +
+            "AND fileSize < :sizeLimit ORDER BY RANDOM() LIMIT :count")
+    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>, sizeLimit: Long): Single<List<ScatterMessage>>
 
     @Transaction
     @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")

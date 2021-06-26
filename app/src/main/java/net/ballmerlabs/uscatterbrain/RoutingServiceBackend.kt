@@ -32,7 +32,7 @@ interface RoutingServiceBackend {
     fun authorizeApp(fingerprint: String, packageName: String): Completable
     fun deauthorizeApp(fingerprint: String, packageName: String): Completable
     fun removeIdentity(name: String, callingPackageName: String): Completable
-    fun sendMessage(message: ScatterMessage): Completable
-    fun sendMessages(messages: List<ScatterMessage>): Completable
+    fun sendMessage(message: ScatterMessage, callingPackageName: String): Completable
+    fun sendMessages(messages: List<ScatterMessage>, callingPackageName: String): Completable
     fun signDataDetached(data: ByteArray, identity: String, callingPackageName: String): Single<ByteArray>
 }

@@ -17,7 +17,8 @@ android {
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments += [
-                        "room.incremental": "true"
+                        "room.incremental": "true",
+                        "room.schemaLocation": "$projectDir/schemas".toString()
                 ]
             }
         }
@@ -37,6 +38,11 @@ android {
     compileOptions {
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
+    }
+
+    sourceSets{
+        main.java.srcDirs += "${protobuf.generatedFilesBaseDir}/main/javalite"
+        androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
     }
 
     useLibrary 'android.test.base'
@@ -65,10 +71,6 @@ protobuf {
             }
         }
     }
-}
-
-sourceSets{
-    main.java.srcDirs += "${protobuf.generatedFilesBaseDir}/main/javalite"
 }
 
 dependencies {
@@ -100,6 +102,8 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
     // Optional -- UI testing with UI Automator
     androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.2.0'
+    androidTestImplementation "androidx.room:room-testing:2.4.0-alpha02"
+
     //robolectric and spock
     testImplementation  'org.codehaus.groovy:groovy:2.4.7:grooid'
     testImplementation 'com.github.hkhc:electricspock:0.9'

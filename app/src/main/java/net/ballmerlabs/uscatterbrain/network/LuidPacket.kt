@@ -5,6 +5,7 @@ import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.uscatterbrain.ScatterProto.Luid
 import net.ballmerlabs.uscatterbrain.ScatterProto.Luid.hashed
+import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import java.nio.ByteBuffer
 import java.util.*
 
@@ -36,21 +37,10 @@ class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
     val hashAsUUID: UUID?
         get() {
             val h = packet.valHash.hash.toByteArray()
-            return when {
-                h.size != GenericHash.BYTES -> {
-                    Log.e("debug", "hash size wrong: ${h.size}")
-                    null
-                }
-                isHashed -> {
-                    val buf = ByteBuffer.wrap(h)
-                    //note: this only is safe because crypto_generichash_BYTES_MIN is 16
-                    UUID(buf.long, buf.long)
-                }
-                else -> {
-                    Log.e("debug", "isHashed not set")
-                    null
-                }
-            }
+            return if (!isHashed)
+                null
+            else
+                hashAsUUID(h)
         }
 
     fun verifyHash(p: LuidPacket): Boolean {

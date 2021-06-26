@@ -82,6 +82,7 @@ interface RoutingServiceComponent {
             @Provides
             fun provideDatastore(ctx: Context?): Datastore {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
+                        .fallbackToDestructiveMigration()
                         .build()
             }
 

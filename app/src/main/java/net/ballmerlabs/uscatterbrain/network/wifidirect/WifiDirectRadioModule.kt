@@ -46,9 +46,8 @@ interface WifiDirectRadioModule {
                 entity = if (headerPacket.isEndOfStream) null else ScatterMessage(
                         HashlessScatterMessage(
                                 null,
-                                null,
-                                headerPacket.toFingerprint,
                                 headerPacket.fromFingerprint,
+                                headerPacket.toFingerprint,
                                 headerPacket.application,
                                 headerPacket.signature,
                                 headerPacket.sessionID,
@@ -58,7 +57,9 @@ interface WifiDirectRadioModule {
                                 headerPacket.userFilename,
                                 headerPacket.mime,
                                 headerPacket.sendDate,
-                                Date().time
+                                Date().time,
+                                fileSize = -1,
+                                packageName = ""
                         ),
                         HashlessScatterMessage.hash2hashs(headerPacket.hashList)
                 ),
@@ -76,8 +77,8 @@ interface WifiDirectRadioModule {
 
         constructor(message: ScatterMessage, packetFlowable: Flowable<BlockSequencePacket>, todisk: Boolean = true): this(
                 headerPacket = BlockHeaderPacket.newBuilder()
-                        .setToFingerprint(message.message.to)
-                        .setFromFingerprint(message.message.from)
+                        .setToFingerprint(message.message.recipient_fingerprint)
+                        .setFromFingerprint(message.message.identity_fingerprint)
                         .setApplication(message.message.application)
                         .setSig(message.message.sig)
                         .setToDisk(todisk)

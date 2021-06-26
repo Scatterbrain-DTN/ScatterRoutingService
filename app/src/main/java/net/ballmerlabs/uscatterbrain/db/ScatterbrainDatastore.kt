@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.db
 
+import android.util.Log
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
 import com.goterl.lazycode.lazysodium.interfaces.Sign
@@ -13,6 +14,7 @@ import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Hashes
+import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -175,6 +177,19 @@ fun getGlobalHashProto(hashes: List<ByteString>): ByteArray {
     return outhash
 }
 
+fun hashAsUUID(hash: ByteArray): UUID {
+    return when {
+        hash.size != GenericHash.BYTES -> {
+            throw IllegalArgumentException("hash size wrong: ${hash.size}")
+        }
+        else -> {
+            val buf = ByteBuffer.wrap(hash)
+            //note: this only is safe because crypto_generichash_BYTES_MIN is 16
+            UUID(buf.long, buf.long)
+        }
+    }
+}
+
 fun getGlobalHashDb(hashes: List<Hashes>): ByteArray {
     val outhash = ByteArray(GenericHash.BYTES)
     val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
@@ -240,7 +255,7 @@ interface ScatterbrainDatastore {
     fun isOpen(path: File): Boolean
     fun close(path: File): Boolean
     fun open(path: File): Single<OpenFile>
-    fun insertFile(stream: BlockDataStream): Completable
+    fun insertFile(stream: BlockDataStream): Single<Long>
     fun hashFile(path: File, blocksize: Int): Single<List<ByteArray>>
     fun readFile(path: File, blocksize: Int): Flowable<BlockSequencePacket>
     fun readBody(body: ByteArray, blocksize: Int): Flowable<BlockSequencePacket>
@@ -254,12 +269,20 @@ interface ScatterbrainDatastore {
     fun getApiMessagesReceiveDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>>
     fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket>
     fun getApiMessages(id: Long): ScatterMessage
-    fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, sign: String? = null): Completable
+    fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int,packageName: String, sign: String? = null): Completable
     val declareHashesPacket: Single<DeclareHashesPacket>
     fun getACLs(identity: String): Single<MutableList<ACL>>
     fun updatePackage(packageName: String): Completable
     fun getPackages(): Single<ArrayList<String>>
     fun deleteIdentities(vararg fingerprint: String): Completable
+    fun trimDatastore(cap: Date, max: Long, limit: Int? = null): Completable
+    fun trimDatastore(packageName: String, max: Long): Completable
+    fun trimDatastore(start: Date, end: Date, max: Long, limit: Int? = null): Completable
+    fun deleteMessage(message: HashlessScatterMessage): Completable
+    fun deleteMessage(message: File): Completable
+    fun deleteMessage(message: ScatterMessage): Completable
+    fun incrementShareCount(message: BlockHeaderPacket): Completable
+
 
     enum class WriteMode {
         APPEND, OVERWRITE

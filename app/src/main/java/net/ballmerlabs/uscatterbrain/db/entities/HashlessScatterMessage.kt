@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.google.protobuf.ByteString
+import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import java.util.*
 
 /**
@@ -20,25 +21,32 @@ import java.util.*
             Index(
                     value = ["globalhash"],
                     unique = true
+            ),
+            Index(
+                    value = ["uuid"],
+                    unique = true
             )
         ]
 )
-data class HashlessScatterMessage(@ColumnInfo
-                                  var body: ByteArray? = null, @ColumnInfo
-                                  var identity_fingerprint: String? = null, @ColumnInfo
-                                  var to: String? = null, @ColumnInfo
-                                  var from: String? = null, @ColumnInfo
-                                  var application: String, @ColumnInfo
-                                  var sig: ByteArray? = null, @ColumnInfo
-                                  var sessionid: Int, @ColumnInfo
-                                  var extension: String, @ColumnInfo(name = "filepath")
-                                  var filePath: String, @ColumnInfo(name = "globalhash")
-                                  var globalhash: ByteArray, @ColumnInfo
-                                  var userFilename: String = "", @ColumnInfo
-                                  var mimeType: String,
-                                  var sendDate: Long,
-                                  var receiveDate: Long? = null
-) {
+data class HashlessScatterMessage(
+        var body: ByteArray?,
+        var identity_fingerprint: String?,
+        var recipient_fingerprint: String?,
+        var application: String,
+        var sig: ByteArray?,
+        var sessionid: Int,
+        var extension: String,
+        @ColumnInfo(name = "filepath") var filePath: String,
+        @ColumnInfo(name = "globalhash") var globalhash: ByteArray,
+        var userFilename: String = "",
+        var mimeType: String = "application/octet-stream",
+        var sendDate: Long,
+        var receiveDate: Long,
+        @ColumnInfo(name = "uuid", defaultValue = "0000-0000-0000-000000000000") var uuid: UUID = hashAsUUID(globalhash),
+        @ColumnInfo(defaultValue = "-1") var fileSize: Long,
+        @ColumnInfo(defaultValue = "0") var shareCount: Int = 0,
+        @ColumnInfo(defaultValue = "") var packageName: String
+        ) {
     companion object {
         fun hash2hashs(hashes: List<ByteArray>): List<Hashes> {
             val result = ArrayList<Hashes>()
@@ -78,18 +86,4 @@ data class HashlessScatterMessage(@ColumnInfo
     /* override equals() and hashCode() to make linter happy */
     @PrimaryKey(autoGenerate = true)
     var messageID: Long? = null
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as HashlessScatterMessage
-
-        if (!globalhash.contentEquals(other.globalhash)) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        return globalhash.contentHashCode()
-    }
 }
