@@ -69,13 +69,13 @@ class DatastoreTest {
                 .setApplication("fmef")
                 .setBody(byteArrayOf(1))
                 .build()
-        datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE).blockingAwait()
+        datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE,"").blockingAwait()
         assert(datastore.getApiMessages("fmef").blockingGet().size == 1)
     }
 
     @Test
     @Throws(IOException::class)
-    fun migrate5To10() {
+    fun migrate5To11() {
         var db = helper.createDatabase("fmefdb", 5)
                 .apply {
             // Prepare for the next version.
@@ -84,7 +84,7 @@ class DatastoreTest {
 
         // Re-open the database with version 2 and provide
         // MIGRATION_1_2 as the migration process.
-        db = helper.runMigrationsAndValidate("fmefdb", 10, true, Migrate9())
+        db = helper.runMigrationsAndValidate("fmefdb", 11, true, Migrate9())
 
         // MigrationTestHelper automatically verifies the schema changes,
         // but you need to validate that the data was migrated properly.
@@ -98,7 +98,7 @@ class DatastoreTest {
                 .setApplication("fmef")
                 .setFile(file)
                 .build()
-        datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE).blockingAwait()
+        datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         assert(datastore.getApiMessages("fmef").blockingGet().size == 1)
     }
 
@@ -111,7 +111,7 @@ class DatastoreTest {
                     .setApplication("fmef")
                     .setFile(file)
                     .build()
-            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE).blockingAwait()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
             val m = datastore.getApiMessages("fmef").blockingGet()
             assert(m.size == 1)
             datastore.deleteMessage(m[0]).blockingAwait()
@@ -131,13 +131,33 @@ class DatastoreTest {
                     .setApplication("fmef")
                     .setFile(file)
                     .build()
-            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE).blockingAwait()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
-        Log.e("debug", "size: ${datastore.getApiMessages("fmef").blockingGet().size}")
         assert(datastore.getApiMessages("fmef").blockingGet().size == size)
-        datastore.trimDatastore(before).blockingAwait()
+        datastore.trimDatastore(before, 0, 11).blockingAwait()
         assert(datastore.getApiMessages("fmef").blockingGet().size == size)
-        datastore.trimDatastore(Date()).blockingAwait()
+        datastore.trimDatastore(Date(), 0, 11).blockingAwait()
+        assert(datastore.getApiMessages("fmef").blockingGet().size == 0)
+    }
+
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun pruneWorksApi() {
+        val size = 10
+        for (x in 0 until size) {
+            val file = File.createTempFile("test", "jpeg", ctx.cacheDir)
+            file.outputStream().write(byteArrayOf(x.toByte()))
+            val apiMessage = ScatterMessage.newBuilder()
+                    .setApplication("fmef")
+                    .setFile(file)
+                    .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "com.fmef").blockingAwait()
+        }
+        assert(datastore.getApiMessages("fmef").blockingGet().size == size)
+        datastore.trimDatastore("com.blerf", 0).blockingAwait()
+        assert(datastore.getApiMessages("fmef").blockingGet().size == 10)
+        datastore.trimDatastore("com.fmef", 0).blockingAwait()
         assert(datastore.getApiMessages("fmef").blockingGet().size == 0)
     }
 

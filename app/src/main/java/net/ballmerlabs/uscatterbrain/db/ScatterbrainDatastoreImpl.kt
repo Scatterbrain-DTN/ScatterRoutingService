@@ -31,6 +31,7 @@ import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -141,7 +142,15 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             } else {
                 insertMessagesWithoutDisk(stream)
             }
-        }
+        }.andThen(trimDatastore(
+                Date(Date().time - 120),
+                getMax(), //TODO: parameterize this
+
+        ))
+    }
+
+    private fun getMax(): Long {
+        return preferences.getInt(ctx.getString(R.string.pref_sizecap), 4096).toLong() * 1024 * 1024
     }
 
     /**
@@ -309,18 +318,58 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .firstOrError()
     }
 
-    override fun trimDatastore(cap: Date): Completable {
-        return trimDatastore(Date(0), cap)
+    override fun trimDatastore(cap: Date, max: Long, limit: Int?): Completable {
+        return trimDatastore(Date(0), cap, max, limit = limit)
     }
 
-    override fun trimDatastore(start: Date, end: Date): Completable {
-        return mDatastore.scatterMessageDao().getByReceiveDate(start.time, end.time)
+    private fun trimOnce(start: Date, end: Date): Single<Long> {
+        return mDatastore.scatterMessageDao().getByReceiveDatePriority(start.time, end.time, 1)
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable { list -> Observable.fromIterable(list) }
-                .flatMapCompletable { scatterMessage ->
+                .flatMapSingle { scatterMessage ->
                     mDatastore.scatterMessageDao().delete(scatterMessage.message)
                             .andThen(deleteFile(File(scatterMessage.message.filePath)))
+                            .toSingleDefault(scatterMessage.message.fileSize)
                 }
+                .firstOrError()
+    }
+
+    private fun trimOnce(packageName: String): Single<Long> {
+        return mDatastore.scatterMessageDao().getByReceiveDatePriority(packageName, 1)
+                .subscribeOn(databaseScheduler)
+                .flatMapObservable { list -> Observable.fromIterable(list) }
+                .flatMapSingle { scatterMessage ->
+                    mDatastore.scatterMessageDao().delete(scatterMessage.message)
+                            .andThen(deleteFile(File(scatterMessage.message.filePath)))
+                            .toSingleDefault(scatterMessage.message.fileSize)
+                }
+                .firstOrError()
+    }
+
+    override fun trimDatastore(packageName: String, max: Long): Completable {
+        return mDatastore.scatterMessageDao().getTotalSize()
+                .subscribeOn(databaseScheduler)
+                .flatMapCompletable { size ->
+                    trimOnce(packageName)
+                            .repeat()
+                            .scan(size) { s, v -> s + v }
+                            .takeUntil {  v -> v <= max  }
+                            .ignoreElements()
+                }
+                .onErrorComplete()
+    }
+
+    override fun trimDatastore(start: Date, end: Date, max: Long, limit: Int?): Completable {
+        return mDatastore.scatterMessageDao().getTotalSize()
+                .subscribeOn(databaseScheduler)
+                .flatMapCompletable { size ->
+                    trimOnce(start, end)
+                            .repeat()
+                            .scan(size) { s, v -> s + v }
+                            .takeUntil {  v -> v <= max  }
+                            .ignoreElements()
+                }
+                .onErrorComplete()
     }
 
     private fun insertIdentity(identityObservable: Observable<net.ballmerlabs.uscatterbrain.db.entities.Identity>): Completable {
@@ -756,22 +805,23 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     Log.e(TAG, "hashing local file, len:" + hashes.size)
                     val globalhash = getGlobalHash(hashes)
                     val message = HashlessScatterMessage(
-                            null,
-                            null,
-                            null,
-                            Applications.APPLICATION_FILESHARING,
-                            null,
-                            0,
-                            MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString()),
-                            path.absolutePath,
-                            globalhash,
-                            path.name,
-                            ScatterbrainApi.getMimeType(path),
-                            Date().time,
-                            Date().time,
-                            hashAsUUID(globalhash),
-                            path.length()
-                            )
+                            body = null,
+                            identity_fingerprint = null,
+                            recipient_fingerprint = null,
+                            application = Applications.APPLICATION_FILESHARING,
+                            sig = null,
+                            sessionid = 0,
+                            extension = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString()),
+                            filePath = path.absolutePath,
+                            globalhash = globalhash,
+                            userFilename = path.name,
+                            mimeType = ScatterbrainApi.getMimeType(path),
+                            sendDate = Date().time,
+                            receiveDate = Date().time,
+                            uuid = hashAsUUID(globalhash),
+                            fileSize = path.length(),
+                            packageName = ""
+                    )
                     val hashedMessage = ScatterMessage(
                             message,
                             HashlessScatterMessage.hash2hashs(hashes)
@@ -910,7 +960,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param blocksize blocksize
      * @return completable
      */
-    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, sign: String?): Completable {
+    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, packageName: String, sign: String?): Completable {
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
                 .flatMapCompletable { file ->
                     if (message.toDisk) {
@@ -925,7 +975,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                         Completable.error(IllegalStateException("failed to rename to $newFile"))
                                     } else {
                                         val hm = HashlessScatterMessage(
-                                               body =  null,
+                                                body =  null,
                                                 identity_fingerprint = message.fromFingerprint,
                                                 recipient_fingerprint = message.toFingerprint,
                                                 application = message.application,
@@ -938,7 +988,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 mimeType = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
                                                 sendDate = Date().time,
                                                receiveDate = Date().time,
-                                                fileSize = newFile.length()
+                                                fileSize = newFile.length(),
+                                                packageName = packageName
                                         )
                                         val dbmessage = ScatterMessage(
                                                 hm,
@@ -961,20 +1012,21 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         hashData(message.body!!, blocksize)
                                 .flatMapCompletable { hashes ->
                                     val hm = HashlessScatterMessage(
-                                            message.body,
-                                            message.fromFingerprint,
-                                            message.toFingerprint,
-                                            message.application,
-                                            null,
-                                            0,
-                                            "",
-                                            getNoFilename(message.body!!),
-                                            getGlobalHash(hashes),
-                                            "",
-                                            "application/octet-stream",
-                                            Date().time,
-                                            Date().time,
-                                            fileSize = message.body!!.size.toLong()
+                                            body = message.body,
+                                            identity_fingerprint = message.fromFingerprint,
+                                            recipient_fingerprint = message.toFingerprint,
+                                            application = message.application,
+                                            sig = null,
+                                            sessionid = 0,
+                                            extension = "",
+                                            filePath = getNoFilename(message.body!!),
+                                            globalhash = getGlobalHash(hashes),
+                                            userFilename = "",
+                                            mimeType = "application/octet-stream",
+                                            sendDate = Date().time,
+                                            receiveDate = Date().time,
+                                            fileSize = message.body!!.size.toLong(),
+                                            packageName = packageName
                                     )
                                     val dbmessage = ScatterMessage(
                                             hm,
@@ -993,6 +1045,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 }
                     }
                 }
+                .andThen(trimDatastore(packageName, getMax()))
     }
 
     /**

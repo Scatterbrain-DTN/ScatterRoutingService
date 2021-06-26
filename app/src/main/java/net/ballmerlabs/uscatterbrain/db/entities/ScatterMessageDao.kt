@@ -38,6 +38,14 @@ abstract class ScatterMessageDao {
     abstract fun getByReceiveDate(start: Long, end: Long): Single<List<ScatterMessage>>
 
     @Transaction
+    @Query("SELECT * FROM messages WHERE (receiveDate BETWEEN :start AND :end) ORDER BY shareCount DESC LIMIT :limit")
+    abstract fun getByReceiveDatePriority(start: Long, end: Long, limit: Int): Single<List<ScatterMessage>>
+
+    @Transaction
+    @Query("SELECT * FROM messages WHERE packageName = :packageName ORDER BY shareCount DESC LIMIT :limit")
+    abstract fun getByReceiveDatePriority(packageName: String, limit: Int): Single<List<ScatterMessage>>
+
+    @Transaction
     @Query("SELECT * FROM messages WHERE (application = :application) AND (sendDate BETWEEN :start AND :end)")
     abstract fun getBySendDate(application: String, start: Long, end: Long): Single<List<ScatterMessage>>
 
@@ -67,7 +75,7 @@ abstract class ScatterMessageDao {
 
 
     @Query("SELECT SUM(fileSize) FROM messages")
-    abstract fun getTotalSize(): Single<Int>
+    abstract fun getTotalSize(): Single<Long>
 
     @Query("UPDATE messages SET shareCount = shareCount + 1 WHERE globalhash = :globalhash")
     abstract fun incrementShareCount(globalhash: ByteArray): Single<Int>

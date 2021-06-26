@@ -44,7 +44,8 @@ data class HashlessScatterMessage(
         var receiveDate: Long,
         @ColumnInfo(name = "uuid", defaultValue = "0000-0000-0000-000000000000") var uuid: UUID = hashAsUUID(globalhash),
         @ColumnInfo(defaultValue = "-1") var fileSize: Long,
-        @ColumnInfo(defaultValue = "0") var shareCount: Int = 0
+        @ColumnInfo(defaultValue = "0") var shareCount: Int = 0,
+        @ColumnInfo(defaultValue = "") var packageName: String
         ) {
     companion object {
         fun hash2hashs(hashes: List<ByteArray>): List<Hashes> {

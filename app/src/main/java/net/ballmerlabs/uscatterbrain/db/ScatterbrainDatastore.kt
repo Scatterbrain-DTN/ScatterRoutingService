@@ -269,14 +269,15 @@ interface ScatterbrainDatastore {
     fun getApiMessagesReceiveDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>>
     fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket>
     fun getApiMessages(id: Long): ScatterMessage
-    fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, sign: String? = null): Completable
+    fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int,packageName: String, sign: String? = null): Completable
     val declareHashesPacket: Single<DeclareHashesPacket>
     fun getACLs(identity: String): Single<MutableList<ACL>>
     fun updatePackage(packageName: String): Completable
     fun getPackages(): Single<ArrayList<String>>
     fun deleteIdentities(vararg fingerprint: String): Completable
-    fun trimDatastore(cap: Date): Completable
-    fun trimDatastore(start: Date, end: Date): Completable
+    fun trimDatastore(cap: Date, max: Long, limit: Int? = null): Completable
+    fun trimDatastore(packageName: String, max: Long): Completable
+    fun trimDatastore(start: Date, end: Date, max: Long, limit: Int? = null): Completable
     fun deleteMessage(message: HashlessScatterMessage): Completable
     fun deleteMessage(message: File): Completable
     fun deleteMessage(message: ScatterMessage): Completable
