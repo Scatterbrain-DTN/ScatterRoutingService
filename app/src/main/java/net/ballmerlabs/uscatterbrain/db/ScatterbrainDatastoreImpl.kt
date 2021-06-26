@@ -1320,15 +1320,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             override fun onEvent(i: Int, s: String?) {
                 when (i) {
                     CLOSE_WRITE -> {
-                        if (s != null) {
+                        if (s != null && s.isNotEmpty()) {
                             Log.v(TAG, "file closed in user directory; $s")
                             val f = File(userFilesDir, s)
-                            if (f.exists() && f.length() > 0) {
-                                insertAndHashLocalFile(f, DEFAULT_BLOCKSIZE)
-                            } else if (f.length() == 0L) {
-                                Log.e(TAG, "file length was zero, not hashing")
-                            } else {
-                                Log.e(TAG, "closed file does not exist, race condition??!")
+                            if (!f.isDirectory) {
+                                if (f.exists() && f.length() > 0) {
+                                    insertAndHashLocalFile(f, DEFAULT_BLOCKSIZE)
+                                } else if (f.length() == 0L) {
+                                    Log.e(TAG, "file length was zero, not hashing")
+                                } else {
+                                    Log.e(TAG, "closed file does not exist, race condition??!")
+                                }
                             }
                         }
                     }
