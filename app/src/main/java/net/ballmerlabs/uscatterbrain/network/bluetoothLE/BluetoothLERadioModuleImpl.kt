@@ -880,13 +880,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         session.stage = TransactionResult.STAGE_UPGRADE
     }
 
-    private fun resetSession(session: LeDeviceSession) {
-        Log.v(TAG, "resetting session without rewind")
-        session.advertiseStage.reset()
-        session.upgradeStage?.reset()
-        session.votingStage.reset()
-    }
-
     /**
      * starts the gatt server in the background.
      * NOTE: this function contains all the logic for running the state machine.
@@ -1029,7 +1022,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                             .subscribeOn(clientScheduler)
                                                                             .doOnError { err ->
                                                                                 Log.e(TAG, "transaction error $err")
-                                                                                resetSession(session)
+                                                                                err.printStackTrace() //TODO: handle crashlytics
+                                                                                session.stage = TransactionResult.STAGE_TERMINATE
                                                                             }
                                                                             // retry on error
                                                                             .onErrorReturnItem(android.util.Pair(OptionalBootstrap.empty(), TransactionResult(

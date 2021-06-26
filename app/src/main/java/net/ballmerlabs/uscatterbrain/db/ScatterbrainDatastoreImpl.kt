@@ -416,15 +416,22 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 }
     }
 
-    override fun incrementShareCount(globalhash: ByteArray): Completable {
-        return mDatastore.scatterMessageDao().incrementShareCount(globalhash)
-                .flatMapCompletable { v ->
-                    Log.e("debug", "incrementShareCount $v")
-                    if (v == 1)
+    override fun incrementShareCount(message: BlockHeaderPacket): Completable {
+        return Single.just(message)
+                .flatMapCompletable { m ->
+                    if (m.isEndOfStream) {
                         Completable.complete()
-                    else Completable.error(IllegalStateException("failed to increment share count"))
+                    } else {
+                        mDatastore.scatterMessageDao().incrementShareCount(getGlobalHash(m.hashList))
+                                .flatMapCompletable { v ->
+                                    Log.e("debug", "incrementShareCount $v")
+                                    if (v == 1)
+                                        Completable.complete()
+                                    else Completable.error(IllegalStateException("failed to increment share count"))
+                                }
+                                .subscribeOn(databaseScheduler)
+                    }
                 }
-                .subscribeOn(databaseScheduler)
     }
 
     private fun insertIdentity(vararg ids: net.ballmerlabs.uscatterbrain.db.entities.Identity): Completable {

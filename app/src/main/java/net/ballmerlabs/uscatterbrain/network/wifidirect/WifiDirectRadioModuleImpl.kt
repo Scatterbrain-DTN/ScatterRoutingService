@@ -511,7 +511,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     }
                                     .doOnComplete { Log.v(TAG, "wrote sequence packets to client socket") }
                     )
-                    .andThen(datastore.incrementShareCount(getGlobalHash(blockDataStream.headerPacket.hashList)))
+                    .andThen(datastore.incrementShareCount(blockDataStream.headerPacket))
         }
     }
 
@@ -537,7 +537,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                         }
                                                         .doOnComplete { Log.v(TAG, "server wrote sequence packets") }
                                         )
-                                        .andThen(datastore.incrementShareCount(getGlobalHash(blockDataStream.headerPacket.hashList)))
+                                        .andThen(datastore.incrementShareCount(blockDataStream.headerPacket))
                             }
                 }
     }
