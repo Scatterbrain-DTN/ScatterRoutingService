@@ -126,9 +126,9 @@ class ScatterRoutingService : LifecycleService() {
          * @return identity
          */
         @Throws(RemoteException::class)
-        override fun getIdentityByFingerprint(fingerprint: String): Identity {
+        override fun getIdentityByFingerprint(fingerprint: ParcelUuid): Identity {
             checkAccessPermission()
-            return mBackend.datastore.getApiIdentityByFingerprint(fingerprint)
+            return mBackend.datastore.getApiIdentityByFingerprint(fingerprint.uuid)
         }
 
         /**
@@ -158,8 +158,8 @@ class ScatterRoutingService : LifecycleService() {
          * @throws RemoteException if application is not authorized to use identity or if
          * identity does not exist
          */
-        override fun signDataDetached(data: ByteArray, identity: String): ByteArray {
-            return mBackend.signDataDetached(data, identity, callingPackageName).blockingGet()
+        override fun signDataDetached(data: ByteArray, identity: ParcelUuid): ByteArray {
+            return mBackend.signDataDetached(data, identity.uuid, callingPackageName).blockingGet()
         }
 
         /**
@@ -171,8 +171,8 @@ class ScatterRoutingService : LifecycleService() {
          */
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(RemoteException::class)
-        override fun sendAndSignMessage(message: ScatterMessage, identity: String) {
-            mBackend.sendAndSignMessage(message, identity, callingPackageName).blockingAwait()
+        override fun sendAndSignMessage(message: ScatterMessage, identity: ParcelUuid) {
+            mBackend.sendAndSignMessage(message, identity.uuid, callingPackageName).blockingAwait()
         }
 
         /**
@@ -228,8 +228,8 @@ class ScatterRoutingService : LifecycleService() {
          * @return true if identity removed, false otherwise
          */
         @Throws(RemoteException::class)
-        override fun removeIdentity(identity: String): Boolean {
-            return mBackend.removeIdentity(identity, callingPackageName)
+        override fun removeIdentity(identity: ParcelUuid): Boolean {
+            return mBackend.removeIdentity(identity.uuid, callingPackageName)
                     .toSingleDefault(true)
                     .onErrorReturnItem(false)
                     .blockingGet()
@@ -243,9 +243,9 @@ class ScatterRoutingService : LifecycleService() {
          */
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(RemoteException::class)
-        override fun authorizeApp(identity: String, packagename: String) {
+        override fun authorizeApp(identity: ParcelUuid, packagename: String) {
             checkSuperuserPermission()
-            mBackend.authorizeApp(identity, packagename).blockingAwait()
+            mBackend.authorizeApp(identity.uuid, packagename).blockingAwait()
         }
 
         /**
@@ -256,9 +256,9 @@ class ScatterRoutingService : LifecycleService() {
          */
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(RemoteException::class)
-        override fun deauthorizeApp(identity: String, packagename: String) {
+        override fun deauthorizeApp(identity: ParcelUuid, packagename: String) {
             checkSuperuserPermission()
-            mBackend.deauthorizeApp(identity, packagename).blockingAwait()
+            mBackend.deauthorizeApp(identity.uuid, packagename).blockingAwait()
         }
 
         /**
@@ -266,9 +266,9 @@ class ScatterRoutingService : LifecycleService() {
          * @param identity identity by fingerprint
          * @return list of package names if any
          */
-        override fun getAppPermissions(identity: String?): Array<String> {
+        override fun getAppPermissions(identity: ParcelUuid): Array<String> {
             checkSuperuserPermission()
-            return mBackend.datastore.getACLs(identity!!)
+            return mBackend.datastore.getACLs(identity.uuid)
                     .flatMapObservable { acl -> Observable.fromIterable(acl) }
                     .map { acl -> acl.packageName }
                     .reduce(ArrayList<String>(), { list, acl ->
@@ -348,10 +348,10 @@ class ScatterRoutingService : LifecycleService() {
             return handle
         }
 
-        override fun signDataDetachedAsync(data: ByteArray, identity: String): Int {
+        override fun signDataDetachedAsync(data: ByteArray, identity: ParcelUuid): Int {
             checkAdminPermission()
             val handle = generateNewHandle()
-            val disp = mBackend.signDataDetached(data, identity, callingPackageName)
+            val disp = mBackend.signDataDetached(data, identity.uuid, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
@@ -390,10 +390,10 @@ class ScatterRoutingService : LifecycleService() {
             return handle
         }
 
-        override fun sendAndSignMessageAsync(message: ScatterMessage, identity: String): Int {
+        override fun sendAndSignMessageAsync(message: ScatterMessage, identity: ParcelUuid): Int {
             checkAccessPermission()
             val handle = generateNewHandle()
-            val disp = mBackend.sendAndSignMessage(message, identity, callingPackageName)
+            val disp = mBackend.sendAndSignMessage(message, identity.uuid, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
@@ -404,10 +404,10 @@ class ScatterRoutingService : LifecycleService() {
             return handle
         }
 
-        override fun sendAndSignMessagesAsync(message: MutableList<ScatterMessage>, identity: String): Int {
+        override fun sendAndSignMessagesAsync(message: MutableList<ScatterMessage>, identity: ParcelUuid): Int {
             checkAccessPermission()
             val handle = generateNewHandle()
-            val disp = mBackend.sendAndSignMessages(message, identity, callingPackageName)
+            val disp = mBackend.sendAndSignMessages(message, identity.uuid, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
@@ -581,7 +581,7 @@ class ScatterRoutingService : LifecycleService() {
     }
 
     companion object {
-        const val PROTO_VERSION = 6
+        const val PROTO_VERSION = 8
         const val TAG = "ScatterRoutingService"
         private val component = BehaviorRelay.create<RoutingServiceComponent>()
         private const val NOTIFICATION_CHANNEL_FOREGROUND = "foreground"

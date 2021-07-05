@@ -123,7 +123,7 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
                                         ElectLeader.Body.newBuilder()
                                                 .setSalt(ByteString.copyFrom(salt))
                                                 .setProvides(providesToVal(provides!!))
-                                                .setTiebreakerVal(protoUUIDfromUUID(tiebreaker))
+                                                .setTiebreakerVal(protoUUIDfromUUID(tiebreaker!!))
                                                 .build()
                                 )
                                 .build()

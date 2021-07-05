@@ -31,7 +31,6 @@ import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -403,8 +402,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param fingerprint
      * @return completable
      */
-    override fun deleteIdentities(vararg fingerprint: String): Completable {
-        return Observable.fromIterable(fingerprint.asList())
+    override fun deleteIdentities(vararg identity: UUID): Completable {
+        return Observable.fromIterable(identity.asList())
                 .map { f -> JustFingerprint(f) }
                 .reduce(ArrayList<JustFingerprint>(), {list, f ->
                     list.add(f)
@@ -471,7 +470,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param appsig signature of application. NOTE: make sure to get this right
      * @return completable
      */
-    override fun addACLs(identityFingerprint: String, packagename: String, appsig: String): Completable {
+    override fun addACLs(identityFingerprint: UUID, packagename: String, appsig: String): Completable {
         return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
                 .subscribeOn(databaseScheduler)
                 .flatMapCompletable { identity ->
@@ -491,7 +490,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param packageName package name to deauthorize
      * @param appsig signature of application
      */
-    override fun deleteACLs(identityFingerprint: String, packageName: String, appsig: String): Completable {
+    override fun deleteACLs(identityFingerprint: UUID, packageName: String, appsig: String): Completable {
         return mDatastore.identityDao().getIdentityByFingerprint(identityFingerprint)
                 .subscribeOn(databaseScheduler)
                 .flatMapCompletable { identity ->
@@ -517,7 +516,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             dbidentity.givenname,
                             dbidentity.getmScatterbrainPubKey(),
                             dbidentity.sig,
-                            getFingerprint(dbidentity),
+                            dbidentity.fingerprint,
                             dbidentity.privateKey
                     )
                     Identity(
@@ -541,7 +540,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             identity.givenname,
                             identity.getmScatterbrainPubKey(),
                             identity.sig,
-                            getFingerprint(identity),
+                            identity.fingerprint,
                             null
                     )
                     Identity(
@@ -605,7 +604,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 i.name,
                                 i.pubkey,
                                 i.getSig(),
-                                i.fingerprint,
+                                i.uuid,
                                 null
 
                         )
@@ -711,8 +710,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param fingerprint
      * @return identity
      */
-    override fun getApiIdentityByFingerprint(fingerprint: String): ApiIdentity {
-        return mDatastore.identityDao().getIdentityByFingerprint(fingerprint)
+    override fun getApiIdentityByFingerprint(identity: UUID): ApiIdentity {
+        return mDatastore.identityDao().getIdentityByFingerprint(identity)
                 .subscribeOn(databaseScheduler)
                 .map { identity ->
                     ApiIdentity.newBuilder()
@@ -729,7 +728,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param identity fingerprint
      * @return single of keypair
      */
-    override fun getIdentityKey(identity: String): Single<ApiIdentity.KeyPair> {
+    override fun getIdentityKey(identity: UUID): Single<ApiIdentity.KeyPair> {
         return mDatastore.identityDao().getIdentityByFingerprint(identity)
                 .subscribeOn(databaseScheduler)
                 .map { id ->
@@ -743,7 +742,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param identity fingerprint
      * @return single of keypair list
      */
-    override fun getACLs(identity: String): Single<MutableList<ACL>> {
+    override fun getACLs(identity: UUID): Single<MutableList<ACL>> {
         return mDatastore.identityDao().getClientApps(identity)
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable { source -> Observable.fromIterable(source) }
@@ -813,8 +812,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     val globalhash = getGlobalHash(hashes)
                     val message = HashlessScatterMessage(
                             body = null,
-                            identity_fingerprint = null,
-                            recipient_fingerprint = null,
                             application = Applications.APPLICATION_FILESHARING,
                             sig = null,
                             sessionid = 0,
@@ -831,7 +828,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     )
                     val hashedMessage = ScatterMessage(
                             message,
-                            HashlessScatterMessage.hash2hashs(hashes)
+                            HashlessScatterMessage.hash2hashs(hashes),
+                            arrayListOf(),
+                            arrayListOf()
                     )
                     insertMessages(hashedMessage)
                 }.toSingleDefault(getFileMetadataSync(path))
@@ -849,17 +848,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             ScatterMessage.newBuilder()
                     .setApplication(message.message.application)
                     .setFile(r)
-                    .setTo(message.message.recipient_fingerprint)
+                    .setTo(message.toFingerprint.firstOrNull())
                     .setId(message.message.uuid)
-                    .setFrom(message.message.identity_fingerprint)
+                    .setFrom(message.fromFingerprint.firstOrNull())
                     .build()
         } else {
             ScatterMessage.newBuilder()
                     .setApplication(message.message.application)
                     .setBody(message.message.body)
                     .setId(message.message.uuid)
-                    .setTo(message.message.recipient_fingerprint)
-                    .setFrom(message.message.identity_fingerprint)
+                    .setTo(message.toFingerprint.firstOrNull())
+                    .setFrom(message.fromFingerprint.firstOrNull())
                     .build()
         }
     }
@@ -888,7 +887,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private fun filterMessagesBySigCheck(messages: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>):
             Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage> {
         return messages.flatMapSingle { message ->
-            val fingerprint = message.message.identity_fingerprint
+            val fingerprint = message.fromFingerprint.firstOrNull()
             if (fingerprint == null) {
                 Single.just(message)
             } else {
@@ -967,7 +966,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param blocksize blocksize
      * @return completable
      */
-    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, packageName: String, sign: String?): Completable {
+    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, packageName: String, sign: UUID?): Completable {
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
                 .flatMapCompletable { file ->
                     if (message.toDisk) {
@@ -983,8 +982,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     } else {
                                         val hm = HashlessScatterMessage(
                                                 body =  null,
-                                                identity_fingerprint = message.fromFingerprint,
-                                                recipient_fingerprint = message.toFingerprint,
                                                 application = message.application,
                                                 sig = null,
                                                 sessionid = 0,
@@ -1000,7 +997,15 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                         )
                                         val dbmessage = ScatterMessage(
                                                 hm,
-                                                HashlessScatterMessage.hash2hashs(hashes)
+                                                HashlessScatterMessage.hash2hashs(hashes),
+                                                if (message.toFingerprint == null )
+                                                    arrayListOf()
+                                                else
+                                                    arrayListOf(IdentityId(message.toFingerprint!!)),
+                                                if (message.fromFingerprint == null)
+                                                    arrayListOf()
+                                                else
+                                                    arrayListOf(IdentityId(message.fromFingerprint!!))
                                         )
                                         dbmessage.message = hm
                                         if (sign != null) {
@@ -1020,8 +1025,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 .flatMapCompletable { hashes ->
                                     val hm = HashlessScatterMessage(
                                             body = message.body,
-                                            identity_fingerprint = message.fromFingerprint,
-                                            recipient_fingerprint = message.toFingerprint,
                                             application = message.application,
                                             sig = null,
                                             sessionid = 0,
@@ -1037,7 +1040,15 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     )
                                     val dbmessage = ScatterMessage(
                                             hm,
-                                            HashlessScatterMessage.hash2hashs(hashes)
+                                            HashlessScatterMessage.hash2hashs(hashes),
+                                            if (message.toFingerprint == null )
+                                                arrayListOf()
+                                            else
+                                                arrayListOf(IdentityId(message.toFingerprint!!)),
+                                            if (message.fromFingerprint == null)
+                                                arrayListOf()
+                                            else
+                                                arrayListOf(IdentityId(message.fromFingerprint!!))
                                     )
 
                                     if (sign != null) {

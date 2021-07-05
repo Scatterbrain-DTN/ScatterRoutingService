@@ -8,6 +8,7 @@ import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.ScatterProto
+import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import java.util.*
 
 /**
@@ -27,19 +28,26 @@ class IdentityPacket(packet: ScatterProto.Identity) :
     val isEnd: Boolean
         get() = packet.end
 
+    val uuid: UUID
+    get() = hashAsUUID(hash)
+
+
+    private val hash: ByteArray
+    get() {
+        val fingeprint = ByteArray(GenericHash.BYTES)
+        LibsodiumInterface.sodium.crypto_generichash(
+                fingeprint,
+                fingeprint.size,
+                pubkey,
+                pubkey.size.toLong(),
+                null,
+                0
+        )
+        return fingeprint
+    }
+
     val fingerprint: String
-        get() {
-            val fingeprint = ByteArray(GenericHash.BYTES)
-            LibsodiumInterface.sodium.crypto_generichash(
-                    fingeprint,
-                    fingeprint.size,
-                    pubkey,
-                    pubkey.size.toLong(),
-                    null,
-                    0
-            )
-            return LibsodiumInterface.base64enc(fingeprint)
-        }
+        get() = LibsodiumInterface.base64enc(hash)
 
     private fun sumBytes(): ByteString? {
         var result = ByteString.EMPTY

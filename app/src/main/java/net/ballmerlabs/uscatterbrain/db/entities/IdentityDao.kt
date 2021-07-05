@@ -4,6 +4,7 @@ import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Single
+import java.util.*
 
 /**
  * Room dao for operations on identities and permission ACLs
@@ -21,11 +22,11 @@ interface IdentityDao {
 
     @Transaction
     @Query("SELECT * FROM identities WHERE fingerprint IN (:fingerprint)")
-    fun getIdentityByFingerprint(fingerprint: String): Single<Identity>
+    fun getIdentityByFingerprint(fingerprint: UUID): Single<Identity>
 
     @Transaction
     @Query("SELECT * FROM identities WHERE fingerprint IN (:fingerprint)")
-    fun getIdentityByFingerprintMaybe(fingerprint: String): Maybe<Identity>
+    fun getIdentityByFingerprintMaybe(fingerprint: UUID): Maybe<Identity>
 
     @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
     fun getByID(ids: List<Long>): Single<List<KeylessIdentity>>
@@ -42,7 +43,7 @@ interface IdentityDao {
 
     @Query("SELECT * FROM clientapp WHERE identityFK = (" +
             "SELECT identityID FROM identities WHERE fingerprint = :fp)")
-    fun getClientApps(fp: String): Single<List<ClientApp>>
+    fun getClientApps(fp: UUID): Single<List<ClientApp>>
 
 
     @Query("SELECT packageName FROM clientapp")

@@ -67,9 +67,9 @@ fun protoUUIDtoUUID(uuid: ScatterProto.UUID): UUID {
     return UUID(uuid.upper, uuid.lower)
 }
 
-fun protoUUIDfromUUID(uuid: UUID?): ScatterProto.UUID {
+fun protoUUIDfromUUID(uuid: UUID): ScatterProto.UUID {
     return ScatterProto.UUID.newBuilder()
-            .setLower(uuid!!.leastSignificantBits)
+            .setLower(uuid.leastSignificantBits)
             .setUpper(uuid.mostSignificantBits)
             .build()
 }

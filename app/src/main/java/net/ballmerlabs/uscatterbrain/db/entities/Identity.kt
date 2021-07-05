@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.db.entities
 
 import androidx.room.Embedded
 import androidx.room.Relation
+import java.util.*
 
 /**
  * class with identity and corresponding relations.
@@ -25,5 +26,5 @@ data class Identity(
  * in Room
  */
 data class JustFingerprint(
-        val fingerprint: String
+        val fingerprint: UUID
 )

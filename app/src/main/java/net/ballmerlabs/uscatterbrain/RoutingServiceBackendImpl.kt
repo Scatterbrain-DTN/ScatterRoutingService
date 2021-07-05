@@ -106,7 +106,7 @@ class RoutingServiceBackendImpl @Inject constructor(
         }
     }
 
-    override fun signDataDetached(data: ByteArray, identity: String, callingPackageName: String): Single<ByteArray> {
+    override fun signDataDetached(data: ByteArray, identity: UUID, callingPackageName: String): Single<ByteArray> {
         return datastore.getACLs(identity)
                 .flatMapObservable { Observable.fromIterable(it) }
                 .flatMapCompletable { acl -> verifyCallingSig(acl, callingPackageName) }
@@ -129,7 +129,7 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     }
 
-    override fun sendAndSignMessage(message: ScatterMessage, identity: String, callingPackageName: String): Completable {
+    override fun sendAndSignMessage(message: ScatterMessage, identity: UUID, callingPackageName: String): Completable {
         return datastore.getACLs(identity)
                 .flatMapObservable { Observable.fromIterable(it) }
                 .flatMapCompletable { acl -> verifyCallingSig(acl, callingPackageName) }
@@ -145,7 +145,7 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     }
 
-    override fun sendAndSignMessages(messages: List<ScatterMessage>, identity: String, callingPackageName: String): Completable {
+    override fun sendAndSignMessages(messages: List<ScatterMessage>, identity: UUID, callingPackageName: String): Completable {
         return datastore.getACLs(identity)
                 .flatMapObservable { Observable.fromIterable(it) }
                 .flatMapCompletable { acl -> verifyCallingSig(acl, callingPackageName) }
@@ -187,7 +187,7 @@ class RoutingServiceBackendImpl @Inject constructor(
         }
     }
 
-    override fun removeIdentity(name: String, callingPackageName: String): Completable {
+    override fun removeIdentity(name: UUID, callingPackageName: String): Completable {
         return datastore.deleteIdentities(name)
                 .doOnError {
                     e -> Log.e(ScatterRoutingService.TAG, "failed to remove identity: $e")
@@ -224,7 +224,7 @@ class RoutingServiceBackendImpl @Inject constructor(
         }
     }
 
-    override fun deauthorizeApp(fingerprint: String, packageName: String): Completable {
+    override fun deauthorizeApp(fingerprint: UUID, packageName: String): Completable {
         return Observable.just(packageName).flatMap { name -> getSigs(name)}
                         .flatMapCompletable { signature ->
                             val sig = signature.toCharsString()
@@ -232,7 +232,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                         }
     }
 
-    override fun authorizeApp(fingerprint: String, packageName: String): Completable {
+    override fun authorizeApp(fingerprint: UUID, packageName: String): Completable {
         return Observable.just(packageName).flatMap { name -> getSigs(name)}
                         .flatMapCompletable { signature ->
                             val sig = signature.toCharsString()
