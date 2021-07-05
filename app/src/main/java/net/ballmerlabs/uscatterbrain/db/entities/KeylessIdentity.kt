@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.util.*
 
 /**
  * database object representing an identity
@@ -28,7 +29,7 @@ data class KeylessIdentity (
     var signature: ByteArray,
 
     @ColumnInfo(name = "fingerprint")
-    var fingerprint: String,
+    var fingerprint: UUID,
 
     @ColumnInfo(name = "privatekey")
     var privatekey: ByteArray?

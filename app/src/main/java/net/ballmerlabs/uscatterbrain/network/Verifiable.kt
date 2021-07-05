@@ -1,8 +1,10 @@
 package net.ballmerlabs.uscatterbrain.network
 
+import java.util.*
+
 interface Verifiable {
-    val toFingerprint: String?
-    val fromFingerprint: String?
+    val toFingerprint: List<UUID>
+    val fromFingerprint: List<UUID>
     val application: String
     val extension: String
     val mime: String

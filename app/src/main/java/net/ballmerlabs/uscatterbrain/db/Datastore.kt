@@ -26,12 +26,12 @@ class UuidTypeConverter {
             HashlessScatterMessage::class,
             KeylessIdentity::class,
             Hashes::class,
-
             MessageHashCrossRef::class,
             Keys::class,
-            ClientApp::class
+            ClientApp::class,
+            IdentityId::class
                    ],
-        version = 11,
+        version = 12,
         exportSchema = true,
         autoMigrations = []
 )

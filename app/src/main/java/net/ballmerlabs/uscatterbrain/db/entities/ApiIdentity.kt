@@ -7,6 +7,7 @@ import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
+import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import java.util.*
 
@@ -40,7 +41,7 @@ open class ApiIdentity protected constructor(builder: Builder) : Identity(
         private var pubkey: ByteArray? = null
         var privkey: ByteArray? = null
         private var signPair: KeyPair? = null
-        var fingerprint: String? = null
+        var fingerprint: UUID? = null
         var hasPrivateKey = false
         private fun sumBytes(): ByteString {
             var result = ByteString.EMPTY
@@ -54,7 +55,7 @@ open class ApiIdentity protected constructor(builder: Builder) : Identity(
             return result
         }
 
-        fun getPubkeyFingerprint(): String {
+        fun getPubkeyFingerprint(): UUID {
             val fingeprint = ByteArray(GenericHash.BYTES)
             LibsodiumInterface.sodium.crypto_generichash(
                     fingeprint,
@@ -64,7 +65,7 @@ open class ApiIdentity protected constructor(builder: Builder) : Identity(
                     null,
                     0
             )
-            return LibsodiumInterface.base64enc(fingeprint)
+            return hashAsUUID(fingeprint)
         }
 
         /**

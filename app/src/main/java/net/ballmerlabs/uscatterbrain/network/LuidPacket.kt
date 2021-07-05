@@ -91,7 +91,7 @@ class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
                         .setValHash(h)
                         .build()
             } else {
-                val u = protoUUIDfromUUID(uuid)
+                val u = protoUUIDfromUUID(uuid!!)
                 Luid.newBuilder()
                         .setValUuid(u)
                         .build()

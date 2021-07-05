@@ -72,8 +72,8 @@ fun isValidFilename(name: String): Boolean {
 
 
 fun sigSize(message: Verifiable): Int {
-    val tosize = message.toFingerprint?.encodeToByteArray()?.size?: 1
-    val fromsize = message.fromFingerprint?.encodeToByteArray()?.size?: 1
+    val tosize = message.toFingerprint.size * Long.SIZE_BYTES * 2
+    val fromsize = message.fromFingerprint.size * Long.SIZE_BYTES * 2
     val applicationSize = message.application.encodeToByteArray().size //UTF-8
     val extSize = message.extension.encodeToByteArray().size
     val mimeSize = message.mime.encodeToByteArray().size
@@ -86,8 +86,14 @@ fun sigSize(message: Verifiable): Int {
 
 fun sumBytes(message: Verifiable): ByteString {
     val buf = ByteBuffer.allocate(sigSize(message))
-    buf.put(message.fromFingerprint?.encodeToByteArray()?: byteArrayOf(0))
-    buf.put(message.toFingerprint?.encodeToByteArray()?: byteArrayOf(0))
+    message.fromFingerprint.forEach { u ->
+        buf.putLong(u.mostSignificantBits)
+        buf.putLong(u.leastSignificantBits)
+    }
+    message.toFingerprint.forEach { u ->
+        buf.putLong(u.mostSignificantBits)
+        buf.putLong(u.leastSignificantBits)
+    }
     buf.put(message.application.encodeToByteArray())
     buf.put(message.extension.encodeToByteArray())
     buf.put(message.mime.encodeToByteArray())
@@ -244,10 +250,10 @@ interface ScatterbrainDatastore {
     fun getMessageByPath(path: String): Single<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>
     fun insertApiIdentity(identity: ApiIdentity): Completable
     fun insertApiIdentities(identities: List<Identity>): Completable
-    fun getApiIdentityByFingerprint(fingerprint: String): ApiIdentity
-    fun addACLs(identityFingerprint: String, packagename: String, appsig: String): Completable
-    fun deleteACLs(identityFingerprint: String, packageName: String, appsig: String): Completable
-    fun getIdentityKey(identity: String): Single<ApiIdentity.KeyPair>
+    fun getApiIdentityByFingerprint(identity: UUID): ApiIdentity
+    fun addACLs(identityFingerprint: UUID, packagename: String, appsig: String): Completable
+    fun deleteACLs(identityFingerprint: UUID, packageName: String, appsig: String): Completable
+    fun getIdentityKey(identity: UUID): Single<ApiIdentity.KeyPair>
     fun messageCount(): Int
     fun deleteByPath(path: File): Int
     fun clear()
@@ -269,12 +275,12 @@ interface ScatterbrainDatastore {
     fun getApiMessagesReceiveDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>>
     fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket>
     fun getApiMessages(id: Long): ScatterMessage
-    fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int,packageName: String, sign: String? = null): Completable
+    fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int,packageName: String, sign: UUID? = null): Completable
     val declareHashesPacket: Single<DeclareHashesPacket>
-    fun getACLs(identity: String): Single<MutableList<ACL>>
+    fun getACLs(identity: UUID): Single<MutableList<ACL>>
     fun updatePackage(packageName: String): Completable
     fun getPackages(): Single<ArrayList<String>>
-    fun deleteIdentities(vararg fingerprint: String): Completable
+    fun deleteIdentities(vararg identity: UUID): Completable
     fun trimDatastore(cap: Date, max: Long, limit: Int? = null): Completable
     fun trimDatastore(packageName: String, max: Long): Completable
     fun trimDatastore(start: Date, end: Date, max: Long, limit: Int? = null): Completable

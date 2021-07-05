@@ -21,8 +21,8 @@ message DeclareHashes {
 
 // header + metadata for a file, message or data stream
 message BlockData {
-    string from_fingerprint = 1;
-    string to_fingerprint = 2;
+    repeated UUID from_fingerprint = 1;
+    repeated UUID to_fingerprint = 2;
     string application = 3;
     string filename = 4;
     uint32 ttl = 5;

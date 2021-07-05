@@ -30,11 +30,8 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      *
      * @return the from fingerprint
      */
-    override val fromFingerprint: String?
-        get() {
-            val r = packet.fromFingerprint
-            return if (r.isEmpty()) null else r
-        }
+    override val fromFingerprint: List<UUID>
+        get() = packet.fromFingerprintList.map { f -> protoUUIDtoUUID(f) }
 
     override val sendDate: Long
         get() = packet.sendDate
@@ -44,11 +41,8 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      *
      * @return the to fingerprint
      */
-    override val toFingerprint: String?
-        get() {
-            val r = packet.toFingerprint
-            return if (r.isEmpty()) null else r
-        }
+    override val toFingerprint: List<UUID>
+        get() = packet.toFingerprintList.map { f -> protoUUIDtoUUID(f)}
 
     override val extension: String
         get() = sanitizeFilename(packet.extension)
@@ -123,8 +117,8 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             private  var toDisk: Boolean = false,
             private var application: String = "",
             private var sessionid: Int = -1,
-            private var mToFingerprint: String? = null,
-            private var mFromFingerprint: String? = null,
+            private var mToFingerprint: ArrayList<UUID> = arrayListOf(),
+            private var mFromFingerprint: ArrayList<UUID> = arrayListOf(),
             private var extensionVal: String = "",
             private var hashlist: List<ByteString> = ArrayList(),
             private var sig: ByteArray? = null,
@@ -140,8 +134,10 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          * @param toFingerprint the to fingerprint
          * @return builder
          */
-        fun setToFingerprint(toFingerprint: String?) = apply {
-            mToFingerprint = toFingerprint
+        fun setToFingerprint(toFingerprint: UUID?) = apply {
+            if (toFingerprint != null) {
+                mToFingerprint.add(toFingerprint)
+            }
         }
 
         /**
@@ -150,8 +146,10 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          * @param fromFingerprint sets the fingerprint for the sender
          * @return builder
          */
-        fun setFromFingerprint(fromFingerprint: String?) = apply {
-            mFromFingerprint = fromFingerprint
+        fun setFromFingerprint(fromFingerprint: UUID?) = apply {
+            if (fromFingerprint != null) {
+                mFromFingerprint.add(fromFingerprint)
+            }
         }
 
         /**
@@ -230,8 +228,8 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
         fun build(): BlockHeaderPacket {
             val packet = BlockData.newBuilder()
                     .setApplication(application)
-                    .setFromFingerprint(mFromFingerprint?: "")
-                    .setToFingerprint(mToFingerprint?: "")
+                    .addAllFromFingerprint(mFromFingerprint.map { u -> protoUUIDfromUUID(u) })
+                    .addAllToFingerprint(mToFingerprint.map { u -> protoUUIDfromUUID(u) })
                     .setTodisk(toDisk)
                     .setExtension(extensionVal)
                     .addAllNexthashes(hashlist)
@@ -253,17 +251,9 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
             other as Builder
 
             if (toDisk != other.toDisk) return false
-            if (application != null) {
-                if (other.application == null) return false
-                if (!application.contentEquals(other.application)) return false
-            } else if (other.application != null) return false
+            if (!application.contentEquals(other.application)) return false
             if (sessionid != other.sessionid) return false
-            if (mToFingerprint != null) {
-                if (other.mToFingerprint == null) return false
-            } else if (other.mToFingerprint != null) return false
-            if (mFromFingerprint != null) {
-                if (other.mFromFingerprint == null) return false
-            } else if (other.mFromFingerprint != null) return false
+
             if (extensionVal != other.extensionVal) return false
             if (hashlist != other.hashlist) return false
             if (sig != null) {

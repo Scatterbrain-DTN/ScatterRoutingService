@@ -7,6 +7,7 @@ import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
+import net.ballmerlabs.uscatterbrain.db.entities.IdentityId
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
 import net.ballmerlabs.uscatterbrain.db.getGlobalHash
@@ -46,8 +47,6 @@ interface WifiDirectRadioModule {
                 entity = if (headerPacket.isEndOfStream) null else ScatterMessage(
                         HashlessScatterMessage(
                                 null,
-                                headerPacket.fromFingerprint,
-                                headerPacket.toFingerprint,
                                 headerPacket.application,
                                 headerPacket.signature,
                                 headerPacket.sessionID,
@@ -61,7 +60,9 @@ interface WifiDirectRadioModule {
                                 fileSize = -1,
                                 packageName = ""
                         ),
-                        HashlessScatterMessage.hash2hashs(headerPacket.hashList)
+                        HashlessScatterMessage.hash2hashs(headerPacket.hashList),
+                        headerPacket.toFingerprint.map { u -> IdentityId(u) },
+                        headerPacket.fromFingerprint.map { u -> IdentityId(u) }
                 ),
                 headerPacket = headerPacket,
                 sequencePacketsParam = sequencePackets
@@ -77,8 +78,8 @@ interface WifiDirectRadioModule {
 
         constructor(message: ScatterMessage, packetFlowable: Flowable<BlockSequencePacket>, todisk: Boolean = true): this(
                 headerPacket = BlockHeaderPacket.newBuilder()
-                        .setToFingerprint(message.message.recipient_fingerprint)
-                        .setFromFingerprint(message.message.identity_fingerprint)
+                        .setToFingerprint(message.toFingerprint.firstOrNull())
+                        .setFromFingerprint(message.toFingerprint.firstOrNull())
                         .setApplication(message.message.application)
                         .setSig(message.message.sig)
                         .setToDisk(todisk)

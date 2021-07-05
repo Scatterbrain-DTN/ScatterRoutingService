@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.os.ParcelUuid
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import kotlinx.coroutines.runBlocking
@@ -8,7 +9,9 @@ import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.*
 import java.util.concurrent.TimeoutException
+import kotlin.collections.ArrayList
 import kotlin.random.Random
 
 @RunWith(AndroidJUnit4ClassRunner::class)
@@ -107,7 +110,7 @@ class ApiTest: TestBase() {
             list.add(message)
         }
         runBlocking {
-            binder.sendMessage(list, "fmef_invalid")
+            binder.sendMessage(list, UUID.randomUUID())
         }
     }
 

@@ -4,6 +4,7 @@ import androidx.room.Embedded
 import androidx.room.Junction
 import androidx.room.Relation
 import net.ballmerlabs.uscatterbrain.network.Verifiable
+import java.util.*
 
 /**
  * helper class representing a relation between a message and its hashes
@@ -12,14 +13,21 @@ data class ScatterMessage(
         @Embedded
         var message: HashlessScatterMessage,
 
-        @Relation(parentColumn = "messageID", entityColumn = "hashID", associateBy = Junction(MessageHashCrossRef::class))
-        var messageHashes: List<Hashes>
-        ) : Verifiable {
-    override val toFingerprint: String?
-    get() = message.recipient_fingerprint
+        @Relation(parentColumn = "messageID", entityColumn = "hashID")
+        var messageHashes: List<Hashes>,
 
-    override val fromFingerprint: String?
-    get() = message.identity_fingerprint
+        @Relation(parentColumn = "messageID", entityColumn = "message")
+        val recipient_fingerprints: List<IdentityId>,
+
+        @Relation(parentColumn = "messageID", entityColumn = "message")
+        val identity_fingerprints: List<IdentityId>
+
+) : Verifiable {
+    override val toFingerprint: List<UUID>
+    get() = recipient_fingerprints.map { i -> i.uuid }
+
+    override val fromFingerprint: List<UUID>
+    get() = identity_fingerprints.map { i -> i.uuid }
 
     override val application: String
     get() = message.application

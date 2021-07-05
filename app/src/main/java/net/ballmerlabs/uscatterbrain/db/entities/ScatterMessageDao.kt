@@ -66,8 +66,8 @@ abstract class ScatterMessageDao {
     abstract val allFiles: Single<List<String>>
 
     @Transaction
-    @Query("SELECT * FROM messages WHERE identity_fingerprint IN (:ids)")
-    abstract fun getByIdentity(ids: String): Single<List<ScatterMessage>>
+    @Query("SELECT * FROM messages WHERE messageID = (SELECT message FROM identityid WHERE uuid = :ids)")
+    abstract fun getByIdentity(ids: UUID): Single<List<ScatterMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages ORDER BY RANDOM() LIMIT :count")
@@ -106,6 +106,9 @@ abstract class ScatterMessageDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertHashes(h: List<Hashes>): List<Long>
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract fun __insertIdentityId(id: List<IdentityId>): List<Long>
+
 
     @Transaction
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -123,6 +126,12 @@ abstract class ScatterMessageDao {
             hashXrefList[i] = xref
         }
         __insertMessagesWithHashes(hashXrefList)
+        message.identity_fingerprints.forEach { f -> f.message = messageRes }
+        message.recipient_fingerprints.forEach { f -> f.message = messageRes }
+
+        __insertIdentityId(message.identity_fingerprints)
+        __insertIdentityId(message.recipient_fingerprints)
+
     }
 
     @Delete

@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.db.entities
 
+import android.os.IBinder
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
@@ -30,8 +31,6 @@ import java.util.*
 )
 data class HashlessScatterMessage(
         var body: ByteArray?,
-        var identity_fingerprint: String?,
-        var recipient_fingerprint: String?,
         var application: String,
         var sig: ByteArray?,
         var sessionid: Int,

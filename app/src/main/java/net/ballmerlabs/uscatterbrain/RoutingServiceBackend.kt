@@ -8,6 +8,7 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
+import java.util.*
 
 /**
  * Dagger2 interface for RoutingServiceBackend
@@ -26,13 +27,13 @@ interface RoutingServiceBackend {
         const val DEFAULT_TRANSACTIONTIMEOUT: Long = 120
     }
 
-    fun sendAndSignMessage(message: ScatterMessage, identity: String, callingPackageName: String): Completable
-    fun sendAndSignMessages(messages: List<ScatterMessage>, identity: String, callingPackageName: String): Completable
+    fun sendAndSignMessage(message: ScatterMessage, identity: UUID, callingPackageName: String): Completable
+    fun sendAndSignMessages(messages: List<ScatterMessage>, identity: UUID, callingPackageName: String): Completable
     fun generateIdentity(name: String, callingPackageName: String): Single<Identity>
-    fun authorizeApp(fingerprint: String, packageName: String): Completable
-    fun deauthorizeApp(fingerprint: String, packageName: String): Completable
-    fun removeIdentity(name: String, callingPackageName: String): Completable
+    fun authorizeApp(fingerprint: UUID, packageName: String): Completable
+    fun deauthorizeApp(fingerprint: UUID, packageName: String): Completable
+    fun removeIdentity(name: UUID, callingPackageName: String): Completable
     fun sendMessage(message: ScatterMessage, callingPackageName: String): Completable
     fun sendMessages(messages: List<ScatterMessage>, callingPackageName: String): Completable
-    fun signDataDetached(data: ByteArray, identity: String, callingPackageName: String): Single<ByteArray>
+    fun signDataDetached(data: ByteArray, identity: UUID, callingPackageName: String): Single<ByteArray>
 }
