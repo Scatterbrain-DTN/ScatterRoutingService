@@ -34,7 +34,7 @@ class BlockSequencePacket(packet: BlockSequence) : ScatterSerializable<BlockSequ
      * @param bd the bd
      * @return boolean whether verification succeeded
      */
-    fun verifyHash(bd: BlockHeaderPacket?): Boolean {
+    fun verifyHash(bd: BlockHeaderPacket): Boolean {
         val seqnum = ByteBuffer.allocate(4).putInt(sequenceNum).order(ByteOrder.BIG_ENDIAN).array()
         val testhash = ByteArray(GenericHash.BYTES)
         val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
@@ -42,7 +42,7 @@ class BlockSequencePacket(packet: BlockSequence) : ScatterSerializable<BlockSequ
         LibsodiumInterface.sodium.crypto_generichash_update(state, seqnum, seqnum.size.toLong())
         LibsodiumInterface.sodium.crypto_generichash_update(state, data, data.size.toLong())
         LibsodiumInterface.sodium.crypto_generichash_final(state, testhash, testhash.size)
-        return LibsodiumInterface.sodium.sodium_compare(testhash, bd!!.getHash(sequenceNum).toByteArray(), testhash.size) == 0
+        return LibsodiumInterface.sodium.sodium_compare(testhash, bd.getHash(sequenceNum).toByteArray(), testhash.size) == 0
     }
 
     /**

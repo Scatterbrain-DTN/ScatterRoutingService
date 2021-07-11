@@ -26,7 +26,6 @@ class UuidTypeConverter {
             HashlessScatterMessage::class,
             KeylessIdentity::class,
             Hashes::class,
-            MessageHashCrossRef::class,
             Keys::class,
             ClientApp::class,
             IdentityId::class

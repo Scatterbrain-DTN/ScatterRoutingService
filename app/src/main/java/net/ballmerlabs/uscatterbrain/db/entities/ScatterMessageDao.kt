@@ -95,9 +95,6 @@ abstract class ScatterMessageDao {
     abstract fun getTopHashes(count: Int): Single<List<ByteArray>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    abstract fun __insertMessagesWithHashes(messagesWithHashes: Array<MessageHashCrossRef?>): List<Long>
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertMessages(messages: List<HashlessScatterMessage>): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -113,19 +110,12 @@ abstract class ScatterMessageDao {
     @Transaction
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertMessage(message: ScatterMessage) {
-        val res = __insertHashes(message.messageHashes)
         val messageRes = __insertMessages(message.message)
-        message.message.globalhash = getGlobalHashDb(message.messageHashes)
-        val hashXrefList = arrayOfNulls<MessageHashCrossRef>(res.size)
-        for (i in res.indices) {
-            val xref = MessageHashCrossRef(
-                    messageRes,
-                    res[i]
-            )
-
-            hashXrefList[i] = xref
+        message.messageHashes.forEach { h ->
+            h.messageOwnerId = messageRes
         }
-        __insertMessagesWithHashes(hashXrefList)
+        __insertHashes(message.messageHashes)
+        message.message.globalhash = getGlobalHashDb(message.messageHashes)
         message.identity_fingerprints.forEach { f -> f.message = messageRes }
         message.recipient_fingerprints.forEach { f -> f.message = messageRes }
 
