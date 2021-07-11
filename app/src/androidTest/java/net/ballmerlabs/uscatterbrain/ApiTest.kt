@@ -7,6 +7,7 @@ import kotlinx.coroutines.runBlocking
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
+import net.ballmerlabs.uscatterbrain.db.verifyed25519
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.*
@@ -137,7 +138,13 @@ class ApiTest: TestBase() {
                 .setName("test")
                 .sign(ApiIdentity.newPrivateKey())
                 .build()
+    }
 
+    @Test
+    fun generateIdentity() {
+        val name = "fmef"
+        val id = runBlocking { binder.generateIdentity(name) }
+        assert(id.givenname == name)
     }
 
 

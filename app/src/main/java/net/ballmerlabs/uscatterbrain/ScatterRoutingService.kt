@@ -217,9 +217,17 @@ class ScatterRoutingService : LifecycleService() {
          * @return identity object generated
          */
         @Throws(RemoteException::class)
-        override fun generateIdentity(name: String): Identity {
+        override fun generateIdentity(name: String, callback: IdentityCallback) {
             checkAccessPermission()
-            return mBackend.generateIdentity(name, callingPackageName).blockingGet()
+            val handle = generateNewHandle()
+            val disp = mBackend.generateIdentity(name, callingPackageName)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> callback.onIdentity(listOf(res)) },
+                            { err -> callback.onError(err.message) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
         /**
