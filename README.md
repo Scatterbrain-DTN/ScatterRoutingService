@@ -60,15 +60,14 @@ scanning for discovering nearby devices from an idle phone
 - All basic API features, mainly sending and receiving messages and managing router
 state
 
-
 ## What is planned for the future
 
-- Optional advanced "social" routing algorithms for directing messages based on
- location  
-- Datastore pruning  
-- Antiflood/antispam based on time or location  
+- Optional advanced "social" routing algorithms for directing messages
+to a particular person or location  
+- ~~Datastore pruning~~ [done]  
+- ~~Antiflood/antispam based on time or location~~ [partially done]  
 - Downloadable plugins for new transport layers (possibly nfc, ultrasound, or
 USB)  
-- Better api wrapper using kotlin coroutines and/or rxjava2  
+- ~~Better api wrapper using kotlin coroutines and/or rxjava2~~ [done]  
 - Linux/raspberrypi version for stationary routers  
 
