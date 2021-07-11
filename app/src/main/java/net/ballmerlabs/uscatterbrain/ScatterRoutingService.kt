@@ -314,108 +314,95 @@ class ScatterRoutingService : LifecycleService() {
             return mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate)).blockingGet()
         }
 
-        override fun getByApplicationAsync(application: String): Int {
+        override fun getByApplicationAsync(application: String, callback: ScatterMessageCallback) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.datastore.getApiMessages(application)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { res -> broadcastAsyncResult(callingPackageName, handle,
-                                    Bundle().apply {
-                                        putParcelableArrayList(ScatterbrainApi.EXTRA_ASYNC_RESULT, res)
-                            }, ScatterbrainApi.PERMISSION_ADMIN) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ADMIN) }
+                            { res -> callback.onScatterMessage(res) },
+                            { err -> callback.onError(err.message) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
-            return handle
         }
 
-        override fun getByApplicationDateAsync(application: String, startDate: Long, endDate: Long): Int {
+        override fun getByApplicationDateAsync(application: String, startDate: Long, endDate: Long, callback: ScatterMessageCallback) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate))
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { res -> broadcastAsyncResult(callingPackageName, handle,
-                                    Bundle().apply {
-                                        putParcelableArrayList(ScatterbrainApi.EXTRA_ASYNC_RESULT, res)
-                                    }, ScatterbrainApi.PERMISSION_ADMIN) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ADMIN) }
+                            { res -> callback.onScatterMessage(res) },
+                            { err -> callback.onError(err.message) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
-            return handle
         }
 
-        override fun signDataDetachedAsync(data: ByteArray, identity: ParcelUuid): Int {
+        override fun signDataDetachedAsync(data: ByteArray, identity: ParcelUuid, callback: ByteArrayCallback) {
             checkAdminPermission()
             val handle = generateNewHandle()
             val disp = mBackend.signDataDetached(data, identity.uuid, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { res -> broadcastAsyncResult(callingPackageName, handle, res, ScatterbrainApi.PERMISSION_ADMIN) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ADMIN) }
+                            { res -> callback.onData(res) },
+                            { err -> callback.onError(err.message) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
-            return handle
         }
 
-        override fun sendMessagesAsync(messages: MutableList<ScatterMessage>): Int {
+        override fun sendMessagesAsync(messages: MutableList<ScatterMessage>, callback: UnitCallback) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.sendMessages(messages, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { broadcastAsyncResult(callingPackageName, handle, ScatterbrainApi.PERMISSION_ACCESS) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ACCESS) }
+                            { callback.onComplete() },
+                            { err -> callback.onError(err.message) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
-            return handle
         }
 
-        override fun sendMessageAsync(message: ScatterMessage): Int {
+        override fun sendMessageAsync(message: ScatterMessage, callback: UnitCallback) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.sendMessage(message, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { broadcastAsyncResult(callingPackageName, handle, ScatterbrainApi.PERMISSION_ACCESS) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ACCESS) }
+                            { callback.onComplete() },
+                            { err -> callback.onError(err.message) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
-            return handle
         }
 
-        override fun sendAndSignMessageAsync(message: ScatterMessage, identity: ParcelUuid): Int {
+        override fun sendAndSignMessageAsync(message: ScatterMessage, identity: ParcelUuid, callback: UnitCallback) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.sendAndSignMessage(message, identity.uuid, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { broadcastAsyncResult(callingPackageName, handle, ScatterbrainApi.PERMISSION_ACCESS) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ACCESS) }
+                            { callback.onComplete() },
+                            { err -> callback.onError(err.message) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
-            return handle
         }
 
-        override fun sendAndSignMessagesAsync(message: MutableList<ScatterMessage>, identity: ParcelUuid): Int {
+        override fun sendAndSignMessagesAsync(message: MutableList<ScatterMessage>, identity: ParcelUuid, callback: UnitCallback) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.sendAndSignMessages(message, identity.uuid, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { broadcastAsyncResult(callingPackageName, handle, ScatterbrainApi.PERMISSION_ACCESS) },
-                            { err -> broadcastAsyncError(callingPackageName, handle, err.toString(), ScatterbrainApi.PERMISSION_ACCESS) }
+                            { callback.onComplete() },
+                            { err -> callback.onError(err.message) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
-            return handle
         }
 
 
