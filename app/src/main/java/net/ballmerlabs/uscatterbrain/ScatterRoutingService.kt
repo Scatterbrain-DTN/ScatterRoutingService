@@ -309,6 +309,10 @@ class ScatterRoutingService : LifecycleService() {
             mBackend.datastore.clear()
         }
 
+        override fun ping(callback: UnitCallback) {
+            callback.onComplete()
+        }
+
         override fun getByApplicationDate(application: String, startDate: Long, endDate: Long): MutableList<ScatterMessage> {
             checkAccessPermission()
             return mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate)).blockingGet()
