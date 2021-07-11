@@ -218,7 +218,7 @@ class ScatterRoutingService : LifecycleService() {
          */
         @Throws(RemoteException::class)
         override fun generateIdentity(name: String): Identity {
-            checkAdminPermission()
+            checkAccessPermission()
             return mBackend.generateIdentity(name, callingPackageName).blockingGet()
         }
 
