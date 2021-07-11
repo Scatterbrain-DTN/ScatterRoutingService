@@ -13,7 +13,7 @@ data class ScatterMessage(
         @Embedded
         var message: HashlessScatterMessage,
 
-        @Relation(parentColumn = "messageID", entityColumn = "hashID")
+        @Relation(parentColumn = "messageID", entityColumn = "messageOwnerId")
         var messageHashes: List<Hashes>,
 
         @Relation(parentColumn = "messageID", entityColumn = "message")
