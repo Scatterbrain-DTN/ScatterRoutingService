@@ -158,4 +158,17 @@ class ApiTest: TestBase() {
     }
 
 
+    @Test
+    fun testAuthorizePackages() {
+        runBlocking {
+            val pkgname = "android"
+            val id = binder.generateIdentity(pkgname)
+            binder.authorizeIdentity(id, pkgname)
+            val perms = binder.getPermissions(id)
+            val pkg = perms.map { namePackage -> namePackage.info.packageName }
+            assert(pkg.contains(pkgname))
+        }
+    }
+
+
 }
