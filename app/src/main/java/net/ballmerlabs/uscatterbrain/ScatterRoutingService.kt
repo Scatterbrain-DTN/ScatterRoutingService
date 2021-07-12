@@ -236,7 +236,7 @@ class ScatterRoutingService : LifecycleService() {
          * @return true if identity removed, false otherwise
          */
         @Throws(RemoteException::class)
-        override fun removeIdentity(identity: ParcelUuid, callback: UnitCallback) {
+        override fun removeIdentity(identity: ParcelUuid, callback: BoolCallback) {
             val handle = generateNewHandle()
             val disp = mBackend.removeIdentity(identity.uuid, callingPackageName)
                     .toSingleDefault(true)
@@ -244,7 +244,7 @@ class ScatterRoutingService : LifecycleService() {
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { callback.onComplete() },
+                            { res -> callback.onResult(res) },
                             { err -> callback.onError(err.message) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
