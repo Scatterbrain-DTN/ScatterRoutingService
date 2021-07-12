@@ -217,9 +217,17 @@ class ScatterRoutingService : LifecycleService() {
          * @return identity object generated
          */
         @Throws(RemoteException::class)
-        override fun generateIdentity(name: String): Identity {
-            checkAdminPermission()
-            return mBackend.generateIdentity(name, callingPackageName).blockingGet()
+        override fun generateIdentity(name: String, callback: IdentityCallback) {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.generateIdentity(name, callingPackageName)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> callback.onIdentity(listOf(res)) },
+                            { err -> callback.onError(err.message) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
         /**
@@ -228,11 +236,18 @@ class ScatterRoutingService : LifecycleService() {
          * @return true if identity removed, false otherwise
          */
         @Throws(RemoteException::class)
-        override fun removeIdentity(identity: ParcelUuid): Boolean {
-            return mBackend.removeIdentity(identity.uuid, callingPackageName)
+        override fun removeIdentity(identity: ParcelUuid, callback: BoolCallback) {
+            val handle = generateNewHandle()
+            val disp = mBackend.removeIdentity(identity.uuid, callingPackageName)
                     .toSingleDefault(true)
                     .onErrorReturnItem(false)
-                    .blockingGet()
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> callback.onResult(res) },
+                            { err -> callback.onError(err.message) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
         /**
@@ -243,9 +258,17 @@ class ScatterRoutingService : LifecycleService() {
          */
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(RemoteException::class)
-        override fun authorizeApp(identity: ParcelUuid, packagename: String) {
+        override fun authorizeApp(identity: ParcelUuid, packagename: String, callback: UnitCallback) {
             checkSuperuserPermission()
-            mBackend.authorizeApp(identity.uuid, packagename).blockingAwait()
+            val handle = generateNewHandle()
+            val disp = mBackend.authorizeApp(identity.uuid, packagename)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { callback.onComplete() },
+                            { err -> callback.onError(err.message) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
         /**
@@ -266,17 +289,23 @@ class ScatterRoutingService : LifecycleService() {
          * @param identity identity by fingerprint
          * @return list of package names if any
          */
-        override fun getAppPermissions(identity: ParcelUuid): Array<String> {
+        override fun getAppPermissions(identity: ParcelUuid, callback: StringCallback) {
             checkSuperuserPermission()
-            return mBackend.datastore.getACLs(identity.uuid)
+            val handle = generateNewHandle()
+            val disp = mBackend.datastore.getACLs(identity.uuid)
                     .flatMapObservable { acl -> Observable.fromIterable(acl) }
                     .map { acl -> acl.packageName }
                     .reduce(ArrayList<String>(), { list, acl ->
                         list.add(acl)
                         return@reduce list
                     })
-                    .blockingGet()
-                    .toTypedArray()
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { s-> callback.onString(s) },
+                            { err -> callback.onError(err.message) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
         override fun getKnownPackages(): MutableList<String> {

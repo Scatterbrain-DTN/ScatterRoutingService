@@ -3,10 +3,13 @@ package net.ballmerlabs.uscatterbrain
 import android.os.ParcelUuid
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.runBlocking
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
+import net.ballmerlabs.uscatterbrain.db.verifyed25519
+import net.ballmerlabs.uscatterbrain.network.IdentityPacket
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.*
@@ -138,6 +141,33 @@ class ApiTest: TestBase() {
                 .sign(ApiIdentity.newPrivateKey())
                 .build()
 
+        val packet = IdentityPacket.newBuilder()
+                .setName(identity.givenname)
+                .setSig(identity.sig)
+                .setScatterbrainPubkey(ByteString.copyFrom(identity.getmScatterbrainPubKey()))
+                .build()
+
+        assert(packet!!.verifyed25519(identity.getmScatterbrainPubKey()))
+    }
+
+    @Test
+    fun generateIdentity() {
+        val name = "fmef"
+        val id = runBlocking { binder.generateIdentity(name) }
+        assert(id.givenname == name)
+    }
+
+
+    @Test
+    fun testAuthorizePackages() {
+        runBlocking {
+            val pkgname = "android"
+            val id = binder.generateIdentity(pkgname)
+            binder.authorizeIdentity(id, pkgname)
+            val perms = binder.getPermissions(id)
+            val pkg = perms.map { namePackage -> namePackage.info.packageName }
+            assert(pkg.contains(pkgname))
+        }
     }
 
 

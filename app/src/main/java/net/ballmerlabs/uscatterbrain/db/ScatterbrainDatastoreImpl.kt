@@ -645,7 +645,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 for (keys in relation.keys) {
                                     keylist[keys.key] = ByteString.copyFrom(keys.value)
                                 }
-                                val identity: IdentityPacket = IdentityPacket.newBuilder(ctx)
+                                val identity: IdentityPacket = IdentityPacket.newBuilder()
                                         .setName(relation.identity.givenName)
                                         .setScatterbrainPubkey(ByteString.copyFrom(relation.identity.publicKey))
                                         .setSig(relation.identity.signature)
@@ -672,14 +672,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .doOnComplete { Log.v(TAG, "datastore retrieved identities: $num") }
                             .doOnNext { Log.v(TAG, "retrieved single identity") }
                             .toFlowable(BackpressureStrategy.BUFFER)
-                            .zipWith(seq, { identity, seq ->
-                                IdentityPacket.newBuilder(ctx)
+                            .zipWith(seq, { identity, _ ->
+                                IdentityPacket.newBuilder()
                                         .setName(identity.identity.givenName)
                                         .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
                                         .setSig(identity.identity.signature)
                                         .build()!!
                             })
-                            .concatWith(Single.just(IdentityPacket.newBuilder(ctx).setEnd().build()!!))
+                            .concatWith(Single.just(IdentityPacket.newBuilder().setEnd().build()!!))
                 }
     }
 
