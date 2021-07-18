@@ -157,6 +157,14 @@ class ApiTest: TestBase() {
         assert(id.givenname == name)
     }
 
+    @Test
+    fun getSingleIdentity() {
+        val name = "femf"
+        val id = runBlocking { binder.generateIdentity(name) }
+        val newid = runBlocking { binder.getIdentity(id.fingerprint) }
+        assert(newid != null)
+        assert(newid!!.fingerprint == id.fingerprint)
+    }
 
     @Test
     fun testAuthorizePackages() {

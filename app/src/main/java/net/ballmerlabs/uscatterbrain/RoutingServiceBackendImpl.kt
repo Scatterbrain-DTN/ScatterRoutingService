@@ -187,6 +187,11 @@ class RoutingServiceBackendImpl @Inject constructor(
         }
     }
 
+    override fun getIdentity(fingerprint: UUID): Single<Identity> {
+        return datastore.getApiIdentityByFingerprint(fingerprint)
+                .map { id -> id }
+    }
+
     override fun removeIdentity(name: UUID, callingPackageName: String): Completable {
         return datastore.deleteIdentities(name)
                 .doOnError {

@@ -710,17 +710,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param fingerprint
      * @return identity
      */
-    override fun getApiIdentityByFingerprint(identity: UUID): ApiIdentity {
+    override fun getApiIdentityByFingerprint(identity: UUID): Single<ApiIdentity> {
         return mDatastore.identityDao().getIdentityByFingerprint(identity)
                 .subscribeOn(databaseScheduler)
-                .map { identity ->
+                .map { id ->
                     ApiIdentity.newBuilder()
-                            .setName(identity.identity.givenName)
-                            .addKeys(keys2map(identity.keys))
-                            .setSig(identity.identity.signature)
-                            .setHasPrivateKey(identity.identity.privatekey != null)
+                            .setName(id.identity.givenName)
+                            .addKeys(keys2map(id.keys))
+                            .setSig(id.identity.signature)
+                            .setHasPrivateKey(id.identity.privatekey != null)
                             .build()
-                }.blockingGet()
+                }
     }
 
     /**

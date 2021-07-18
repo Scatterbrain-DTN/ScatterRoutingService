@@ -128,7 +128,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(RemoteException::class)
         override fun getIdentityByFingerprint(fingerprint: ParcelUuid): Identity {
             checkAccessPermission()
-            return mBackend.datastore.getApiIdentityByFingerprint(fingerprint.uuid)
+            return mBackend.datastore.getApiIdentityByFingerprint(fingerprint.uuid).blockingGet()
         }
 
         /**
@@ -221,6 +221,22 @@ class ScatterRoutingService : LifecycleService() {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.generateIdentity(name, callingPackageName)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> callback.onIdentity(listOf(res)) },
+                            { err -> callback.onError(err.message) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
+
+        @Throws(RemoteException::class)
+        override fun getIdentity(fingerprint: ParcelUuid, callback: IdentityCallback) {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+
+            val disp = mBackend.getIdentity(fingerprint.uuid)
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(

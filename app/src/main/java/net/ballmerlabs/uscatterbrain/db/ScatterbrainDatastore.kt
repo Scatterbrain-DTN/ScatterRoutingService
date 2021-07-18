@@ -250,7 +250,7 @@ interface ScatterbrainDatastore {
     fun getMessageByPath(path: String): Single<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>
     fun insertApiIdentity(identity: ApiIdentity): Completable
     fun insertApiIdentities(identities: List<Identity>): Completable
-    fun getApiIdentityByFingerprint(identity: UUID): ApiIdentity
+    fun getApiIdentityByFingerprint(identity: UUID): Single<ApiIdentity>
     fun addACLs(identityFingerprint: UUID, packagename: String, appsig: String): Completable
     fun deleteACLs(identityFingerprint: UUID, packageName: String, appsig: String): Completable
     fun getIdentityKey(identity: UUID): Single<ApiIdentity.KeyPair>
