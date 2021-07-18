@@ -36,4 +36,5 @@ interface RoutingServiceBackend {
     fun sendMessage(message: ScatterMessage, callingPackageName: String): Completable
     fun sendMessages(messages: List<ScatterMessage>, callingPackageName: String): Completable
     fun signDataDetached(data: ByteArray, identity: UUID, callingPackageName: String): Single<ByteArray>
+    fun getIdentity(fingerprint: UUID): Single<Identity>
 }

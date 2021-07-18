@@ -645,7 +645,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 for (keys in relation.keys) {
                                     keylist[keys.key] = ByteString.copyFrom(keys.value)
                                 }
-                                val identity: IdentityPacket = IdentityPacket.newBuilder(ctx)
+                                val identity: IdentityPacket = IdentityPacket.newBuilder()
                                         .setName(relation.identity.givenName)
                                         .setScatterbrainPubkey(ByteString.copyFrom(relation.identity.publicKey))
                                         .setSig(relation.identity.signature)
@@ -672,14 +672,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .doOnComplete { Log.v(TAG, "datastore retrieved identities: $num") }
                             .doOnNext { Log.v(TAG, "retrieved single identity") }
                             .toFlowable(BackpressureStrategy.BUFFER)
-                            .zipWith(seq, { identity, seq ->
-                                IdentityPacket.newBuilder(ctx)
+                            .zipWith(seq, { identity, _ ->
+                                IdentityPacket.newBuilder()
                                         .setName(identity.identity.givenName)
                                         .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
                                         .setSig(identity.identity.signature)
                                         .build()!!
                             })
-                            .concatWith(Single.just(IdentityPacket.newBuilder(ctx).setEnd().build()!!))
+                            .concatWith(Single.just(IdentityPacket.newBuilder().setEnd().build()!!))
                 }
     }
 
@@ -710,17 +710,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * @param fingerprint
      * @return identity
      */
-    override fun getApiIdentityByFingerprint(identity: UUID): ApiIdentity {
+    override fun getApiIdentityByFingerprint(identity: UUID): Single<ApiIdentity> {
         return mDatastore.identityDao().getIdentityByFingerprint(identity)
                 .subscribeOn(databaseScheduler)
-                .map { identity ->
+                .map { id ->
                     ApiIdentity.newBuilder()
-                            .setName(identity.identity.givenName)
-                            .addKeys(keys2map(identity.keys))
-                            .setSig(identity.identity.signature)
-                            .setHasPrivateKey(identity.identity.privatekey != null)
+                            .setName(id.identity.givenName)
+                            .addKeys(keys2map(id.keys))
+                            .setSig(id.identity.signature)
+                            .setHasPrivateKey(id.identity.privatekey != null)
                             .build()
-                }.blockingGet()
+                }
     }
 
     /**

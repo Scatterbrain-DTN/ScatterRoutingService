@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network
 
-import android.content.Context
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
 import com.goterl.lazycode.lazysodium.interfaces.Sign
@@ -67,11 +66,11 @@ class IdentityPacket(packet: ScatterProto.Identity) :
      * @param pubkey the pubkey
      * @return the boolean
      */
-    fun verifyed25519(pubkey: ByteArray?): Boolean {
+    fun verifyed25519(pubkey: ByteArray): Boolean {
         if (isEnd) {
             return false
         }
-        if (pubkey!!.size != Sign.PUBLICKEYBYTES) return false
+        if (pubkey.size != Sign.PUBLICKEYBYTES) return false
         val messagebytes = sumBytes()
         return LibsodiumInterface.sodium.crypto_sign_verify_detached(sig.toByteArray(),
                 messagebytes!!.toByteArray(),
@@ -91,7 +90,6 @@ class IdentityPacket(packet: ScatterProto.Identity) :
     }
 
     data class Builder(
-            val context: Context,
             var pubkeyMap: MutableMap<String, ByteString> = TreeMap(),
             var scatterbrainPubkey: ByteArray? = null,
             var generateKeypair: Boolean = false,
@@ -208,7 +206,6 @@ class IdentityPacket(packet: ScatterProto.Identity) :
 
             other as Builder
 
-            if (context != other.context) return false
             if (pubkeyMap != other.pubkeyMap) return false
             if (scatterbrainPubkey != null) {
                 if (other.scatterbrainPubkey == null) return false
@@ -226,8 +223,7 @@ class IdentityPacket(packet: ScatterProto.Identity) :
         }
 
         override fun hashCode(): Int {
-            var result = context.hashCode()
-            result = 31 * result + pubkeyMap.hashCode()
+            var result = 31 * pubkeyMap.hashCode()
             result = 31 * result + (scatterbrainPubkey?.contentHashCode() ?: 0)
             result = 31 * result + generateKeypair.hashCode()
             result = 31 * result + (name?.hashCode() ?: 0)
@@ -271,8 +267,8 @@ class IdentityPacket(packet: ScatterProto.Identity) :
     }
 
     companion object {
-        fun newBuilder(ctx: Context): Builder {
-            return Builder(ctx)
+        fun newBuilder(): Builder {
+            return Builder()
         }
         class Parser : ScatterSerializable.Companion.Parser<ScatterProto.Identity, IdentityPacket>(ScatterProto.Identity.parser())
         fun parser(): Parser {
