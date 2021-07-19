@@ -390,7 +390,7 @@ class ScatterRoutingService : LifecycleService() {
         }
 
         override fun signDataDetachedAsync(data: ByteArray, identity: ParcelUuid, callback: ByteArrayCallback) {
-            checkAdminPermission()
+            checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.signDataDetached(data, identity.uuid, callingPackageName)
                     .doOnDispose { callbackHandles.remove(handle) }
