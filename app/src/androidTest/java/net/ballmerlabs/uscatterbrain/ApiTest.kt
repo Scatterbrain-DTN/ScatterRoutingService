@@ -151,6 +151,17 @@ class ApiTest: TestBase() {
     }
 
     @Test
+    @Throws(TimeoutException::class)
+    fun signVerify() {
+        runBlocking {
+            val identity = binder.generateIdentity("fmef")
+            val data = Random(0).nextBytes(128)
+            val sig = binder.sign(identity, data)
+            assert(binder.verify(identity, data, sig))
+        }
+    }
+
+    @Test
     fun generateIdentity() {
         val name = "fmef"
         val id = runBlocking { binder.generateIdentity(name) }
