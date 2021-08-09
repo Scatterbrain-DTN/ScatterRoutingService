@@ -663,8 +663,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     init {
         val tcpserverdisposable = socketFactory.create(SCATTERBRAIN_PORT)
-                .subscribeOn(operationsScheduler)
                 .flatMapObservable { obj: InterceptableServerSocket -> obj.acceptLoop() }
+                .subscribeOn(operationsScheduler)
+                .repeat()
+                .retry()
                 .doOnComplete { Log.e(TAG, "tcp server completed. fueee") }
                 .subscribe(
                         { socket: SocketConnection -> Log.v(TAG, "accepted socket: " + socket.socket) }
