@@ -81,7 +81,7 @@ data class OptionalBootstrap<T>(
  * GATT connection. We only want one physical radio connection but two GATT connections.
  * if for some reason we end up connecting twice due to a race condition, we need to identity and
  * throw out one of the connections. While matching duplication connections by mac address is a
- * trival and correct way of discarding duplicate connections, we cannot do that here because
+ * trivial and correct way of discarding duplicate connections, we cannot do that here because
  * android does not guarantee that the adapter mac will not be randomized between connection
  * attempts
  *
