@@ -253,6 +253,7 @@ class ScatterRoutingService : LifecycleService() {
          */
         @Throws(RemoteException::class)
         override fun removeIdentity(identity: ParcelUuid, callback: BoolCallback) {
+            checkSuperuserPermission()
             val handle = generateNewHandle()
             val disp = mBackend.removeIdentity(identity.uuid, callingPackageName)
                     .toSingleDefault(true)
