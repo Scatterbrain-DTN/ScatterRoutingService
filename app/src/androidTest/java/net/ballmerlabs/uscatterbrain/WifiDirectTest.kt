@@ -20,6 +20,7 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 @RunWith(AndroidJUnit4ClassRunner::class)
@@ -71,7 +72,30 @@ class WifiDirectTest {
     @Test
     @Throws(TimeoutException::class)
     fun createGroupTest() {
-        assert(radioModule.createGroup().blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
+        assert(radioModule.createGroup().timeout(20, TimeUnit.SECONDS)
+                .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
+    }
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun multipleCreateGroup() {
+        for (x in 0..5) {
+            assert(radioModule.createGroup()
+                    .timeout(20, TimeUnit.SECONDS)
+                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
+        }
+    }
+
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun createAndRemoveGroup() {
+        for (x in 0..5) {
+            assert(radioModule.createGroup()
+                    .timeout(60, TimeUnit.SECONDS)
+                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
+            radioModule.removeGroup().blockingAwait()
+        }
     }
 
     @Test
