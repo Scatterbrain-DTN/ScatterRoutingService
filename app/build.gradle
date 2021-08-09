@@ -3,6 +3,7 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
 apply plugin: 'com.google.protobuf'
 apply plugin: 'groovyx.android'
+apply plugin: 'org.jetbrains.dokka-android'
 
 def protobuf_version = "3.11.1"
 
@@ -26,6 +27,12 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
     }
+
+    dokka {
+        outputFormat = 'html'
+        outputDirectory = "$buildDir/javadoc"
+    }
+
     buildTypes {
         release {
             minifyEnabled false
