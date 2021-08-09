@@ -106,6 +106,19 @@ class RoutingServiceBackendImpl @Inject constructor(
         }
     }
 
+    override fun verifyData(data: ByteArray, sig: ByteArray, identity: UUID): Single<Boolean> {
+        return datastore.getIdentityKey(identity)
+                .map { keypair ->
+                    val status = LibsodiumInterface.sodium.crypto_sign_verify_detached(
+                            sig,
+                            data,
+                            data.size.toLong(),
+                            keypair.publickey
+                    )
+                    status == 0
+                }
+    }
+
     override fun signDataDetached(data: ByteArray, identity: UUID, callingPackageName: String): Single<ByteArray> {
         return datastore.getACLs(identity)
                 .flatMapObservable { Observable.fromIterable(it) }

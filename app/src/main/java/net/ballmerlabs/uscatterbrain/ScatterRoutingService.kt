@@ -403,6 +403,19 @@ class ScatterRoutingService : LifecycleService() {
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
+        override fun verifyDataAsync(data: ByteArray, sig: ByteArray, identity: ParcelUuid, callback: BoolCallback) {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.verifyData(data, sig, identity.uuid)
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { res -> callback.onResult(res) },
+                            { err -> callback.onError(err.message) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
         override fun sendMessagesAsync(messages: MutableList<ScatterMessage>, callback: UnitCallback) {
             checkAccessPermission()
             val handle = generateNewHandle()
