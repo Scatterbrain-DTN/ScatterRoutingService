@@ -14,13 +14,11 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import io.reactivex.subjects.SingleSubject
-import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
-import net.ballmerlabs.uscatterbrain.db.getGlobalHash
-import net.ballmerlabs.uscatterbrain.db.getGlobalHashProto
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest

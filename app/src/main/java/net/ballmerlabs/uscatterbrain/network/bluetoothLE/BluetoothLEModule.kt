@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import io.reactivex.Completable
 import io.reactivex.Observable
-import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 
 interface BluetoothLEModule {
     fun startAdvertise()

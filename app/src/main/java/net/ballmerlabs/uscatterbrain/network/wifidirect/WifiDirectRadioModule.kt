@@ -5,7 +5,7 @@ import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
-import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.IdentityId
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage

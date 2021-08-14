@@ -5,7 +5,7 @@ import android.content.Intent
 import android.util.Log
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
-import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler.RoutingServiceState
 import java.util.concurrent.atomic.AtomicReference
