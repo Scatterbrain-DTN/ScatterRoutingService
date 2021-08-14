@@ -432,7 +432,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                                         declareHashesPacket
                                                                 ).toFlowable(BackpressureStrategy.BUFFER)
                                                         ).toObservable())
-                                                .reduce(stats, { obj: HandshakeResult?, stats: HandshakeResult? -> obj!!.from(stats) })
+                                                .reduce(stats, { obj, stats -> obj.from(stats) })
                                     }
                         }
             }
