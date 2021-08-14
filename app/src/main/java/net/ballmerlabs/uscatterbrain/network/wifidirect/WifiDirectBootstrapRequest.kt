@@ -9,6 +9,10 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 
 /**
  * BootstrapRequest with convenience functions for wifi direct bootstraps
+ * @property name name of the wifi direct network to connect to
+ * @property passphrase passphrase of the wifi direct network to connect to
+ * @property role role (uke/seme) of the connection session
+ *
  */
 open class WifiDirectBootstrapRequest : BootstrapRequest {
     val name: String
@@ -22,6 +26,11 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
         role = getSerializableExtra(KEY_ROLE) as ConnectionRole
     }
 
+    /**
+     * Converts this BootstrapRequest into a Scatterbrain upgrade packet
+     * @param session session id for the upgrade transaction
+     * @return UpgradePacket
+     */
     fun toUpgrade(session: Int): UpgradePacket {
         return UpgradePacket.newBuilder()
                 .setProvides(AdvertisePacket.Provides.WIFIP2P)
@@ -47,10 +56,23 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
         const val KEY_PASSPHRASE = "p2p-passphrase"
         const val KEY_ROLE = "p2p-role"
 
+        /**
+         * creates a WifiDirectBootstrapRequest
+         * @param passphrase passphrase of network
+         * @param name name of network
+         * @param role connection role (uke/seme) of network to connect to
+         * @return WifiDirectBootstrapRequest
+         */
         fun create(passphrase: String, name: String, role: ConnectionRole): WifiDirectBootstrapRequest {
             return WifiDirectBootstrapRequest(passphrase, name, role)
         }
 
+        /**
+         * creates a WifiDirectBootstrapRequest
+         * @param packet Scatterbrain upgrade packet
+         * @param role connection role (uke/seme) of the network to connect to
+         * @return WifiDirectBootstrapRequest
+         */
         fun create(packet: UpgradePacket, role: ConnectionRole): WifiDirectBootstrapRequest {
             check(packet.provides == AdvertisePacket.Provides.WIFIP2P) {
                 "WifiDirectBootstrapRequest called with invalid provides: ${packet.provides}"

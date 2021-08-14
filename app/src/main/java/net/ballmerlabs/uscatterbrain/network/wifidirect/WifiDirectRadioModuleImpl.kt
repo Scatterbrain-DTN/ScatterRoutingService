@@ -205,11 +205,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .subscribeOn(operationsScheduler)
     }
 
-    /**
-     * connect to a wifi direct group
-     * @param name group name. MUST start with DIRECT-*
-     * @param passphrase group PSK. minimum 8 characters
-     */
     override fun connectToGroup(name: String, passphrase: String, timeout: Int): Single<WifiP2pInfo> {
        return Single.defer {
            val subject = SingleSubject.create<WifiP2pInfo>()

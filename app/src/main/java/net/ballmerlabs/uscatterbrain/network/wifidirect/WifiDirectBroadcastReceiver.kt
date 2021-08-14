@@ -10,13 +10,30 @@ import io.reactivex.Observable
  * dagger2 interface for WifiDirectBroadcastReceiver
  */
 interface WifiDirectBroadcastReceiver {
+    /**
+     * observe wifi p2p state
+     * @return Observable emitting P2pState objects
+     */
     fun observeP2pState(): Observable<WifiDirectBroadcastReceiverImpl.P2pState>
 
+    /**
+     * @return Observable emitting WifiP2pDevice
+     */
     fun observeThisDevice(): Observable<WifiP2pDevice>
 
+    /**
+     * @return Observable emitting WifiP2pInfo
+     */
     fun observeConnectionInfo(): Observable<WifiP2pInfo>
 
+    /**
+     * Observe connected devices
+     * @return Observable emitting WifiP2pDeviceList
+     */
     fun observePeers(): Observable<WifiP2pDeviceList>
 
+    /**
+     * Perform an explicit cast from this object to a regular BroadcastReceiver
+     */
     fun asReceiver(): BroadcastReceiver
 }
