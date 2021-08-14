@@ -11,7 +11,6 @@ import android.util.Pair
 import android.webkit.MimeTypeMap
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -299,7 +298,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     ): Observable<BlockDataStream> {
         return Observable.defer {
             Log.v(TAG, "called getTopRandomMessages $count")
-            val num = min(count, mDatastore.scatterMessageDao().messageCount())
             mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, delareHashes.hashes)
                     .subscribeOn(databaseScheduler)
                     .doOnSubscribe { Log.v(TAG, "subscribed to getTopRandoMessages") }
@@ -450,7 +448,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     /**
      * delete entities from database by fingerprint
-     * @param fingerprint
+     * @param identity
      * @return completable
      */
     override fun deleteIdentities(vararg identity: UUID): Completable {
@@ -499,19 +497,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     insertIdentity(Observable.fromIterable(identities))
                             .subscribeOn(databaseScheduler)
                 }
-    }
-
-    private fun getFingerprint(identity: Identity): String {
-        val fingeprint = ByteArray(GenericHash.BYTES)
-        LibsodiumInterface.sodium.crypto_generichash(
-                fingeprint,
-                fingeprint.size,
-                identity.publicKey,
-                identity.publicKey.size.toLong(),
-                null,
-                0
-        )
-        return LibsodiumInterface.base64enc(fingeprint)
     }
 
     /**
@@ -758,7 +743,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     /**
      * gets an identity by fingerprint in api form
-     * @param fingerprint
+     * @param identity
      * @return identity
      */
     override fun getApiIdentityByFingerprint(identity: UUID): Single<ApiIdentity> {
@@ -1248,12 +1233,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun deleteMessage(message: ScatterMessage): Completable {
         return Completable.defer {
-            if (message.id == null) {
-                Completable.error(IllegalArgumentException("message not inserted"))
-            } else {
-                mDatastore.scatterMessageDao().getByUUID(message.id!!.uuid)
-                        .flatMapCompletable { m -> deleteMessage(m.message) }
-            }
+            mDatastore.scatterMessageDao().getByUUID(message.id.uuid)
+                    .flatMapCompletable { m -> deleteMessage(m.message) }
         }
     }
 
@@ -1262,7 +1243,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .flatMapCompletable { fileOutputStream ->
                     packets
                             .concatMapCompletable(Function<BlockSequencePacket, CompletableSource> c@{ blockSequencePacket ->
-                                if (!blockSequencePacket!!.verifyHash(header)) {
+                                if (!blockSequencePacket.verifyHash(header)) {
                                     Completable.error(IllegalStateException("failed to verify hash"))
                                 } else {
                                     Completable.fromAction { fileOutputStream.write(blockSequencePacket.data) }
