@@ -18,11 +18,9 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      *
      * @return the hash list
      */
-    val hashList: List<ByteArray>
-    get() = packet.nexthashesList.map { v -> v.toByteArray() }
+    val hashList: List<ByteArray> = packet.nexthashesList.map { v -> v.toByteArray() }
 
-    override val hashes
-        get() = hashList.toTypedArray()
+    override val hashes = hashList.toTypedArray()
 
 
     /**
@@ -30,8 +28,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      *
      * @return the from fingerprint
      */
-    override val fromFingerprint: List<UUID>
-        get() = packet.fromFingerprintList.map { f -> protoUUIDtoUUID(f) }
+    override val fromFingerprint: List<UUID> = packet.fromFingerprintList.map { f -> protoUUIDtoUUID(f) }
 
     override val sendDate: Long
         get() = packet.sendDate
@@ -41,19 +38,16 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
      *
      * @return the to fingerprint
      */
-    override val toFingerprint: List<UUID>
-        get() = packet.toFingerprintList.map { f -> protoUUIDtoUUID(f)}
+    override val toFingerprint: List<UUID> = packet.toFingerprintList.map { f -> protoUUIDtoUUID(f)}
 
-    override val extension: String
-        get() = sanitizeFilename(packet.extension)
+    override val extension: String = sanitizeFilename(packet.extension)
 
     /**
      * Get signature byte [ ].
      *
      * @return the byte [ ]
      */
-    override val signature: ByteArray?
-        get() = if (fromFingerprint == null) null else packet.sig.toByteArray()
+    override val signature: ByteArray = packet.sig.toByteArray()
 
     /**
      * Get application byte [ ].
@@ -63,8 +57,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
     override val application: String
         get() = packet.application
 
-    val isValidFilename: Boolean
-    get() = isValidFilename(packet.filename)
+    val isValidFilename: Boolean = isValidFilename(packet.filename)
 
     /**
      * Gets session id.

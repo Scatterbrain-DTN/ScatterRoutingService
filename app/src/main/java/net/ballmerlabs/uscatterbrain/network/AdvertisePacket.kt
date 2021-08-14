@@ -11,8 +11,7 @@ class AdvertisePacket(packet: Advertise) : ScatterSerializable<Advertise>(packet
 
     }
 
-    val provides
-    get() = valToProvidesArray(packet.providesList)
+    val provides = valToProvidesArray(packet.providesList)
 
     override val type: PacketType
         get() = PacketType.TYPE_ADVERTISE

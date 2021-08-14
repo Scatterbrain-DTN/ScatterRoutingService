@@ -11,8 +11,7 @@ class DeclareHashesPacket(packet: DeclareHashes) : ScatterSerializable<DeclareHa
     val optout: Boolean
         get() = packet.optout
 
-    val hashes: List<ByteArray>
-        get() = packet.hashesList.map { p -> p.toByteArray() }
+    val hashes: List<ByteArray> = packet.hashesList.map { p -> p.toByteArray() }
 
     override val type: PacketType
         get() = PacketType.TYPE_DECLARE_HASHES

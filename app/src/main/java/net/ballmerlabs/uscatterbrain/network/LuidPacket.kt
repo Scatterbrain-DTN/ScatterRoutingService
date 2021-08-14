@@ -16,8 +16,7 @@ class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
     val isHashed: Boolean
     get() = packet.valCase == Luid.ValCase.VAL_HASH
 
-    val luidVal: UUID
-        get() = protoUUIDtoUUID(packet.valUuid)
+    val luidVal: UUID = protoUUIDtoUUID(packet.valUuid)
     
     val hash: ByteArray
         get() = if (isHashed) {
