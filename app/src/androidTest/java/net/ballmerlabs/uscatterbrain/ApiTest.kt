@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain
 
-import android.os.ParcelUuid
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import com.google.protobuf.ByteString
@@ -8,7 +7,6 @@ import kotlinx.coroutines.runBlocking
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
-import net.ballmerlabs.uscatterbrain.db.verifyed25519
 import net.ballmerlabs.uscatterbrain.network.IdentityPacket
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -142,12 +140,12 @@ class ApiTest: TestBase() {
                 .build()
 
         val packet = IdentityPacket.newBuilder()
-                .setName(identity.givenname)
+                .setName(identity.name)
                 .setSig(identity.sig)
-                .setScatterbrainPubkey(ByteString.copyFrom(identity.getmScatterbrainPubKey()))
+                .setScatterbrainPubkey(ByteString.copyFrom(identity.publicKey))
                 .build()
 
-        assert(packet!!.verifyed25519(identity.getmScatterbrainPubKey()))
+        assert(packet!!.verifyed25519(identity.publicKey))
     }
 
     @Test
@@ -165,7 +163,7 @@ class ApiTest: TestBase() {
     fun generateIdentity() {
         val name = "fmef"
         val id = runBlocking { binder.generateIdentity(name) }
-        assert(id.givenname == name)
+        assert(id.name == name)
     }
 
     @Test

@@ -18,10 +18,10 @@ import java.util.*
  */
 open class ApiIdentity protected constructor(builder: Builder) : Identity(
         builder.mPubKeymap,
-        builder.mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY],
-        builder.name,
-        builder.sig,
-        builder.fingerprint,
+        builder.mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]!!,
+        builder.name!!,
+        builder.sig!!,
+        builder.fingerprint!!,
         builder.hasPrivateKey
 ) {
     private val privatekey: ByteArray? = builder.privkey
@@ -36,7 +36,7 @@ open class ApiIdentity protected constructor(builder: Builder) : Identity(
 
     class Builder {
         var sig: ByteArray? = null
-        val mPubKeymap: MutableMap<String?, ByteArray?> = HashMap()
+        val mPubKeymap: MutableMap<String, ByteArray> = HashMap()
         var name: String? = null
         private var pubkey: ByteArray? = null
         var privkey: ByteArray? = null

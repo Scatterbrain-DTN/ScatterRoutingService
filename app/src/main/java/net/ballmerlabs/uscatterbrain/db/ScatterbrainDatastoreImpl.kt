@@ -455,8 +455,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         LibsodiumInterface.sodium.crypto_generichash(
                 fingeprint,
                 fingeprint.size,
-                identity.getmScatterbrainPubKey(),
-                identity.getmScatterbrainPubKey().size.toLong(),
+                identity.publicKey,
+                identity.publicKey.size.toLong(),
                 null,
                 0
         )
@@ -513,15 +513,15 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Single.just(identity)
                 .map { dbidentity ->
                     val kid = KeylessIdentity(
-                            dbidentity.givenname,
-                            dbidentity.getmScatterbrainPubKey(),
+                            dbidentity.name,
+                            dbidentity.publicKey,
                             dbidentity.sig,
                             dbidentity.fingerprint,
                             dbidentity.privateKey
                     )
                     Identity(
                             kid,
-                            keys2keysBytes(identity.getmPubKeymap())
+                            keys2keysBytes(identity.extraKeys)
                     )
                 }.flatMapCompletable { ids ->
                     this.insertIdentity(ids)
@@ -537,15 +537,15 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Observable.fromIterable(identities)
                 .map { identity ->
                     val kid = KeylessIdentity(
-                            identity.givenname,
-                            identity.getmScatterbrainPubKey(),
+                            identity.name,
+                            identity.publicKey,
                             identity.sig,
                             identity.fingerprint,
                             null
                     )
                     Identity(
                             kid,
-                            keys2keysBytes(identity.getmPubKeymap())
+                            keys2keysBytes(identity.extraKeys)
                     )
                 }.reduce(ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>(), { list, id ->
                     list.add(id)
