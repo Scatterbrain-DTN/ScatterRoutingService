@@ -8,6 +8,11 @@ import java.util.*
 
 /**
  * wrapper class for ElectLeader protobuf message
+ *
+ * @property tieBreak tiebreak value
+ * @property provides AdvertisePacket provides value
+ * @property isHashed true if this packet only contains a hash value
+ * @property hash hash value if this packet is hashed
  */
 class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(packet) {
     private fun hashFromPacket(): ByteArray {

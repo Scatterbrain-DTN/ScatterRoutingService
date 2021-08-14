@@ -4,6 +4,8 @@ import net.ballmerlabs.uscatterbrain.ScatterProto.Advertise
 
 /**
  * Wrapper class for advertisepacket protocol buffer message.
+ *
+ * @property provides list of transport modules provided by sender
  */
 class AdvertisePacket(packet: Advertise) : ScatterSerializable<Advertise>(packet) {
     enum class Provides(val `val`: Int) {

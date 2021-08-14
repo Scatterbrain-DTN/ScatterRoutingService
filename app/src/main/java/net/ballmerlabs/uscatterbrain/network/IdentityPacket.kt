@@ -12,6 +12,13 @@ import java.util.*
 
 /**
  * wrapper class for Identity protobuf message
+ * @property name user-chosen human readable name
+ * @property sig ed25519 signature of all fields
+ * @property pubkey Scatterbrain official ed25519 public key
+ * @property isEnd true if this is the last packet in a stream
+ * @property uuid public key fingerprint as uuid
+ * @property fingerprint public key fingerprint as string
+ * @property keymap associative array of user-defined keys in any format
  */
 class IdentityPacket(packet: ScatterProto.Identity) :
         ScatterSerializable<ScatterProto.Identity>(packet),

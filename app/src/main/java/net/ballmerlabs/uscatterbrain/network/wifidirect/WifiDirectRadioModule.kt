@@ -110,7 +110,7 @@ interface WifiDirectRadioModule {
         }
 
         val toDisk: Boolean
-            get() = headerPacket.toDisk
+            get() = headerPacket.isFile
 
         constructor(message: ScatterMessage, packetFlowable: Flowable<BlockSequencePacket>, todisk: Boolean = true): this(
                 headerPacket = BlockHeaderPacket.newBuilder()

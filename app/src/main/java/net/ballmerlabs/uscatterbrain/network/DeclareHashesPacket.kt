@@ -4,7 +4,10 @@ import com.google.protobuf.ByteString
 import net.ballmerlabs.uscatterbrain.ScatterProto.DeclareHashes
 
 /**
- * wrapper class for DeclareHashes protobuf message
+ * wrapper class for DeclareHashes protobuf message. Used to avoid sending
+ * duplicate messages to a remote peer
+ * @property optout no hashes are sent, the remote peer should accept all messages
+ * @property hashes list of "globalhash" values of Scatterbrain messages
  */
 class DeclareHashesPacket(packet: DeclareHashes) : ScatterSerializable<DeclareHashes>(packet) {
 

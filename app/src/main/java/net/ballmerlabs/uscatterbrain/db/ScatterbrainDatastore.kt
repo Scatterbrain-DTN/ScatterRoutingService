@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.db
 
-import android.util.Log
 import com.google.protobuf.ByteString
 import com.goterl.lazycode.lazysodium.interfaces.GenericHash
 import com.goterl.lazycode.lazysodium.interfaces.Sign
@@ -99,7 +98,7 @@ fun sumBytes(message: Verifiable): ByteString {
     buf.put(message.mime.encodeToByteArray())
     buf.put(message.userFilename.encodeToByteArray())
     var td: Byte = 0
-    if (message.toDisk) td = 1
+    if (message.isFile) td = 1
     val toDiskBytes = ByteBuffer.allocate(1).order(ByteOrder.BIG_ENDIAN).put(td).array()
     buf.put(toDiskBytes)
     for (hash in message.hashes) {

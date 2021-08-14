@@ -38,7 +38,7 @@ data class ScatterMessage(
     override val mime: String
     get() = message.mimeType
 
-    override val toDisk: Boolean
+    override val isFile: Boolean
     get() = message.body != null
 
     override val hashes: Array<ByteArray>

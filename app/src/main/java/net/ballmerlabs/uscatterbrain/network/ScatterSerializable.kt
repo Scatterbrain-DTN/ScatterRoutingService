@@ -76,6 +76,10 @@ fun protoUUIDfromUUID(uuid: UUID): ScatterProto.UUID {
 
 /**
  * base class for all protobuf messages
+ * @property luid local identifier for sender
+ * @property bytes serialized byte array of this packet, including CRC and size-prefix
+ * @property byteString protobuf ByteString version of bytes
+ * @property type type of this packet, must be overriden with correct type
  */
 abstract class ScatterSerializable<T : MessageLite>(
         val packet: T
@@ -117,11 +121,23 @@ abstract class ScatterSerializable<T : MessageLite>(
         outputStream.flush()
     }
 
+    /**
+     * Serializes this packet to the given output stream
+     * @param os outputstream to write to
+     * @param scheduler rxjava2 scheduler to run on
+     * @return Completable
+     */
     fun writeToStream(os: OutputStream, scheduler: Scheduler): Completable {
         return Completable.fromAction { writeToStreamBlocking(os) }
                 .subscribeOn(scheduler)
     }
 
+    /**
+     * Serializes this packet to an rxjava2 byte array flowable
+     * @param fragsize maximum size of each byte array emitted by the flowable
+     * @param scheduler rxjava2 scheduler to run on
+     * @return Flowable emitting byte arrays with serialized message
+     */
     fun writeToStream(fragsize: Int, scheduler: Scheduler): Flowable<ByteArray> {
         return Flowable.defer {
             Bytes.from(ByteArrayInputStream(bytes), fragsize)
@@ -130,6 +146,10 @@ abstract class ScatterSerializable<T : MessageLite>(
                 .subscribeOn(scheduler)
     }
 
+    /**
+     * Sets the luid of the sending peer
+     * @param luid luid of sending peer
+     */
     fun tagLuid(luid: UUID?) {
         this.luid = luid
     }
@@ -142,6 +162,16 @@ abstract class ScatterSerializable<T : MessageLite>(
                 val parser: com.google.protobuf.Parser<T>
         )
 
+        /**
+         * Parse a ScatterSerializable from an InputStream while validating it's CRC.
+         * This function returns a non-generic type deriving from ScatterSerializable determined
+         * by the parser class passed to this function
+         * @param parser type of packet to parse
+         * @param inputStream inputStream to parse from. This function reads until the end of the packet
+         * or until an error is encountered
+         * @param scheduler rxjava2 scheduler to run on
+         * @return Single emitting ScatterSerializable derived type
+         */
         inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
                 parser: Parser<V, T>,
                 inputStream: InputStream,
@@ -154,6 +184,16 @@ abstract class ScatterSerializable<T : MessageLite>(
                     .subscribeOn(scheduler)
         }
 
+        /**
+         * Parse a ScatterSerializable from an InputStream while validating it's CRC.
+         * This function returns a non-generic type deriving from ScatterSerializable determined
+         * by the parser class passed to this function
+         * @param parser type of packet to parse
+         * @param flowable byte array flowable to parse from. This function reads until the
+         * end of the packet or until an error is encountered or the flowable calls onComplete
+         * @param scheduler rxjava2 scheduler to run on
+         * @return Single emitting ScatterSerializable derived type
+         */
         inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
                 parser: Parser<V,T> ,
                 flowable: Flowable<ByteArray>,
@@ -169,6 +209,16 @@ abstract class ScatterSerializable<T : MessageLite>(
                     .subscribeOn(scheduler)
         }
 
+        /**
+         * Parse a ScatterSerializable from an InputStream while validating it's CRC.
+         * This function returns a non-generic type deriving from ScatterSerializable determined
+         * by the parser class passed to this function
+         * @param parser type of packet to parse
+         * @param observable byte array observable to parse from. This function reads until the
+         * end of the packet or until an error is encountered or the observable calls onComplete
+         * @param scheduler rxjava2 scheduler to run on
+         * @return Single emitting ScatterSerializable derived type
+         */
         inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> parseWrapperFromCRC(
                 parser: Parser<V,T> ,
                 observable: Observable<ByteArray>,
@@ -184,6 +234,12 @@ abstract class ScatterSerializable<T : MessageLite>(
                     .subscribeOn(scheduler)
         }
 
+        /**
+         * Parse an unwrapped raw protobuf message from an inputStream. Internal use only
+         * @param parser parser
+         * @param inputStream inputStream
+         * @return protobuf message
+         */
         fun <T : MessageLite> parseFromCRC(parser: com.google.protobuf.Parser<T>, inputStream: InputStream): T {
             val crc = ByteArray(Int.SIZE_BYTES)
             val size = ByteArray(Int.SIZE_BYTES)
