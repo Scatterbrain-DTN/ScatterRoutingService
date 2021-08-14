@@ -36,9 +36,8 @@ class ApiTest: TestBase() {
     @Test
     @Throws(TimeoutException::class)
     fun sendMessage() {
-        val message = ScatterMessage.newBuilder()
+        val message = ScatterMessage.Builder.newInstance(byteArrayOf(1))
                 .setApplication("testing")
-                .setBody(byteArrayOf(0))
                 .build()
         runBlocking { binder.sendMessage(message) }
     }
@@ -46,9 +45,8 @@ class ApiTest: TestBase() {
     @Test
     @Throws(TimeoutException::class)
     fun sendMessageSync() {
-        val message = ScatterMessage.newBuilder()
+        val message = ScatterMessage.Builder.newInstance(byteArrayOf(1))
                 .setApplication("testing")
-                .setBody(byteArrayOf(0))
                 .build()
 
         runBlocking { syncSendMessage(message) }
@@ -59,9 +57,8 @@ class ApiTest: TestBase() {
     fun sendMessages() {
         val list = ArrayList<ScatterMessage>()
         for (x in 0..1000) {
-            val message = ScatterMessage.newBuilder()
+            val message = ScatterMessage.Builder.newInstance(Random(0).nextBytes(128))
                     .setApplication("testing")
-                    .setBody(Random(0).nextBytes(128))
                     .build()
             list.add(message)
         }
@@ -73,9 +70,8 @@ class ApiTest: TestBase() {
     fun sendMessagesSync() {
         val list = ArrayList<ScatterMessage>()
         for (x in 0..1000) {
-            val message = ScatterMessage.newBuilder()
+            val message = ScatterMessage.Builder.newInstance(Random(0).nextBytes(128))
                     .setApplication("testing")
-                    .setBody(Random(0).nextBytes(128))
                     .build()
             list.add(message)
         }
@@ -87,9 +83,8 @@ class ApiTest: TestBase() {
     fun sendAndSignMessages() {
         val list = ArrayList<ScatterMessage>()
         for (x in 0..1000) {
-            val message = ScatterMessage.newBuilder()
+            val message = ScatterMessage.Builder.newInstance(Random(0).nextBytes(128))
                     .setApplication("testing")
-                    .setBody(Random(0).nextBytes(128))
                     .build()
             list.add(message)
         }
@@ -104,9 +99,8 @@ class ApiTest: TestBase() {
     fun signMessageHandleErr() {
         val list = ArrayList<ScatterMessage>()
         for (x in 0..2) {
-            val message = ScatterMessage.newBuilder()
+            val message = ScatterMessage.Builder.newInstance(Random(0).nextBytes(128))
                     .setApplication("testing")
-                    .setBody(Random(0).nextBytes(128))
                     .build()
             list.add(message)
         }

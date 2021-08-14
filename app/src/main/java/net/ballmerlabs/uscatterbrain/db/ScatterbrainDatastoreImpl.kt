@@ -3,6 +3,8 @@ package net.ballmerlabs.uscatterbrain.db
 import android.content.Context
 import android.net.Uri
 import android.os.FileObserver
+import android.os.ParcelFileDescriptor
+import android.os.ParcelUuid
 import android.provider.DocumentsContract
 import android.util.Log
 import android.util.Pair
@@ -37,6 +39,55 @@ import javax.inject.Singleton
 import kotlin.collections.ArrayList
 import kotlin.math.floor
 import kotlin.math.min
+
+class ApiMessageBuilder(from: UUID?, id: UUID) : ScatterMessage.Builder(
+        fromFingerprint = from,
+        id = ParcelUuid(id)
+) {
+    companion object {
+        /**
+         * creates a new Builder instance using an inline byte array without a file descriptor
+         * @param data payload for this message
+         * @param from sender fingerprints
+         * @return builder class
+         */
+        fun newInstance(data: ByteArray, id: UUID, from: UUID?): ScatterMessage.Builder {
+            return ApiMessageBuilder(from, id).setBody(data)
+        }
+
+        /**
+         * creates a new Builder instance using a file. Files are copied into the
+         * Scatterbrain datastore when this messsage is inserted
+         * @param file file for this message
+         * @param from sender fingerprint
+         * @return builder class
+         */
+        fun newInstance(file: File, id: UUID, from: UUID?): ScatterMessage.Builder {
+            return ApiMessageBuilder(from, id).setFile(file)
+        }
+
+        /**
+         * creates a new Builder instance using a file. Files are copied into the
+         * Scatterbrain datastore when this messsage is inserted
+         * @param descriptor file for this message
+         * @param ext file extension
+         * @param mime mime type
+         * @param name filename for file
+         * @param from sender fingerprint
+         * @return builder class
+         */
+        fun newInstance(
+                descriptor: FileDescriptor,
+                ext: String,
+                mime: String,
+                name: String,
+                id: UUID,
+                from: UUID?
+        ): ScatterMessage.Builder {
+            return ApiMessageBuilder(from, id).setFile(ParcelFileDescriptor.dup(descriptor), ext, mime, name)
+        }
+    }
+}
 
 /**
  * Interface to the androidx room backed datastore
@@ -845,20 +896,22 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             } else {
                 throw java.lang.IllegalStateException("file doesn't exist")
             }
-            ScatterMessage.newBuilder()
+            ApiMessageBuilder.newInstance(
+                    r,
+                    message.message.uuid,
+                    message.fromFingerprint.firstOrNull()
+            )
                     .setApplication(message.message.application)
-                    .setFile(r)
                     .setTo(message.toFingerprint.firstOrNull())
-                    .setId(message.message.uuid)
-                    .setFrom(message.fromFingerprint.firstOrNull())
                     .build()
         } else {
-            ScatterMessage.newBuilder()
+            ApiMessageBuilder.newInstance(
+                    message.message.body!!,
+                    message.message.uuid,
+                    message.fromFingerprint.firstOrNull()
+            )
                     .setApplication(message.message.application)
-                    .setBody(message.message.body)
-                    .setId(message.message.uuid)
                     .setTo(message.toFingerprint.firstOrNull())
-                    .setFrom(message.fromFingerprint.firstOrNull())
                     .build()
         }
     }
@@ -969,7 +1022,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, packageName: String, sign: UUID?): Completable {
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
                 .flatMapCompletable { file ->
-                    if (message.toDisk) {
+                    if (message.isFile) {
                         copyFile(message.fileDescriptor!!.fileDescriptor, file)
                                 .subscribeOn(databaseScheduler)
                                 .andThen(hashFile(file, blocksize))
@@ -988,7 +1041,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 extension = message.extension,
                                                 filePath = newFile.absolutePath,
                                                 globalhash = getGlobalHash(hashes),
-                                                userFilename = message.filename!! ,
+                                                userFilename = message.filename ,
                                                 mimeType = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
                                                 sendDate = Date().time,
                                                receiveDate = Date().time,
