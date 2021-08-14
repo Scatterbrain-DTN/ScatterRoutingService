@@ -22,9 +22,11 @@ import java.util.concurrent.TimeUnit
  *
  * This class manages channel selection and protobuf stream parsing
  * for a BLE client connection
+ *
+ * @property connection raw connection object being wrapped by this class
  */
 class CachedLEConnection(
-        connection: Observable<RxBleConnection>,
+        val connection: Observable<RxBleConnection>,
         private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
         private val scheduler: Scheduler
         ) : Disposable {
@@ -40,10 +42,11 @@ class CachedLEConnection(
                 .subscribe(connectionSubject)
     }
 
-    /*
+    /**
      * to avoid data races when writing to the ClientConfig descriptor, 
      * enable indications for all channel characteristics
-     * as soon as we have the RxBleConnection. 
+     * as soon as we have the RxBleConnection.
+     * @return Completable
      */
     private fun premptiveEnable(): Completable {
         return Observable.fromIterable(BluetoothLERadioModuleImpl.channels.keys)
@@ -63,9 +66,10 @@ class CachedLEConnection(
                 .doOnComplete { Log.v(TAG, "all notifications enabled")}
     }
 
-    /*
+    /**
      * read from the semaphor characteristic to determine what channel
      * we are allowed to use
+     * @return Single emitting uuid of channel selected
      */
     private fun selectChannel(): Single<UUID> {
         return connectionSubject
@@ -83,10 +87,11 @@ class CachedLEConnection(
                 .doOnSuccess{ uuid -> Log.v(TAG, "client selected channel $uuid") }
     }
 
-    /*
+    /**
      * select a free channel and read protobuf data from it.
      * use characteristic reads for timing to tell the server we are ready
      * to receive data
+     * @return observable emitting bytes received
      */
     private fun cachedNotification(): Observable<ByteArray> {
         return enabled.andThen(selectChannel())
@@ -109,30 +114,50 @@ class CachedLEConnection(
                 .retry(10)
     }
 
+    /**
+     * reads a single advertise packet
+     * @return single emitting advertise packet
+     */
     fun readAdvertise(): Single<AdvertisePacket> {
         return ScatterSerializable.parseWrapperFromCRC(
                 AdvertisePacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
+    /**
+     * reads a single upgrade packet
+     * @return single emitting upgrade packet
+     */
     fun readUpgrade(): Single<UpgradePacket> {
         return ScatterSerializable.parseWrapperFromCRC(
                 UpgradePacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
+    /**
+     * reads a single blockheader packet
+     * @return single emitting blockheader packet
+     */
     fun readBlockHeader(): Single<BlockHeaderPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
                 BlockHeaderPacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
+    /**
+     * reads a single blocksequence packet
+     * @return single emitting blocksequence packet
+     */
     fun readBlockSequence(): Single<BlockSequencePacket> {
         return ScatterSerializable.parseWrapperFromCRC(
                 BlockSequencePacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
+    /**
+     * reads a single declarehashes packet
+     * @return single emitting delcarehashes packet
+     */
     fun readDeclareHashes(): Single<DeclareHashesPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
                 DeclareHashesPacket.parser(), cachedNotification(), scheduler)
@@ -140,28 +165,46 @@ class CachedLEConnection(
 
     }
 
+    /**
+     * reads a single electleader packet
+     * @return single emitting electleader packet
+     */
     fun readElectLeader(): Single<ElectLeaderPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
                 ElectLeaderPacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
+    /**
+     * reads a single identity packet
+     * @return single emitting identity packet
+     */
     fun readIdentityPacket(): Single<IdentityPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
                 IdentityPacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
+    /**
+     * reads a single luid packet
+     * @return single emitting luid packet
+     */
     fun readLuid(): Single<LuidPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
                 LuidPacket.parser(), cachedNotification(), scheduler)
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
+    /**
+     * dispose this connection
+     */
     override fun dispose() {
         disposable.dispose()
     }
 
+    /**
+     * returns true if this connection is disposed
+     */
     override fun isDisposed(): Boolean {
         return disposable.isDisposed
     }

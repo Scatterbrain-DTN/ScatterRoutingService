@@ -703,13 +703,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
     }
 
-    /**
-     * attempt to reinitiate a connection with all nearby peers and
-     * run another transaction. This should be called sparingly if new data is available
-     * If a refresh is already in progress this function calls oncomplete when the current
-     * refresh is complete
-     * @return completable
-     */
     override fun refreshPeers(): Completable {
         Log.v(TAG, "refreshing ${sessionCache.size} peers")
         return refreshInProgresss
@@ -886,7 +879,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * this function NEEDS to be called for the device to be connectable
      * @return false on failure
      */
-    override fun startServer(): Boolean {
+    override fun startServer() {
         val config = ServerConfig.newInstance(Timeout(5, TimeUnit.SECONDS))
                 .addService(mService)
 
@@ -1117,7 +1110,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .subscribe(transactionCompleteRelay)
         mGattDisposable.add(d)
         startAdvertise()
-        return true
     }
 
     /**

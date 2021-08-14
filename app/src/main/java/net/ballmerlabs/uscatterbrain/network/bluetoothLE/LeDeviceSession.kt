@@ -33,6 +33,10 @@ typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionRe
  * LeDeviceSession holds the state for the finite state machine managing a scatterbrain connection
  * over bluetooth LE between two devices. Each state in the FSM is referred to as a "stage"
  * and gets its own member class
+ * @property device raw BluetoothDevice
+ * @property client gatt client wrapper
+ * @property server gatt server wrapper
+ * @property remoteLuid local identifier of remote device
  */
 class LeDeviceSession(
         val device: BluetoothDevice, 
