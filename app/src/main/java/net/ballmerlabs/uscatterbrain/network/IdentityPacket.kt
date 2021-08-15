@@ -107,10 +107,6 @@ class IdentityPacket(packet: ScatterProto.Identity) :
             var secretkey: ByteArray? = null
             ) {
 
-        fun ismGenerateKeypair(): Boolean {
-            return generateKeypair
-        }
-
         fun setEnd() = apply {
             gone = true
         }
@@ -131,12 +127,6 @@ class IdentityPacket(packet: ScatterProto.Identity) :
             scatterbrainPubkey = pubkey.toByteArray()
             pubkeyMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = pubkey
         }
-
-        fun sign(secretkey: ByteArray) = apply {
-            this.secretkey = secretkey
-        }
-
-
 
         private fun sumBytes(): ByteString {
             if (gone) {

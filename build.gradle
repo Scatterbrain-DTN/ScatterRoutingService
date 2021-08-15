@@ -1,4 +1,5 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
+apply from: 'RxAndroidBle/dependencies.gradle'
 buildscript {
     ext.kotlin_version = '1.4.32'
     ext.kotlinVersion = kotlin_version
@@ -22,6 +23,7 @@ buildscript {
         classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.12'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.4.32"
         classpath 'org.jetbrains.dokka:dokka-gradle-plugin:1.4.32'
+        classpath 'org.jacoco:org.jacoco.core:0.8.4'
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
 
@@ -46,3 +48,24 @@ task clean(type: Delete) {
     delete rootProject.buildDir
 }
 
+
+subprojects { project ->
+
+    apply plugin: 'checkstyle'
+
+    checkstyle {
+        toolVersion = '8.20'
+    }
+
+    if (!project.tasks.findByName("checkstyle")) {
+        task checkstyle(type: Checkstyle) {
+            configFile rootProject.file('RxAndroidBle/checkstyle.xml')
+            source 'src/main/java'
+            ignoreFailures false
+            showViolations true
+            include '**/*.java'
+
+            classpath = files()
+        }
+    }
+}
