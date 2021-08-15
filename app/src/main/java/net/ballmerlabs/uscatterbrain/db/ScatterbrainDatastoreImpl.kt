@@ -560,9 +560,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     } else {
                         val id = KeylessIdentity(
                                 i.name,
-                                i.pubkey,
+                                i.pubkey!!,
                                 i.getSig(),
-                                i.uuid,
+                                i.uuid!!,
                                 null
 
                         )

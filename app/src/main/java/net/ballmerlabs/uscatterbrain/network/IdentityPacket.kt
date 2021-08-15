@@ -28,29 +28,33 @@ class IdentityPacket(packet: ScatterProto.Identity) :
 
     private val sig
         get() = packet.`val`.sig
-    val pubkey: ByteArray = packet.`val`.keysMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]!!.toByteArray()
+    val pubkey: ByteArray? = packet.`val`.keysMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]?.toByteArray()
 
     val isEnd: Boolean
         get() = packet.end
 
-    private fun initHash(): ByteArray {
-        val fingeprint = ByteArray(GenericHash.BYTES)
-        LibsodiumInterface.sodium.crypto_generichash(
-                fingeprint,
-                fingeprint.size,
-                pubkey,
-                pubkey.size.toLong(),
-                null,
-                0
-        )
-        return fingeprint
+    private fun initHash(): ByteArray? {
+        return if (isEnd) {
+            null
+        } else {
+            val fingeprint = ByteArray(GenericHash.BYTES)
+            LibsodiumInterface.sodium.crypto_generichash(
+                    fingeprint,
+                    fingeprint.size,
+                    pubkey,
+                    pubkey!!.size.toLong(),
+                    null,
+                    0
+            )
+            fingeprint
+        }
     }
 
-    private val hash: ByteArray = initHash()
+    private val hash: ByteArray? = initHash()
 
-    val uuid: UUID = hashAsUUID(hash)
+    val uuid: UUID? = if (isEnd) null else hashAsUUID(hash!!)
 
-    val fingerprint: String = LibsodiumInterface.base64enc(hash)
+    val fingerprint: String? = if(isEnd) null else LibsodiumInterface.base64enc(hash!!)
 
     private fun sumBytes(): ByteString? {
         var result = ByteString.EMPTY
