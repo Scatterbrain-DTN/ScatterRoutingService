@@ -65,9 +65,8 @@ class DatastoreTest {
 
     @Test
     fun insertMessage() {
-        val apiMessage = ScatterMessage.newBuilder()
+        val apiMessage = ScatterMessage.Builder.newInstance(byteArrayOf(1))
                 .setApplication("fmef")
-                .setBody(byteArrayOf(1))
                 .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE,"").blockingAwait()
         assert(datastore.getApiMessages("fmef").blockingGet().size == 1)
@@ -94,9 +93,8 @@ class DatastoreTest {
     fun insertMessageWithFile() {
         val file = File.createTempFile("test", "jpeg", ctx.cacheDir)
         file.outputStream().write(byteArrayOf(1))
-        val apiMessage = ScatterMessage.newBuilder()
+        val apiMessage = ScatterMessage.Builder.newInstance(file)
                 .setApplication("fmef")
-                .setFile(file)
                 .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         assert(datastore.getApiMessages("fmef").blockingGet().size == 1)
@@ -107,9 +105,8 @@ class DatastoreTest {
         for (x in 0..5) {
             val file = File.createTempFile("test", "jpeg", ctx.cacheDir)
             file.outputStream().write(byteArrayOf(1))
-            val apiMessage = ScatterMessage.newBuilder()
+            val apiMessage = ScatterMessage.Builder.newInstance(file)
                     .setApplication("fmef")
-                    .setFile(file)
                     .build()
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
             val m = datastore.getApiMessages("fmef").blockingGet()
@@ -127,9 +124,8 @@ class DatastoreTest {
         for (x in 0 until size) {
             val file = File.createTempFile("test", "jpeg", ctx.cacheDir)
             file.outputStream().write(byteArrayOf(x.toByte()))
-            val apiMessage = ScatterMessage.newBuilder()
+            val apiMessage = ScatterMessage.Builder.newInstance(file)
                     .setApplication("fmef")
-                    .setFile(file)
                     .build()
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
@@ -148,9 +144,8 @@ class DatastoreTest {
         for (x in 0 until size) {
             val file = File.createTempFile("test", "jpeg", ctx.cacheDir)
             file.outputStream().write(byteArrayOf(x.toByte()))
-            val apiMessage = ScatterMessage.newBuilder()
+            val apiMessage = ScatterMessage.Builder.newInstance(file)
                     .setApplication("fmef")
-                    .setFile(file)
                     .build()
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "com.fmef").blockingAwait()
         }

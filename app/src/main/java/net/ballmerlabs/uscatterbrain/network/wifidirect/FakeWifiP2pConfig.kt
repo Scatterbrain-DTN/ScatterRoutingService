@@ -5,6 +5,22 @@ import android.net.wifi.p2p.WifiP2pConfig
 import android.os.Parcel
 import android.os.Parcelable
 
+/**
+ * Incredibly hacky kludge to allow creating a wifi direct group with a custom
+ * name/passphrase on pre-api29 devices. This works by constructing a WifiP2pConfig object
+ * using a crafted parcelable stream, which avoids running afoul of Google's ban on calling
+ * hidden/private apis
+ *
+ * @constructor constructs a FakeWifiP2pConfig object
+ * @property passphrase desired passphrase
+ * @property deviceAddress address of remote device to connect to
+ * @property networkName name of wifidirect network to connect to
+ * @property netId internal use only, leave this default
+ * @property groupOwnerBand 2.4 or 5ghz
+ * @property groupownerIntent how likely are we to be a group owner
+ * @property wpsInfo internal use
+ *
+ */
 class FakeWifiP2pConfig(
         val passphrase: String? = "",
         val deviceAddress: String? = "02:00:00:00:00:00",
@@ -15,6 +31,10 @@ class FakeWifiP2pConfig(
         val wpsInfo: WpsInfo? = WpsInfo(),
 ) : Parcelable {
 
+    /**
+     * Converts into vanilla WifiP2pConfig by parceling/unparceling
+     * @return WifiP2pConfig
+     */
     fun asConfig(): WifiP2pConfig {
         val parcel = Parcel.obtain()
         parcel.writeString(WifiP2pConfig::class.java.name)

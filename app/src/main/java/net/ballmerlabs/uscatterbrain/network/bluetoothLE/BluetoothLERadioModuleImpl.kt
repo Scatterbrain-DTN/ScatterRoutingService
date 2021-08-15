@@ -22,7 +22,7 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.BuildConfig
 import net.ballmerlabs.uscatterbrain.R
@@ -81,7 +81,7 @@ data class OptionalBootstrap<T>(
  * GATT connection. We only want one physical radio connection but two GATT connections.
  * if for some reason we end up connecting twice due to a race condition, we need to identity and
  * throw out one of the connections. While matching duplication connections by mac address is a
- * trival and correct way of discarding duplicate connections, we cannot do that here because
+ * trivial and correct way of discarding duplicate connections, we cannot do that here because
  * android does not guarantee that the adapter mac will not be randomized between connection
  * attempts
  *
@@ -703,13 +703,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
     }
 
-    /**
-     * attempt to reinitiate a connection with all nearby peers and
-     * run another transaction. This should be called sparingly if new data is available
-     * If a refresh is already in progress this function calls oncomplete when the current
-     * refresh is complete
-     * @return completable
-     */
     override fun refreshPeers(): Completable {
         Log.v(TAG, "refreshing ${sessionCache.size} peers")
         return refreshInProgresss
@@ -886,7 +879,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * this function NEEDS to be called for the device to be connectable
      * @return false on failure
      */
-    override fun startServer(): Boolean {
+    override fun startServer() {
         val config = ServerConfig.newInstance(Timeout(5, TimeUnit.SECONDS))
                 .addService(mService)
 
@@ -1117,7 +1110,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .subscribe(transactionCompleteRelay)
         mGattDisposable.add(d)
         startAdvertise()
-        return true
     }
 
     /**

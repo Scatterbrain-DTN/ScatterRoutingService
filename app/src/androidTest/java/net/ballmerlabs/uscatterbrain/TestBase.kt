@@ -10,7 +10,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import net.ballmerlabs.scatterbrainsdk.BinderWrapper
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainAPI
-import net.ballmerlabs.scatterbrainsdk.internal.BinderProvider
+import net.ballmerlabs.scatterbrainsdk.BinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.BinderWrapperImpl
 import net.ballmerlabs.scatterbrainsdk.internal.MockBinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.ScatterbrainBroadcastReceiverImpl

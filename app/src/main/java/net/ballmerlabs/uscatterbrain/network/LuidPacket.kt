@@ -11,13 +11,17 @@ import java.util.*
 
 /**
  * Wrapper class for Luid protobuf message
+ * @property isHashed true if this packet has only a hash value
+ * @property luidVal identifier of remote peer
+ * @property hash hash of this packet
+ * @property protoVersion Scatterbrain protocol version (used for version checks)
+ * @property hashAsUUID hash of this packet represented as UUID
  */
 class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
     val isHashed: Boolean
     get() = packet.valCase == Luid.ValCase.VAL_HASH
 
-    val luidVal: UUID
-        get() = protoUUIDtoUUID(packet.valUuid)
+    val luidVal: UUID = protoUUIDtoUUID(packet.valUuid)
     
     val hash: ByteArray
         get() = if (isHashed) {

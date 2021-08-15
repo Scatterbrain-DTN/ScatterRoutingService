@@ -9,6 +9,10 @@ import java.nio.ByteOrder
 
 /**
  * Wrapper class for protocol buffer BlockSequence message
+ * @property data payload for this packet
+ * @property sequenceNum number of this packet in a stream
+ * @property isNative honestly I have no idea why I added this or what this does, ignore it until I remember
+ * @property isEnd is this packet the last in a stream
  */
 class BlockSequencePacket(packet: BlockSequence) : ScatterSerializable<BlockSequence>(packet) {
 

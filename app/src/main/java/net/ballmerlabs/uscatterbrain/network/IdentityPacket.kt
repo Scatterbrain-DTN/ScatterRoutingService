@@ -12,6 +12,13 @@ import java.util.*
 
 /**
  * wrapper class for Identity protobuf message
+ * @property name user-chosen human readable name
+ * @property sig ed25519 signature of all fields
+ * @property pubkey Scatterbrain official ed25519 public key
+ * @property isEnd true if this is the last packet in a stream
+ * @property uuid public key fingerprint as uuid
+ * @property fingerprint public key fingerprint as string
+ * @property keymap associative array of user-defined keys in any format
  */
 class IdentityPacket(packet: ScatterProto.Identity) :
         ScatterSerializable<ScatterProto.Identity>(packet),
@@ -21,32 +28,33 @@ class IdentityPacket(packet: ScatterProto.Identity) :
 
     private val sig
         get() = packet.`val`.sig
-    val pubkey: ByteArray
-        get() = packet.`val`.keysMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]!!.toByteArray()
+    val pubkey: ByteArray? = packet.`val`.keysMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]?.toByteArray()
 
     val isEnd: Boolean
         get() = packet.end
 
-    val uuid: UUID
-    get() = hashAsUUID(hash)
-
-
-    private val hash: ByteArray
-    get() {
-        val fingeprint = ByteArray(GenericHash.BYTES)
-        LibsodiumInterface.sodium.crypto_generichash(
-                fingeprint,
-                fingeprint.size,
-                pubkey,
-                pubkey.size.toLong(),
-                null,
-                0
-        )
-        return fingeprint
+    private fun initHash(): ByteArray? {
+        return if (isEnd) {
+            null
+        } else {
+            val fingeprint = ByteArray(GenericHash.BYTES)
+            LibsodiumInterface.sodium.crypto_generichash(
+                    fingeprint,
+                    fingeprint.size,
+                    pubkey,
+                    pubkey!!.size.toLong(),
+                    null,
+                    0
+            )
+            fingeprint
+        }
     }
 
-    val fingerprint: String
-        get() = LibsodiumInterface.base64enc(hash)
+    private val hash: ByteArray? = initHash()
+
+    val uuid: UUID? = if (isEnd) null else hashAsUUID(hash!!)
+
+    val fingerprint: String? = if(isEnd) null else LibsodiumInterface.base64enc(hash!!)
 
     private fun sumBytes(): ByteString? {
         var result = ByteString.EMPTY

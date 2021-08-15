@@ -45,7 +45,7 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private val mListener = PeerListListener { value: WifiP2pDeviceList -> deviceListSubject.onNext(value) }
     private val mConnectionInfoListener = ConnectionInfoListener { value: WifiP2pInfo ->
         connectionSubject.onNext(value)
-        Log.v(TAG, "retrieved WifiP2pInfo: $value")
+        Log.v(TAG, "retrieved WifiP2pInfo: ${value.groupFormed}")
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -70,20 +70,13 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION == action) {
             // Connection state changed!
             Log.v(TAG, "WIFI_P2P_CONNECTION_CHANGED_ACTION")
-            val networkInfo = intent.getParcelableExtra<NetworkInfo>(WifiP2pManager.EXTRA_NETWORK_INFO)
-            if (networkInfo != null && networkInfo.isConnected) {
-                manager.requestConnectionInfo(channel, mConnectionInfoListener)
-            } else if (networkInfo != null) {
-                //TODO: handle disconnections
-            } else {
-                Log.e(TAG, "WIFI_P2P_CONNECTION_CHANGED_ACTION networkinfo was null")
-            }
+            manager.requestConnectionInfo(channel, mConnectionInfoListener)
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION == action) {
-            Log.v(TAG, "WIFI_P2P_THIS_DEVICE_CHANGED_ACTION")
             val device = intent.getParcelableExtra<WifiP2pDevice>(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE)
             if (device == null) {
                 Log.e(TAG, "device was null")
             } else {
+                Log.v(TAG, "WIFI_P2P_THIS_DEVICE_CHANGED_ACTION ${device.isGroupOwner}")
                 thisDeviceChangedSubject.onNext(device)
             }
         }

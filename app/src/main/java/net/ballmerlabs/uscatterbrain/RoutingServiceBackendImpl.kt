@@ -19,7 +19,7 @@ import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
-import net.ballmerlabs.scatterbrainsdk.internal.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.ACL
 import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
@@ -104,6 +104,19 @@ class RoutingServiceBackendImpl @Inject constructor(
                 throw RemoteException("invalid package name")
             }
         }
+    }
+
+    override fun verifyData(data: ByteArray, sig: ByteArray, identity: UUID): Single<Boolean> {
+        return datastore.getIdentityKey(identity)
+                .map { keypair ->
+                    val status = LibsodiumInterface.sodium.crypto_sign_verify_detached(
+                            sig,
+                            data,
+                            data.size.toLong(),
+                            keypair.publickey
+                    )
+                    status == 0
+                }
     }
 
     override fun signDataDetached(data: ByteArray, identity: UUID, callingPackageName: String): Single<ByteArray> {
