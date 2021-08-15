@@ -5,11 +5,14 @@ import java.util.*
 
 /**
  * Wrapper class for protocol buffer upgrade message
+ * @property sessionID used for referring to the previous transport module
+ * @property metadata key-value data used for configuring the next transport module
+ * @property provides transport module to bootstrap to
  */
 class UpgradePacket(packet: Upgrade): ScatterSerializable<Upgrade>(packet) {
     /**
      * Gets session id.
-     *
+     * TODO: actually use this and/or convert to uuid
      * @return the session id
      */
     val sessionID: Int

@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Wraps an RxBleServerConnection and provides channel locking and a convenient interface to
  * serialize protobuf messages via indications.
+ * @property connection raw connection object being wrapped by this class
  */
 class CachedLEServerConnection(
         val connection: RxBleServerConnection,
@@ -28,9 +29,12 @@ class CachedLEServerConnection(
     private val packetQueue = PublishRelay.create<ScatterSerializable<out MessageLite>>()
     private val sizeRelay = PublishRelay.create<Int>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
-    /*
+
+    /**
      * when a client reads from the semaphor characteristic, we need to
      * find an unlocked channel and return its uuid
+     *
+     * @return single emitting characteristic selected
      */
     private fun selectCharacteristic(): Single<OwnedCharacteristic> {
         return Observable.mergeDelayError(
@@ -55,10 +59,17 @@ class CachedLEServerConnection(
         }
     }
 
+    /**
+     * dispose this connected
+     */
     override fun dispose() {
         disposable.dispose()
     }
 
+    /**
+     * return true if this connection is disposed
+     * @return is disposed
+     */
     override fun isDisposed(): Boolean {
         return disposable.isDisposed
     }

@@ -4,10 +4,10 @@ include ':sample-kotlin'
 include ':dagger-compiler-shadow'
 include ':sample'
 include ':dagger-library-shadow'
+include ':scatterbrainSDK:scatterbrainSDK'
 include ':app'
 include ':ScatterRoutingService:app'
-include ':scatterbrainSDK'
-project(':scatterbrainSDK').projectDir = new File('ScatterRoutingService/scatterbrainSDK')
+project(':scatterbrainSDK').projectDir = new File('ScatterRoutingService/scatterbrainSDK/scatterbrainSDK')
 project(':rxandroidble-parent').projectDir = new File(rootDir, 'RxAndroidBle/')
 project(':dagger-library-shadow').projectDir = new File(rootDir, 'RxAndroidBle/dagger-library-shadow/')
 project(':sample').projectDir = new File(rootDir, 'RxAndroidBle/sample/')

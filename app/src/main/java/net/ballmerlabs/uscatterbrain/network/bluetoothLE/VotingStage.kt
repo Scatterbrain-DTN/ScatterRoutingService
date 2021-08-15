@@ -145,8 +145,10 @@ class VotingStage : LeDeviceSession.Stage {
                 .ignoreElements()
     }
 
-    // this is thrown in exceedingly rare cases if every device in the local mesh
-    // has the same luid. This should only be thrown after the heat death of the universe
+    /**
+     * this is thrown in exceedingly rare cases if every device in the local mesh
+     * has the same luid. This should only be thrown after the heat death of the universe
+     */
     class MiracleException : RuntimeException()
 
 }

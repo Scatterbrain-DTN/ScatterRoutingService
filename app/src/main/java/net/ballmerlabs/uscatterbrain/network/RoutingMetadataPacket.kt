@@ -7,6 +7,8 @@ import java.util.*
 
 /**
  * wrapper class for RoutingMetadata protobuf message
+ *
+ * NOTE: this is only a stubbed placeholder message for now
  */
 class RoutingMetadataPacket(packet: RoutingMetadata):
         ScatterSerializable<RoutingMetadata>(packet) {

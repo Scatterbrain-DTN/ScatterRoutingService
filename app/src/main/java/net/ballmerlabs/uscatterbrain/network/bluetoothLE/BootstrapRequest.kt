@@ -12,6 +12,8 @@ import java.io.Serializable
  *
  * The contents of the key-value data is dependent on the modules
  * performing the bootstrapping
+ *
+ * @constructor create an empty BootstrapRequest
  */
 open class BootstrapRequest : Parcelable {
     private val extras = Bundle()
