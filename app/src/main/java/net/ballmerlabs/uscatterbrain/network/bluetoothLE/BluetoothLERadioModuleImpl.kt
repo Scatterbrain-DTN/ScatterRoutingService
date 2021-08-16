@@ -952,9 +952,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                             operationsScheduler
                                                     )
                                                     .subscribe(
-                                                            { l ->
+                                                            { l: LuidPacket ->
                                                                 Log.v(TAG, "peer $device timed out, removing from nearby peer cache")
-                                                                sessionCache.remove(l)
+                                                                sessionCache.remove(l.luidVal)
                                                             },
                                                             { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
                                                     )
@@ -1051,7 +1051,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                 .doOnNext {
                                                                     Log.v(TAG, "wifi direct bootstrap complete, unlocking session.")
                                                                     session.unlock()
-                                                                    activeLuids.remove(session.remoteLuid)
+                                                                    activeLuids.remove(session.remoteLuid.luidVal)
                                                                 }
                                                                 .doOnError { err ->
                                                                     Log.e(TAG, "session ${session.remoteLuid} ended with error $err")
@@ -1067,8 +1067,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     Log.e(TAG, "TERMINATION: session $device terminated")
                                                                     // if we encounter any errors or terminate, remove cached connections
                                                                     // as they may be tainted
-                                                                    sessionCache.remove(session.remoteLuid)
-                                                                    activeLuids.remove(session.remoteLuid)
+                                                                    sessionCache.remove(session.remoteLuid.luidVal)
+                                                                    activeLuids.remove(session.remoteLuid.luidVal)
                                                                     connectionCache.remove(device.macAddress)
                                                                     connectionRaw.disconnect()
                                                                     connectionDisposable.dispose()
