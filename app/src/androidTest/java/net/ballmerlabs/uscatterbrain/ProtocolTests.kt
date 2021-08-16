@@ -3,8 +3,8 @@ package net.ballmerlabs.uscatterbrain
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
-import com.goterl.lazycode.lazysodium.interfaces.Hash
-import com.goterl.lazycode.lazysodium.interfaces.Sign
+import com.goterl.lazysodium.interfaces.Hash
+import com.goterl.lazysodium.interfaces.Sign
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.network.*

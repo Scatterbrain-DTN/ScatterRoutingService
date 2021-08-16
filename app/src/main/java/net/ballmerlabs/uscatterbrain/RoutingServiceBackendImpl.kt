@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.os.RemoteException
 import android.util.Log
-import com.goterl.lazycode.lazysodium.interfaces.Sign
+import com.goterl.lazysodium.interfaces.Sign
 import com.polidea.rxandroidble2.internal.RxBleLog
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
@@ -16,10 +16,10 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import io.reactivex.plugins.RxJavaPlugins
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
-import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.ACL
 import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore

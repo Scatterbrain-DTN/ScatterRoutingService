@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.network
 
 import android.util.Log
 import com.google.protobuf.ByteString
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash
+import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.uscatterbrain.ScatterProto.Luid
 import net.ballmerlabs.uscatterbrain.ScatterProto.Luid.hashed
 import net.ballmerlabs.uscatterbrain.db.hashAsUUID

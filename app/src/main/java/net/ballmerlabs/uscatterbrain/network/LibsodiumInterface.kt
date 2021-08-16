@@ -1,8 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network
 
-import com.goterl.lazycode.lazysodium.LazySodiumAndroid
-import com.goterl.lazycode.lazysodium.Sodium
-import com.goterl.lazycode.lazysodium.SodiumAndroid
+import com.goterl.lazysodium.LazySodiumAndroid
+import com.goterl.lazysodium.Sodium
+import com.goterl.lazysodium.SodiumAndroid
 
 /**
  * Singleton interface to libsodium/lazysodium over JNA

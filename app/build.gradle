@@ -131,8 +131,7 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
 
     //lazysodium cryptographic library
-    implementation "com.goterl:lazysodium-android:5.0.2@aar"
-    implementation 'net.java.dev.jna:jna:5.8.0@aar'
+    implementation "com.goterl:lazysodium-android:5.0.2"
 
     implementation 'com.google.dagger:dagger:2.35'
     kapt 'com.google.dagger:dagger-compiler:2.35'

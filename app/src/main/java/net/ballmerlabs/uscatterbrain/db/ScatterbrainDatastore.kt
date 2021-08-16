@@ -1,8 +1,8 @@
 package net.ballmerlabs.uscatterbrain.db
 
 import com.google.protobuf.ByteString
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash
-import com.goterl.lazycode.lazysodium.interfaces.Sign
+import com.goterl.lazysodium.interfaces.GenericHash
+import com.goterl.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import io.reactivex.Completable
@@ -22,7 +22,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
 import java.util.regex.Pattern
-import kotlin.collections.ArrayList
 
 const val DATABASE_NAME = "scatterdb"
 const val DEFAULT_BLOCKSIZE = 1024 * 512
