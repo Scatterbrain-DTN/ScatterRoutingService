@@ -4,10 +4,11 @@ plugins {
     id 'kotlin-kapt'
     id 'com.google.protobuf'
     id 'groovyx.android'
-    id 'org.jetbrains.dokka'
+    id("org.jetbrains.dokka") version "1.5.0"
     id 'jacoco'
 }
 
+apply from: '../RxAndroidBle/dependencies.gradle'
 def protobuf_version = "3.11.1"
 
 android {
@@ -18,6 +19,7 @@ android {
         compileSdkVersion 30
         versionCode 1
         versionName "1.0"
+        multiDexEnabled true
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments += [
@@ -48,6 +50,10 @@ android {
             }
         }
         unitTests.returnDefaultValues = true
+    }
+
+    packagingOptions {
+        pickFirst 'META-INF/com.google.dagger_dagger.version'
     }
 
     buildFeatures {
@@ -134,20 +140,20 @@ dependencies {
     implementation "com.goterl:lazysodium-android:5.0.2@aar"
     implementation 'net.java.dev.jna:jna:5.8.0@aar'
 
-    implementation 'com.google.dagger:dagger:2.35'
-    kapt 'com.google.dagger:dagger-compiler:2.35'
+    implementation "com.google.dagger:dagger:$rootProject.ext.daggerVersion"
+    kapt "com.google.dagger:dagger-compiler:$rootProject.ext.daggerVersion"
 
-    implementation 'io.reactivex.rxjava2:rxjava:2.2.17'
+    implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
     implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
 
-    implementation 'androidx.room:room-rxjava2:2.4.0-alpha04'
+    implementation "androidx.room:room-rxjava2:2.3.0"
 
-    implementation 'com.github.davidmoten:rxjava2-extras:0.1.38'
+    implementation "com.github.davidmoten:rxjava2-extras:0.1.38"
     implementation "androidx.core:core-ktx:1.6.0"
     androidTestImplementation 'androidx.test:core:1.4.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'com.google.firebase:firebase-crashlytics:18.2.1'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.0'
 }
 repositories {
     mavenCentral()

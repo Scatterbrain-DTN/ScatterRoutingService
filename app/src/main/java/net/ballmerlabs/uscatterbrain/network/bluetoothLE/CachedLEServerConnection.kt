@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.bluetooth.BluetoothGatt
 import android.util.Log
 import com.google.protobuf.MessageLite
+import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleServerConnection
 import io.reactivex.*
@@ -27,7 +28,7 @@ class CachedLEServerConnection(
         ) : Disposable {
     private val disposable = CompositeDisposable()
     private val packetQueue = PublishRelay.create<ScatterSerializable<out MessageLite>>()
-    private val sizeRelay = PublishRelay.create<Int>()
+    private val lockRelay = BehaviorRelay.create<Boolean>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
 
     /**
@@ -53,10 +54,17 @@ class CachedLEServerConnection(
     fun <T : MessageLite>serverNotify(
             packet: ScatterSerializable<T>
     ): Completable {
-        Log.v(TAG, "serverNotify for packet " + packet.type)
-        return Completable.fromAction {
-            packetQueue.accept(packet)
-        }
+        return lockRelay.takeUntil { v -> !v }.ignoreElements()
+                .subscribeOn(scheduler)
+                .andThen(
+                    Completable.fromAction {
+                        packetQueue.accept(packet)
+                    }
+                            .doOnSubscribe { lockRelay.accept(true) }
+                            .subscribeOn(scheduler)
+                            .andThen(lockRelay.takeUntil { v -> !v }.ignoreElements())
+                ).doOnComplete { Log.v(TAG, "serverNotify for packet " + packet.type) }
+
     }
 
     /**
@@ -79,6 +87,7 @@ class CachedLEServerConnection(
     }
 
     init {
+        lockRelay.accept(false)
         /*
          * When a client reads from the semaphor characteristic, take the following steps
          * 
@@ -98,7 +107,7 @@ class CachedLEServerConnection(
                         .toFlowable(BackpressureStrategy.BUFFER), { packet, req ->
                     Log.v(TAG, "received UUID_SEMAPHOR write")
                             selectCharacteristic()
-                                    .flatMapCompletable { characteristic: OwnedCharacteristic ->
+                                    .flatMapCompletable { characteristic ->
                                                     connection.getOnCharacteristicReadRequest(characteristic.uuid)
                                                             .firstOrError()
                                                             .flatMapCompletable { trans -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null) }
@@ -111,7 +120,10 @@ class CachedLEServerConnection(
                                                                 errorRelay.accept(err)
                                                             }
                                                             .onErrorComplete()
-                                                            .doFinally { characteristic.release() }
+                                                            .doFinally {
+                                                                characteristic.release()
+                                                                lockRelay.accept(false)
+                                                            }
                                                             .doOnSubscribe {
                                                                 req.sendReply(BluetoothGatt.GATT_SUCCESS, 0,
                                                                     BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid))

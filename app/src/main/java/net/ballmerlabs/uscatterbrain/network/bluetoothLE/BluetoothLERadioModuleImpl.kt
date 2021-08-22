@@ -93,6 +93,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         private val mContext: Context,
         private val mAdvertiser: BluetoothLeAdvertiser,
         @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
+        @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
         @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
         private val mServer: RxBleServer,
         private val mClient: RxBleClient,
@@ -105,6 +106,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             PowerManager.PARTIAL_WAKE_LOCK,
             mContext.getString(R.string.wakelock_tag
             ))
+
+    private val serverStarted = AtomicReference(false)
 
     companion object {
         const val TAG = "BluetoothLE"
@@ -220,7 +223,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.e(TAG, "error while receiving luid packet: $err")
                     err.printStackTrace()
                 }
-                .observeOn(clientScheduler)
                 .flatMap { luidPacket ->
                     if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
                         Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
@@ -880,6 +882,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * @return false on failure
      */
     override fun startServer() {
+        val started = serverStarted.getAndSet(true)
+        if (started) {
+            return
+        }
+
         val config = ServerConfig.newInstance(Timeout(5, TimeUnit.SECONDS))
                 .addService(mService)
 
@@ -903,7 +910,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     //accquire wakelock
                     acquireWakelock()
                     // wrap connection in CachedLeServiceConnection for convenience
-                    val connection = CachedLEServerConnection(connectionRaw, channels, operationsScheduler)
+                    val connection = CachedLEServerConnection(connectionRaw, channels, serverScheduler)
                     val connectionDisposable = CompositeDisposable()
                     connectionDisposable.add(connection)
 
@@ -945,7 +952,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                                             sessionCache.putIfAbsent(luid.hashAsUUID!!, s)
 
-                                            Single.just(luid)
+                                            val disp = Single.just(luid)
                                                     .delay(
                                                             preferences.getLong(mContext.getString(R.string.pref_peercachedelay), 20 * 60),
                                                             TimeUnit.SECONDS,
@@ -958,6 +965,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                             },
                                                             { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
                                                     )
+                                            connectionDisposable.add(disp)
                                             Log.v(TAG, "initializing session")
                                             initializeProtocol(s, TransactionResult.STAGE_LUID)
                                                     .doOnError { e -> Log.e(TAG, "failed to initialize protocol $e") }
@@ -1116,8 +1124,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * stop our server and stop advertising
      */
     override fun stopServer() {
+        if (!serverStarted.get()) {
+            return
+        }
         mServer.closeServer()
         stopAdvertise()
+        serverStarted.set(false)
     }
 
     /**

@@ -23,6 +23,7 @@ import kotlin.collections.ArrayList
  */
 class ScatterRoutingService : LifecycleService() {
     private lateinit var mBackend: RoutingServiceBackend
+    private val isStarted = AtomicReference(false)
     data class Callback(
             val packageName: String,
             val disposable: Disposable
@@ -665,32 +666,37 @@ class ScatterRoutingService : LifecycleService() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                        NOTIFICATION_CHANNEL_FOREGROUND,
-                        "fmef",
-                        NotificationManager.IMPORTANCE_DEFAULT
-                )
-                val manager = getSystemService(NotificationManager::class.java)
-                manager.createNotificationChannel(channel)
+        val started = isStarted.getAndSet(true)
+        if (!started) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val channel = NotificationChannel(
+                            NOTIFICATION_CHANNEL_FOREGROUND,
+                            "fmef",
+                            NotificationManager.IMPORTANCE_DEFAULT
+                    )
+                    val manager = getSystemService(NotificationManager::class.java)
+                    manager.createNotificationChannel(channel)
+                }
+                val notificationIntent = Intent(this, ScatterRoutingService::class.java)
+                val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, 0)
+                val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
+                        .setContentTitle("ScatterRoutingService")
+                        .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
+                        .setSmallIcon(R.drawable.ic_launcher_background)
+                        .setContentIntent(pendingIntent)
+                        .setTicker("fmef am tire")
+                        .build()
+                startForeground(1, notification)
+                Log.v(TAG, "called onbind")
+                Log.v(TAG, "initialized datastore")
+                mBackend.wifiDirect.registerReceiver()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Log.v(TAG, "exception")
             }
-            val notificationIntent = Intent(this, ScatterRoutingService::class.java)
-            val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, 0)
-            val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
-                    .setContentTitle("ScatterRoutingService")
-                    .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
-                    .setSmallIcon(R.drawable.ic_launcher_background)
-                    .setContentIntent(pendingIntent)
-                    .setTicker("fmef am tire")
-                    .build()
-            startForeground(1, notification)
-            Log.v(TAG, "called onbind")
-            Log.v(TAG, "initialized datastore")
-            mBackend.wifiDirect.registerReceiver()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Log.v(TAG, "exception")
+        } else {
+            isStarted.set(false)
         }
         return Service.START_NOT_STICKY
     }

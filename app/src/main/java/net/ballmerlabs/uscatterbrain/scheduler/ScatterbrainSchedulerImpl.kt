@@ -23,8 +23,9 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         private val bluetoothLEModule: BluetoothLEModule,
         private val context: Context
 ) : ScatterbrainScheduler {
-    override var isDiscovering = false
-        private set
+    private val discoveryLock = AtomicReference(false)
+    override val isDiscovering
+        get() = discoveryLock.get()
     private var isAdvertising = false
     private val globalDisposable = AtomicReference<Disposable?>()
     private fun broadcastTransactionResult(transactionStats: HandshakeResult) {
@@ -36,19 +37,19 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     @Synchronized
     override fun start() {
-        if (isAdvertising) {
+        val discovering = discoveryLock.getAndSet(true)
+        if (discovering) {
             return
         }
         isAdvertising = true
         bluetoothLEModule.startAdvertise()
         bluetoothLEModule.startServer()
         val d = bluetoothLEModule.discoverForever()
-                .doOnSubscribe { isDiscovering = true }
-                .doOnDispose { isDiscovering = false }
+                .doOnDispose { discoveryLock.set(false) }
                 .subscribe(
                         { res -> Log.v(TAG, "finished transaction: ${res.success}") }
                 ) { err -> Log.e(TAG, "error in transaction: $err") }
-        val disp = globalDisposable.getAndSet(null)
+        val disp = globalDisposable.getAndSet(d)
         disp?.dispose()
     }
 
