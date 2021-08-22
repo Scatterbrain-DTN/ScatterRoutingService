@@ -1,7 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.util.Log
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash
+import com.goterl.lazysodium.interfaces.GenericHash
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single

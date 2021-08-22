@@ -1,8 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network
 
 import com.google.protobuf.ByteString
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash
-import com.goterl.lazycode.lazysodium.interfaces.Sign
+import com.goterl.lazysodium.interfaces.GenericHash
+import com.goterl.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
@@ -107,10 +107,6 @@ class IdentityPacket(packet: ScatterProto.Identity) :
             var secretkey: ByteArray? = null
             ) {
 
-        fun ismGenerateKeypair(): Boolean {
-            return generateKeypair
-        }
-
         fun setEnd() = apply {
             gone = true
         }
@@ -131,12 +127,6 @@ class IdentityPacket(packet: ScatterProto.Identity) :
             scatterbrainPubkey = pubkey.toByteArray()
             pubkeyMap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = pubkey
         }
-
-        fun sign(secretkey: ByteArray) = apply {
-            this.secretkey = secretkey
-        }
-
-
 
         private fun sumBytes(): ByteString {
             if (gone) {

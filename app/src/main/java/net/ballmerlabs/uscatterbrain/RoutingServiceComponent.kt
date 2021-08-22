@@ -33,6 +33,7 @@ interface RoutingServiceComponent {
     object NamedSchedulers {
         const val DATABASE = "executor_database"
         const val BLE_CLIENT = "scheduler-ble-client"
+        const val BLE_SERVER = "scheduler-ble-server"
         const val OPERATIONS = "wifi-direct-operations"
     }
 
@@ -122,6 +123,12 @@ interface RoutingServiceComponent {
             @Provides
             @Named(NamedSchedulers.BLE_CLIENT)
             fun provideBleClientScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+            }
+
+            @Provides
+            @Named(NamedSchedulers.BLE_SERVER)
+            fun provideBleServerScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
             }
 

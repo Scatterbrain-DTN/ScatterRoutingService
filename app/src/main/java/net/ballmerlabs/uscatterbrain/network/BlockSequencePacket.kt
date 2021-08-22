@@ -1,7 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network
 
 import com.google.protobuf.ByteString
-import com.goterl.lazycode.lazysodium.interfaces.GenericHash
+import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockSequence
 import java.io.File
 import java.nio.ByteBuffer
