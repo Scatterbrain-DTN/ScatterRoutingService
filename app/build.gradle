@@ -4,7 +4,7 @@ plugins {
     id 'kotlin-kapt'
     id 'com.google.protobuf'
     id 'groovyx.android'
-    id 'org.jetbrains.dokka'
+    id("org.jetbrains.dokka") version "1.5.0"
     id 'jacoco'
 }
 
