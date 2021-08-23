@@ -55,13 +55,11 @@ class CachedLEServerConnection(
             packet: ScatterSerializable<T>
     ): Completable {
         return lockRelay.takeUntil { v -> !v }.ignoreElements()
-                .subscribeOn(scheduler)
                 .andThen(
                     Completable.fromAction {
                         packetQueue.accept(packet)
                     }
                             .doOnSubscribe { lockRelay.accept(true) }
-                            .subscribeOn(scheduler)
                             .andThen(lockRelay.takeUntil { v -> !v }.ignoreElements())
                 ).doOnComplete { Log.v(TAG, "serverNotify for packet " + packet.type) }
 
