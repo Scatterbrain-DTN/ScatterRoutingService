@@ -543,35 +543,18 @@ class ScatterRoutingService : LifecycleService() {
         /**
          * Gets a list of packages this service has interacted with
          */
-        override fun getKnownPackagesAsync(): Int {
+        override fun getKnownPackagesAsync(callback: StringCallback) {
             checkSuperuserPermission()
             val handle = generateNewHandle()
             val disp = mBackend.datastore.getPackages()
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { r ->
-                                broadcastAsyncResult(
-                                        callingPackageName,
-                                        handle,
-                                        Bundle().apply {
-                                            putStringArrayList(ScatterbrainApi.EXTRA_ASYNC_RESULT, r)
-                                        },
-                                        ScatterbrainApi.PERMISSION_SUPERUSER
-                                )
-                            },
-                            { err ->
-                                broadcastAsyncError(
-                                        callingPackageName,
-                                        handle,
-                                        err.toString(),
-                                        ScatterbrainApi.PERMISSION_SUPERUSER
-                                )
-                            }
+                            { r ->  callback.onString(r) },
+                            { err -> callback.onError(err.message)}
                     )
 
             callbackHandles[handle] = Callback(callingPackageName, disp)
-            return handle
         }
     }
 
