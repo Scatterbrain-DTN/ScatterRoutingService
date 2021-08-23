@@ -223,6 +223,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.e(TAG, "error while receiving luid packet: $err")
                     err.printStackTrace()
                 }
+                .subscribeOn(clientScheduler)
                 .flatMap { luidPacket ->
                     if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
                         Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
@@ -254,6 +255,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .flatMapCompletable { luidpacket ->
                     serverConn.serverNotify(luidpacket)
                 }
+                .subscribeOn(serverScheduler)
     }
 
     private fun observeTransactionComplete() {
