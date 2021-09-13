@@ -8,7 +8,6 @@ import android.net.wifi.p2p.WifiP2pManager
 import android.os.PowerManager
 import androidx.room.Room
 import com.polidea.rxandroidble2.RxBleClient
-import com.polidea.rxandroidble2.RxBleServer
 import dagger.*
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
@@ -113,11 +112,6 @@ interface RoutingServiceComponent {
             @Provides
             fun provideRxBleClient(ctx: Context?): RxBleClient {
                 return RxBleClient.create(ctx!!)
-            }
-
-            @Provides
-            fun providesRxBleServer(context: Context?): RxBleServer {
-                return RxBleServer.create(context!!)
             }
 
             @Provides

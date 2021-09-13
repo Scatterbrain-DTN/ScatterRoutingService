@@ -95,7 +95,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
         @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
         @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
-        private val mServer: RxBleServer,
         private val mClient: RxBleClient,
         private val wifiDirectRadioModule: WifiDirectRadioModule,
         private val datastore: ScatterbrainDatastore,
@@ -905,7 +904,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          * As a result, gatt client connections are seemingly thrown away and unhandled. THIS IS FAKE NEWS
          * they are handled here.
          */
-        val d = mServer.openServer(config)
+        val d = mClient.openServer(config)
                 .doOnSubscribe { Log.v(TAG, "gatt server subscribed") }
                 .doOnError { Log.e(TAG, "failed to open server") }
                 .concatMap { connectionRaw ->
@@ -981,16 +980,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     when {
                                                                         remotesession == null -> {
                                                                             Log.e(TAG, "remote session for $remoteluid was null")
-                                                                            trans.sendReply(BluetoothGatt.GATT_FAILURE, 0, null)
+                                                                            trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
                                                                         }
                                                                         remotesession.locked -> {
                                                                             Log.e(TAG, "attempted to rewind session $remoteluid but was locked")
-                                                                            trans.sendReply(BluetoothGatt.GATT_FAILURE, 0, null)
+                                                                            trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
                                                                         }
                                                                         else -> {
                                                                             Log.v(TAG, "remote session $remoteluid valid, commencing rewind")
                                                                             rewindSession(remotesession)
-                                                                            trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null)
+                                                                            trans.sendReply(null, BluetoothGatt.GATT_SUCCESS )
                                                                         }
                                                                     }
                                                                 }
@@ -1129,7 +1128,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         if (!serverStarted.get()) {
             return
         }
-        mServer.closeServer()
         stopAdvertise()
         serverStarted.set(false)
     }

@@ -108,7 +108,7 @@ class CachedLEServerConnection(
                                     .flatMapCompletable { characteristic ->
                                                     connection.getOnCharacteristicReadRequest(characteristic.uuid)
                                                             .firstOrError()
-                                                            .flatMapCompletable { trans -> trans.sendReply(BluetoothGatt.GATT_SUCCESS, 0, null) }
+                                                            .flatMapCompletable { trans -> trans.sendReply(null, BluetoothGatt.GATT_SUCCESS) }
                                                             .andThen(connection.setupIndication(
                                                                     characteristic.uuid,
                                                                     packet.writeToStream(20, scheduler)
@@ -123,8 +123,10 @@ class CachedLEServerConnection(
                                                                 lockRelay.accept(false)
                                                             }
                                                             .doOnSubscribe {
-                                                                req.sendReply(BluetoothGatt.GATT_SUCCESS, 0,
-                                                                    BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid))
+                                                                req.sendReply(
+                                                                        BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
+                                                                        BluetoothGatt.GATT_SUCCESS
+                                                                )
                                                                     .subscribe(
                                                                             { },
                                                                             { err -> Log.e(TAG, "failed to ack semaphor read: $err")}
@@ -133,7 +135,7 @@ class CachedLEServerConnection(
                                     }
                                     .doOnError { err ->
                                         Log.e(TAG, "error in gatt server selectCharacteristic: $err")
-                                        req.sendReply(BluetoothGatt.GATT_FAILURE, 0, null)
+                                        req.sendReply(null, BluetoothGatt.GATT_FAILURE)
                                     }
                                     .onErrorComplete()
                 })
