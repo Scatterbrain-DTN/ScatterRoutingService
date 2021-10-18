@@ -423,6 +423,19 @@ class ScatterRoutingService : LifecycleService() {
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
+        override fun manualRefreshPeers(callback: UnitCallback) {
+            checkAdminPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.radioModule.refreshPeers()
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { callback.onComplete() },
+                            { err -> callback.onError(err.message) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
         /**
          * Cryptographically signs data using a stored identity.
          * @param identity identity object
