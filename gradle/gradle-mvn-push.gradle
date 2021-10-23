@@ -57,9 +57,11 @@ afterEvaluate {
                     pom.artifactId = POM_ARTIFACT_ID
                     pom.version = VERSION_NAME
 
-                    repository(url: mavenLocal().url) {
+                    repository(url: getReleaseRepositoryUrl()) {
+                        authentication(userName: getRepositoryUsername(), password: getRepositoryPassword())
                     }
-                    snapshotRepository(url: mavenLocal().url) {
+                    snapshotRepository(url: getSnapshotRepositoryUrl()) {
+                        authentication(userName: getRepositoryUsername(), password: getRepositoryPassword())
                     }
 
                     pom.project {

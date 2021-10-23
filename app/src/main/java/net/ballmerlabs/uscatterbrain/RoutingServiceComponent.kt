@@ -77,66 +77,84 @@ interface RoutingServiceComponent {
         @Singleton
         abstract fun provideWifiDirectBroadcastReceiver(impl: WifiDirectBroadcastReceiverImpl): WifiDirectBroadcastReceiver
 
+        @Module
         companion object {
-            @Singleton
             @Provides
+            @JvmStatic
+            @Singleton
             fun provideDatastore(ctx: Context?): Datastore {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
                         .fallbackToDestructiveMigration()
                         .build()
             }
 
-            @Singleton
             @Provides
+            @JvmStatic
+            @Singleton
             fun providesChannel(ctx: Context?, wifiP2pManager: WifiP2pManager?): WifiP2pManager.Channel {
                 return wifiP2pManager!!.initialize(ctx, ctx!!.mainLooper, null)
             }
 
             @Provides
+            @JvmStatic
+            @Singleton
             fun providesWifiP2pManager(ctx: Context?): WifiP2pManager {
                 return ctx!!.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
             }
 
             @Provides
+            @JvmStatic
+            @Singleton
             @Named(NamedSchedulers.DATABASE)
             fun provideDatabaseScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
             }
 
             @Provides
+            @JvmStatic
+            @Singleton
             @Named(NamedSchedulers.OPERATIONS)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
             }
 
             @Provides
+            @JvmStatic
+            @Singleton
             fun provideRxBleClient(ctx: Context?): RxBleClient {
                 return RxBleClient.create(ctx!!)
             }
 
             @Provides
+            @JvmStatic
+            @Singleton
             @Named(NamedSchedulers.BLE_CLIENT)
             fun provideBleClientScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
             }
 
             @Provides
+            @JvmStatic
+            @Singleton
             @Named(NamedSchedulers.BLE_SERVER)
             fun provideBleServerScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
             }
 
             @Provides
+            @JvmStatic
             fun provideLeAdvertiser(): BluetoothLeAdvertiser {
                 return BluetoothAdapter.getDefaultAdapter().bluetoothLeAdvertiser
             }
 
             @Provides
+            @JvmStatic
             fun providesSharedPreferences(context: Context?): SharedPreferences {
                 return context!!.getSharedPreferences(SHARED_PREFS, Context.MODE_PRIVATE)
             }
 
             @Provides
+            @JvmStatic
             fun providesPowerManager(context: Context?): PowerManager {
                 return context!!.getSystemService(Context.POWER_SERVICE) as PowerManager
             }
