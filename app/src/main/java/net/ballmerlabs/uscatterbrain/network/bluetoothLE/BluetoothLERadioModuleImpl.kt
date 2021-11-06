@@ -237,16 +237,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         return@flatMap Single.error(java.lang.IllegalStateException("invalid proto version"))
                     }
 
-                    val hashUUID = luidPacket.hashAsUUID!!
                     Log.e("debug", "version: ${luidPacket.protoVersion} hash ${luidPacket.hashAsUUID}")
-                    if (activeLuids.contains(hashUUID)) {
-                        Log.e(TAG, "device already active")
-
-                        return@flatMap Single.error(IllegalStateException("device already connected"))
-                    } else {
-                        //TODO:
-                       // activeLuids.add(hashUUID)
-                    }
 
                     Log.v(TAG, "client handshake received hashed luid packet: " + luidPacket.valCase)
                     Single.just(luidPacket)
@@ -773,7 +764,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 ScanFilter.Builder()
                         .setServiceUuid(ParcelUuid(SERVICE_UUID))
                         .build())
-                .flatMap { scanResult ->
+                .firstOrError()
+                .flatMapObservable { scanResult ->
                     acquireWakelock()
                     Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
                     scanResult.bleDevice.establishConnection(false)
@@ -941,16 +933,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 when {
                                                     remotesession == null -> {
                                                         Log.e(TAG, "remote session for $remoteluid was null")
-                                                        trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
+                                                        trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                                                     }
                                                     remotesession.locked -> {
                                                         Log.e(TAG, "attempted to rewind session $remoteluid but was locked")
-                                                        trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
+                                                        trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                                                     }
                                                     else -> {
                                                         Log.v(TAG, "remote session $remoteluid valid, commencing rewind")
                                                         rewindSession(remotesession)
-                                                        trans.sendReply(null, BluetoothGatt.GATT_SUCCESS )
+                                                        trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS )
                                                     }
                                                 }
                                             }
@@ -1096,10 +1088,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)
                             if (activeLuids.putIfAbsent(luid, true) == null ) {
-                                trans.sendReply(null, BluetoothGatt.GATT_SUCCESS)
+                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(handleConnection(trans.remoteDevice.establishConnection(false), trans.remoteDevice))
                             } else {
-                                trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
+                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                                     .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                                     .toObservable()
                             }

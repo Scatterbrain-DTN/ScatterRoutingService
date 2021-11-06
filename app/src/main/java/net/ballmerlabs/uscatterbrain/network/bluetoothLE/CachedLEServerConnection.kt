@@ -109,7 +109,7 @@ class CachedLEServerConnection(
                                                     connection.getOnCharacteristicReadRequest(characteristic.uuid)
                                                             .firstOrError()
                                                             .flatMapCompletable { trans ->
-                                                                trans.sendReply(null, BluetoothGatt.GATT_SUCCESS)
+                                                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                                                     .andThen(connection.setupIndication(
                                                                         characteristic.uuid,
                                                                         packet.writeToStream(20, scheduler),
@@ -138,7 +138,7 @@ class CachedLEServerConnection(
                                     }
                                     .doOnError { err ->
                                         Log.e(TAG, "error in gatt server selectCharacteristic: $err")
-                                        req.sendReply(null, BluetoothGatt.GATT_FAILURE)
+                                        req.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                                     }
                                     .onErrorComplete()
                 })
