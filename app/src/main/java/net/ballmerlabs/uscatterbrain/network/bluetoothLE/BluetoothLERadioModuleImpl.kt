@@ -1104,7 +1104,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     .toObservable()
                             }
                         }
-                        .doOnEach { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
+                        .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
+                        .doOnNext { t -> Log.v(TAG, "transactionResult ${t.success}") }
 
                 }
                 .doOnDispose {
