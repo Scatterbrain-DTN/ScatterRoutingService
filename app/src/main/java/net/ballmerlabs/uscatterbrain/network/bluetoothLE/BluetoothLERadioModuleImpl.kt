@@ -22,11 +22,13 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.BuildConfig
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
@@ -120,6 +122,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         // we really shouldn't need this but android won't let us have two GATT DBs
         val UUID_SEMAPHOR: UUID = UUID.fromString("3429e76d-242a-4966-b4b3-301f28ac3ef2")
 
+        // characteristic to initiate a session
+        val UUID_HELLO: UUID = UUID.fromString("5d1b424e-ff15-49b4-b557-48274634a01a")
+
         // a "channel" is a characteristc that protobuf messages are written to.
         val channels = ConcurrentHashMap<UUID, LockedCharactersitic>()
 
@@ -133,6 +138,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val refreshInProgresss = BehaviorRelay.create<Boolean>()
 
         val discoveryPersistent = AtomicReference(false)
+
+        private val serverSubject = SingleSubject.create<CachedLEServerConnection>()
 
         private fun incrementUUID(uuid: UUID, i: Int): UUID {
             val buffer = ByteBuffer.allocate(16)
@@ -181,6 +188,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         init {
             // initialize our channels
             makeCharacteristic(UUID_SEMAPHOR)
+            makeCharacteristic(UUID_HELLO)
             for (i in 0 until NUM_CHANNELS) {
                 val channel = incrementUUID(SERVICE_UUID, i + 1)
                 channels[channel] = LockedCharactersitic(makeCharacteristic(channel), i)
@@ -201,7 +209,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val myLuid = AtomicReference(UUID.randomUUID())
 
     private val sessionCache = ConcurrentHashMap<UUID, LeDeviceSession>()
-    private val activeLuids = Collections.newSetFromMap(ConcurrentHashMap<UUID, Boolean>())
+    private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
     private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
@@ -236,7 +244,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                         return@flatMap Single.error(IllegalStateException("device already connected"))
                     } else {
-                        activeLuids.add(hashUUID)
+                        //TODO:
+                       // activeLuids.add(hashUUID)
                     }
 
                     Log.v(TAG, "client handshake received hashed luid packet: " + luidPacket.valCase)
@@ -276,7 +285,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * via offloaded scanning, but NOT for keeping it awake.
      */
     private fun acquireWakelock() {
-        wakeLock.acquire(10 * 60 * 1000)
+        wakeLock.acquire((10 * 60 * 1000).toLong())
     }
 
     private fun releaseWakeLock() {
@@ -716,8 +725,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     else {
                         Observable.fromIterable(sessionCache.values)
                                 .concatMapCompletable { session ->
-                                    session.client.connectionSubject
-                                            .flatMapSingle { connection ->
+                                    Single.just(session.client.connection)
+                                            .flatMap { connection ->
                                                 connection.writeCharacteristic(UUID_SEMAPHOR, uuid2bytes(
                                                         LuidPacket.newBuilder()
                                                                 .setLuid(myLuid.get())
@@ -745,24 +754,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     /*
-     * establish a GATT connection using caching to work around RxAndroidBle quirk
-     */
-    private fun establishConnection(device: RxBleDevice, timeout: Timeout): CachedLEConnection {
-        Log.v(TAG, "establishing connection to ${device.macAddress}")
-        val conn = connectionCache[device.macAddress]
-        if (conn != null) {
-            return conn
-        }
-        val connectionObs = device.establishConnection(false, timeout)
-                .doFinally { connectionCache.remove(device.macAddress) }
-                .doOnNext { Log.v(TAG, "successfully established connection") }
-        val cached = CachedLEConnection(connectionObs, channels, operationsScheduler)
-        connectionCache[device.macAddress] = cached
-
-        return cached
-    }
-
-    /*
      * discover LE devices. Currently this runs forever and sets a global disposable
      * so we can kill it if we want.
      * This only scans for scatterbrain UUIDs
@@ -782,13 +773,30 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 ScanFilter.Builder()
                         .setServiceUuid(ParcelUuid(SERVICE_UUID))
                         .build())
-                .map { scanResult ->
+                .flatMap { scanResult ->
                     acquireWakelock()
                     Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
-                    establishConnection(
-                            scanResult.bleDevice,
-                            Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)
-                    )
+                    scanResult.bleDevice.establishConnection(false)
+                        .flatMapSingle { connection ->
+                            Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
+                            val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
+                            Log.e(TAG, "writing hash len ${hash.size}")
+                            connection.discoverServices()
+                                .flatMap { serv ->
+                                    serv.getCharacteristic(UUID_HELLO)
+                                        .flatMap { char ->
+                                            Log.v(TAG, "found hello characteristic: ${char.uuid}")
+                                            connection.writeCharacteristic(char, hash)
+                                                .doOnSuccess { v -> Log.v(TAG, "successfully wrote uuid len ${v.size}") }
+                                                .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
+                                                .ignoreElement()
+                                                .toSingleDefault(connection)
+                                        }
+                                }
+                        }
+                        .concatMap { connection ->
+                            handleConnection(Observable.just(connection), scanResult.bleDevice)
+                        }
                     /*
                      * WAIT? why are we not doing anything with our gatt connections??
                      * see the comment in startServer() for why
@@ -876,6 +884,175 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         session.stage = TransactionResult.STAGE_UPGRADE
     }
 
+
+    private fun handleConnection(connection: Observable<RxBleConnection>, device: RxBleDevice): Observable<HandshakeResult> {
+        return connection
+            .map { c -> CachedLEConnection(c, channels, operationsScheduler) }
+            .flatMap { clientConnection ->
+                serverSubject
+                    .flatMapObservable{ connection ->
+                        Log.v(TAG, "stating stages")
+                        getLuidClient(clientConnection)
+                            .toObservable()
+                            .mergeWith(
+                                getLuidServer(connection)
+                                    .doOnError { err -> Log.e(TAG, "server error on retrieving luid $err") }
+                            )
+                            .subscribeOn(operationsScheduler)
+                            .doOnError { err -> Log.e(TAG, "client error on retrieving luid $err") }
+                            .firstOrError()
+                            .onErrorResumeNext(Single.never())
+                            .flatMapObservable { luid ->
+                                Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
+                                val s = sessionCache[luid.hashAsUUID!!]
+                                    ?: LeDeviceSession(
+                                        device.bluetoothDevice,
+                                        myLuid.get(),
+                                        clientConnection,
+                                        connection,
+                                        luid
+                                    )
+
+                                sessionCache.putIfAbsent(luid.hashAsUUID!!, s)
+                                //TODO: handle this disposable
+                                val disp = Single.just(luid)
+                                    .delay(
+                                        preferences.getLong(mContext.getString(R.string.pref_peercachedelay), (20 * 60).toLong()),
+                                        TimeUnit.SECONDS,
+                                        operationsScheduler
+                                    )
+                                    .subscribe(
+                                        { l: LuidPacket ->
+                                            Log.v(TAG, "peer $device timed out, removing from nearby peer cache")
+                                            sessionCache.remove(l.luidVal)
+                                        },
+                                        { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
+                                    )
+                                Log.v(TAG, "initializing session")
+                                initializeProtocol(s, TransactionResult.STAGE_LUID)
+                                    .doOnError { e -> Log.e(TAG, "failed to initialize protocol $e") }
+                                    .flatMapObservable { session ->
+                                        Log.v(TAG, "session initialized")
+                                        val d = connection.connection.getOnCharacteristicReadRequest(UUID_SEMAPHOR)
+                                            .concatMapCompletable { trans ->
+                                                val remoteluid = bytes2uuid(trans.value)
+                                                val remotesession = sessionCache[remoteluid]
+
+                                                when {
+                                                    remotesession == null -> {
+                                                        Log.e(TAG, "remote session for $remoteluid was null")
+                                                        trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
+                                                    }
+                                                    remotesession.locked -> {
+                                                        Log.e(TAG, "attempted to rewind session $remoteluid but was locked")
+                                                        trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
+                                                    }
+                                                    else -> {
+                                                        Log.v(TAG, "remote session $remoteluid valid, commencing rewind")
+                                                        rewindSession(remotesession)
+                                                        trans.sendReply(null, BluetoothGatt.GATT_SUCCESS )
+                                                    }
+                                                }
+                                            }
+                                            .subscribe()
+
+                                        /*
+                                         * this is kind of hacky. this observable chain is the driving force of our state machine
+                                         * state transitions are handled when our LeDeviceSession is subscribed to.
+                                         * each transition causes the session to emit the next state and start over
+                                         * since states are only handled on subscribe or on a terminal error, there
+                                         * shouldn't be any races or reentrancy issues
+                                         */
+                                        session.observeStage()
+                                            .doOnNext { stage -> Log.v(TAG, "handling stage: $stage") }
+                                            .concatMap {
+                                                Single.zip(
+                                                    session.singleClient(),
+                                                    session.singleServer(),
+                                                    { client, server ->
+                                                        server(connection)
+                                                            .doOnSuccess { Log.v(TAG, "server handshake completed") }
+                                                            .zipWith(client(clientConnection), { first, second ->
+                                                                android.util.Pair(first, second)
+                                                            })
+                                                            .toObservable()
+                                                            .doOnSubscribe { Log.v("debug", "client handshake subscribed") }
+                                                    }
+
+                                                ).flatMapObservable { result -> result }
+                                                    .subscribeOn(clientScheduler)
+                                                    .doOnError { err ->
+                                                        Log.e(TAG, "transaction error $err")
+                                                        err.printStackTrace() //TODO: handle crashlytics
+                                                        session.stage = TransactionResult.STAGE_TERMINATE
+                                                    }
+                                                    // retry on error
+                                                    .onErrorReturnItem(android.util.Pair(OptionalBootstrap.empty(), TransactionResult(
+                                                        TransactionResult.STAGE_ADVERTISE,
+                                                        device.bluetoothDevice,
+                                                        luid.hashAsUUID!!
+                                                    )))
+                                                    .doOnNext { transactionResult ->
+                                                        if (session.stage == TransactionResult.STAGE_SUSPEND &&
+                                                            !transactionResult.second.hasResult() &&
+                                                            !transactionResult.first.isPresent) {
+                                                            Log.v(TAG, "session $device suspending, no bootstrap")
+                                                            session.unlock()
+                                                        }
+                                                        session.stage = transactionResult.second.nextStage
+                                                    }
+                                                    .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
+
+                                            }
+                                            .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
+                                            .map { pair ->
+                                                when {
+                                                    pair.second.hasResult() -> pair.second.result
+                                                    else -> pair.first.item
+                                                }
+                                            }
+                                            .flatMapSingle { bootstrapRequest -> bootstrapWifiP2p(bootstrapRequest) }
+                                            .doOnNext {
+                                                Log.v(TAG, "wifi direct bootstrap complete, unlocking session.")
+                                                session.unlock()
+                                                activeLuids.remove(session.remoteLuid.luidVal)
+                                            }
+                                            .doOnError { err ->
+                                                Log.e(TAG, "session ${session.remoteLuid} ended with error $err")
+                                                err.printStackTrace()
+                                                when (err) {
+                                                    is BleDisconnectedException -> session.stage = TransactionResult.STAGE_TERMINATE
+                                                    else -> session.stage = TransactionResult.STAGE_SUSPEND
+                                                }
+                                                session.unlock()
+                                            }
+                                            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                                            .doFinally {
+                                                Log.e(TAG, "TERMINATION: session $device terminated")
+                                                // if we encounter any errors or terminate, remove cached connections
+                                                // as they may be tainted
+                                                sessionCache.remove(session.remoteLuid.luidVal)
+                                                activeLuids.remove(session.remoteLuid.luidVal)
+                                                connectionCache.remove(device.macAddress)
+                                                connection.dispose()
+                                                session.unlock()
+                                                removeConnection(device.macAddress)
+                                                wifiDirectRadioModule.removeGroup().subscribe(
+                                                    { Log.v(TAG, "successfually cleanued up wifi direct group after termination") },
+                                                    { err ->
+                                                        Log.e(TAG, "failed to cleanup wifi direct group after termination")
+                                                        FirebaseCrashlytics.getInstance().recordException(err)
+                                                    }
+                                                )
+                                                myLuid.set(UUID.randomUUID()) // randomize luid for privacy
+                                            }
+
+                                    }
+
+                            }
+                    }
+            }
+    }
     /**
      * starts the gatt server in the background.
      * NOTE: this function contains all the logic for running the state machine.
@@ -907,201 +1084,27 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val d = mClient.openServer(config)
                 .doOnSubscribe { Log.v(TAG, "gatt server subscribed") }
                 .doOnError { Log.e(TAG, "failed to open server") }
-                .concatMap { connectionRaw ->
-                    //accquire wakelock
-                    acquireWakelock()
-                    // wrap connection in CachedLeServiceConnection for convenience
-                    val connection = CachedLEServerConnection(connectionRaw, channels, serverScheduler)
-                    val connectionDisposable = CompositeDisposable()
-                    connectionDisposable.add(connection)
-
-                    // gatt server library doesn't give us a handle to RxBleDevice so we look it up manually
-                    val device = mClient.getBleDevice(connection.connection.device.address)
-
-                    //don't attempt to initiate a reverse connection when we already initiated the outgoing connection
-                    if (device == null) {
-                        Log.e(TAG, "device " + connection.connection.device.address + " was null in client")
-                        return@concatMap Observable.error<HandshakeResult>(IllegalStateException("device was null"))
-                    }
-
-                    Log.d(TAG, "gatt server connection from ${connection.connection.device.address} ${device.macAddress}")
-
-                    Observable.just(establishConnection(device, Timeout(CLIENT_CONNECT_TIMEOUT.toLong(), TimeUnit.SECONDS)))
-                            .flatMap { clientConnection ->
-                                connectionDisposable.add(clientConnection)
-                                Log.v(TAG, "stating stages")
-                                getLuidClient(clientConnection)
-                                        .toObservable()
-                                        .mergeWith(
-                                                getLuidServer(connection)
-                                                        .doOnError { err -> Log.e(TAG, "server error on retrieving luid $err") }
-                                        )
-                                        .subscribeOn(operationsScheduler)
-                                        .doOnError { err -> Log.e(TAG, "client error on retrieving luid $err") }
-                                        .firstOrError()
-                                        .onErrorResumeNext(Single.never())
-                                        .flatMapObservable { luid ->
-                                            Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
-                                            val s = sessionCache[luid.hashAsUUID!!]
-                                                    ?: LeDeviceSession(
-                                                            device.bluetoothDevice,
-                                                            myLuid.get(),
-                                                            clientConnection,
-                                                            connection,
-                                                            luid
-                                                    )
-
-                                            sessionCache.putIfAbsent(luid.hashAsUUID!!, s)
-
-                                            val disp = Single.just(luid)
-                                                    .delay(
-                                                            preferences.getLong(mContext.getString(R.string.pref_peercachedelay), 20 * 60),
-                                                            TimeUnit.SECONDS,
-                                                            operationsScheduler
-                                                    )
-                                                    .subscribe(
-                                                            { l: LuidPacket ->
-                                                                Log.v(TAG, "peer $device timed out, removing from nearby peer cache")
-                                                                sessionCache.remove(l.luidVal)
-                                                            },
-                                                            { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
-                                                    )
-                                            connectionDisposable.add(disp)
-                                            Log.v(TAG, "initializing session")
-                                            initializeProtocol(s, TransactionResult.STAGE_LUID)
-                                                    .doOnError { e -> Log.e(TAG, "failed to initialize protocol $e") }
-                                                    .flatMapObservable { session ->
-                                                        Log.v(TAG, "session initialized")
-                                                        val d = connectionRaw.getOnCharacteristicWriteRequest(UUID_SEMAPHOR)
-                                                                .concatMapCompletable { trans ->
-                                                                    val remoteluid = bytes2uuid(trans.value)
-                                                                    val remotesession = sessionCache[remoteluid]
-
-                                                                    when {
-                                                                        remotesession == null -> {
-                                                                            Log.e(TAG, "remote session for $remoteluid was null")
-                                                                            trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
-                                                                        }
-                                                                        remotesession.locked -> {
-                                                                            Log.e(TAG, "attempted to rewind session $remoteluid but was locked")
-                                                                            trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
-                                                                        }
-                                                                        else -> {
-                                                                            Log.v(TAG, "remote session $remoteluid valid, commencing rewind")
-                                                                            rewindSession(remotesession)
-                                                                            trans.sendReply(null, BluetoothGatt.GATT_SUCCESS )
-                                                                        }
-                                                                    }
-                                                                }
-                                                                .subscribe()
-
-
-                                                        connectionDisposable.add(d)
-                                                        /*
-                                                         * this is kind of hacky. this observable chain is the driving force of our state machine
-                                                         * state transitions are handled when our LeDeviceSession is subscribed to.
-                                                         * each transition causes the session to emit the next state and start over
-                                                         * since states are only handled on subscibe or on a terminal error, there
-                                                         * shouldn't be any races or reentrancy issues
-                                                         */
-                                                        session.observeStage()
-                                                                .doOnNext { stage -> Log.v(TAG, "handling stage: $stage") }
-                                                                .concatMap {
-                                                                    Single.zip(
-                                                                            session.singleClient(),
-                                                                            session.singleServer(),
-                                                                            { client, server ->
-                                                                                server(connection)
-                                                                                        .doOnSuccess { Log.v(TAG, "server handshake completed") }
-                                                                                        .zipWith(client(clientConnection), { first, second ->
-                                                                                            android.util.Pair(first, second)
-                                                                                        })
-                                                                                        .toObservable()
-                                                                                        .doOnSubscribe { Log.v("debug", "client handshake subscribed") }
-                                                                            }
-
-                                                                    ).flatMapObservable { result -> result }
-                                                                            .subscribeOn(clientScheduler)
-                                                                            .doOnError { err ->
-                                                                                Log.e(TAG, "transaction error $err")
-                                                                                err.printStackTrace() //TODO: handle crashlytics
-                                                                                session.stage = TransactionResult.STAGE_TERMINATE
-                                                                            }
-                                                                            // retry on error
-                                                                            .onErrorReturnItem(android.util.Pair(OptionalBootstrap.empty(), TransactionResult(
-                                                                                    TransactionResult.STAGE_ADVERTISE,
-                                                                                    device.bluetoothDevice,
-                                                                                    luid.hashAsUUID!!
-                                                                            )))
-                                                                            .doOnNext { transactionResult ->
-                                                                                if (session.stage == TransactionResult.STAGE_SUSPEND &&
-                                                                                        !transactionResult.second.hasResult() &&
-                                                                                        !transactionResult.first.isPresent) {
-                                                                                    Log.v(TAG, "session $device suspending, no bootstrap")
-                                                                                    session.unlock()
-                                                                                }
-                                                                                session.stage = transactionResult.second.nextStage
-                                                                            }
-                                                                            .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
-
-                                                                }
-                                                                .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
-                                                                .map { pair ->
-                                                                    when {
-                                                                        pair.second.hasResult() -> {
-                                                                            return@map pair.second.result
-                                                                        }
-                                                                        else -> {
-                                                                            return@map pair.first.item
-                                                                        }
-                                                                    }
-                                                                }
-                                                                .flatMapSingle { bootstrapRequest -> bootstrapWifiP2p(bootstrapRequest) }
-                                                                .doOnNext {
-                                                                    Log.v(TAG, "wifi direct bootstrap complete, unlocking session.")
-                                                                    session.unlock()
-                                                                    activeLuids.remove(session.remoteLuid.luidVal)
-                                                                }
-                                                                .doOnError { err ->
-                                                                    Log.e(TAG, "session ${session.remoteLuid} ended with error $err")
-                                                                    err.printStackTrace()
-                                                                    when (err) {
-                                                                        is BleDisconnectedException -> session.stage = TransactionResult.STAGE_TERMINATE
-                                                                        else -> session.stage = TransactionResult.STAGE_SUSPEND
-                                                                    }
-                                                                    session.unlock()
-                                                                }
-                                                                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-                                                                .doFinally {
-                                                                    Log.e(TAG, "TERMINATION: session $device terminated")
-                                                                    // if we encounter any errors or terminate, remove cached connections
-                                                                    // as they may be tainted
-                                                                    sessionCache.remove(session.remoteLuid.luidVal)
-                                                                    activeLuids.remove(session.remoteLuid.luidVal)
-                                                                    connectionCache.remove(device.macAddress)
-                                                                    connectionRaw.disconnect()
-                                                                    connectionDisposable.dispose()
-                                                                    connection.dispose()
-                                                                    session.unlock()
-                                                                    removeConnection(device.macAddress)
-                                                                    wifiDirectRadioModule.removeGroup().subscribe(
-                                                                            { Log.v(TAG, "successfually cleanued up wifi direct group after termination") },
-                                                                            { err ->
-                                                                                Log.e(TAG, "failed to cleanup wifi direct group after termination")
-                                                                                FirebaseCrashlytics.getInstance().recordException(err)
-                                                                            }
-                                                                    )
-                                                                    myLuid.set(UUID.randomUUID()) // randomize luid for privacy
-                                                                }
-                                                    }
-
-                                        }
+                .flatMapObservable { connectionRaw ->
+                    Log.v(TAG, "gatt server initialized")
+                    serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, operationsScheduler))
+                    //TODO:
+                    connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
+                        .subscribeOn(operationsScheduler)
+                        .flatMap { trans ->
+                            Log.e(TAG, "hello from ${trans.remoteDevice}")
+                            //accquire wakelock
+                            acquireWakelock()
+                            val luid = bytes2uuid(trans.value)
+                            if (activeLuids.putIfAbsent(luid, true) == null ) {
+                                trans.sendReply(null, BluetoothGatt.GATT_SUCCESS)
+                                    .andThen(handleConnection(trans.remoteDevice.establishConnection(false), trans.remoteDevice))
+                            } else {
+                                trans.sendReply(null, BluetoothGatt.GATT_FAILURE)
+                                    .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                                    .toObservable()
                             }
-                            .doOnError { e ->
-                                Log.e(TAG, "error in session $e")
-                                e.printStackTrace()
-                            }
-                            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                        }
+                        .doOnEach { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
 
                 }
                 .doOnDispose {
@@ -1113,6 +1116,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.e(TAG, "gatt server shut down with error: $err")
                     err.printStackTrace()
                 }
+                .doOnComplete { Log.e(TAG, "gatt server completed. This shouldn't happen") }
                 .retry()
                 .repeat()
                 .doOnNext { releaseWakeLock() }

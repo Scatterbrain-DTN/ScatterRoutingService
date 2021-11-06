@@ -30,7 +30,7 @@ class ScatterRoutingService : LifecycleService() {
     )
     private val callbackHandles = ConcurrentHashMap<Int, Callback>()
     private val callbackNum = AtomicReference(0)
-    private val binder: ScatterbrainAPI.Stub = object : ScatterbrainAPI.Stub() {
+    private val binder: ScatterbrainBinderApi.Stub = object : ScatterbrainBinderApi.Stub() {
         private fun checkPermission(permName: String): Boolean {
             val pm = applicationContext.packageManager
             return PackageManager.PERMISSION_GRANTED == pm.checkPermission(permName, callingPackageName)
@@ -654,6 +654,16 @@ class ScatterRoutingService : LifecycleService() {
                 ?.build()!!
         component.accept(c)
         mBackend = c.scatterRoutingService()!!
+        val notificationIntent = Intent(this, ScatterRoutingService::class.java)
+        val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
+        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
+            .setContentTitle("ScatterRoutingService")
+            .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
+            .setSmallIcon(R.drawable.ic_launcher_background)
+            .setContentIntent(pendingIntent)
+            .setTicker("fmef am tire")
+            .build()
+        startForeground(1, notification)
     }
 
     /*
@@ -674,16 +684,7 @@ class ScatterRoutingService : LifecycleService() {
                     val manager = getSystemService(NotificationManager::class.java)
                     manager.createNotificationChannel(channel)
                 }
-                val notificationIntent = Intent(this, ScatterRoutingService::class.java)
-                val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, 0)
-                val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
-                        .setContentTitle("ScatterRoutingService")
-                        .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
-                        .setSmallIcon(R.drawable.ic_launcher_background)
-                        .setContentIntent(pendingIntent)
-                        .setTicker("fmef am tire")
-                        .build()
-                startForeground(1, notification)
+
                 Log.v(TAG, "called onbind")
                 Log.v(TAG, "initialized datastore")
                 mBackend.wifiDirect.registerReceiver()

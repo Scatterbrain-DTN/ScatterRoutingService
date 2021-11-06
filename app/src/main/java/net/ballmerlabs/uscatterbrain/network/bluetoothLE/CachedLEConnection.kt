@@ -9,7 +9,6 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
@@ -26,20 +25,16 @@ import java.util.concurrent.TimeUnit
  * @property connection raw connection object being wrapped by this class
  */
 class CachedLEConnection(
-        val connection: Observable<RxBleConnection>,
+        val connection: RxBleConnection,
         private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
         private val scheduler: Scheduler
         ) : Disposable {
     private val disposable = CompositeDisposable()
     private val enabled = CompletableSubject.create()
-    val connectionSubject = BehaviorSubject.create<RxBleConnection>()
     private val timeout: Long = 20
 
     init {
         premptiveEnable().subscribe(enabled)
-        connection
-                .doOnSubscribe { d -> disposable.add(d)}
-                .subscribe(connectionSubject)
     }
 
     /**
@@ -51,8 +46,7 @@ class CachedLEConnection(
     private fun premptiveEnable(): Completable {
         return Observable.fromIterable(BluetoothLERadioModuleImpl.channels.keys)
                 .flatMapSingle{ uuid: UUID ->
-                    connectionSubject
-                            .firstOrError()
+                    Single.just(connection)
                             .flatMap { c ->
                                 c.setupIndication(uuid, NotificationSetupMode.DEFAULT)
                                     .doOnNext { Log.v(TAG, "preemptively enabled indications for $uuid") }
@@ -72,8 +66,7 @@ class CachedLEConnection(
      * @return Single emitting uuid of channel selected
      */
     private fun selectChannel(): Single<UUID> {
-        return connectionSubject
-                .firstOrError()
+        return Single.just(connection)
                 .flatMap { c ->
                     c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
                         .map{ bytes: ByteArray ->
@@ -96,8 +89,7 @@ class CachedLEConnection(
     private fun cachedNotification(): Observable<ByteArray> {
         return enabled.andThen(selectChannel())
                 .flatMapObservable { uuid: UUID ->
-                    connectionSubject
-                            .firstOrError()
+                    Single.just(connection)
                             .flatMapObservable { c ->
                                 c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
                                         .flatMap { observable -> observable }

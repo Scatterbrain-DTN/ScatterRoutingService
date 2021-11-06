@@ -106,7 +106,7 @@ class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
     }
 
     companion object {
-        private fun calculateHashFromUUID(uuid: UUID): ByteArray {
+        fun calculateHashFromUUID(uuid: UUID): ByteArray {
             val hashbytes = ByteArray(GenericHash.BYTES)
             Log.e("debug", "hash size ${hashbytes.size}")
             val uuidBuffer = ByteBuffer.allocate(16)

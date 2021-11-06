@@ -60,6 +60,7 @@ class RoutingServiceBackendImpl @Inject constructor(
             Log.e(TAG, "received an unhandled exception: $e")
             e.printStackTrace()
         }
+       // RxBleLog.setLogLevel(RxBleLog.VERBOSE)
     }
 
     /**
