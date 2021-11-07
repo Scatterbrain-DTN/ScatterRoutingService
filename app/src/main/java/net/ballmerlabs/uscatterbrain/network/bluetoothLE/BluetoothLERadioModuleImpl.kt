@@ -1081,7 +1081,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, operationsScheduler))
                     //TODO:
                     connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
-                        .subscribeOn(operationsScheduler)
                         .flatMap { trans ->
                             Log.e(TAG, "hello from ${trans.remoteDevice}")
                             //accquire wakelock
@@ -1098,6 +1097,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
                         .doOnNext { t -> Log.v(TAG, "transactionResult ${t.success}") }
+                        .retry()
+                        .repeat()
 
                 }
                 .doOnDispose {
