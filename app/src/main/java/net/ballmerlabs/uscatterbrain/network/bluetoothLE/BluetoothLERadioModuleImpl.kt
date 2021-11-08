@@ -914,7 +914,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         operationsScheduler
                                     )
                                     .subscribe(
-                                        { l: LuidPacket ->
+                                        { l ->
                                             Log.v(TAG, "peer $device timed out, removing from nearby peer cache")
                                             sessionCache.remove(l.luidVal)
                                         },

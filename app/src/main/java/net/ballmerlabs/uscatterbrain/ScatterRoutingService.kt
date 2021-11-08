@@ -654,6 +654,15 @@ class ScatterRoutingService : LifecycleService() {
                 ?.build()!!
         component.accept(c)
         mBackend = c.scatterRoutingService()!!
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_FOREGROUND,
+                "fmef",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
         val notificationIntent = Intent(this, ScatterRoutingService::class.java)
         val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
@@ -675,16 +684,6 @@ class ScatterRoutingService : LifecycleService() {
         val started = isStarted.getAndSet(true)
         if (!started) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    val channel = NotificationChannel(
-                            NOTIFICATION_CHANNEL_FOREGROUND,
-                            "fmef",
-                            NotificationManager.IMPORTANCE_DEFAULT
-                    )
-                    val manager = getSystemService(NotificationManager::class.java)
-                    manager.createNotificationChannel(channel)
-                }
-
                 Log.v(TAG, "called onbind")
                 Log.v(TAG, "initialized datastore")
                 mBackend.wifiDirect.registerReceiver()
