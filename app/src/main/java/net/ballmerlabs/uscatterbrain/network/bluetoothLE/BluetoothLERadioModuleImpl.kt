@@ -1084,7 +1084,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 session.unlock()
                                                 removeConnection(device.macAddress)
 
-                                              //  myLuid.set(UUID.randomUUID()) // randomize luid for privacy
+                                                myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                             }
 
                                     }
