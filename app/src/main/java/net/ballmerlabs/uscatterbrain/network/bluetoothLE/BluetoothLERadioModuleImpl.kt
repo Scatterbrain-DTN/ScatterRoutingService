@@ -20,6 +20,7 @@ import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanSettings
 import io.reactivex.*
 import io.reactivex.Observable
+import io.reactivex.android.plugins.RxAndroidPlugins
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.SingleSubject
@@ -877,6 +878,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
 
+    private fun removeWifiDirectGroup(): Completable {
+        return wifiDirectRadioModule.removeGroup()
+                    .doOnError { err ->
+                        Log.e(TAG, "failed to cleanup wifi direct group after termination")
+                        FirebaseCrashlytics.getInstance().recordException(err)
+                    }
+    }
+
+
     private fun handleConnection(connection: Observable<RxBleConnection>, device: RxBleDevice): Observable<HandshakeResult> {
         return connection
             .map { c -> CachedLEConnection(c, channels, operationsScheduler) }
@@ -1003,7 +1013,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     else -> pair.first.item
                                                 }
                                             }
-                                            .flatMapSingle { bootstrapRequest -> bootstrapWifiP2p(bootstrapRequest) }
+                                            .flatMapSingle { bootstrapRequest ->
+                                                bootstrapWifiP2p(bootstrapRequest)
+                                                    .flatMap { r ->
+                                                        removeWifiDirectGroup()
+                                                            .onErrorComplete()
+                                                            .toSingleDefault(r)
+                                                    }
+                                            }
                                             .doOnNext {
                                                 Log.v(TAG, "wifi direct bootstrap complete, unlocking session.")
                                                 session.unlock()
@@ -1029,13 +1046,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 connection.dispose()
                                                 session.unlock()
                                                 removeConnection(device.macAddress)
-                                                wifiDirectRadioModule.removeGroup().subscribe(
-                                                    { Log.v(TAG, "successfually cleanued up wifi direct group after termination") },
-                                                    { err ->
-                                                        Log.e(TAG, "failed to cleanup wifi direct group after termination")
-                                                        FirebaseCrashlytics.getInstance().recordException(err)
-                                                    }
-                                                )
+
                                                 myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                             }
 
