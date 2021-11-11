@@ -781,6 +781,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             connection.readCharacteristic(char)
                                                 .flatMapCompletable { v ->
                                                     val luid = bytes2uuid(v)
+                                                    Log.e(TAG, "client handling luid $luid")
                                                     if (activeLuids.putIfAbsent(luid, true) == null) {
                                                         Completable.complete()
                                                     } else {
@@ -1058,7 +1059,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 session.unlock()
                                                 removeConnection(device.macAddress)
 
-                                                myLuid.set(UUID.randomUUID()) // randomize luid for privacy
+                                              //  myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                             }
 
                                     }
@@ -1108,8 +1109,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             //accquire wakelock
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)
+                            Log.e(TAG, "server handling luid $luid")
                             if (activeLuids.putIfAbsent(luid, true) == null ) {
-                                Log.e(TAG, "handling connection server $luid")
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(handleConnection(trans.remoteDevice.establishConnection(false), trans.remoteDevice))
                             } else {
@@ -1130,8 +1131,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             if (luidRaw == null) {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                             } else {
-                                val luid = uuid2bytes(luidRaw)
-                                trans.sendReply(luid, BluetoothGatt.GATT_SUCCESS)
+                                val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(luidRaw)))
+                                trans.sendReply(hash, BluetoothGatt.GATT_SUCCESS)
                             }
                         }
                         .retry()
