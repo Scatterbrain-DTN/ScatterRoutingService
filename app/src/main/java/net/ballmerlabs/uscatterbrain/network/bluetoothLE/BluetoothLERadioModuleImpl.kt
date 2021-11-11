@@ -20,7 +20,6 @@ import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanSettings
 import io.reactivex.*
 import io.reactivex.Observable
-import io.reactivex.android.plugins.RxAndroidPlugins
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.SingleSubject
@@ -770,25 +769,38 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     acquireWakelock()
                     Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
                     scanResult.bleDevice.establishConnection(false)
-                        .flatMapSingle { connection ->
+                        .flatMap { connection ->
                             Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
                             val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
                             Log.e(TAG, "writing hash len ${hash.size}")
                             connection.discoverServices()
-                                .flatMap { serv ->
+                                .flatMapObservable { serv ->
                                     serv.getCharacteristic(UUID_HELLO)
-                                        .flatMap { char ->
+                                        .flatMapObservable { char ->
                                             Log.v(TAG, "found hello characteristic: ${char.uuid}")
-                                            connection.writeCharacteristic(char, hash)
-                                                .doOnSuccess { v -> Log.v(TAG, "successfully wrote uuid len ${v.size}") }
-                                                .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
-                                                .ignoreElement()
-                                                .toSingleDefault(connection)
+                                            connection.readCharacteristic(char)
+                                                .flatMapCompletable { v ->
+                                                    val luid = bytes2uuid(v)
+                                                    if (activeLuids.putIfAbsent(luid, true) == null) {
+                                                        Completable.complete()
+                                                    } else {
+                                                        Completable.error(IllegalStateException("device already connected"))
+                                                    }
+                                                }
+                                                .andThen(
+                                                    connection.writeCharacteristic(char, hash)
+                                                        .doOnSuccess { v -> Log.v(TAG, "successfully wrote uuid len ${v.size}") }
+                                                        .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
+                                                        .ignoreElement()
+                                                        .toSingleDefault(connection)
+                                                )
+                                                .flatMapObservable { connection ->
+                                                    Log.e(TAG, "handling connection client")
+                                                    handleConnection(Observable.just(connection), scanResult.bleDevice)
+                                                }
+
                                         }
                                 }
-                        }
-                        .concatMap { connection ->
-                            handleConnection(Observable.just(connection), scanResult.bleDevice)
                         }
                     /*
                      * WAIT? why are we not doing anything with our gatt connections??
@@ -1041,7 +1053,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 // if we encounter any errors or terminate, remove cached connections
                                                 // as they may be tainted
                                                 sessionCache.remove(session.remoteLuid.luidVal)
-                                                activeLuids.remove(session.remoteLuid.luidVal)
                                                 connectionCache.remove(device.macAddress)
                                                 connection.dispose()
                                                 session.unlock()
@@ -1091,13 +1102,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.v(TAG, "gatt server initialized")
                     serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, operationsScheduler))
                     //TODO:
-                    connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
+                    val write = connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
                         .flatMap { trans ->
-                            Log.e(TAG, "hello from ${trans.remoteDevice}")
+                            Log.e(TAG, "hello from ${trans.remoteDevice.macAddress}")
                             //accquire wakelock
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)
                             if (activeLuids.putIfAbsent(luid, true) == null ) {
+                                Log.e(TAG, "handling connection server $luid")
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(handleConnection(trans.remoteDevice.establishConnection(false), trans.remoteDevice))
                             } else {
@@ -1111,6 +1123,22 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .retry()
                         .repeat()
 
+                    val read = connectionRaw.getOnCharacteristicReadRequest(UUID_HELLO)
+                        .flatMapCompletable { trans ->
+                            Log.v(TAG, "hello read from ${trans.remoteDevice.macAddress}")
+                            val luidRaw = myLuid.get()
+                            if (luidRaw == null) {
+                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
+                            } else {
+                                val luid = uuid2bytes(luidRaw)
+                                trans.sendReply(luid, BluetoothGatt.GATT_SUCCESS)
+                            }
+                        }
+                        .retry()
+                        .repeat()
+
+                    write.mergeWith(read)
+                        .subscribeOn(operationsScheduler)
                 }
                 .doOnDispose {
                     Log.e(TAG, "gatt server disposed")
