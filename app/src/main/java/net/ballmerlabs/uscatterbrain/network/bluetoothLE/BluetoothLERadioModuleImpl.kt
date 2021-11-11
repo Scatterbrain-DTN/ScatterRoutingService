@@ -16,6 +16,7 @@ import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.*
 import com.polidea.rxandroidble2.scan.ScanFilter
+import com.polidea.rxandroidble2.scan.ScanResult
 import com.polidea.rxandroidble2.scan.ScanSettings
 import io.reactivex.*
 import io.reactivex.Observable
@@ -42,6 +43,7 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
+import kotlin.collections.ArrayList
 
 data class OptionalBootstrap<T>(
         val item: T? = null,
@@ -752,18 +754,59 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     }
 
+    private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
+        Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
+       return scanResult.bleDevice.establishConnection(false)
+           .doOnSubscribe { acquireWakelock() }
+            .flatMapSingle { connection ->
+                Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
+                val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
+                Log.e(TAG, "writing hash len ${hash.size}")
+                connection.discoverServices()
+                    .flatMap { serv ->
+                        serv.getCharacteristic(UUID_HELLO)
+                            .flatMap { char ->
+                                Log.v(TAG, "found hello characteristic: ${char.uuid}")
+                                connection.readCharacteristic(char)
+                                    .flatMapCompletable { v ->
+                                        val luid = bytes2uuid(v)
+                                        Log.e(TAG, "client handling luid $luid")
+                                        if (activeLuids.putIfAbsent(luid, true) == null) {
+                                            Completable.complete()
+                                        } else {
+                                            Completable.error(IllegalStateException("device already connected"))
+                                        }
+                                    }
+                                    .andThen(
+                                        connection.writeCharacteristic(char, hash)
+                                            .doOnSuccess { v -> Log.v(TAG, "successfully wrote uuid len ${v.size}") }
+                                            .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
+                                            .ignoreElement()
+                                            .toSingleDefault(connection)
+                                    )
+                                    .flatMap { connection ->
+                                        Log.e(TAG, "handling connection client")
+                                        handleConnection(Observable.just(connection), scanResult.bleDevice)
+                                    }
+                            }
+                    }
+            }
+           .firstOrError()
+
+    }
+
     /*
      * discover LE devices. Currently this runs forever and sets a global disposable
      * so we can kill it if we want.
      * This only scans for scatterbrain UUIDs
      * TODO: make sure this runs on correct scheduler
      */
-    private fun discoverOnce(forever: Boolean): Disposable {
+    private fun discoverOnce(duration: Long, timeUnit: TimeUnit): Single<List<ScanResult>> {
         Log.d(TAG, "discover once called")
         val d = CompositeDisposable()
         val disp = discoveryDispoable.getAndSet(d)
         disp?.dispose()
-        val newd = mClient.scanBleDevices(
+        return mClient.scanBleDevices(
                 ScanSettings.Builder()
                         .setScanMode(parseScanMode())
                         .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
@@ -772,82 +815,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 ScanFilter.Builder()
                         .setServiceUuid(ParcelUuid(SERVICE_UUID))
                         .build())
-                .firstOrError()
-                .flatMapObservable { scanResult ->
-                    acquireWakelock()
-                    Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
-                    scanResult.bleDevice.establishConnection(false)
-                        .flatMap { connection ->
-                            Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
-                            val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
-                            Log.e(TAG, "writing hash len ${hash.size}")
-                            connection.discoverServices()
-                                .flatMapObservable { serv ->
-                                    serv.getCharacteristic(UUID_HELLO)
-                                        .flatMapObservable { char ->
-                                            Log.v(TAG, "found hello characteristic: ${char.uuid}")
-                                            connection.readCharacteristic(char)
-                                                .flatMapCompletable { v ->
-                                                    val luid = bytes2uuid(v)
-                                                    Log.e(TAG, "client handling luid $luid")
-                                                    if (activeLuids.putIfAbsent(luid, true) == null) {
-                                                        Completable.complete()
-                                                    } else {
-                                                        Completable.error(IllegalStateException("device already connected"))
-                                                    }
-                                                }
-                                                .andThen(
-                                                    connection.writeCharacteristic(char, hash)
-                                                        .doOnSuccess { v -> Log.v(TAG, "successfully wrote uuid len ${v.size}") }
-                                                        .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
-                                                        .ignoreElement()
-                                                        .toSingleDefault(connection)
-                                                )
-                                                .flatMapObservable { connection ->
-                                                    Log.e(TAG, "handling connection client")
-                                                    handleConnection(Observable.just(connection), scanResult.bleDevice)
-                                                }
-                                        }
-                                }
-                        }
-                    /*
-                     * WAIT? why are we not doing anything with our gatt connections??
-                     * see the comment in startServer() for why
-                     */
-
-                }
-                .ignoreElements()
-                .repeat()
-                .retry()
-                .doOnError { err -> Log.e(TAG, "error with initial handshake: $err") }
-                .subscribe(
-                        { Log.v(TAG, "handshake completed") },
-                        { err ->
-                            Log.e(TAG, """
-                                handshake failed: $err
-                                ${Arrays.toString(err.stackTrace)}
-                                """.trimIndent())
-                        }
-                )
-        if (!forever) {
-            val timeoutDisp = Completable.fromAction {}
-                    .delay(
-                            preferences.getLong(
-                                    mContext.getString(R.string.pref_transactiontimeout),
-                                    RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT),
-                            TimeUnit.SECONDS
-                    )
-                    .subscribe(
-                            {
-                                val globaldisp = discoveryDispoable.getAndSet(null)
-                                globaldisp.dispose()
-                                d.dispose()
-                            }
-                    ) { err -> Log.e(TAG, "error while timing out scan: $err") }
-            mGattDisposable.add(timeoutDisp)
-        }
-        d.add(newd)
-        return d
+            .take(duration, timeUnit, operationsScheduler)
+            .reduce(ArrayList(), { list: ArrayList<ScanResult>, result ->
+                list.add(result)
+                list
+            })
+            .map { l -> l.toList() }
     }
 
     /**
@@ -856,8 +829,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun discoverForever(): Observable<HandshakeResult> {
         discoveryPersistent.set(true)
-        discoverOnce(true)
-        return observeTransactions()
+        return discoverOnce(30, TimeUnit.SECONDS)
+            .flatMapObservable { results ->
+                Observable.fromIterable(results)
+                    .delay(10, TimeUnit.SECONDS, operationsScheduler)
+                    .concatMapSingle { scanResult ->
+                        processScanResult(scanResult)
+                            .subscribeOn(clientScheduler)
+                    }
+            }
                 .doOnSubscribe { disp ->
                     mGattDisposable.add(disp)
                 }
@@ -907,12 +887,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
 
-    private fun handleConnection(connection: Observable<RxBleConnection>, device: RxBleDevice): Observable<HandshakeResult> {
+    private fun handleConnection(connection: Observable<RxBleConnection>, device: RxBleDevice): Single<HandshakeResult> {
         return connection
             .map { c -> CachedLEConnection(c, channels, operationsScheduler) }
-            .flatMap { clientConnection ->
+            .flatMapSingle { clientConnection ->
                 serverSubject
-                    .flatMapObservable{ connection ->
+                    .flatMap { connection ->
                         Log.v(TAG, "stating stages")
                         getLuidClient(clientConnection)
                             .toObservable()
@@ -924,7 +904,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .doOnError { err -> Log.e(TAG, "client error on retrieving luid $err") }
                             .firstOrError()
                             .onErrorResumeNext(Single.never())
-                            .flatMapObservable { luid ->
+                            .flatMap { luid ->
                                 Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
                                 val s = sessionCache[luid.hashAsUUID!!]
                                     ?: LeDeviceSession(
@@ -953,7 +933,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 Log.v(TAG, "initializing session")
                                 initializeProtocol(s, TransactionResult.STAGE_LUID)
                                     .doOnError { e -> Log.e(TAG, "failed to initialize protocol $e") }
-                                    .flatMapObservable { session ->
+                                    .flatMap { session ->
                                         Log.v(TAG, "session initialized")
 
                                         /*
@@ -1013,8 +993,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         }
                                                         session.stage = transactionResult.second.nextStage
                                                     }
-                                                    .toObservable()
                                                     .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
+                                                    .toObservable()
 
 
                                             }
@@ -1033,7 +1013,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                             .toSingleDefault(r)
                                                     }
                                             }
-                                            .doOnNext {
+                                            .firstOrError()
+                                            .doOnSuccess {
                                                 Log.v(TAG, "wifi direct bootstrap complete, unlocking session.")
                                                 session.stage = TransactionResult.STAGE_TERMINATE
                                             }
@@ -1061,6 +1042,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             }
                     }
             }
+            .firstOrError()
     }
     /**
      * starts the gatt server in the background.
@@ -1098,7 +1080,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, operationsScheduler))
                     //TODO:
                     val write = connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
-                        .flatMap { trans ->
+                        .flatMapSingle { trans ->
                             Log.e(TAG, "hello from ${trans.remoteDevice.macAddress}")
                             //accquire wakelock
                             acquireWakelock()
@@ -1106,11 +1088,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             Log.e(TAG, "server handling luid $luid")
                             if (activeLuids.putIfAbsent(luid, true) == null ) {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                    .andThen(handleConnection(trans.remoteDevice.establishConnection(false), trans.remoteDevice))
+                                    .andThen(
+                                        handleConnection(trans.remoteDevice.establishConnection(false), trans.remoteDevice)
+                                            .subscribeOn(clientScheduler)
+                                    )
                             } else {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                                     .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-                                    .toObservable()
                             }
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
