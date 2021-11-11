@@ -15,7 +15,6 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.*
-import com.polidea.rxandroidble2.exceptions.BleDisconnectedException
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanSettings
 import io.reactivex.*
@@ -947,7 +946,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     .subscribe(
                                         { l ->
                                             Log.v(TAG, "peer $device timed out, removing from nearby peer cache")
-                                            sessionCache.remove(l.luidVal)
+                                            sessionCache.remove(l.hashAsUUID)
                                         },
                                         { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
                                     )
@@ -956,31 +955,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     .doOnError { e -> Log.e(TAG, "failed to initialize protocol $e") }
                                     .flatMapObservable { session ->
                                         Log.v(TAG, "session initialized")
-                                        val d = connection.connection.getOnCharacteristicReadRequest(UUID_SEMAPHOR)
-                                            .concatMapCompletable { trans ->
-                                                val remoteluid = bytes2uuid(trans.value)
-                                                val remotesession = sessionCache[remoteluid]
-
-                                                when {
-                                                    remotesession == null -> {
-                                                        Log.e(TAG, "remote session for $remoteluid was null")
-                                                        trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
-                                                    }
-                                                    remotesession.locked -> {
-                                                        Log.e(TAG, "attempted to rewind session $remoteluid but was locked")
-                                                        trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
-                                                    }
-                                                    else -> {
-                                                        Log.v(TAG, "remote session $remoteluid valid, commencing rewind")
-                                                        rewindSession(remotesession)
-                                                        trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS )
-                                                    }
-                                                }
-                                            }
-                                            .subscribe(
-                                                { Log.v(TAG, "replay characteristic handling completed") },
-                                                { err -> Log.e(TAG, "replay characteristic handling error: $err")}
-                                            )
 
                                         /*
                                          * this is kind of hacky. this observable chain is the driving force of our state machine
@@ -1061,29 +1035,24 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             }
                                             .doOnNext {
                                                 Log.v(TAG, "wifi direct bootstrap complete, unlocking session.")
-                                                session.unlock()
-                                                activeLuids.remove(session.remoteLuid.luidVal)
+                                                session.stage = TransactionResult.STAGE_TERMINATE
                                             }
                                             .doOnError { err ->
                                                 Log.e(TAG, "session ${session.remoteLuid} ended with error $err")
                                                 err.printStackTrace()
-                                                when (err) {
-                                                    is BleDisconnectedException -> session.stage = TransactionResult.STAGE_TERMINATE
-                                                    else -> session.stage = TransactionResult.STAGE_SUSPEND
-                                                }
-                                                session.unlock()
+                                                session.stage = TransactionResult.STAGE_TERMINATE
                                             }
                                             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                                             .doFinally {
                                                 Log.e(TAG, "TERMINATION: session $device terminated")
                                                 // if we encounter any errors or terminate, remove cached connections
                                                 // as they may be tainted
-                                                sessionCache.remove(session.remoteLuid.luidVal)
+                                                sessionCache.remove(session.remoteLuid.hashAsUUID)
                                                 connectionCache.remove(device.macAddress)
-                                                connection.dispose()
+                                                clientConnection.dispose()
                                                 session.unlock()
+                                                activeLuids.remove(session.remoteLuid.hashAsUUID)
                                                 removeConnection(device.macAddress)
-
                                                 myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                             }
 
