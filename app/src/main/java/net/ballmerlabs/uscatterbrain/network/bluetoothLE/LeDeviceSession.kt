@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.bluetooth.BluetoothDevice
 import android.util.Log
 import android.util.Pair
+import com.polidea.rxandroidble2.internal.util.GattServerTransaction
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject

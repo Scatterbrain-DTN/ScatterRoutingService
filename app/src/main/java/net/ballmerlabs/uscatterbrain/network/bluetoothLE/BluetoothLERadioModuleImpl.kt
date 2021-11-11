@@ -46,6 +46,7 @@ import javax.inject.Singleton
 
 data class OptionalBootstrap<T>(
         val item: T? = null,
+        val err: Throwable? = null
 ) {
     val isPresent: Boolean
         get() = item != null
@@ -58,6 +59,14 @@ data class OptionalBootstrap<T>(
         fun <T> empty(): OptionalBootstrap<T> {
             return OptionalBootstrap(null)
         }
+
+        fun <T> err(throwable: Throwable): OptionalBootstrap<T> {
+            return OptionalBootstrap(item = null, err = throwable)
+        }
+    }
+
+    fun isError(): Boolean {
+        return err != null
     }
 }
 
@@ -799,7 +808,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     Log.e(TAG, "handling connection client")
                                                     handleConnection(Observable.just(connection), scanResult.bleDevice)
                                                 }
-
                                         }
                                 }
                         }
@@ -969,7 +977,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     }
                                                 }
                                             }
-                                            .subscribe()
+                                            .subscribe(
+                                                { Log.v(TAG, "replay characteristic handling completed") },
+                                                { err -> Log.e(TAG, "replay characteristic handling error: $err")}
+                                            )
 
                                         /*
                                          * this is kind of hacky. this observable chain is the driving force of our state machine
@@ -980,34 +991,46 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                          */
                                         session.observeStage()
                                             .doOnNext { stage -> Log.v(TAG, "handling stage: $stage") }
-                                            .concatMap {
+                                            .concatMap { stage ->
                                                 Single.zip(
                                                     session.singleClient(),
                                                     session.singleServer(),
                                                     { client, server ->
                                                         server(connection)
+                                                            .doOnError { err ->
+                                                                Log.e(TAG, "error in gatt server transaction for ${device.macAddress}, stage: $stage, $err")
+                                                            }
                                                             .doOnSuccess { Log.v(TAG, "server handshake completed") }
-                                                            .zipWith(client(clientConnection), { first, second ->
+                                                            .onErrorReturn { err -> OptionalBootstrap.err(err) }
+                                                            .zipWith(
+                                                                client(clientConnection)
+                                                                    .onErrorReturn { TransactionResult(
+                                                                        TransactionResult.STAGE_TERMINATE,
+                                                                        device.bluetoothDevice,
+                                                                        luid.luidVal,
+                                                                        err = true
+                                                                    ) },
+                                                                { first, second ->
                                                                 android.util.Pair(first, second)
                                                             })
-                                                            .toObservable()
                                                             .doOnSubscribe { Log.v("debug", "client handshake subscribed") }
                                                     }
 
-                                                ).flatMapObservable { result -> result }
+                                                ).flatMap { result -> result }
                                                     .subscribeOn(clientScheduler)
+                                                    .flatMap { v ->
+                                                        when {
+                                                            v.first.isError() -> Single.error(v.first.err)
+                                                            v.second.err -> Single.error(IllegalStateException("gatt client error"))
+                                                            else -> Single.just(v)
+                                                        }
+                                                    }
                                                     .doOnError { err ->
                                                         Log.e(TAG, "transaction error $err")
                                                         err.printStackTrace() //TODO: handle crashlytics
                                                         session.stage = TransactionResult.STAGE_TERMINATE
                                                     }
-                                                    // retry on error
-                                                    .onErrorReturnItem(android.util.Pair(OptionalBootstrap.empty(), TransactionResult(
-                                                        TransactionResult.STAGE_ADVERTISE,
-                                                        device.bluetoothDevice,
-                                                        luid.hashAsUUID!!
-                                                    )))
-                                                    .doOnNext { transactionResult ->
+                                                    .doOnSuccess { transactionResult ->
                                                         if (session.stage == TransactionResult.STAGE_SUSPEND &&
                                                             !transactionResult.second.hasResult() &&
                                                             !transactionResult.first.isPresent) {
@@ -1016,7 +1039,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         }
                                                         session.stage = transactionResult.second.nextStage
                                                     }
+                                                    .toObservable()
                                                     .filter { pair -> pair.second.hasResult() || pair.first.isPresent }
+
 
                                             }
                                             .takeUntil { result -> result.second.nextStage == TransactionResult.STAGE_TERMINATE }
