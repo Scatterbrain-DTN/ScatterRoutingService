@@ -219,6 +219,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
+    private val serverBusyRelay = BehaviorRelay.create<Boolean>()
+
     private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             super.onStartSuccess(settingsInEffect)
@@ -717,10 +719,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     Single.just(session.client.connection)
                                             .flatMap { connection ->
                                                 connection.writeCharacteristic(UUID_SEMAPHOR, uuid2bytes(
-                                                        LuidPacket.newBuilder()
-                                                                .setLuid(myLuid.get())
-                                                                .enableHashing(ScatterRoutingService.PROTO_VERSION)
-                                                                .build().hashAsUUID!!
+                                                    LuidPacket.newBuilder()
+                                                        .setLuid(myLuid.get())
+                                                        .enableHashing(ScatterRoutingService.PROTO_VERSION)
+                                                        .build().hashAsUUID
                                                 ))
                                             }
                                             .flatMapCompletable {
@@ -791,9 +793,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     private fun discoverOnce(duration: Long, timeUnit: TimeUnit): Single<List<ScanResult>> {
         Log.d(TAG, "discover once called")
-        val d = CompositeDisposable()
-        val disp = discoveryDispoable.getAndSet(d)
-        disp?.dispose()
         return mClient.scanBleDevices(
                 ScanSettings.Builder()
                         .setScanMode(parseScanMode())
@@ -817,27 +816,23 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun discoverForever(): Observable<HandshakeResult> {
         discoveryPersistent.set(true)
-        return discoverOnce(30, TimeUnit.SECONDS)
-            .flatMapObservable { results ->
-                Log.e(TAG, "received scan results ${results.size}")
-                Observable.fromIterable(results)
-                    .distinct { res -> res.bleDevice.macAddress}
-                    .delay(10, TimeUnit.SECONDS, operationsScheduler)
-                    .concatMapSingle { scanResult ->
-                        processScanResult(scanResult)
-                            .doOnSuccess {
-                                activeLuids.clear()
-                                sessionCache.clear()
-                                Log.e(TAG, "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete")
+        return serverBusyRelay
+            .filter { v -> !v }
+            .firstOrError()
+            .flatMapObservable {
+                discoverOnce(30, TimeUnit.SECONDS)
+                    .flatMapObservable { results ->
+                        Log.e(TAG, "received scan results ${results.size}")
+                        Observable.fromIterable(results)
+                            .distinct { res -> res.bleDevice.macAddress}
+                            .concatMapSingle { scanResult ->
+                                processScanResult(scanResult)
+                                    .doOnSuccess {
+                                        Log.e(TAG, "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete")
+                                    }
+                                    .doOnError { err -> Log.e(TAG, "transaction for ${scanResult.bleDevice.macAddress} failed: $err") }
+                                    .subscribeOn(clientScheduler)
                             }
-                            .doOnError { err -> Log.e(TAG, "transaction for ${scanResult.bleDevice.macAddress} failed: $err") }
-                            .flatMap { result ->
-                                serverSubject.flatMapCompletable { server ->
-                                    server.connection.disconnect(scanResult.bleDevice)
-                                        .onErrorComplete()
-                                }.toSingleDefault(result)
-                            }
-                            .subscribeOn(clientScheduler)
                     }
             }
             .repeat()
@@ -907,7 +902,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .onErrorResumeNext(Single.never())
                             .flatMap { luid ->
                                 Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
-                                val s = sessionCache[luid.hashAsUUID!!]
+                                val s = sessionCache[luid.hashAsUUID]
                                     ?: LeDeviceSession(
                                         device.bluetoothDevice,
                                         myLuid.get(),
@@ -916,7 +911,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         luid
                                     )
 
-                                sessionCache.putIfAbsent(luid.hashAsUUID!!, s)
+                                sessionCache.putIfAbsent(luid.hashAsUUID, s)
                                 //TODO: handle this disposable
                                 val disp = Single.just(luid)
                                     .delay(
@@ -1086,11 +1081,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             val luid = bytes2uuid(trans.value)
                             Log.e(TAG, "server handling luid $luid")
                             if (activeLuids.putIfAbsent(luid, true) == null ) {
+                                serverBusyRelay.accept(true)
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(
                                         handleConnection(trans.remoteDevice.establishConnection(false), trans.remoteDevice)
                                             .subscribeOn(clientScheduler)
                                     )
+                                    .doFinally { serverBusyRelay.accept(false) }
                             } else {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                                     .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
@@ -1098,9 +1095,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
                         .doOnNext { t -> Log.v(TAG, "transactionResult ${t.success}") }
-                        .onErrorResumeNext(Observable.empty())
                         .retry()
                         .repeat()
+                        .onErrorResumeNext(Observable.empty())
 
                     val read = connectionRaw.getOnCharacteristicReadRequest(UUID_HELLO)
                         .flatMapCompletable { trans ->
@@ -1219,5 +1216,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     init {
         observeTransactionComplete()
+        serverBusyRelay.accept(false)
     }
 }

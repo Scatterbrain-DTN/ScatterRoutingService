@@ -27,7 +27,7 @@ class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
         get() = if (isHashed) {
             packet.valHash.toByteArray()
         } else {
-            ByteArray(0)
+            calculateHashFromUUID(luidVal)
         }
 
     val protoVersion: Int
@@ -38,11 +38,11 @@ class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
         }
 
     //note: this only is safe because crypto_generichash_BYTES_MIN is 16
-    val hashAsUUID: UUID?
+    val hashAsUUID: UUID
         get() {
             val h = packet.valHash.hash.toByteArray()
             return if (!isHashed)
-                null
+                hashAsUUID(calculateHashFromUUID(luidVal))
             else
                 hashAsUUID(h)
         }
