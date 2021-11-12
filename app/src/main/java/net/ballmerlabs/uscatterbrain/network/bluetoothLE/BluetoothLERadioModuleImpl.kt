@@ -821,10 +821,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .flatMapObservable { results ->
                 Log.e(TAG, "received scan results ${results.size}")
                 Observable.fromIterable(results)
+                    .distinct { res -> res.bleDevice.macAddress}
                     .delay(10, TimeUnit.SECONDS, operationsScheduler)
                     .concatMapSingle { scanResult ->
                         processScanResult(scanResult)
-                            .doOnSuccess { Log.e(TAG, "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete") }
+                            .doOnSuccess {
+                                activeLuids.clear()
+                                sessionCache.clear()
+                                Log.e(TAG, "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete")
+                            }
                             .doOnError { err -> Log.e(TAG, "transaction for ${scanResult.bleDevice.macAddress} failed: $err") }
                             .flatMap { result ->
                                 serverSubject.flatMapCompletable { server ->
