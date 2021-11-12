@@ -48,7 +48,10 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 .doOnDispose { discoveryLock.set(false) }
                 .subscribe(
                         { res -> Log.v(TAG, "finished transaction: ${res.success}") }
-                ) { err -> Log.e(TAG, "error in transaction: $err") }
+                ) { err ->
+                    Log.e(TAG, "error in transaction: $err")
+                    err.printStackTrace()
+                }
         val disp = globalDisposable.getAndSet(d)
         disp?.dispose()
     }

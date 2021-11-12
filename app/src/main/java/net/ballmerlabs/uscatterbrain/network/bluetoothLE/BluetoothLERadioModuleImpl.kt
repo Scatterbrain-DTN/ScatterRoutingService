@@ -210,9 +210,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val mGattDisposable = CompositeDisposable()
     private val discoveryDispoable = AtomicReference<Disposable>()
 
-    //we need to cache connections because RxAndroidBle doesn't like making double GATT connections
-    private val connectionCache = ConcurrentHashMap<String, CachedLEConnection>()
-
     private val transactionCompleteRelay = PublishRelay.create<HandshakeResult>()
 
     // luid is a temporary unique identifier used for a single transaction.
@@ -691,15 +688,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
     }
 
-    private fun removeConnection(device: String) {
-        try {
-            val disp = connectionCache.remove(device)
-            disp?.dispose()
-        } catch (exception: NoSuchElementException) {
-            Log.w(TAG, "tried to remove nonexistent connection $device")
-        }
-    }
-
     /* attempt to bootstrap to wifi direct using upgrade packet (gatt client version) */
     private fun bootstrapWifiP2p(bootstrapRequest: BootstrapRequest): Single<HandshakeResult> {
         return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest)
@@ -831,16 +819,24 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         discoveryPersistent.set(true)
         return discoverOnce(30, TimeUnit.SECONDS)
             .flatMapObservable { results ->
+                Log.e(TAG, "received scan results ${results.size}")
                 Observable.fromIterable(results)
                     .delay(10, TimeUnit.SECONDS, operationsScheduler)
                     .concatMapSingle { scanResult ->
                         processScanResult(scanResult)
+                            .doOnSuccess { Log.e(TAG, "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete") }
+                            .doOnError { err -> Log.e(TAG, "transaction for ${scanResult.bleDevice.macAddress} failed: $err") }
+                            .flatMap { result ->
+                                serverSubject.flatMapCompletable { server ->
+                                    server.connection.disconnect(scanResult.bleDevice)
+                                        .onErrorComplete()
+                                }.toSingleDefault(result)
+                            }
                             .subscribeOn(clientScheduler)
                     }
             }
-                .doOnSubscribe { disp ->
-                    mGattDisposable.add(disp)
-                }
+            .repeat()
+            .retry()
     }
 
     /**
@@ -1029,11 +1025,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 // if we encounter any errors or terminate, remove cached connections
                                                 // as they may be tainted
                                                 sessionCache.remove(session.remoteLuid.hashAsUUID)
-                                                connectionCache.remove(device.macAddress)
-                                                clientConnection.dispose()
-                                                session.unlock()
+                                                //clientConnection.dispose()
+                                              //  session.unlock()
                                                 activeLuids.remove(session.remoteLuid.hashAsUUID)
-                                                removeConnection(device.macAddress)
                                                 myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                             }
 
@@ -1099,20 +1093,22 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
                         .doOnNext { t -> Log.v(TAG, "transactionResult ${t.success}") }
+                        .onErrorResumeNext(Observable.empty())
                         .retry()
                         .repeat()
 
                     val read = connectionRaw.getOnCharacteristicReadRequest(UUID_HELLO)
                         .flatMapCompletable { trans ->
-                            Log.v(TAG, "hello read from ${trans.remoteDevice.macAddress}")
                             val luidRaw = myLuid.get()
                             if (luidRaw == null) {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                             } else {
                                 val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(luidRaw)))
+                                Log.v(TAG, "hello read from ${trans.remoteDevice.macAddress} $hash")
                                 trans.sendReply(hash, BluetoothGatt.GATT_SUCCESS)
                             }
                         }
+                        .onErrorComplete()
                         .retry()
                         .repeat()
 
