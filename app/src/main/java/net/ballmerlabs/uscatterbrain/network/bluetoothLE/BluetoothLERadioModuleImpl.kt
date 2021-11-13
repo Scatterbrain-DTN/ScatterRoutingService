@@ -220,8 +220,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
-    private val serverBusyRelay = BehaviorRelay.create<Boolean>()
-
     private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             super.onStartSuccess(settingsInEffect)
@@ -779,7 +777,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 Log.e(TAG, "handling connection client")
                                                 handleConnection(Observable.just(connection), scanResult.bleDevice)
                                             }
-                                            .doFinally { activeLuids.remove(luid) }
+                                            .doFinally {
+                                                Log.v(TAG, "client removing luid $luid")
+                                                activeLuids.remove(luid)
+                                            }
                                     }
 
                             }
@@ -820,11 +821,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun discoverForever(): Observable<HandshakeResult> {
         discoveryPersistent.set(true)
-        return serverBusyRelay
-            .filter { v -> !v }
-            .firstOrError()
-            .flatMapObservable {
-                discoverOnce(30, TimeUnit.SECONDS)
+        return discoverOnce(30, TimeUnit.SECONDS)
                     .flatMapObservable { results ->
                         Log.e(TAG, "received scan results ${results.size}")
                         Observable.fromIterable(results)
@@ -837,7 +834,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     .doOnError { err -> Log.e(TAG, "transaction for ${scanResult.bleDevice.macAddress} failed: $err") }
                             }
                     }
-            }
             .repeat()
             .retry()
     }
@@ -1085,7 +1081,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             val luid = bytes2uuid(trans.value)
                             Log.e(TAG, "server handling luid $luid")
                             if (activeLuids.putIfAbsent(luid, true) == null ) {
-                                serverBusyRelay.accept(true)
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(
                                         handleConnection(
@@ -1095,7 +1090,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         )
                                     )
                                     .doFinally {
-                                        serverBusyRelay.accept(false)
+                                        Log.v(TAG, "server removing remote luid $luid")
                                         activeLuids.remove(luid)
                                     }
                             } else {
@@ -1227,6 +1222,5 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     init {
         observeTransactionComplete()
-        serverBusyRelay.accept(false)
     }
 }
