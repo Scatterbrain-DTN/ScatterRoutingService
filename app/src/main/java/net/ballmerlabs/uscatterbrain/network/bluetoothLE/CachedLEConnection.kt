@@ -9,6 +9,7 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import java.util.*
@@ -29,9 +30,11 @@ class CachedLEConnection(
         private val scheduler: Scheduler
         ) : Disposable {
     private val disposable = CompositeDisposable()
+    private val enabled = CompletableSubject.create()
     private val timeout: Long = 20
 
     init {
+        premptiveEnable().subscribe(enabled)
     }
 
     /**
@@ -49,7 +52,7 @@ class CachedLEConnection(
                                     .doOnNext { Log.v(TAG, "preemptively enabled indications for $uuid") }
                                     .doOnError { Log.e(TAG, "failed to preemptively enable indications for $uuid") }
                                     .firstOrError()
-                            }
+                                    .retry(8) }
 
                 }
                 .ignoreElements()
@@ -84,7 +87,7 @@ class CachedLEConnection(
      * @return observable emitting bytes received
      */
     private fun cachedNotification(): Observable<ByteArray> {
-        return selectChannel()
+        return enabled.andThen(selectChannel())
                 .flatMapObservable { uuid: UUID ->
                     Single.just(connection)
                             .flatMapObservable { c ->
@@ -100,6 +103,7 @@ class CachedLEConnection(
                                         .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
                             }
                 }
+                .retry(10)
     }
 
     /**
