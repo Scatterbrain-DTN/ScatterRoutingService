@@ -99,41 +99,45 @@ class CachedLEServerConnection(
          * the adapter can only service one packet per channel
          */
         val d =
-        packetQueue.toFlowable(BackpressureStrategy.BUFFER)
-                .zipWith(connection.getOnCharacteristicReadRequest(
-                        BluetoothLERadioModuleImpl.UUID_SEMAPHOR
-                )
-                        .toFlowable(BackpressureStrategy.BUFFER), { packet, req ->
+            connection.getOnCharacteristicReadRequest(
+                BluetoothLERadioModuleImpl.UUID_SEMAPHOR
+            )
+                .subscribeOn(scheduler)
+                .toFlowable(BackpressureStrategy.BUFFER)
+                .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER), { req, packet ->
                     Log.v(TAG, "received UUID_SEMAPHOR write")
                             selectCharacteristic()
-                                .delay(0, TimeUnit.SECONDS, scheduler)
                                 .flatMapCompletable { characteristic ->
                                                     connection.getOnCharacteristicReadRequest(characteristic.uuid)
-                                                            .firstOrError()
-                                                            .flatMapCompletable { trans ->
-                                                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                                                    .andThen(
-                                                                        connection.setupIndication(
+                                                        .firstOrError()
+                                                        .timeout(5, TimeUnit.SECONDS)
+                                                        .flatMapCompletable { trans ->
+                                                            trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                                                                .andThen(
+                                                                    connection.setupIndication(
                                                                         characteristic.uuid,
                                                                         packet.writeToStream(20, scheduler),
                                                                         trans.remoteDevice
-                                                                        )
-                                                                            .doOnComplete { Log.v(TAG, "indication for packet ${packet.type} finished") }
                                                                     )
-                                                            }
-                                                        .mergeWith(req.sendReply(
+                                                                        .timeout(5, TimeUnit.SECONDS)
+                                                                        .doOnComplete { Log.v(TAG, "indication for packet ${packet.type} finished") }
+                                                                )
+                                                        }
+                                                        .mergeWith(
+                                                            req.sendReply(
                                                             BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
                                                             BluetoothGatt.GATT_SUCCESS
-                                                        ))
-                                                            .doOnError{ err ->
-                                                                Log.e(TAG, "error in gatt server indication $err")
-                                                                errorRelay.accept(err)
-                                                            }
-                                                            .onErrorComplete()
-                                                            .doFinally {
-                                                                characteristic.release()
-                                                                lockRelay.accept(false)
-                                                            }
+                                                            ).timeout(5, TimeUnit.SECONDS)
+                                                        )
+                                                        .doOnError{ err ->
+                                                            Log.e(TAG, "error in gatt server indication $err")
+                                                            errorRelay.accept(err)
+                                                        }
+                                                        .onErrorComplete()
+                                                        .doFinally {
+                                                            characteristic.release()
+                                                            lockRelay.accept(false)
+                                                        }
                                     }
                                     .doOnError { err ->
                                         Log.e(TAG, "error in gatt server selectCharacteristic: $err")
