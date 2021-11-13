@@ -868,7 +868,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             )
                             .doOnError { err -> Log.e(TAG, "client error on retrieving luid $err") }
                             .firstOrError()
-                            .onErrorResumeNext(Single.never())
                             .flatMap { luid ->
                                 Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
                                 val s = LeDeviceSession(

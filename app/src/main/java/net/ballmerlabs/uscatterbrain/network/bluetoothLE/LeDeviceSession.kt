@@ -97,7 +97,6 @@ class LeDeviceSession(
     fun singleServer(): Single<ServerTransaction> {
         return Single.fromCallable { transactionMap[stage]!!.second }
                 .doOnError { err: Throwable -> Log.e(TAG, "failed to get single server for stage $stage: $err") }
-                .onErrorResumeNext(Single.never())
     }
 
     /**
@@ -107,7 +106,6 @@ class LeDeviceSession(
     fun singleClient(): Single<ClientTransaction> {
         return Single.fromCallable { transactionMap[stage]!!.first }
                 .doOnError { err: Throwable -> Log.e(TAG, "failed to get single client for stage $stage: $err") }
-                .onErrorResumeNext(Single.never())
     }
 
     /**
