@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.bluetooth.BluetoothGatt
 import android.util.Log
 import com.google.protobuf.MessageLite
-import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleServerConnection
 import io.reactivex.*
@@ -29,7 +28,6 @@ class CachedLEServerConnection(
         ) : Disposable {
     private val disposable = CompositeDisposable()
     private val packetQueue = PublishRelay.create<ScatterSerializable<out MessageLite>>()
-    private val lockRelay = BehaviorRelay.create<Boolean>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
 
     /**
@@ -55,14 +53,10 @@ class CachedLEServerConnection(
     fun <T : MessageLite> serverNotify(
             packet: ScatterSerializable<T>
     ): Completable {
-        return lockRelay.takeUntil { v -> !v }.ignoreElements()
-                .andThen(
-                    Completable.fromAction {
+        return Completable.fromAction {
+                        Log.e(TAG, "queue accepted packet ${packet.type}")
                         packetQueue.accept(packet)
-                    }
-                            .doOnSubscribe { lockRelay.accept(true) }
-                            .andThen(lockRelay.takeUntil { v -> !v }.ignoreElements())
-                ).doOnComplete { Log.v(TAG, "serverNotify for packet " + packet.type) }
+                    }.doOnComplete { Log.v(TAG, "serverNotify for packet " + packet.type) }
 
     }
 
@@ -86,7 +80,6 @@ class CachedLEServerConnection(
     }
 
     init {
-        lockRelay.accept(false)
         /*
          * When a client reads from the semaphor characteristic, take the following steps
          * 
@@ -102,7 +95,6 @@ class CachedLEServerConnection(
             connection.getOnCharacteristicReadRequest(
                 BluetoothLERadioModuleImpl.UUID_SEMAPHOR
             )
-                .subscribeOn(scheduler)
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER), { req, packet ->
                     Log.v(TAG, "received UUID_SEMAPHOR write ${req.remoteDevice.macAddress}")
@@ -111,7 +103,6 @@ class CachedLEServerConnection(
                                     Log.v(TAG, "LOCKED characteristic ${characteristic.uuid}")
                                                     connection.getOnCharacteristicReadRequest(characteristic.uuid)
                                                         .firstOrError()
-                                                        .timeout(5, TimeUnit.SECONDS)
                                                         .flatMapCompletable { trans ->
                                                             Log.v(TAG, "characteristic ${characteristic.uuid} start indications")
                                                             trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
@@ -141,11 +132,11 @@ class CachedLEServerConnection(
                                                             Log.e(TAG, "error in gatt server indication $err")
                                                             errorRelay.accept(err)
                                                         }
+                                                        .timeout(5, TimeUnit.SECONDS)
                                                         .onErrorComplete()
                                                         .doFinally {
                                                             Log.v(TAG, "releasing locked characteristic ${characteristic.uuid}")
                                                             characteristic.release()
-                                                            lockRelay.accept(false)
                                                         }
                                 }
                                 .onErrorResumeNext { req.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE) }
