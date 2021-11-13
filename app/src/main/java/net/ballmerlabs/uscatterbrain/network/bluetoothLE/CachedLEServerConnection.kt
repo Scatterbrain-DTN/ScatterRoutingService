@@ -41,7 +41,7 @@ class CachedLEServerConnection(
     private fun selectCharacteristic(): Single<OwnedCharacteristic> {
         return Observable.mergeDelayError(
                 Observable.fromIterable(channels.values)
-                        .map { lockedCharactersitic: LockedCharactersitic -> lockedCharactersitic.awaitCharacteristic().toObservable() }
+                        .map { lockedCharactersitic -> lockedCharactersitic.awaitCharacteristic().toObservable() }
         )
                 .firstOrError()
                 .doOnSuccess { char -> Log.v(TAG, "selected characteristic $char") }
@@ -52,7 +52,7 @@ class CachedLEServerConnection(
      * @param packet ScatterSerializable message to send
      * @return completable
      */
-    fun <T : MessageLite>serverNotify(
+    fun <T : MessageLite> serverNotify(
             packet: ScatterSerializable<T>
     ): Completable {
         return lockRelay.takeUntil { v -> !v }.ignoreElements()
@@ -121,6 +121,10 @@ class CachedLEServerConnection(
                                                                             .doOnComplete { Log.v(TAG, "indication for packet ${packet.type} finished") }
                                                                     )
                                                             }
+                                                        .mergeWith(req.sendReply(
+                                                            BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
+                                                            BluetoothGatt.GATT_SUCCESS
+                                                        ))
                                                             .doOnError{ err ->
                                                                 Log.e(TAG, "error in gatt server indication $err")
                                                                 errorRelay.accept(err)
@@ -129,16 +133,6 @@ class CachedLEServerConnection(
                                                             .doFinally {
                                                                 characteristic.release()
                                                                 lockRelay.accept(false)
-                                                            }
-                                                            .doOnSubscribe {
-                                                                req.sendReply(
-                                                                        BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
-                                                                        BluetoothGatt.GATT_SUCCESS
-                                                                )
-                                                                    .subscribe(
-                                                                            { },
-                                                                            { err -> Log.e(TAG, "failed to ack semaphor read: $err")}
-                                                                    )
                                                             }
                                     }
                                     .doOnError { err ->

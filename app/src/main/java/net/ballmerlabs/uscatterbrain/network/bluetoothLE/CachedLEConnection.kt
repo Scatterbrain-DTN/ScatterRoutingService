@@ -92,12 +92,8 @@ class CachedLEConnection(
                     Single.just(connection)
                             .flatMapObservable { c ->
                                 c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                                        .mergeWith(c.readCharacteristic(uuid).ignoreElement())
                                         .flatMap { observable -> observable }
-                                        .doOnSubscribe {
-                                            Log.v(TAG, "client subscribed to notifications for $uuid")
-                                            c.readCharacteristic(uuid)
-                                                    .subscribe()
-                                        }
                                         .doOnComplete { Log.e(TAG, "notifications completed for some reason") }
                                         .doOnNext { b: ByteArray -> Log.v(TAG, "client received bytes " + b.size) }
                                         .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
