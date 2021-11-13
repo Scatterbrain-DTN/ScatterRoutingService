@@ -22,6 +22,7 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
@@ -239,7 +240,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.e(TAG, "error while receiving luid packet: $err")
                     err.printStackTrace()
                 }
-                .subscribeOn(clientScheduler)
                 .flatMap { luidPacket ->
                     if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
                         Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
@@ -263,7 +263,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .flatMapCompletable { luidpacket ->
                     serverConn.serverNotify(luidpacket)
                 }
-                .subscribeOn(serverScheduler)
     }
 
     private fun observeTransactionComplete() {
@@ -748,36 +747,41 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
        return scanResult.bleDevice.establishConnection(false)
            .doOnSubscribe { acquireWakelock() }
-            .flatMapSingle { connection ->
+            .flatMap { connection ->
                 Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
                 val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
                 Log.e(TAG, "writing hash len ${hash.size}")
                 connection.discoverServices()
-                    .flatMap { serv ->
+                    .flatMapObservable { serv ->
                         serv.getCharacteristic(UUID_HELLO)
-                            .flatMap { char ->
+                            .flatMapObservable { char ->
                                 Log.v(TAG, "found hello characteristic: ${char.uuid}")
                                 connection.readCharacteristic(char)
-                                    .flatMapCompletable { v ->
+                                    .flatMapObservable { v ->
                                         val luid = bytes2uuid(v)
-                                        Log.e(TAG, "client handling luid $luid")
-                                        if (activeLuids.putIfAbsent(luid, true) == null) {
-                                            Completable.complete()
-                                        } else {
-                                            Completable.error(IllegalStateException("device already connected"))
-                                        }
+                                        Single.just(luid)
+                                            .flatMapCompletable {
+                                                Log.e(TAG, "client handling luid $luid")
+                                                if (activeLuids.putIfAbsent(luid, true) == null) {
+                                                    Completable.complete()
+                                                } else {
+                                                    Completable.error(IllegalStateException("device already connected (client)"))
+                                                }
+                                            }
+                                            .andThen(
+                                                connection.writeCharacteristic(char, hash)
+                                                    .doOnSuccess { res -> Log.v(TAG, "successfully wrote uuid len ${res.size}") }
+                                                    .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
+                                                    .ignoreElement()
+                                                    .toSingleDefault(connection)
+                                            )
+                                            .flatMapObservable { connection ->
+                                                Log.e(TAG, "handling connection client")
+                                                handleConnection(Observable.just(connection), scanResult.bleDevice)
+                                            }
+                                            .doFinally { activeLuids.remove(luid) }
                                     }
-                                    .andThen(
-                                        connection.writeCharacteristic(char, hash)
-                                            .doOnSuccess { v -> Log.v(TAG, "successfully wrote uuid len ${v.size}") }
-                                            .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
-                                            .ignoreElement()
-                                            .toSingleDefault(connection)
-                                    )
-                                    .flatMap { connection ->
-                                        Log.e(TAG, "handling connection client")
-                                        handleConnection(Observable.just(connection), scanResult.bleDevice)
-                                    }
+
                             }
                     }
             }
@@ -831,7 +835,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         Log.e(TAG, "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete")
                                     }
                                     .doOnError { err -> Log.e(TAG, "transaction for ${scanResult.bleDevice.macAddress} failed: $err") }
-                                    .subscribeOn(clientScheduler)
                             }
                     }
             }
@@ -883,20 +886,21 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
 
-    private fun handleConnection(connection: Observable<RxBleConnection>, device: RxBleDevice): Single<HandshakeResult> {
+    private fun handleConnection(connection: Observable<RxBleConnection>, device: RxBleDevice): Observable<HandshakeResult> {
         return connection
-            .map { c -> CachedLEConnection(c, channels, operationsScheduler) }
-            .flatMapSingle { clientConnection ->
+            .map { c -> CachedLEConnection(c, channels, clientScheduler) }
+            .flatMap { clientConnection ->
                 serverSubject
-                    .flatMap { connection ->
+                    .flatMapObservable { connection ->
                         Log.v(TAG, "stating stages")
                         getLuidClient(clientConnection)
+                            .observeOn(clientScheduler)
                             .toObservable()
                             .mergeWith(
                                 getLuidServer(connection)
+                                    .observeOn(serverScheduler)
                                     .doOnError { err -> Log.e(TAG, "server error on retrieving luid $err") }
                             )
-                            .subscribeOn(operationsScheduler)
                             .doOnError { err -> Log.e(TAG, "client error on retrieving luid $err") }
                             .firstOrError()
                             .onErrorResumeNext(Single.never())
@@ -967,7 +971,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     }
 
                                                 ).flatMap { result -> result }
-                                                    .subscribeOn(clientScheduler)
                                                     .flatMap { v ->
                                                         when {
                                                             v.first.isError() -> Single.error(v.first.err)
@@ -1034,9 +1037,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     }
 
                             }
+                            .toObservable()
                     }
             }
-            .firstOrError()
     }
     /**
      * starts the gatt server in the background.
@@ -1071,10 +1074,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .doOnError { Log.e(TAG, "failed to open server") }
                 .flatMapObservable { connectionRaw ->
                     Log.v(TAG, "gatt server initialized")
-                    serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, operationsScheduler))
+                    serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, serverScheduler))
                     //TODO:
                     val write = connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
-                        .flatMapSingle { trans ->
+                        .subscribeOn(operationsScheduler)
+                        .flatMap { trans ->
                             Log.e(TAG, "hello from ${trans.remoteDevice.macAddress}")
                             //accquire wakelock
                             acquireWakelock()
@@ -1084,13 +1088,20 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 serverBusyRelay.accept(true)
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(
-                                        handleConnection(trans.remoteDevice.establishConnection(false), trans.remoteDevice)
-                                            .subscribeOn(clientScheduler)
+                                        handleConnection(
+                                            trans.remoteDevice.establishConnection(false)
+                                                .doOnNext { Log.e(TAG, "established reverse connection to ${trans.remoteDevice.macAddress}") },
+                                            trans.remoteDevice
+                                        )
                                     )
-                                    .doFinally { serverBusyRelay.accept(false) }
+                                    .doFinally {
+                                        serverBusyRelay.accept(false)
+                                        activeLuids.remove(luid)
+                                    }
                             } else {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                                     .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                                    .toObservable()
                             }
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
@@ -1100,6 +1111,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .onErrorResumeNext(Observable.empty())
 
                     val read = connectionRaw.getOnCharacteristicReadRequest(UUID_HELLO)
+                        .subscribeOn(operationsScheduler)
                         .flatMapCompletable { trans ->
                             val luidRaw = myLuid.get()
                             if (luidRaw == null) {
@@ -1115,7 +1127,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .repeat()
 
                     write.mergeWith(read)
-                        .subscribeOn(operationsScheduler)
                 }
                 .doOnDispose {
                     Log.e(TAG, "gatt server disposed")

@@ -15,6 +15,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleI
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * Wraps an RxBleServerConnection and provides channel locking and a convenient interface to
@@ -105,16 +106,20 @@ class CachedLEServerConnection(
                         .toFlowable(BackpressureStrategy.BUFFER), { packet, req ->
                     Log.v(TAG, "received UUID_SEMAPHOR write")
                             selectCharacteristic()
-                                    .flatMapCompletable { characteristic ->
+                                .delay(0, TimeUnit.SECONDS, scheduler)
+                                .flatMapCompletable { characteristic ->
                                                     connection.getOnCharacteristicReadRequest(characteristic.uuid)
                                                             .firstOrError()
                                                             .flatMapCompletable { trans ->
                                                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                                                    .andThen(connection.setupIndication(
+                                                                    .andThen(
+                                                                        connection.setupIndication(
                                                                         characteristic.uuid,
                                                                         packet.writeToStream(20, scheduler),
                                                                         trans.remoteDevice
-                                                                    ))
+                                                                        )
+                                                                            .doOnComplete { Log.v(TAG, "indication for packet ${packet.type} finished") }
+                                                                    )
                                                             }
                                                             .doOnError{ err ->
                                                                 Log.e(TAG, "error in gatt server indication $err")
@@ -143,6 +148,7 @@ class CachedLEServerConnection(
                                     .onErrorComplete()
                 })
                 .flatMapCompletable { obs -> obs }
+                .subscribeOn(scheduler)
                 .repeat()
                 .retry()
                 .subscribe(
