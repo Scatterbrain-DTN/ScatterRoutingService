@@ -52,7 +52,7 @@ class CachedLEConnection(
                                     .doOnNext { Log.v(TAG, "preemptively enabled indications for $uuid") }
                                     .doOnError { Log.e(TAG, "failed to preemptively enable indications for $uuid") }
                                     .firstOrError()
-                                    .retry(8) }
+                            }
 
                 }
                 .ignoreElements()
@@ -103,7 +103,6 @@ class CachedLEConnection(
                                         .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
                             }
                 }
-                .retry(10)
     }
 
     /**
