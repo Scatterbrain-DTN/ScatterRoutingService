@@ -22,7 +22,6 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
@@ -216,7 +215,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     // luid is a temporary unique identifier used for a single transaction.
     private val myLuid = AtomicReference(UUID.randomUUID())
 
-    private val sessionCache = ConcurrentHashMap<UUID, LeDeviceSession>()
     private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
@@ -706,41 +704,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     override fun refreshPeers(): Completable {
-        Log.v(TAG, "refreshing ${sessionCache.size} peers")
         return refreshInProgresss
                 .firstOrError()
                 .flatMapCompletable { b ->
                     if (b) refreshInProgresss.takeUntil { v -> !v }
-                            .ignoreElements()
+                        .ignoreElements()
                     else {
-                        Observable.fromIterable(sessionCache.values)
-                                .concatMapCompletable { session ->
-                                    Single.just(session.client.connection)
-                                            .flatMap { connection ->
-                                                connection.writeCharacteristic(UUID_SEMAPHOR, uuid2bytes(
-                                                    LuidPacket.newBuilder()
-                                                        .setLuid(myLuid.get())
-                                                        .enableHashing(ScatterRoutingService.PROTO_VERSION)
-                                                        .build().hashAsUUID
-                                                ))
-                                            }
-                                            .flatMapCompletable {
-                                                Log.v(TAG, "received success code, rewinding session")
-                                                rewindSession(session)
-                                                awaitTransaction()
-                                            }
-                                            .doOnError { err -> Log.e(TAG, "remote peer busy, ignoring for now: $err") }
-                                            .onErrorComplete()
-                                }
+                        Completable.complete() //TODO:
                     }
                 }
-                .doOnError { err ->
-                    Log.e(TAG, "error on refresh $err")
-                    err.printStackTrace()
-                    refreshInProgresss.accept(false)
-                }
-                .doOnComplete { refreshInProgresss.accept(false) }
-
     }
 
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
@@ -906,29 +878,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .onErrorResumeNext(Single.never())
                             .flatMap { luid ->
                                 Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
-                                val s = sessionCache[luid.hashAsUUID]
-                                    ?: LeDeviceSession(
+                                val s = LeDeviceSession(
                                         device.bluetoothDevice,
                                         myLuid.get(),
                                         clientConnection,
                                         connection,
                                         luid
-                                    )
-
-                                sessionCache.putIfAbsent(luid.hashAsUUID, s)
-                                //TODO: handle this disposable
-                                val disp = Single.just(luid)
-                                    .delay(
-                                        preferences.getLong(mContext.getString(R.string.pref_peercachedelay), (20 * 60).toLong()),
-                                        TimeUnit.SECONDS,
-                                        operationsScheduler
-                                    )
-                                    .subscribe(
-                                        { l ->
-                                            Log.v(TAG, "peer $device timed out, removing from nearby peer cache")
-                                            sessionCache.remove(l.hashAsUUID)
-                                        },
-                                        { err -> Log.e(TAG, "error waiting to remove cached peer $device: $err") }
                                     )
                                 Log.v(TAG, "initializing session")
                                 initializeProtocol(s, TransactionResult.STAGE_LUID)
@@ -1027,9 +982,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 Log.e(TAG, "TERMINATION: session $device terminated")
                                                 // if we encounter any errors or terminate, remove cached connections
                                                 // as they may be tainted
-                                                sessionCache.remove(session.remoteLuid.hashAsUUID)
                                                 //clientConnection.dispose()
-                                              //  session.unlock()
+                                                session.unlock()
                                                 activeLuids.remove(session.remoteLuid.hashAsUUID)
                                                 myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                             }
