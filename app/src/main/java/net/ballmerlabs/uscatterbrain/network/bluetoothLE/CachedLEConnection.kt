@@ -107,8 +107,10 @@ class CachedLEConnection(
      */
     fun readAdvertise(): Single<AdvertisePacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                AdvertisePacket.parser(), cachedNotification(), scheduler)
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
+                AdvertisePacket.parser(), cachedNotification(), scheduler
+        )
+            .doOnSubscribe { Log.v(TAG, "called readAdvertise") }
+            .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     /**
@@ -117,8 +119,10 @@ class CachedLEConnection(
      */
     fun readUpgrade(): Single<UpgradePacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                UpgradePacket.parser(), cachedNotification(), scheduler)
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
+            UpgradePacket.parser(), cachedNotification(), scheduler
+        )
+            .doOnSubscribe { Log.v(TAG, "called readUpgrade") }
+            .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     /**
@@ -127,8 +131,10 @@ class CachedLEConnection(
      */
     fun readBlockHeader(): Single<BlockHeaderPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                BlockHeaderPacket.parser(), cachedNotification(), scheduler)
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
+                BlockHeaderPacket.parser(), cachedNotification(), scheduler
+        )
+            .doOnSubscribe { Log.v(TAG, "called readBlockHeader") }
+            .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     /**
@@ -137,8 +143,10 @@ class CachedLEConnection(
      */
     fun readBlockSequence(): Single<BlockSequencePacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                BlockSequencePacket.parser(), cachedNotification(), scheduler)
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
+                BlockSequencePacket.parser(), cachedNotification(), scheduler
+        )
+            .doOnSubscribe { Log.v(TAG, "called readBlockSequence") }
+            .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     /**
@@ -147,8 +155,10 @@ class CachedLEConnection(
      */
     fun readDeclareHashes(): Single<DeclareHashesPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                DeclareHashesPacket.parser(), cachedNotification(), scheduler)
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
+                DeclareHashesPacket.parser(), cachedNotification(), scheduler
+        )
+            .doOnSubscribe { Log.v(TAG, "called readDeclareHashes") }
+            .timeout(timeout, TimeUnit.SECONDS, scheduler)
 
     }
 
@@ -158,8 +168,10 @@ class CachedLEConnection(
      */
     fun readElectLeader(): Single<ElectLeaderPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                ElectLeaderPacket.parser(), cachedNotification(), scheduler)
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
+                ElectLeaderPacket.parser(), cachedNotification(), scheduler
+        )
+            .doOnSubscribe { Log.v(TAG, "called readElectLeader") }
+            .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     /**
@@ -168,8 +180,10 @@ class CachedLEConnection(
      */
     fun readIdentityPacket(): Single<IdentityPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                IdentityPacket.parser(), cachedNotification(), scheduler)
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
+                IdentityPacket.parser(), cachedNotification(), scheduler
+        )
+            .doOnSubscribe { Log.v(TAG, "called readIdentityPacket") }
+            .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     /**
@@ -178,14 +192,17 @@ class CachedLEConnection(
      */
     fun readLuid(): Single<LuidPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
-                LuidPacket.parser(), cachedNotification(), scheduler)
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
+                LuidPacket.parser(), cachedNotification(), scheduler
+        )
+            .doOnSubscribe { Log.v(TAG, "called readLuid") }
+            .timeout(timeout, TimeUnit.SECONDS, scheduler)
     }
 
     /**
      * dispose this connection
      */
     override fun dispose() {
+        Log.e(TAG, "CachedLEConnection disposed")
         disposable.dispose()
     }
 

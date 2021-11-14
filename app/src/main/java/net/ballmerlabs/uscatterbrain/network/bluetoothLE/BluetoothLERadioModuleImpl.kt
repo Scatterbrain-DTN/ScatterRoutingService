@@ -900,11 +900,20 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         server(connection)
                                                             .doOnError { err ->
                                                                 Log.e(TAG, "error in gatt server transaction for ${device.macAddress}, stage: $stage, $err")
+                                                                err.printStackTrace()
                                                             }
                                                             .doOnSuccess { Log.v(TAG, "server handshake completed") }
                                                             .onErrorReturn { err -> OptionalBootstrap.err(err) }
                                                             .zipWith(
                                                                 client(clientConnection)
+                                                                    .doOnSuccess { Log.v(TAG, "client handshake completed") }
+                                                                    .doOnError { err ->
+                                                                        Log.e(
+                                                                            TAG,
+                                                                            "error in gatt client transaction for ${device.macAddress}, stage: $stage, $err"
+                                                                        )
+                                                                        err.printStackTrace()
+                                                                    }
                                                                     .onErrorReturn { TransactionResult(
                                                                         TransactionResult.STAGE_TERMINATE,
                                                                         device.bluetoothDevice,
@@ -912,9 +921,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                         err = true
                                                                     ) },
                                                                 { first, second ->
-                                                                android.util.Pair(first, second)
+                                                                Pair(first, second)
                                                             })
-                                                            .doOnSubscribe { Log.v("debug", "client handshake subscribed") }
                                                     }
 
                                                 ).flatMap { result -> result }

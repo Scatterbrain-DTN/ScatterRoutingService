@@ -64,6 +64,7 @@ class CachedLEServerConnection(
      * dispose this connected
      */
     override fun dispose() {
+        Log.e(TAG, "CachedLEServerConnection disposed")
         disposable.dispose()
     }
 
