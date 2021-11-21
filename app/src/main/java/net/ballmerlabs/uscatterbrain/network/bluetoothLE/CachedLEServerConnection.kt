@@ -140,7 +140,6 @@ class CachedLEServerConnection(
                                                             characteristic.release()
                                                         }
                                 }
-                                .onErrorResumeNext { req.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE) }
                                 .doOnError { err ->
                                     Log.e(TAG, "error in gatt server selectCharacteristic: $err")
                                 }

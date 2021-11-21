@@ -1096,7 +1096,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         activeLuids.remove(luid)
                                     }
                             } else {
-                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
+                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                                     .doOnError { err -> Log.e(TAG, "failed to notify remote peer $luid of duplicate connection: $err") }
                                     .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
@@ -1111,18 +1111,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .subscribeOn(operationsScheduler)
                         .flatMapCompletable { trans ->
                             val luidRaw = myLuid.get()
-                            if (luidRaw == null) {
-                                Log.e(TAG, "OOPS! our luid is null, this should never happen")
-                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
-                                    .doOnError { err -> Log.e(TAG, "failed to notify remote peer of null luid") }
-                                    .onErrorComplete()
-                            } else {
-                                val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(luidRaw)))
-                                Log.v(TAG, "hello read from ${trans.remoteDevice.macAddress} $hash")
-                                trans.sendReply(hash, BluetoothGatt.GATT_SUCCESS)
-                                    .doOnError { err -> Log.e(TAG, "failed to send luid to remote peer $hash: $err") }
-                                    .onErrorComplete()
-                            }
+                            val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(luidRaw)))
+                            Log.v(TAG, "hello read from ${trans.remoteDevice.macAddress} $hash")
+                            trans.sendReply(hash, BluetoothGatt.GATT_SUCCESS)
+                                .doOnError { err -> Log.e(TAG, "failed to send luid to remote peer $hash: $err") }
+                                .onErrorComplete()
                         }
                         .doOnError { err -> Log.e(TAG, "hello characteristic failed to handle read $err") }
                         .onErrorComplete()
