@@ -215,7 +215,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val myLuid = AtomicReference(UUID.randomUUID())
 
     private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
-    private val connectionCache = ConcurrentHashMap<UUID, CachedLEConnection>()
+    private val connectionCache = ConcurrentHashMap<String, CachedLEConnection>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
     private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
@@ -717,11 +717,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
-        val rawConnection = scanResult.bleDevice.establishConnection(false)
-           .doOnSubscribe { acquireWakelock() }
-
-        return Observable.just(CachedLEConnection(rawConnection, channels, clientScheduler))
-            .flatMap { connection ->
+        return establishConnectionCached(scanResult.bleDevice)
+            .doOnSubscribe { acquireWakelock() }
+            .flatMapObservable { connection ->
                 Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
                 val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
                 Log.e(TAG, "writing hash len ${hash.size}")
@@ -745,8 +743,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                 .ignoreElement()
                                                                 .toSingleDefault(connection)
                                                                 .flatMap { connection ->
-                                                                    connectionCache.putIfAbsent(luid, connection)
-                                                                    connection.setOnDisconnect { connectionCache.remove(luid) }
                                                                     Log.e(TAG, "handling connection client")
                                                                     handleConnection(connection, scanResult.bleDevice)
                                                                 }
@@ -870,9 +866,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
     }
 
-    private fun establishConnectionCached(device: RxBleDevice, l: UUID): Single<CachedLEConnection> {
-        return Single.just(l).map { luid ->
-            val connection = connectionCache[luid]
+    private fun establishConnectionCached(device: RxBleDevice): Single<CachedLEConnection> {
+        return Single.fromCallable {
+            val connection = connectionCache[device.macAddress]
             if (connection != null) {
                 connection
             } else {
@@ -884,10 +880,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         )
                     }
                 val newconnection = CachedLEConnection(rawConnection, channels, clientScheduler)
-                val collision = connectionCache.putIfAbsent(luid, newconnection)
+                val collision = connectionCache.putIfAbsent(device.macAddress, newconnection)
                 if (collision == null) {
                     newconnection.setOnDisconnect {
-                        val conn = connectionCache.remove(luid)
+                        val conn = connectionCache.remove(device.macAddress)
                         conn?.dispose()
                     }
                     newconnection
@@ -1085,7 +1081,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             Log.e(TAG, "server handling luid $luid")
                             if (activeLuids.putIfAbsent(luid, true) == null ) {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                    .andThen(establishConnectionCached(trans.remoteDevice, luid))
+                                    .andThen(establishConnectionCached(trans.remoteDevice))
                                     .flatMap { connection ->
                                         handleConnection(
                                             connection,
