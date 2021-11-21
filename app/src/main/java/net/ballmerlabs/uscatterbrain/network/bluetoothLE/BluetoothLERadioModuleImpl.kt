@@ -215,7 +215,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     // luid is a temporary unique identifier used for a single transaction.
     private val myLuid = AtomicReference(UUID.randomUUID())
 
-    private val activeLuids = ConcurrentHashMap<UUID, BehaviorSubject<CachedLEConnection>>()
+    private val activeLuids = ConcurrentHashMap<UUID, CachedLEConnection>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
     private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
@@ -717,47 +717,47 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
-        val connectionSubject = BehaviorSubject.create<CachedLEConnection>()
-        scanResult.bleDevice.establishConnection(false)
+        val rawConnection = scanResult.bleDevice.establishConnection(false)
            .doOnSubscribe { acquireWakelock() }
-            .map { c -> CachedLEConnection(c, channels, clientScheduler) }
-            .subscribe(connectionSubject)
 
-        return connectionSubject
+        return Observable.just(CachedLEConnection(rawConnection, channels, clientScheduler))
             .flatMap { connection ->
                 Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
                 val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
                 Log.e(TAG, "writing hash len ${hash.size}")
-                connection.connection.discoverServices()
-                    .flatMapObservable { serv ->
-                        serv.getCharacteristic(UUID_HELLO)
-                            .flatMapObservable { char ->
-                                Log.v(TAG, "found hello characteristic: ${char.uuid}")
-                                connection.connection.readCharacteristic(char)
-                                    .flatMap { v ->
-                                        val luid = bytes2uuid(v)
-                                        Single.just(luid)
-                                            .flatMap {
-                                                Log.e(TAG, "client handling luid $luid")
-                                                if (activeLuids.putIfAbsent(luid, connectionSubject) == null) {
-                                                    connection.connection.writeCharacteristic(char, hash)
-                                                        .doOnSuccess { res -> Log.v(TAG, "successfully wrote uuid len ${res.size}") }
-                                                        .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
-                                                        .ignoreElement()
-                                                        .toSingleDefault(connection)
-                                                        .flatMap { connection ->
-                                                            Log.e(TAG, "handling connection client")
-                                                            handleConnection(Observable.just(connection), scanResult.bleDevice)
-                                                                .firstOrError()
+                connection.connection
+                    .flatMap { raw ->
+                        raw.discoverServices()
+                            .flatMapObservable { serv ->
+                                serv.getCharacteristic(UUID_HELLO)
+                                    .flatMapObservable { char ->
+                                        Log.v(TAG, "found hello characteristic: ${char.uuid}")
+                                        raw.readCharacteristic(char)
+                                            .flatMapObservable { v ->
+                                                val luid = bytes2uuid(v)
+                                                Single.just(luid)
+                                                    .flatMap {
+                                                        Log.e(TAG, "client handling luid $luid")
+                                                        if (activeLuids.putIfAbsent(luid, connection) == null) {
+                                                            raw.writeCharacteristic(char, hash)
+                                                                .doOnSuccess { res -> Log.v(TAG, "successfully wrote uuid len ${res.size}") }
+                                                                .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
+                                                                .ignoreElement()
+                                                                .toSingleDefault(connection)
+                                                                .flatMap { connection ->
+                                                                    Log.e(TAG, "handling connection client")
+                                                                    handleConnection(connection, scanResult.bleDevice)
+                                                                        .firstOrError()
+                                                                }
+                                                                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                                                                .doFinally { activeLuids.remove(luid) }
+                                                        } else {
+                                                            Single.error(IllegalStateException("device already connected (client)"))
                                                         }
-                                                        .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-                                                        .doFinally { activeLuids.remove(luid) }
-                                                } else {
-                                                    Single.error(IllegalStateException("device already connected (client)"))
-                                                }
+                                                    }
+                                                    .toObservable()
                                             }
                                     }
-                                    .toObservable()
 
                             }
                     }
@@ -870,8 +870,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
 
-    private fun handleConnection(connection: Observable<CachedLEConnection>, device: RxBleDevice): Observable<HandshakeResult> {
-        return connection
+    private fun handleConnection(connection: CachedLEConnection, device: RxBleDevice): Observable<HandshakeResult> {
+        return Observable.just(connection)
             .flatMap { clientConnection ->
                 serverSubject
                     .flatMapObservable { connection ->
@@ -1056,17 +1056,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)
                             Log.e(TAG, "server handling luid $luid")
-                            val connectionSubject = BehaviorSubject.create<CachedLEConnection>()
-                            if (activeLuids.putIfAbsent(luid, connectionSubject) == null ) {
+                            val connectionSubject = BehaviorSubject.create<RxBleConnection>()
+                           val connection = CachedLEConnection(connectionSubject, channels, clientScheduler)
+                            if (activeLuids.putIfAbsent(luid, connection) == null ) {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(
                                         Observable.defer {
                                             trans.remoteDevice.establishConnection(false)
-                                                .map { c -> CachedLEConnection(c, channels, clientScheduler) }
                                                 .doOnNext { Log.e(TAG, "established reverse connection to ${trans.remoteDevice.macAddress}") }
                                                 .subscribe(connectionSubject)
                                             handleConnection(
-                                                connectionSubject,
+                                                connection,
                                                 trans.remoteDevice
                                             )
                                         }

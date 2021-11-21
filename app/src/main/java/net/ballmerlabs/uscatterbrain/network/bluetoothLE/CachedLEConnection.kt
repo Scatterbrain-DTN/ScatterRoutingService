@@ -9,6 +9,7 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
@@ -25,15 +26,21 @@ import java.util.concurrent.TimeUnit
  * @property connection raw connection object being wrapped by this class
  */
 class CachedLEConnection(
-        val connection: RxBleConnection,
-        private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
-        private val scheduler: Scheduler
+    rawConnection: Observable<RxBleConnection>,
+    private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
+    private val scheduler: Scheduler
         ) : Disposable {
     private val disposable = CompositeDisposable()
     private val enabled = CompletableSubject.create()
     private val timeout: Long = 20
 
+    val connection = BehaviorSubject.create<RxBleConnection>()
+
     init {
+        rawConnection
+            .doOnSubscribe { disp -> disposable.add(disp) }
+            .subscribe(connection)
+
         premptiveEnable().subscribe(enabled)
     }
 
@@ -46,13 +53,14 @@ class CachedLEConnection(
     private fun premptiveEnable(): Completable {
         return Observable.fromIterable(BluetoothLERadioModuleImpl.channels.keys)
                 .flatMapSingle{ uuid: UUID ->
-                    Single.just(connection)
-                            .flatMap { c ->
-                                c.setupIndication(uuid, NotificationSetupMode.DEFAULT)
-                                    .doOnNext { Log.v(TAG, "preemptively enabled indications for $uuid") }
-                                    .doOnError { Log.e(TAG, "failed to preemptively enable indications for $uuid") }
-                                    .firstOrError()
-                            }
+                    connection
+                        .firstOrError()
+                        .flatMap { c ->
+                            c.setupIndication(uuid, NotificationSetupMode.DEFAULT)
+                                .doOnNext { Log.v(TAG, "preemptively enabled indications for $uuid") }
+                                .doOnError { Log.e(TAG, "failed to preemptively enable indications for $uuid") }
+                                .firstOrError()
+                        }
 
                 }
                 .ignoreElements()
@@ -66,16 +74,17 @@ class CachedLEConnection(
      * @return Single emitting uuid of channel selected
      */
     private fun selectChannel(): Single<UUID> {
-        return Single.just(connection)
-                .flatMap { c ->
-                    c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
-                        .map{ bytes: ByteArray ->
-                            val uuid: UUID = BluetoothLERadioModuleImpl.bytes2uuid(bytes)
-                            if (!channels.containsKey(uuid)) {
-                                throw IllegalStateException("gatt server returned invalid uuid")
-                            }
-                            uuid
+        return connection
+            .firstOrError()
+            .flatMap { c ->
+                c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
+                    .map{ bytes: ByteArray ->
+                        val uuid: UUID = BluetoothLERadioModuleImpl.bytes2uuid(bytes)
+                        if (!channels.containsKey(uuid)) {
+                            throw IllegalStateException("gatt server returned invalid uuid")
                         }
+                        uuid
+                    }
                 }
                 .doOnSuccess{ uuid -> Log.v(TAG, "client selected channel $uuid") }
     }
@@ -89,15 +98,16 @@ class CachedLEConnection(
     private fun cachedNotification(): Observable<ByteArray> {
         return enabled.andThen(selectChannel())
                 .flatMapObservable { uuid: UUID ->
-                    Single.just(connection)
-                            .flatMapObservable { c ->
-                                c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                                        .mergeWith(c.readCharacteristic(uuid).ignoreElement())
-                                        .flatMap { observable -> observable }
-                                        .doOnComplete { Log.e(TAG, "notifications completed for some reason") }
-                                        .doOnNext { b: ByteArray -> Log.v(TAG, "client received bytes " + b.size) }
-                                        .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
-                            }
+                    connection
+                        .firstOrError()
+                        .flatMapObservable { c ->
+                            c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                                .mergeWith(c.readCharacteristic(uuid).ignoreElement())
+                                .flatMap { observable -> observable }
+                                .doOnComplete { Log.e(TAG, "notifications completed for some reason") }
+                                .doOnNext { b: ByteArray -> Log.v(TAG, "client received bytes " + b.size) }
+                                .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
+                        }
                 }
     }
 
