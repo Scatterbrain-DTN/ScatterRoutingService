@@ -719,19 +719,20 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
         return establishConnectionCached(scanResult.bleDevice)
             .doOnSubscribe { acquireWakelock() }
-            .flatMapObservable { connection ->
+            .flatMap { connection ->
                 Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
                 val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
                 Log.e(TAG, "writing hash len ${hash.size}")
                 connection.connection
+                    .firstOrError()
                     .flatMap { raw ->
                         raw.discoverServices()
-                            .flatMapObservable { serv ->
+                            .flatMap { serv ->
                                 serv.getCharacteristic(UUID_HELLO)
-                                    .flatMapObservable { char ->
+                                    .flatMap { char ->
                                         Log.v(TAG, "found hello characteristic: ${char.uuid}")
                                         raw.readCharacteristic(char)
-                                            .flatMapObservable { v ->
+                                            .flatMap { v ->
                                                 val luid = bytes2uuid(v)
                                                 Single.just(luid)
                                                     .flatMap {
@@ -752,14 +753,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                             Single.error(IllegalStateException("device already connected (client)"))
                                                         }
                                                     }
-                                                    .toObservable()
                                             }
                                     }
 
                             }
                     }
             }
-            .firstOrError()
 
     }
 
@@ -868,8 +867,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun establishConnectionCached(device: RxBleDevice): Single<CachedLEConnection> {
         return Single.fromCallable {
+            Log.e(TAG, "establishing cached connection to ${device.macAddress}, ${connectionCache.size} devices connected")
             val connection = connectionCache[device.macAddress]
             if (connection != null) {
+                Log.e(TAG, "cache HIT")
                 connection
             } else {
                 val rawConnection = device.establishConnection(false)
@@ -881,6 +882,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
                 val newconnection = CachedLEConnection(rawConnection, channels, clientScheduler)
                 val collision = connectionCache.putIfAbsent(device.macAddress, newconnection)
+                Log.e(TAG, "cache MISS, ${connectionCache.size} devices connected")
                 if (collision == null) {
                     newconnection.setOnDisconnect {
                         val conn = connectionCache.remove(device.macAddress)
