@@ -280,11 +280,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * via offloaded scanning, but NOT for keeping it awake.
      */
     private fun acquireWakelock() {
-        wakeLock.acquire((10 * 60 * 1000).toLong())
+        if (!wakeLock.isHeld)
+            wakeLock.acquire((10 * 60 * 1000).toLong())
     }
 
     private fun releaseWakeLock() {
-        wakeLock.release()
+        if (wakeLock.isHeld)
+            wakeLock.release()
     }
 
     private val powerSave: String?
@@ -717,46 +719,44 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
        return scanResult.bleDevice.establishConnection(false)
            .doOnSubscribe { acquireWakelock() }
-            .flatMap { connection ->
+            .flatMapSingle { connection ->
                 Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
                 val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
                 Log.e(TAG, "writing hash len ${hash.size}")
                 connection.discoverServices()
-                    .flatMapObservable { serv ->
+                    .flatMap { serv ->
                         serv.getCharacteristic(UUID_HELLO)
-                            .flatMapObservable { char ->
+                            .flatMap { char ->
                                 Log.v(TAG, "found hello characteristic: ${char.uuid}")
                                 connection.readCharacteristic(char)
-                                    .flatMapObservable { v ->
+                                    .flatMap { v ->
                                         val luid = bytes2uuid(v)
                                         Single.just(luid)
-                                            .flatMapCompletable {
+                                            .flatMap {
                                                 Log.e(TAG, "client handling luid $luid")
                                                 if (activeLuids.putIfAbsent(luid, true) == null) {
-                                                    Completable.complete()
+                                                    connection.writeCharacteristic(char, hash)
+                                                        .doOnSuccess { res -> Log.v(TAG, "successfully wrote uuid len ${res.size}") }
+                                                        .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
+                                                        .ignoreElement()
+                                                        .toSingleDefault(connection)
+                                                        .flatMap { connection ->
+                                                            Log.e(TAG, "handling connection client")
+                                                            handleConnection(Observable.just(connection), scanResult.bleDevice)
+                                                                .firstOrError()
+                                                        }
+                                                        .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                                                        .doFinally { activeLuids.remove(luid) }
                                                 } else {
-                                                    Completable.error(IllegalStateException("device already connected (client)"))
+                                                    Single.error(IllegalStateException("device already connected (client)"))
                                                 }
                                             }
-                                            .andThen(
-                                                connection.writeCharacteristic(char, hash)
-                                                    .doOnSuccess { res -> Log.v(TAG, "successfully wrote uuid len ${res.size}") }
-                                                    .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
-                                                    .ignoreElement()
-                                                    .toSingleDefault(connection)
-                                            )
-                                            .flatMapObservable { connection ->
-                                                Log.e(TAG, "handling connection client")
-                                                handleConnection(Observable.just(connection), scanResult.bleDevice)
-                                            }
-                                            .doFinally { activeLuids.remove(luid) }
                                     }
 
                             }
                     }
             }
            .firstOrError()
-
     }
 
     /*
@@ -790,21 +790,31 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun discoverForever(): Observable<HandshakeResult> {
         discoveryPersistent.set(true)
-        return discoverOnce(30, TimeUnit.SECONDS)
-                    .flatMapObservable { results ->
-                        Log.e(TAG, "received scan results ${results.size}")
-                        Observable.fromIterable(results)
-                            .distinct { res -> res.bleDevice.macAddress}
-                            .concatMapSingle { scanResult ->
-                                processScanResult(scanResult)
-                                    .doOnSuccess {
-                                        Log.e(TAG, "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete")
-                                    }
-                                    .doOnError { err -> Log.e(TAG, "transaction for ${scanResult.bleDevice.macAddress} failed: $err") }
-                            }
-                    }
-            .repeat()
-            .retry()
+        return Observable.defer {
+            discoverOnce(30, TimeUnit.SECONDS)
+                .flatMapObservable { results ->
+                    Log.e(TAG, "received scan results ${results.size}")
+                    Observable.fromIterable(results)
+                        .distinct { res -> res.bleDevice.macAddress }
+                        .concatMapSingle { scanResult ->
+                            processScanResult(scanResult)
+                                .doOnSuccess {
+                                    Log.e(
+                                        TAG,
+                                        "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete"
+                                    )
+                                }
+                                .doOnError { err ->
+                                    Log.e(
+                                        TAG,
+                                        "transaction for ${scanResult.bleDevice.macAddress} failed: $err"
+                                    )
+                                }
+                        }
+                }
+        }
+        .repeat()
+        .retry()
     }
 
     /**
@@ -1047,12 +1057,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             trans.remoteDevice
                                         )
                                     )
+                                    .doOnError { err -> Log.e(TAG, "error in handleConnection $err") }
+                                    .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                                     .doFinally {
                                         activeLuids.remove(luid)
                                     }
                             } else {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
                                     .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                                    .doOnError { err -> Log.e(TAG, "failed to notify remote peer $luid of duplicate connection: $err") }
+                                    .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                                     .toObservable()
                             }
                         }
@@ -1060,20 +1074,25 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .doOnNext { t -> Log.v(TAG, "transactionResult ${t.success}") }
                         .retry()
                         .repeat()
-                        .onErrorResumeNext(Observable.empty())
 
                     val read = connectionRaw.getOnCharacteristicReadRequest(UUID_HELLO)
                         .subscribeOn(operationsScheduler)
                         .flatMapCompletable { trans ->
                             val luidRaw = myLuid.get()
                             if (luidRaw == null) {
+                                Log.e(TAG, "OOPS! our luid is null, this should never happen")
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
+                                    .doOnError { err -> Log.e(TAG, "failed to notify remote peer of null luid") }
+                                    .onErrorComplete()
                             } else {
                                 val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(luidRaw)))
                                 Log.v(TAG, "hello read from ${trans.remoteDevice.macAddress} $hash")
                                 trans.sendReply(hash, BluetoothGatt.GATT_SUCCESS)
+                                    .doOnError { err -> Log.e(TAG, "failed to send luid to remote peer $hash: $err") }
+                                    .onErrorComplete()
                             }
                         }
+                        .doOnError { err -> Log.e(TAG, "hello characteristic failed to handle read $err") }
                         .onErrorComplete()
                         .retry()
                         .repeat()
