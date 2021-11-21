@@ -22,7 +22,6 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
@@ -750,7 +749,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     connection.setOnDisconnect { connectionCache.remove(luid) }
                                                                     Log.e(TAG, "handling connection client")
                                                                     handleConnection(connection, scanResult.bleDevice)
-                                                                        .firstOrError()
                                                                 }
                                                                 .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                                                                 .doFinally { activeLuids.remove(luid) }
@@ -900,11 +898,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun handleConnection(connection: CachedLEConnection, device: RxBleDevice): Observable<HandshakeResult> {
-        return Observable.just(connection)
+    private fun handleConnection(connection: CachedLEConnection, device: RxBleDevice): Single<HandshakeResult> {
+        return Single.just(connection)
             .flatMap { clientConnection ->
                 serverSubject
-                    .flatMapObservable { connection ->
+                    .flatMap { connection ->
                         Log.v(TAG, "stating stages")
                         getLuidClient(clientConnection)
                             .observeOn(clientScheduler)
@@ -1039,7 +1037,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     }
 
                             }
-                            .toObservable()
                     }
             }
     }
@@ -1080,7 +1077,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     //TODO:
                     val write = connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
                         .subscribeOn(operationsScheduler)
-                        .flatMap { trans ->
+                        .flatMapSingle { trans ->
                             Log.e(TAG, "hello from ${trans.remoteDevice.macAddress}")
                             //accquire wakelock
                             acquireWakelock()
@@ -1089,7 +1086,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             if (activeLuids.putIfAbsent(luid, true) == null ) {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(establishConnectionCached(trans.remoteDevice, luid))
-                                    .flatMapObservable { connection ->
+                                    .flatMap { connection ->
                                         handleConnection(
                                             connection,
                                             trans.remoteDevice
@@ -1105,7 +1102,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                                     .doOnError { err -> Log.e(TAG, "failed to notify remote peer $luid of duplicate connection: $err") }
                                     .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-                                    .toObservable()
                             }
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
