@@ -22,6 +22,7 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
@@ -70,7 +71,6 @@ data class OptionalBootstrap<T>(
         return err != null
     }
 }
-
 
 /**
  * Bluetooth low energy transport implementation.
@@ -215,7 +215,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     // luid is a temporary unique identifier used for a single transaction.
     private val myLuid = AtomicReference(UUID.randomUUID())
 
-    private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
+    private val activeLuids = ConcurrentHashMap<UUID, BehaviorSubject<CachedLEConnection>>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
     private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
@@ -717,25 +717,30 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
-       return scanResult.bleDevice.establishConnection(false)
+        val connectionSubject = BehaviorSubject.create<CachedLEConnection>()
+        scanResult.bleDevice.establishConnection(false)
            .doOnSubscribe { acquireWakelock() }
-            .flatMapSingle { connection ->
+            .map { c -> CachedLEConnection(c, channels, clientScheduler) }
+            .subscribe(connectionSubject)
+
+        return connectionSubject
+            .flatMap { connection ->
                 Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
                 val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
                 Log.e(TAG, "writing hash len ${hash.size}")
-                connection.discoverServices()
-                    .flatMap { serv ->
+                connection.connection.discoverServices()
+                    .flatMapObservable { serv ->
                         serv.getCharacteristic(UUID_HELLO)
-                            .flatMap { char ->
+                            .flatMapObservable { char ->
                                 Log.v(TAG, "found hello characteristic: ${char.uuid}")
-                                connection.readCharacteristic(char)
+                                connection.connection.readCharacteristic(char)
                                     .flatMap { v ->
                                         val luid = bytes2uuid(v)
                                         Single.just(luid)
                                             .flatMap {
                                                 Log.e(TAG, "client handling luid $luid")
-                                                if (activeLuids.putIfAbsent(luid, true) == null) {
-                                                    connection.writeCharacteristic(char, hash)
+                                                if (activeLuids.putIfAbsent(luid, connectionSubject) == null) {
+                                                    connection.connection.writeCharacteristic(char, hash)
                                                         .doOnSuccess { res -> Log.v(TAG, "successfully wrote uuid len ${res.size}") }
                                                         .doOnError{ e -> Log.e(TAG, "failed to write characteristic: $e")}
                                                         .ignoreElement()
@@ -752,12 +757,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 }
                                             }
                                     }
+                                    .toObservable()
 
                             }
                     }
             }
-           .firstOrError()
+            .firstOrError()
+
     }
+
+
 
     /*
      * discover LE devices. Currently this runs forever and sets a global disposable
@@ -861,9 +870,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
 
-    private fun handleConnection(connection: Observable<RxBleConnection>, device: RxBleDevice): Observable<HandshakeResult> {
+    private fun handleConnection(connection: Observable<CachedLEConnection>, device: RxBleDevice): Observable<HandshakeResult> {
         return connection
-            .map { c -> CachedLEConnection(c, channels, clientScheduler) }
             .flatMap { clientConnection ->
                 serverSubject
                     .flatMapObservable { connection ->
@@ -1048,14 +1056,21 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)
                             Log.e(TAG, "server handling luid $luid")
-                            if (activeLuids.putIfAbsent(luid, true) == null ) {
+                            val connectionSubject = BehaviorSubject.create<CachedLEConnection>()
+                            if (activeLuids.putIfAbsent(luid, connectionSubject) == null ) {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(
-                                        handleConnection(
+                                        Observable.defer {
                                             trans.remoteDevice.establishConnection(false)
-                                                .doOnNext { Log.e(TAG, "established reverse connection to ${trans.remoteDevice.macAddress}") },
-                                            trans.remoteDevice
-                                        )
+                                                .map { c -> CachedLEConnection(c, channels, clientScheduler) }
+                                                .doOnNext { Log.e(TAG, "established reverse connection to ${trans.remoteDevice.macAddress}") }
+                                                .subscribe(connectionSubject)
+                                            handleConnection(
+                                                connectionSubject,
+                                                trans.remoteDevice
+                                            )
+                                        }
+
                                     )
                                     .doOnError { err -> Log.e(TAG, "error in handleConnection $err") }
                                     .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
