@@ -42,10 +42,10 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             return
         }
         isAdvertising = true
-        bluetoothLEModule.startAdvertise()
         bluetoothLEModule.startServer()
-        val d = bluetoothLEModule.discoverForever()
-                .doOnDispose { discoveryLock.set(false) }
+        val d = bluetoothLEModule.startAdvertise()
+            .andThen(bluetoothLEModule.discoverForever()
+                .doOnDispose { discoveryLock.set(false) })
                 .subscribe(
                         { res -> Log.v(TAG, "finished transaction: ${res.success}") }
                 ) { err ->
@@ -63,6 +63,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         }
         isAdvertising = false
         bluetoothLEModule.stopAdvertise()
+            .subscribe()
         bluetoothLEModule.stopServer()
         val disp = globalDisposable.getAndSet(null)
         disp?.dispose()

@@ -22,6 +22,7 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
@@ -126,6 +127,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         // scatterbrain service uuid. This is the same for every scatterbrain router.
         val SERVICE_UUID: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
 
+        val ADVERTISE_DATA_LUID_UUID = UUID.fromString("e1fe2989-e9b1-4d72-bd5d-35de26d82127")
+
         // GATT characteristic uuid for semaphor used for a device to  lock a channel.
         // This is to overcome race conditions caused by the statefulness of the GATT DB
         // we really shouldn't need this but android won't let us have two GATT DBs
@@ -218,18 +221,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val connectionCache = ConcurrentHashMap<UUID, CachedLEConnection>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
-    private val mAdvertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-            super.onStartSuccess(settingsInEffect)
-            Log.v(TAG, "successfully started advertise")
-        }
-
-        override fun onStartFailure(errorCode: Int) {
-            super.onStartFailure(errorCode)
-            Log.e(TAG, "failed to start advertise")
-        }
-    }
-
     private fun getLuidClient(conn: CachedLEConnection): Single<LuidPacket> {
         return conn.readLuid()
                 .doOnError { err ->
@@ -312,29 +303,80 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     /**
      * start offloaded advertising. This should continue even after the phone is asleep
      */
-    override fun startAdvertise() {
-        Log.v(TAG, "Starting LE advertise")
-        val settings = AdvertiseSettings.Builder()
+    override fun startAdvertise(luid: UUID?): Completable {
+        return Completable.defer {
+            val subject = CompletableSubject.create()
+            val callback = object : AdvertiseCallback() {
+                override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+                    super.onStartSuccess(settingsInEffect)
+                    subject.onComplete()
+                    Log.v(TAG, "successfully started advertise")
+                }
+
+                override fun onStartFailure(errorCode: Int) {
+                    super.onStartFailure(errorCode)
+                    subject.onError(IllegalStateException("failed to start advertise: $errorCode"))
+                    Log.e(TAG, "failed to start advertise")
+                }
+            }
+            Log.v(TAG, "Starting LE advertise")
+            val settings = AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
                 .setConnectable(true)
                 .setTimeout(0)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .build()
-        val addata = AdvertiseData.Builder()
+            val dataBuilder = AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
                 .addServiceUuid(ParcelUuid(SERVICE_UUID))
-                .build()
-        mAdvertiser.startAdvertising(settings, addata, mAdvertiseCallback)
+
+            if (luid != null) {
+                dataBuilder.addServiceData(ParcelUuid(ADVERTISE_DATA_LUID_UUID), uuid2bytes(luid))
+            }
+            val addata = dataBuilder.build()
+
+            mAdvertiser.startAdvertising(settings, addata, callback)
+            subject
+        }
+    }
+
+    private fun setAdvertisingLuid(luid: UUID): Completable {
+        return stopAdvertise()
+            .andThen(startAdvertise(luid = luid))
+    }
+
+    private fun randomizeLuid(): Completable {
+        return Single.just(UUID.randomUUID())
+            .flatMapCompletable { luid ->
+                setAdvertisingLuid(luid)
+                    .doOnComplete { myLuid.set(luid) }
+            }
     }
 
     /**
      * stop offloaded advertising
      */
-    override fun stopAdvertise() {
+    override fun stopAdvertise(): Completable {
         Log.v(TAG, "stopping LE advertise")
-        mAdvertiser.stopAdvertising(mAdvertiseCallback)
+        return Completable.defer {
+            val subject = CompletableSubject.create()
+            val callback = object : AdvertiseCallback() {
+                override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+                    super.onStartSuccess(settingsInEffect)
+                    subject.onComplete()
+                    Log.v(TAG, "successfully stopped advertise")
+                }
+
+                override fun onStartFailure(errorCode: Int) {
+                    super.onStartFailure(errorCode)
+                    subject.onError(IllegalStateException("failed to start advertise: $errorCode"))
+                    Log.e(TAG, "failed to stop advertise")
+                }
+            }
+            mAdvertiser.stopAdvertising(callback)
+            subject
+        }
     }
 
     private fun selectProvides(): AdvertisePacket.Provides {
@@ -1060,7 +1102,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 //clientConnection.dispose()
                                                 session.unlock()
                                                 activeLuids.remove(session.remoteLuid.hashAsUUID)
-                                                myLuid.set(UUID.randomUUID()) // randomize luid for privacy
                                             }
 
                                     }
@@ -1097,7 +1138,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          * As a result, gatt client connections are seemingly thrown away and unhandled. THIS IS FAKE NEWS
          * they are handled here.
          */
-        val d = mClient.openServer(config)
+        val d = startAdvertise()
+            .andThen(
+            mClient.openServer(config)
                 .doOnSubscribe { Log.v(TAG, "gatt server subscribed") }
                 .doOnError { Log.e(TAG, "failed to open server") }
                 .flatMapObservable { connectionRaw ->
@@ -1168,9 +1211,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .retry()
                 .repeat()
                 .doOnNext { releaseWakeLock() }
+            )
                 .subscribe(transactionCompleteRelay)
         mGattDisposable.add(d)
-        startAdvertise()
     }
 
     /**
@@ -1181,6 +1224,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             return
         }
         stopAdvertise()
+            .subscribe()
         serverStarted.set(false)
     }
 

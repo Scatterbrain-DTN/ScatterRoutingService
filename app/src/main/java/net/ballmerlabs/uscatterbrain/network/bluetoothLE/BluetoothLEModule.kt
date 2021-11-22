@@ -3,18 +3,19 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import io.reactivex.Completable
 import io.reactivex.Observable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import java.util.*
 
 interface BluetoothLEModule {
     /**
      * Stats LE advertise on scatterbrain UUID
      * This should run offloaded on the adapter until stopAdvertise is called
      */
-    fun startAdvertise()
+    fun startAdvertise(luid: UUID? = null): Completable
 
     /**
      * Stops LE advertise
      */
-    fun stopAdvertise()
+    fun stopAdvertise(): Completable
 
     /**
      * Stops active discovery
