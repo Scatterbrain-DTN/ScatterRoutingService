@@ -1101,7 +1101,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 // as they may be tainted
                                                 //clientConnection.dispose()
                                                 session.unlock()
-                                                activeLuids.remove(session.remoteLuid.hashAsUUID)
                                             }
 
                                     }
