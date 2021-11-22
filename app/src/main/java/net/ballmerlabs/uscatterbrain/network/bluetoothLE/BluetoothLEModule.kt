@@ -63,9 +63,9 @@ interface BluetoothLEModule {
      * run another transaction. This should be called sparingly if new data is available
      * If a refresh is already in progress this function calls oncomplete when the current
      * refresh is complete
-     * @return completable
+     * @returns Observable emitting handshake results
      */
-    fun refreshPeers(): Completable
+    fun refreshPeers(): Observable<HandshakeResult>
 
     /**
      * role is a generalized concept of "initiator" vs "acceptor"

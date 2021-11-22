@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.util.Log
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
+import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Scheduler
@@ -28,7 +29,8 @@ import java.util.concurrent.TimeUnit
 class CachedLEConnection(
     rawConnection: Observable<RxBleConnection>,
     private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
-    private val scheduler: Scheduler
+    private val scheduler: Scheduler,
+    val device: RxBleDevice
         ) : Disposable {
     private val disposable = CompositeDisposable()
     private val enabled = CompletableSubject.create()
