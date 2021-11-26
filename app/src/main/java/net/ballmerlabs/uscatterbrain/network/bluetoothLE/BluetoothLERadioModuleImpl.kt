@@ -764,35 +764,69 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
-        val rawConnection = scanResult.bleDevice.establishConnection(false)
-        return Single.just(rawConnection)
-            .doOnSubscribe { acquireWakelock() }
-            .flatMap { connectionObs ->
-                Log.v(TAG, "established connection to ${scanResult.bleDevice.macAddress}")
-                val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
-                Log.e(TAG, "writing hash len ${hash.size}")
-                connectionObs
-                    .flatMapSingle { raw ->
-                        raw.discoverServices()
-                            .flatMap { serv ->
-                                serv.getCharacteristic(UUID_HELLO)
-                                    .flatMap { char ->
-                                        Log.v(TAG, "found hello characteristic: ${char.uuid}")
-                                        raw.readCharacteristic(char)
-                                            .flatMap { v ->
-                                                val luid = bytes2uuid(v)
-                                                Single.just(luid)
-                                                    .flatMap { l ->  addConnectionToCache(connectionObs, l, scanResult.bleDevice) }
-                                                    .flatMap { cachedConnection ->
-                                                      initiateOutgoingConnection(cachedConnection, luid)
-                                                    }
-                                            }
-                                    }
+        return Single.defer {
+            val remoteLuid = scanResult.scanRecord.serviceData[
+                    ParcelUuid(
+                        ADVERTISE_DATA_LUID_UUID
+                    )]
+            val remoteUuid = bytes2uuid(remoteLuid!!)
+            val initialCachedConnection = connectionCache[remoteUuid]
+            when {
+                activeLuids.contains(remoteLuid) -> {
+                    Single.error(IllegalStateException("device already connected (client)"))
+                }
+                initialCachedConnection != null -> {
+                    initiateOutgoingConnection(initialCachedConnection, remoteUuid)
+                }
+                else -> {
+                    val rawConnection = scanResult.bleDevice.establishConnection(false)
+                    Single.just(rawConnection)
+                        .doOnSubscribe { acquireWakelock() }
+                        .flatMap { connectionObs ->
+                            Log.v(
+                                TAG,
+                                "established connection to ${scanResult.bleDevice.macAddress}"
+                            )
+                            val hash =
+                                uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
+                            Log.e(TAG, "writing hash len ${hash.size}")
+                            connectionObs
+                                .flatMapSingle { raw ->
+                                    raw.discoverServices()
+                                        .flatMap { serv ->
+                                            serv.getCharacteristic(UUID_HELLO)
+                                                .flatMap { char ->
+                                                    Log.v(
+                                                        TAG,
+                                                        "found hello characteristic: ${char.uuid}"
+                                                    )
+                                                    raw.readCharacteristic(char)
+                                                        .flatMap { v ->
+                                                            val luid = bytes2uuid(v)
+                                                            Single.just(luid)
+                                                                .flatMap { l ->
+                                                                    addConnectionToCache(
+                                                                        connectionObs,
+                                                                        l,
+                                                                        scanResult.bleDevice
+                                                                    )
+                                                                }
+                                                                .flatMap { cachedConnection ->
+                                                                    initiateOutgoingConnection(
+                                                                        cachedConnection,
+                                                                        luid
+                                                                    )
+                                                                }
+                                                        }
+                                                }
 
-                            }
-                    }
-                    .firstOrError()
+                                        }
+                                }
+                                .firstOrError()
+                        }
+                }
             }
+        }
 
     }
 
