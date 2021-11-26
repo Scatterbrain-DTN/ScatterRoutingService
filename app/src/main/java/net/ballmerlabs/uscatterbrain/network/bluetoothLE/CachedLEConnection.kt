@@ -37,21 +37,26 @@ class CachedLEConnection(
     private val timeout: Long = 20
 
     val connection = BehaviorSubject.create<RxBleConnection>()
-    private val disconnectCallbacks = ConcurrentHashMap<() -> Unit, Boolean>()
+    private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
 
     init {
         rawConnection
             .doOnSubscribe { disp -> disposable.add(disp) }
             .doOnError { err -> Log.e(TAG, "raw connection error: $err") }
             .doOnComplete { Log.e(TAG, "raw connection completed") }
-            .doFinally { disconnectCallbacks.forEach { v -> v.key() } }
+            .onErrorResumeNext(onDisconnect().andThen(Observable.empty()))
+            .concatWith(onDisconnect())
             .subscribe(connection)
 
         premptiveEnable().subscribe(enabled)
     }
 
+    private fun onDisconnect(): Completable {
+        return Observable.fromIterable(disconnectCallbacks.keys)
+            .flatMapCompletable { k -> k() }
+    }
 
-    fun setOnDisconnect(callback: () -> Unit) {
+    fun setOnDisconnect(callback: () -> Completable) {
         disconnectCallbacks[callback] = true
     }
 

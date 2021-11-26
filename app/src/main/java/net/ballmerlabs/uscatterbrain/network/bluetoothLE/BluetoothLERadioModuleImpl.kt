@@ -963,6 +963,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     newconnection.setOnDisconnect {
                         val conn = connectionCache.remove(luid)
                         conn?.dispose()
+                        randomizeLuid()
                     }
                     newconnection
                 } else {
@@ -979,6 +980,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 cached.setOnDisconnect {
                     val removedConnection = connectionCache.remove(luid)
                     removedConnection?.dispose()
+                    randomizeLuid()
                 }
                 connectionCache[luid] = cached
                 cached
