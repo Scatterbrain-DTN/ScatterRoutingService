@@ -1162,7 +1162,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.v(TAG, "gatt server initialized")
                     serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, serverScheduler))
                     //TODO:
-                    val write = connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
+                    connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
                         .subscribeOn(operationsScheduler)
                         .flatMapSingle { trans ->
                             Log.e(TAG, "hello from ${trans.remoteDevice.macAddress}")
@@ -1195,8 +1195,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .doOnNext { t -> Log.v(TAG, "transactionResult ${t.success}") }
                         .retry()
                         .repeat()
-
-                    write
                 }
                 .doOnDispose {
                     Log.e(TAG, "gatt server disposed")
