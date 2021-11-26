@@ -792,35 +792,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             Log.e(TAG, "writing hash len ${hash.size}")
                             connectionObs
                                 .flatMapSingle { raw ->
-                                    raw.discoverServices()
-                                        .flatMap { serv ->
-                                            serv.getCharacteristic(UUID_HELLO)
-                                                .flatMap { char ->
-                                                    Log.v(
-                                                        TAG,
-                                                        "found hello characteristic: ${char.uuid}"
-                                                    )
-                                                    raw.readCharacteristic(char)
-                                                        .flatMap { v ->
-                                                            val luid = bytes2uuid(v)
-                                                            Single.just(luid)
-                                                                .flatMap { l ->
-                                                                    addConnectionToCache(
-                                                                        connectionObs,
-                                                                        l,
-                                                                        scanResult.bleDevice
-                                                                    )
-                                                                }
-                                                                .flatMap { cachedConnection ->
-                                                                    initiateOutgoingConnection(
-                                                                        cachedConnection,
-                                                                        luid
-                                                                    )
-                                                                }
-                                                        }
-                                                }
-
-                                        }
+                                    addConnectionToCache(
+                                        connectionObs,
+                                        remoteUuid,
+                                        scanResult.bleDevice
+                                    )
+                                }
+                                .flatMapSingle { cachedConnection ->
+                                    initiateOutgoingConnection(
+                                        cachedConnection,
+                                        remoteUuid
+                                    )
                                 }
                                 .firstOrError()
                         }
@@ -1188,7 +1170,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)
                             Log.e(TAG, "server handling luid $luid")
-                            if (activeLuids.putIfAbsent(luid, true) == null ) {
+                            if (activeLuids.putIfAbsent(luid, true) == null) {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(establishConnectionCached(trans.remoteDevice, luid))
                                     .flatMap { connection ->
@@ -1214,22 +1196,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .retry()
                         .repeat()
 
-                    val read = connectionRaw.getOnCharacteristicReadRequest(UUID_HELLO)
-                        .subscribeOn(operationsScheduler)
-                        .flatMapCompletable { trans ->
-                            val luidRaw = myLuid.get()
-                            val hash = uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(luidRaw)))
-                            Log.v(TAG, "hello read from ${trans.remoteDevice.macAddress} $hash")
-                            trans.sendReply(hash, BluetoothGatt.GATT_SUCCESS)
-                                .doOnError { err -> Log.e(TAG, "failed to send luid to remote peer $hash: $err") }
-                                .onErrorComplete()
-                        }
-                        .doOnError { err -> Log.e(TAG, "hello characteristic failed to handle read $err") }
-                        .onErrorComplete()
-                        .retry()
-                        .repeat()
-
-                    write.mergeWith(read)
+                    write
                 }
                 .doOnDispose {
                     Log.e(TAG, "gatt server disposed")
@@ -1244,8 +1211,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .retry()
                 .repeat()
                 .doOnNext { releaseWakeLock() }
-            )
-                .subscribe(transactionCompleteRelay)
+            ).subscribe(transactionCompleteRelay)
         mGattDisposable.add(d)
     }
 
