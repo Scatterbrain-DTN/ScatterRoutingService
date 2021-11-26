@@ -26,6 +26,7 @@ class CachedLEServerConnection(
         private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
         private  val scheduler: Scheduler
         ) : Disposable {
+    val luid: UUID? = null
     private val disposable = CompositeDisposable()
     private val packetQueue = PublishRelay.create<ScatterSerializable<out MessageLite>>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors

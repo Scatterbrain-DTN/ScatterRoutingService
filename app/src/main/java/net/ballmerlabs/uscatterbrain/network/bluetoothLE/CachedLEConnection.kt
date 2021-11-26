@@ -95,7 +95,7 @@ class CachedLEConnection(
             .flatMap { c ->
                 c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
                     .map{ bytes: ByteArray ->
-                        val uuid: UUID = BluetoothLERadioModuleImpl.bytes2uuid(bytes)
+                        val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
                         if (!channels.containsKey(uuid)) {
                             throw IllegalStateException("gatt server returned invalid uuid")
                         }

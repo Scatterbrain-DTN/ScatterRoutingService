@@ -164,14 +164,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             return UUID(high, low)
         }
 
-        fun uuid2bytes(uuid: UUID?): ByteArray {
+        fun uuid2bytes(uuid: UUID?): ByteArray? {
+            uuid?: return null
             val buffer = ByteBuffer.allocate(16)
-            buffer.putLong(uuid!!.mostSignificantBits)
+            buffer.putLong(uuid.mostSignificantBits)
             buffer.putLong(uuid.leastSignificantBits)
             return buffer.array()
         }
 
-        fun bytes2uuid(bytes: ByteArray): UUID {
+        fun bytes2uuid(bytes: ByteArray?): UUID? {
+            bytes?: return null
             val buffer = ByteBuffer.wrap(bytes)
             val high = buffer.long
             val low = buffer.long
@@ -769,14 +771,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     ParcelUuid(
                         ADVERTISE_DATA_LUID_UUID
                     )]
-            val remoteUuid = bytes2uuid(remoteLuid!!)
+            val remoteUuid = bytes2uuid(remoteLuid)
             val initialCachedConnection = connectionCache[remoteUuid]
             when {
-                activeLuids.contains(remoteLuid) -> {
+                remoteLuid != null && activeLuids.contains(remoteLuid) -> {
                     Single.error(IllegalStateException("device already connected (client)"))
                 }
                 initialCachedConnection != null -> {
-                    initiateOutgoingConnection(initialCachedConnection, remoteUuid)
+                    initiateOutgoingConnection(initialCachedConnection, remoteUuid!!)
                 }
                 else -> {
                     val rawConnection = scanResult.bleDevice.establishConnection(false)
@@ -789,19 +791,19 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             )
                             val hash =
                                 uuid2bytes(hashAsUUID(LuidPacket.calculateHashFromUUID(myLuid.get())))
-                            Log.e(TAG, "writing hash len ${hash.size}")
+                            Log.e(TAG, "writing hash len ${hash!!.size}")
                             connectionObs
                                 .flatMapSingle { raw ->
                                     addConnectionToCache(
                                         connectionObs,
-                                        remoteUuid,
+                                        remoteUuid!!,
                                         scanResult.bleDevice
                                     )
                                 }
                                 .flatMapSingle { cachedConnection ->
                                     initiateOutgoingConnection(
                                         cachedConnection,
-                                        remoteUuid
+                                        remoteUuid!!
                                     )
                                 }
                                 .firstOrError()
@@ -820,7 +822,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 cachedConnection.connection
                     .firstOrError()
                     .flatMap { connection ->
-                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(luid))
+                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(luid)!!)
                             .doOnSuccess { res ->
                                 Log.v(
                                     TAG,
@@ -1170,7 +1172,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             Log.e(TAG, "hello from ${trans.remoteDevice.macAddress}")
                             //accquire wakelock
                             acquireWakelock()
-                            val luid = bytes2uuid(trans.value)
+                            val luid = bytes2uuid(trans.value)!!
                             Log.e(TAG, "server handling luid $luid")
                             if (activeLuids.putIfAbsent(luid, true) == null) {
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
