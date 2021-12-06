@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.util.Log
+import com.jakewharton.rxrelay2.BehaviorRelay
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
@@ -10,7 +11,6 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
@@ -36,18 +36,18 @@ class CachedLEConnection(
     private val enabled = CompletableSubject.create()
     private val timeout: Long = 20
 
-    val connection = BehaviorSubject.create<RxBleConnection>()
+    val connection = BehaviorRelay.create<RxBleConnection>()
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
 
     init {
-        rawConnection
+        val disp = rawConnection
             .doOnSubscribe { disp -> disposable.add(disp) }
             .doOnError { err -> Log.e(TAG, "raw connection error: $err") }
             .doOnComplete { Log.e(TAG, "raw connection completed") }
             .onErrorResumeNext(onDisconnect().andThen(Observable.empty()))
             .concatWith(onDisconnect())
             .subscribe(connection)
-
+        disposable.add(disp)
         premptiveEnable().subscribe(enabled)
     }
 
