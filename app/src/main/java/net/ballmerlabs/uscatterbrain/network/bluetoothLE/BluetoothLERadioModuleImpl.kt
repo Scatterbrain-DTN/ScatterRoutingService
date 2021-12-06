@@ -23,8 +23,6 @@ import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.CompletableSubject
-import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
@@ -805,7 +803,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 TAG,
                                 "established connection to ${scanResult.bleDevice.macAddress}"
                             )
-                            addConnectionToCache(connectionObs, scanResult.bleDevice)
+                            addExistingConnectionToCache(connectionObs, scanResult.bleDevice)
                                 .flatMap { cached ->
                                     cached.connection
                                         .concatMapSingle { raw ->
@@ -837,7 +835,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 cachedConnection.connection
                     .firstOrError()
                     .flatMap { connection ->
-                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(luid)!!)
+                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(myLuid.get())!!)
                             .doOnSuccess { res ->
                                 Log.v(
                                     TAG,
@@ -1006,7 +1004,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun addConnectionToCache(conn: Observable<RxBleConnection>, device: RxBleDevice, luidParam: UUID? = null): Single<CachedLEConnection> {
+    private fun addExistingConnectionToCache(conn: Observable<RxBleConnection>, device: RxBleDevice, luidParam: UUID? = null): Single<CachedLEConnection> {
         return Single.just(conn)
             .flatMap { c ->
                 val cached = CachedLEConnection(c, channels, clientScheduler, device)
@@ -1242,7 +1240,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     val read = connectionRaw.getOnCharacteristicReadRequest(UUID_HELLO)
                         .subscribeOn(operationsScheduler)
                         .flatMapCompletable { trans ->
-                            acquireWakelock()
                             val luid = LuidPacket.calculateHashFromUUID(myLuid.get())
                             Log.v(TAG, "hello characteristic read, replying with luid ${bytes2uuid(luid)}")
                             trans.sendReply(luid, BluetoothGatt.GATT_SUCCESS)
