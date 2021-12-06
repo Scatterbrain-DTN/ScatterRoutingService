@@ -24,6 +24,7 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
+import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
@@ -120,9 +121,42 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val serverStarted = AtomicReference(false)
 
+    private val isAdvertising = BehaviorSubject.create<Pair<Boolean, Boolean>>()
+    private val advertiseCallback = object : AdvertiseCallback() {
+        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+            super.onStartSuccess(settingsInEffect)
+            isAdvertising.onNext(Pair(true, false))
+            Log.v(TAG, "successfully stopped advertise")
+        }
+
+        override fun onStartFailure(errorCode: Int) {
+            super.onStartFailure(errorCode)
+            if (errorCode == ADVERTISE_FAILED_ALREADY_STARTED) {
+                Log.e(TAG, "advertise already started")
+                isAdvertising.onNext(Pair(true, false))
+            } else {
+                Log.e(TAG, "failed to start advertise: $errorCode")
+                isAdvertising.onNext(Pair(false, true))
+            }
+        }
+    }
+
+
+    // scatterbrain gatt service object
+    private val mService = BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+
+    //avoid triggering concurrent peer refreshes
+    private val refreshInProgresss = BehaviorRelay.create<Boolean>()
+
+    private val discoveryPersistent = AtomicReference(false)
+
+    private val serverSubject = SingleSubject.create<CachedLEServerConnection>()
+
+
+    // a "channel" is a characteristc that protobuf messages are written to.
+    private val channels = ConcurrentHashMap<UUID, LockedCharactersitic>()
     companion object {
         const val TAG = "BluetoothLE"
-        const val CLIENT_CONNECT_TIMEOUT = 10
 
         // scatterbrain service uuid. This is the same for every scatterbrain router.
         val SERVICE_UUID: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
@@ -137,21 +171,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         // characteristic to initiate a session
         val UUID_HELLO: UUID = UUID.fromString("5d1b424e-ff15-49b4-b557-48274634a01a")
 
-        // a "channel" is a characteristc that protobuf messages are written to.
-        val channels = ConcurrentHashMap<UUID, LockedCharactersitic>()
-
         // number of channels. This can be increased or decreased for performance
         private const val NUM_CHANNELS = 8
-
-        // scatterbrain gatt service object
-        val mService = BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-
-        //avoid triggering concurrent peer refreshes
-        val refreshInProgresss = BehaviorRelay.create<Boolean>()
-
-        val discoveryPersistent = AtomicReference(false)
-
-        private val serverSubject = SingleSubject.create<CachedLEServerConnection>()
 
         private fun incrementUUID(uuid: UUID, i: Int): UUID {
             val buffer = ByteBuffer.allocate(16)
@@ -179,36 +200,19 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             val low = buffer.long
             return UUID(high, low)
         }
+    }
 
-        /*
-         * shortcut to generate a characteristic with the required permissions
-         * and properties and add it to our service.
-         * We need PROPERTY_INDICATE to send large protobuf blobs and
-         * READ and WRITE for timing / locking
-         */
-        private fun makeCharacteristic(uuid: UUID): BluetoothGattCharacteristic {
-            val characteristic = BluetoothGattCharacteristic(
-                    uuid,
-                    BluetoothGattCharacteristic.PROPERTY_READ or
-                            BluetoothGattCharacteristic.PROPERTY_WRITE or
-                            BluetoothGattCharacteristic.PROPERTY_INDICATE,
-                    BluetoothGattCharacteristic.PERMISSION_WRITE or
-                            BluetoothGattCharacteristic.PERMISSION_READ
-            )
-            mService.addCharacteristic(characteristic)
-            return characteristic
-        }
 
-        init {
-            // initialize our channels
-            makeCharacteristic(UUID_SEMAPHOR)
-            makeCharacteristic(UUID_HELLO)
-            for (i in 0 until NUM_CHANNELS) {
-                val channel = incrementUUID(SERVICE_UUID, i + 1)
-                channels[channel] = LockedCharactersitic(makeCharacteristic(channel), i)
-            }
-            refreshInProgresss.accept(false)
+    init {
+        // initialize our channels
+        makeCharacteristic(UUID_SEMAPHOR)
+        makeCharacteristic(UUID_HELLO)
+        for (i in 0 until NUM_CHANNELS) {
+            val channel = incrementUUID(SERVICE_UUID, i + 1)
+            channels[channel] = LockedCharactersitic(makeCharacteristic(channel), i)
         }
+        refreshInProgresss.accept(false)
+        Log.e(TAG, "init")
     }
 
     private val mGattDisposable = CompositeDisposable()
@@ -222,6 +226,25 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
     private val connectionCache = ConcurrentHashMap<UUID, CachedLEConnection>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
+
+    /*
+         * shortcut to generate a characteristic with the required permissions
+         * and properties and add it to our service.
+         * We need PROPERTY_INDICATE to send large protobuf blobs and
+         * READ and WRITE for timing / locking
+         */
+    private fun makeCharacteristic(uuid: UUID): BluetoothGattCharacteristic {
+        val characteristic = BluetoothGattCharacteristic(
+            uuid,
+            BluetoothGattCharacteristic.PROPERTY_READ or
+                    BluetoothGattCharacteristic.PROPERTY_WRITE or
+                    BluetoothGattCharacteristic.PROPERTY_INDICATE,
+            BluetoothGattCharacteristic.PERMISSION_WRITE or
+                    BluetoothGattCharacteristic.PERMISSION_READ
+        )
+        mService.addCharacteristic(characteristic)
+        return characteristic
+    }
 
     private fun getLuidClient(conn: CachedLEConnection): Single<LuidPacket> {
         return conn.readLuid()
@@ -302,25 +325,24 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
+    private fun mapAdvertiseComplete(state: Boolean): Completable {
+        return isAdvertising
+            .takeUntil { v -> (v.first == state) or v.second}
+            .flatMapCompletable { v ->
+                if (v.second) {
+                    isAdvertising.onNext(Pair(v.first, false))
+                    Completable.error(IllegalStateException("failed to complete advertise task"))
+                } else {
+                    Completable.complete()
+                }
+            }
+    }
+
     /**
      * start offloaded advertising. This should continue even after the phone is asleep
      */
     override fun startAdvertise(luid: UUID?): Completable {
         return Completable.defer {
-            val subject = CompletableSubject.create()
-            val callback = object : AdvertiseCallback() {
-                override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-                    super.onStartSuccess(settingsInEffect)
-                    subject.onComplete()
-                    Log.v(TAG, "successfully started advertise")
-                }
-
-                override fun onStartFailure(errorCode: Int) {
-                    super.onStartFailure(errorCode)
-                    subject.onError(IllegalStateException("failed to start advertise: $errorCode"))
-                    Log.e(TAG, "failed to start advertise")
-                }
-            }
             Log.v(TAG, "Starting LE advertise")
             val settings = AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
@@ -338,9 +360,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }
             val addata = dataBuilder.build()
 
-            mAdvertiser.startAdvertising(settings, addata, callback)
-            subject
+            mAdvertiser.startAdvertising(settings, addata, advertiseCallback)
+            mapAdvertiseComplete(true)
         }
+            .retry(10)
     }
 
     private fun setAdvertisingLuid(luid: UUID): Completable {
@@ -368,23 +391,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun stopAdvertise(): Completable {
         Log.v(TAG, "stopping LE advertise")
-        return Completable.defer {
-            val subject = CompletableSubject.create()
-            val callback = object : AdvertiseCallback() {
-                override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-                    super.onStartSuccess(settingsInEffect)
-                    subject.onComplete()
-                    Log.v(TAG, "successfully stopped advertise")
-                }
-
-                override fun onStartFailure(errorCode: Int) {
-                    super.onStartFailure(errorCode)
-                    subject.onError(IllegalStateException("failed to start advertise: $errorCode"))
-                    Log.e(TAG, "failed to stop advertise")
-                }
-            }
-            mAdvertiser.stopAdvertising(callback)
-            subject
+        return Completable.fromAction {
+            mAdvertiser.stopAdvertising(advertiseCallback)
+            isAdvertising.onNext(Pair(false, false))
         }
     }
 

@@ -67,7 +67,7 @@ class CachedLEConnection(
      * @return Completable
      */
     private fun premptiveEnable(): Completable {
-        return Observable.fromIterable(BluetoothLERadioModuleImpl.channels.keys)
+        return Observable.fromIterable(channels.keys)
                 .flatMapSingle{ uuid: UUID ->
                     connection
                         .firstOrError()
