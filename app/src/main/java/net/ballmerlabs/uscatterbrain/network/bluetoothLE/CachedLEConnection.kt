@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit
  * @property connection raw connection object being wrapped by this class
  */
 class CachedLEConnection(
-    rawConnection: Observable<RxBleConnection>,
     private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
     private val scheduler: Scheduler,
     val device: RxBleDevice
@@ -40,11 +39,14 @@ class CachedLEConnection(
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
 
     init {
-        rawConnection
-            .doOnSubscribe { disp ->
-                disposable.add(disp)
-                Log.v(TAG, "subscribed to connection subject")
-            }
+        premptiveEnable().subscribe(enabled)
+    }
+
+    fun subscribeConnection(rawConnection: Observable<RxBleConnection>) {
+        rawConnection.doOnSubscribe { disp ->
+            disposable.add(disp)
+            Log.v(TAG, "subscribed to connection subject")
+        }
             .doOnError { err ->
                 Log.e(TAG, "raw connection error: $err")
                 onDisconnect().blockingAwait()
@@ -52,8 +54,6 @@ class CachedLEConnection(
             .doOnComplete { Log.e(TAG, "raw connection completed") }
             .concatWith(onDisconnect())
             .subscribe(connection)
-
-        premptiveEnable().subscribe(enabled)
     }
 
     private fun onDisconnect(): Completable {

@@ -29,6 +29,7 @@ import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.BuildConfig
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
@@ -795,36 +796,27 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     initiateOutgoingConnection(initialCachedConnection, remoteUuid)
                 }
                 else -> {
-                    val rawConnection = scanResult.bleDevice.establishConnection(false)
-                    Single.just(rawConnection)
-                        .doOnSubscribe { acquireWakelock() }
-                        .flatMap { connectionObs ->
-                            Log.v(
-                                TAG,
-                                "established connection to ${scanResult.bleDevice.macAddress}"
-                            )
-                            addExistingConnectionToCache(connectionObs, scanResult.bleDevice)
-                                .flatMap { cached ->
-                                    cached.connection
-                                        .concatMapSingle { raw ->
-                                            raw.readCharacteristic(UUID_HELLO)
-                                                .flatMap { luid ->
-                                                    val luidUuid = bytes2uuid(luid)!!
-                                                    Log.v(TAG, "read remote luid from GATT $luidUuid")
-                                                    initiateOutgoingConnection(
-                                                        cached,
-                                                        luidUuid
-                                                    )
-                                                }
+                    establishConnectionCached(scanResult.bleDevice, remoteUuid)
+                        .flatMap { cached ->
+                            cached.connection
+                                .concatMapSingle { raw ->
+                                    Log.v(TAG, "attempting to read hello characteristic")
+                                    raw.readCharacteristic(UUID_HELLO)
+                                        .flatMap { luid ->
+                                            val luidUuid = bytes2uuid(luid)!!
+                                            Log.v(TAG, "read remote luid from GATT $luidUuid")
+                                            initiateOutgoingConnection(
+                                                cached,
+                                                luidUuid
+                                            )
                                         }
-                                        .firstOrError()
                                 }
-
+                                .firstOrError()
                         }
+
                 }
             }
         }
-
     }
 
 
@@ -835,7 +827,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 cachedConnection.connection
                     .firstOrError()
                     .flatMap { connection ->
-                        connection.writeCharacteristic(UUID_HELLO, LuidPacket.calculateHashFromUUID(myLuid.get()))
+                        val hash = LuidPacket.calculateHashFromUUID(myLuid.get())
+                        Log.v(TAG, "writing hashed luid length ${hash.size}")
+                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(hashAsUUID(hash))!!)
                             .doOnSuccess { res ->
                                 Log.v(
                                     TAG,
@@ -957,10 +951,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
     }
 
-    private fun establishConnectionCached(device: RxBleDevice, luid: UUID): Single<CachedLEConnection> {
+    private fun establishConnectionCached(device: RxBleDevice, luid: UUID? = null): Single<CachedLEConnection> {
         return Single.fromCallable {
             Log.e(TAG, "establishing cached connection to ${device.macAddress}, ${connectionCache.size} devices connected")
-            val connection = connectionCache[luid]
+            val connection = if (luid == null) null else connectionCache[luid]
             if (connection != null) {
                 Log.e(TAG, "cache HIT")
                 connection
@@ -972,60 +966,47 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             "established cached connection to ${device.macAddress}"
                         )
                     }
-                val newconnection = CachedLEConnection(rawConnection, channels, clientScheduler, device)
-                val collision = connectionCache.putIfAbsent(luid, newconnection)
-                Log.e(TAG, "cache MISS, ${connectionCache.size} devices connected")
-                if (collision == null) {
-                    newconnection.setOnDisconnect {
-                        val conn = connectionCache.remove(luid)
-                        conn?.dispose()
-                        if (connectionCache.isEmpty()) {
-                            removeLuid()
-                        } else {
-                            Completable.complete()
-                        }
-                    }
-                    newconnection
-                } else {
-                    collision
-                }
-            }
-        }
-    }
-
-    private fun retrieveLuidIfNull(luid: UUID?, conn: CachedLEConnection): Single<UUID> {
-        return if (luid != null)
-            Single.just(luid)
-        else {
-            conn.connection.concatMapSingle { raw ->
-                raw.readCharacteristic(UUID_HELLO)
-                    .map { bytes -> bytes2uuid(bytes)!! }
-            }.firstOrError()
-        }
-    }
-
-    private fun addExistingConnectionToCache(conn: Observable<RxBleConnection>, device: RxBleDevice, luidParam: UUID? = null): Single<CachedLEConnection> {
-        return Single.just(conn)
-            .flatMap { c ->
-                val cached = CachedLEConnection(c, channels, clientScheduler, device)
-                retrieveLuidIfNull(luidParam, cached)
-                    .flatMap { luid ->
-                        cached.setOnDisconnect {
-                            val removedConnection = connectionCache.remove(luid)
-                            removedConnection?.dispose()
-                            if (connectionCache.isEmpty()) {
-                                removeLuid()
-                            } else {
-                                Completable.complete()
+                val newconnection = CachedLEConnection(channels, clientScheduler, device)
+                val c = retrieveLuidIfNull(luid, rawConnection)
+                    .map { connectionPair ->
+                        val collision = connectionCache.putIfAbsent(connectionPair.first, newconnection)
+                        Log.e(TAG, "cache MISS, ${connectionCache.size} devices connected")
+                        if (collision == null) {
+                            newconnection.setOnDisconnect {
+                                val conn = connectionCache.remove(luid)
+                                conn?.dispose()
+                                if (connectionCache.isEmpty()) {
+                                    removeLuid()
+                                } else {
+                                    Completable.complete()
+                                }
                             }
-                        }
-                        if (connectionCache.putIfAbsent(luid, cached) != null ){
-                            Single.error(IllegalStateException("what the absolute hecking heck, connection already exists when adding"))
+                            connectionPair.second
                         } else {
-                            Single.just(cached)
+                            throw IllegalStateException("what the absolute hecking heck")
                         }
                     }
+
+                    newconnection.subscribeConnection(c)
+                    newconnection
+
             }
+        }
+    }
+
+    private fun retrieveLuidIfNull(luid: UUID?, conn: Observable<RxBleConnection>): Observable<Pair<UUID, RxBleConnection>> {
+        return if (luid != null)
+            conn.map { c -> Pair(luid, c) }
+        else {
+            conn.flatMapSingle { c ->
+                c.readCharacteristic(UUID_HELLO)
+                    .map { bytes ->
+                        Log.v(TAG, "retrieveLuidIfNull hello characteristic read")
+                        Pair(bytes2uuid(bytes)!!, c)
+                    }
+            }
+
+        }
     }
 
     private fun handleConnection(connection: CachedLEConnection, device: RxBleDevice, luid: UUID): Single<HandshakeResult> {
@@ -1229,10 +1210,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                     val read = connectionRaw.getOnCharacteristicReadRequest(UUID_HELLO)
                         .subscribeOn(operationsScheduler)
+                        .doOnSubscribe { Log.v(TAG, "hello characteristic read subscribed") }
                         .flatMapCompletable { trans ->
                             val luid = LuidPacket.calculateHashFromUUID(myLuid.get())
                             Log.v(TAG, "hello characteristic read, replying with luid ${bytes2uuid(luid)}")
-                            trans.sendReply(luid, BluetoothGatt.GATT_SUCCESS)
+                            trans.sendReply(uuid2bytes(hashAsUUID(luid)), BluetoothGatt.GATT_SUCCESS)
                         }
                         .doOnError { err -> Log.e(TAG, "error in hello characteristic read: $err") }
                         .retry()
