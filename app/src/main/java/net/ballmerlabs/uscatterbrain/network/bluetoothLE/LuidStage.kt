@@ -1,27 +1,21 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import android.util.Log
 import io.reactivex.Completable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterRoutingService
+import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.LuidPacket
 import java.util.*
 
 /**
  * holds state for the luid stage of the bluetooth LE transport FSM
  */
-class LuidStage(val selfUnhashed: UUID, val remoteHashedPacket: LuidPacket) : LeDeviceSession.Stage {
+class LuidStage(val selfUnhashed: UUID, val remoteHashed: UUID) : LeDeviceSession.Stage {
     var remoteUnhashed: LuidPacket? = null
-    val selfHashedPacket = LuidPacket.newBuilder()
-            .setLuid(selfUnhashed)
-            .enableHashing(ScatterRoutingService.PROTO_VERSION)
-            .build()
-
     val selfUnhashedPacket = LuidPacket.newBuilder()
             .setLuid(selfUnhashed)
             .build()
-
-    val remoteHashed: UUID
-    get() = remoteHashedPacket.hashAsUUID!!
 
     fun setPacket(packet: LuidPacket?) {
         if (packet!!.isHashed) {
@@ -44,13 +38,17 @@ class LuidStage(val selfUnhashed: UUID, val remoteHashedPacket: LuidPacket) : Le
         return if (remoteUnhashed == null) {
             Completable.error(InvalidLuidException("remotepacket not set"))
         } else Single.zip(
-                Single.just(remoteHashedPacket),
-                Single.just(remoteUnhashed), { obj, packet -> obj.verifyHash(packet) })
-                .flatMap { bool: Boolean? ->
-                    if (!bool!!) {
-                        return@flatMap Single.error<Boolean>(InvalidLuidException("failed to verify hash"))
+                Single.just(remoteHashed),
+                Single.just(remoteUnhashed), { hashed, unhashed ->
+                Log.e("debug", "luid stage verify hash $hashed, ${unhashed.luidVal}")
+                val hash = LuidPacket.calculateHashFromUUID(unhashed.luidVal)
+                hashAsUUID(hash).compareTo(hashed) == 0
+            })
+                .flatMap { bool ->
+                    if (!bool) {
+                        Single.error(InvalidLuidException("failed to verify hash"))
                     } else {
-                        return@flatMap Single.just(true)
+                        Single.just(true)
                     }
                 }
                 .ignoreElement()

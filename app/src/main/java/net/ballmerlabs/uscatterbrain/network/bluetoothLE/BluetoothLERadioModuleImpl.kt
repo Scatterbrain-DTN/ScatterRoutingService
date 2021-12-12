@@ -835,7 +835,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 cachedConnection.connection
                     .firstOrError()
                     .flatMap { connection ->
-                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(myLuid.get())!!)
+                        connection.writeCharacteristic(UUID_HELLO, LuidPacket.calculateHashFromUUID(myLuid.get()))
                             .doOnSuccess { res ->
                                 Log.v(
                                     TAG,
@@ -844,7 +844,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             }
                             .doOnError { e -> Log.e(TAG, "failed to write characteristic: $e") }
                             .ignoreElement()
-                            .andThen (handleConnection(cachedConnection, cachedConnection.device))
+                            .andThen (handleConnection(cachedConnection, cachedConnection.device, luid))
                             .onErrorReturnItem(
                                 HandshakeResult(
                                     0,
@@ -1009,7 +1009,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .flatMap { c ->
                 val cached = CachedLEConnection(c, channels, clientScheduler, device)
                 retrieveLuidIfNull(luidParam, cached)
-                    .map { luid ->
+                    .flatMap { luid ->
                         cached.setOnDisconnect {
                             val removedConnection = connectionCache.remove(luid)
                             removedConnection?.dispose()
@@ -1019,30 +1019,21 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 Completable.complete()
                             }
                         }
-                        connectionCache[luid] = cached
-                        cached
+                        if (connectionCache.putIfAbsent(luid, cached) != null ){
+                            Single.error(IllegalStateException("what the absolute hecking heck, connection already exists when adding"))
+                        } else {
+                            Single.just(cached)
+                        }
                     }
             }
     }
 
-    private fun handleConnection(connection: CachedLEConnection, device: RxBleDevice): Single<HandshakeResult> {
+    private fun handleConnection(connection: CachedLEConnection, device: RxBleDevice, luid: UUID): Single<HandshakeResult> {
         return Single.just(connection)
             .flatMap { clientConnection ->
                 serverSubject
                     .flatMap { connection ->
-                        Log.v(TAG, "stating stages")
-                        getLuidClient(clientConnection)
-                            .observeOn(clientScheduler)
-                            .toObservable()
-                            .mergeWith(
-                                getLuidServer(connection)
-                                    .observeOn(serverScheduler)
-                                    .doOnError { err -> Log.e(TAG, "server error on retrieving luid $err") }
-                            )
-                            .doOnError { err -> Log.e(TAG, "client error on retrieving luid $err") }
-                            .firstOrError()
-                            .flatMap { luid ->
-                                Log.v(TAG, "successfully connected to ${luid.hashAsUUID}")
+                                Log.v(TAG, "successfully connected to ${luid}")
                                 val s = LeDeviceSession(
                                         device.bluetoothDevice,
                                         myLuid.get(),
@@ -1090,7 +1081,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                     .onErrorReturn { TransactionResult(
                                                                         TransactionResult.STAGE_TERMINATE,
                                                                         device.bluetoothDevice,
-                                                                        luid.luidVal,
+                                                                        luid,
                                                                         err = true
                                                                     ) },
                                                                 { first, second ->
@@ -1160,8 +1151,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             }
 
                                     }
-
-                            }
                     }
             }
     }
@@ -1216,7 +1205,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     .flatMap { connection ->
                                         handleConnection(
                                             connection,
-                                            trans.remoteDevice
+                                            trans.remoteDevice,
+                                            luid
                                         )
                                     }
                                     .doOnError { err -> Log.e(TAG, "error in handleConnection $err") }

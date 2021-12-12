@@ -44,7 +44,7 @@ class LeDeviceSession(
         luid: UUID,
         val client: CachedLEConnection,
         val server: CachedLEServerConnection,
-        val remoteLuid: LuidPacket
+        val remoteLuid: UUID
 ) {
     val luidStage: LuidStage = LuidStage(luid, remoteLuid) //exchange hashed and unhashed luids
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities

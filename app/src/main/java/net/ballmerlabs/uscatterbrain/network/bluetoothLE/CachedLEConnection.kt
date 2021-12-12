@@ -41,10 +41,15 @@ class CachedLEConnection(
 
     init {
         rawConnection
-            .doOnSubscribe { disp -> disposable.add(disp) }
-            .doOnError { err -> Log.e(TAG, "raw connection error: $err") }
+            .doOnSubscribe { disp ->
+                disposable.add(disp)
+                Log.v(TAG, "subscribed to connection subject")
+            }
+            .doOnError { err ->
+                Log.e(TAG, "raw connection error: $err")
+                onDisconnect().blockingAwait()
+            }
             .doOnComplete { Log.e(TAG, "raw connection completed") }
-            .onErrorResumeNext(onDisconnect().andThen(Observable.empty()))
             .concatWith(onDisconnect())
             .subscribe(connection)
 
