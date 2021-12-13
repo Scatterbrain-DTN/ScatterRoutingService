@@ -840,17 +840,24 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
     }
 
+    private fun getAdvertisedLuid(scanResult: ScanResult): UUID? {
+        return if (scanResult.scanRecord.serviceUuids.size == 2) {
+            val serviceIndex = scanResult.scanRecord.serviceUuids.indexOf(ParcelUuid(SERVICE_UUID))
+            val luidIndex = if (serviceIndex == 0) 1 else 0
+            scanResult.scanRecord.serviceUuids[luidIndex]?.uuid
+        } else {
+            null
+        }
+    }
+
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
         return Single.defer {
-            val remoteLuid = scanResult.scanRecord.serviceData[
-                    ParcelUuid(
-                        ADVERTISE_DATA_LUID_UUID
-                    )]
-            val remoteUuid = bytes2uuid(remoteLuid)
+            val remoteUuid = getAdvertisedLuid(scanResult)
+            Log.v(TAG, "scan result has luid ${remoteUuid?:"null"}")
             val initialCachedConnection = if (remoteUuid != null) connectionCache[remoteUuid] else null
             when {
-                remoteLuid != null && activeLuids.contains(remoteLuid) -> {
+                remoteUuid != null && activeLuids.contains(remoteUuid) -> {
                     Single.error(IllegalStateException("device already connected (client)"))
                 }
                 remoteUuid != null && initialCachedConnection != null -> {
