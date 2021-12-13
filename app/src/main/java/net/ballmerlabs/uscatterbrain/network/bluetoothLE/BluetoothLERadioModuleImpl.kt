@@ -441,9 +441,24 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
 
     private fun removeLuid(): Completable {
-        return stopAdvertise()
-            .andThen(startAdvertise())
-            .doFinally { myLuid.set(UUID.randomUUID()) }
+        return Completable.defer {
+            isAdvertising
+                .firstOrError()
+                .flatMapCompletable { v ->
+                    if (v.first.isPresent) {
+                        awaitAdvertiseDataUpdate()
+                            .doOnSubscribe {
+                                v.first.item!!.setScanResponseData(AdvertiseData.Builder()
+                                    .setIncludeDeviceName(false)
+                                    .setIncludeTxPowerLevel(false)
+                                    .build())
+                            }
+                    } else {
+                        Completable.error(IllegalStateException("failed to set advertising data removeLuid"))
+                    }
+                }
+        }
+            .doOnComplete { Log.v(TAG, "successfully removed luid") }
     }
 
     /**
@@ -1018,7 +1033,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun establishConnectionCached(device: RxBleDevice, luid: UUID? = null): Single<CachedLEConnection> {
         val connectSingle = Single.fromCallable {
-            Log.e(TAG, "establishing cached connection to ${device.macAddress}, ${connectionCache.size} devices connected")
+            Log.e(TAG, "establishing cached connection to ${device.macAddress}, ${luid?:"null"}, ${connectionCache.size} devices connected")
             val connection = if (luid == null) null else connectionCache[luid]
             if (connection != null) {
                 Log.e(TAG, "cache HIT")
@@ -1060,11 +1075,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
 
         return Single.defer {
-            if (connectionCache.isEmpty())
+            if (connectionCache.isEmpty() && activeLuids.isEmpty())
                 randomizeLuid()
                     .andThen(connectSingle)
             else
-                startAdvertise(luid = myLuid.get())
+                setAdvertisingLuid(bytes2uuid(LuidPacket.calculateHashFromUUID(myLuid.get()))!!)
                     .andThen(connectSingle)
         }
     }
