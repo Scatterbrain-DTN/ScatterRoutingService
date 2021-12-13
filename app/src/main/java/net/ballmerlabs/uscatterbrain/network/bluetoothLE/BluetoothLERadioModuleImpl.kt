@@ -142,8 +142,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             isAdvertising.onNext(Pair(OptionalBootstrap.empty(), ADVERTISE_SUCCESS))
         }
 
-        override fun onAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) {
-            super.onAdvertisingDataSet(advertisingSet, status)
+        override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
+            super.onScanResponseDataSet(advertisingSet, status)
             Log.v(TAG, "set advertising data")
             advertisingDataUpdated.onNext(status)
         }
@@ -406,7 +406,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 if (v.first.isPresent) {
                     awaitAdvertiseDataUpdate()
                         .doOnSubscribe {
-                            v.first.item!!.setAdvertisingData(AdvertiseData.Builder()
+                            v.first.item!!.setScanResponseData(AdvertiseData.Builder()
                             .setIncludeDeviceName(false)
                             .setIncludeTxPowerLevel(false)
                             .addServiceUuid(ParcelUuid(luid))
