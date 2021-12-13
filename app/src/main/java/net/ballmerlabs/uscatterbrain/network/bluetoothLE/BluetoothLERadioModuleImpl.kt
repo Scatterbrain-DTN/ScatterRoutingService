@@ -857,9 +857,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             Log.v(TAG, "scan result has luid ${remoteUuid?:"null"}")
             val initialCachedConnection = if (remoteUuid != null) connectionCache[remoteUuid] else null
             when {
-                remoteUuid != null && activeLuids.contains(remoteUuid) -> {
-                    Single.error(IllegalStateException("device already connected (client)"))
-                }
                 remoteUuid != null && initialCachedConnection != null -> {
                     initiateOutgoingConnection(initialCachedConnection, remoteUuid)
                 }
@@ -1037,11 +1034,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 val newconnection = CachedLEConnection(channels, clientScheduler, device)
                 val c = retrieveLuidIfNull(luid, rawConnection)
                     .map { connectionPair ->
+                        Log.v(TAG, "adding connection to cache under ${connectionPair.first}")
                         val collision = connectionCache.putIfAbsent(connectionPair.first, newconnection)
                         Log.e(TAG, "cache MISS, ${connectionCache.size} devices connected")
                         if (collision == null) {
                             newconnection.setOnDisconnect {
-                                val conn = connectionCache.remove(luid)
+                                val conn = connectionCache.remove(connectionPair.first)
                                 conn?.dispose()
                                 if (connectionCache.isEmpty()) {
                                     removeLuid()
