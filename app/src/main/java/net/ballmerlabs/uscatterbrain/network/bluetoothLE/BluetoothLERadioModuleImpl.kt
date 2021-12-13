@@ -434,7 +434,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun randomizeLuid(): Completable {
         return Single.just(UUID.randomUUID())
             .flatMapCompletable { luid ->
-                setAdvertisingLuid(luid)
+                val hashed = bytes2uuid(LuidPacket.calculateHashFromUUID(luid))!!
+                setAdvertisingLuid(hashed)
             }
     }
 
