@@ -361,8 +361,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Log.v(TAG, "Starting LE advertise")
                     val settings = AdvertisingSetParameters.Builder()
                         .setConnectable(true)
+                        .setScannable(true)
                         .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                        .setLegacyMode(false)
+                        .setLegacyMode(true)
                         .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                         .build()
                     val serviceData = AdvertiseData.Builder()
@@ -399,20 +400,24 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
-            isAdvertising.flatMapCompletable { v ->
+            isAdvertising
+                .firstOrError()
+                .flatMapCompletable { v ->
                 if (v.first.isPresent) {
-                    val ret = awaitAdvertiseDataUpdate()
-                    v.first.item!!.setAdvertisingData(AdvertiseData.Builder()
-                        .setIncludeDeviceName(false)
-                        .setIncludeTxPowerLevel(false)
-                        .addServiceUuid(ParcelUuid(luid))
-                        .build())
-                    ret
+                    awaitAdvertiseDataUpdate()
+                        .doOnSubscribe {
+                            v.first.item!!.setAdvertisingData(AdvertiseData.Builder()
+                            .setIncludeDeviceName(false)
+                            .setIncludeTxPowerLevel(false)
+                            .addServiceUuid(ParcelUuid(luid))
+                            .build())
+                        }
                 } else {
                     Completable.error(IllegalStateException("failed to set advertising data randomizeLuid"))
                 }
             }
         }
+            .doOnComplete { Log.v(TAG, "successfully set luid $luid") }
     }
 
     private fun awaitAdvertiseDataUpdate(): Completable {
