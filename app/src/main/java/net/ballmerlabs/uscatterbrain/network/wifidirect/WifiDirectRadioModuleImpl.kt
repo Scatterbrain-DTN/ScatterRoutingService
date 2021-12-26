@@ -8,6 +8,7 @@ import android.net.wifi.p2p.*
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.ActivityCompat
+import androidx.core.graphics.scaleMatrix
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.subjects.CompletableSubject
@@ -24,6 +25,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.Companion.TAG
 import java.net.InetAddress
+import java.net.ServerSocket
 import java.net.Socket
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -277,10 +279,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     //transfer declare hashes packet as UKE
-    private fun declareHashesUke(): Single<DeclareHashesPacket> {
+    private fun declareHashesUke(socket: Socket): Single<DeclareHashesPacket> {
         Log.v(TAG, "declareHashesUke")
-        return serverSocket
-                .flatMap { socket: Socket -> declareHashesSeme(socket) }
+        return declareHashesSeme(socket)
     }
 
     //transfer declare hashes packet as SEME
@@ -304,9 +305,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     //transfer routing metadata packet as UKE
-    private fun routingMetadataUke(packets: Flowable<RoutingMetadataPacket>): Observable<RoutingMetadataPacket> {
-        return serverSocket
-                .flatMapObservable { sock: Socket -> routingMetadataSeme(sock, packets) }
+    private fun routingMetadataUke(packets: Flowable<RoutingMetadataPacket>, socket: Socket): Observable<RoutingMetadataPacket> {
+        return  routingMetadataSeme(socket, packets)
     }
 
     //transfer routing metadata packet as SEME
@@ -336,9 +336,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     //transfer identity packet as UKE
-    private fun identityPacketUke(packets: Flowable<IdentityPacket>): Observable<IdentityPacket> {
-        return serverSocket
-                .flatMapObservable { sock: Socket -> identityPacketSeme(sock, packets) }
+    private fun identityPacketUke(packets: Flowable<IdentityPacket>, socket: Socket): Observable<IdentityPacket> {
+        return identityPacketSeme(socket, packets)
     }
 
     //transfer identity packet as SEME
@@ -373,7 +372,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     private fun awaitConnection(timeout: Int): Single<WifiP2pInfo> {
         return mBroadcastReceiver.observeConnectionInfo()
-                .takeUntil { info: WifiP2pInfo -> info.groupFormed && !info.isGroupOwner }
+                .takeUntil { info -> info.groupFormed && !info.isGroupOwner }
                 .lastOrError()
                 .timeout(timeout.toLong(), TimeUnit.SECONDS, operationsScheduler)
                 .doOnSuccess { info: WifiP2pInfo -> Log.v(TAG, "connect to group returned: " + info.groupOwnerAddress) }
@@ -396,38 +395,58 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return when {
             upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                     == ConnectionRole.ROLE_UKE -> {
-                routingMetadataUke(Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
-                        .ignoreElements()
-                        .andThen(
-                                identityPacketUke(datastore.getTopRandomIdentities(20))
-                                        .reduce(ArrayList(), { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
+                getServerSocket()
+                    .flatMap { socket ->
+                        routingMetadataUke(
+                            Flowable.just(
+                                RoutingMetadataPacket.newBuilder().setEmpty().build()
+                            ),
+                            socket
+                        )
+                            .ignoreElements()
+                            .andThen(
+                                identityPacketUke(datastore.getTopRandomIdentities(20), socket)
+                                    .reduce(
+                                        ArrayList(),
+                                        { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
                                             list.add(packet)
                                             list
                                         }).flatMap { p: ArrayList<IdentityPacket> ->
-                                            datastore.insertIdentityPacket(p).toSingleDefault(
-                                                    HandshakeResult(
-                                                            p.size,
-                                                            0,
-                                                            HandshakeResult.TransactionStatus.STATUS_SUCCESS
-                                                    )
+                                        datastore.insertIdentityPacket(p).toSingleDefault(
+                                            HandshakeResult(
+                                                p.size,
+                                                0,
+                                                HandshakeResult.TransactionStatus.STATUS_SUCCESS
                                             )
-                                        }
-                        ).flatMap { stats ->
-                            declareHashesUke()
-                                    .doOnSuccess { Log.v(TAG, "received declare hashes packet uke") }
-                                    .flatMap { declareHashesPacket ->
-                                        readBlockDataUke()
-                                                .toObservable()
-                                                .mergeWith(
-                                                        writeBlockDataUke(
-                                                                datastore.getTopRandomMessages(
-                                                                        preferences.getInt(mContext.getString(R.string.pref_blockdatacap), 100),
-                                                                        declareHashesPacket
-                                                                ).toFlowable(BackpressureStrategy.BUFFER)
-                                                        ).toObservable())
-                                                .reduce(stats, { obj, stats -> obj.from(stats) })
+                                        )
                                     }
-                        }
+                            ).flatMap { stats ->
+                                declareHashesUke(socket)
+                                    .doOnSuccess {
+                                        Log.v(
+                                            TAG,
+                                            "received declare hashes packet uke"
+                                        )
+                                    }
+                                    .flatMap { declareHashesPacket ->
+                                        readBlockDataUke(socket)
+                                            .toObservable()
+                                            .mergeWith(
+                                                writeBlockDataUke(
+                                                    datastore.getTopRandomMessages(
+                                                        preferences.getInt(
+                                                            mContext.getString(R.string.pref_blockdatacap),
+                                                            100
+                                                        ),
+                                                        declareHashesPacket
+                                                    ).toFlowable(BackpressureStrategy.BUFFER),
+                                                    socket
+                                                ).toObservable()
+                                            )
+                                            .reduce(stats, { obj, stats -> obj.from(stats) })
+                                    }
+                            }
+                    }
             }
             upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                     == ConnectionRole.ROLE_SEME -> {
@@ -539,81 +558,77 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     //transfer blockdata packets as UKE
     private fun writeBlockDataUke(
-            stream: Flowable<BlockDataStream>
+            stream: Flowable<BlockDataStream>,
+            socket: Socket
     ): Completable {
-        return serverSocket
-                .flatMapCompletable { socket ->
-                    stream.doOnSubscribe { Log.v(TAG, "subscribed to BlockDataStream observable") }
-                            .doOnNext { Log.v(TAG, "writeBlockData processing BlockDataStream") }
-                            .concatMapCompletable { blockDataStream ->
-                                blockDataStream.headerPacket.writeToStream(socket.getOutputStream(), operationsScheduler)
-                                        .doOnComplete { Log.v(TAG, "server wrote header packet") }
-                                        .andThen(
-                                                blockDataStream.sequencePackets
-                                                        .doOnNext { packet -> Log.v(TAG, "uke writing sequence packet: " + packet.data.size) }
-                                                        .concatMapCompletable { blockSequencePacket ->
-                                                            blockSequencePacket.writeToStream(
-                                                                    socket.getOutputStream(),
-                                                                    operationsScheduler
-                                                            )
-                                                        }
-                                                        .doOnComplete { Log.v(TAG, "server wrote sequence packets") }
-                                        )
-                                        .andThen(datastore.incrementShareCount(blockDataStream.headerPacket))
+        return stream.doOnSubscribe { Log.v(TAG, "subscribed to BlockDataStream observable") }
+            .doOnNext { Log.v(TAG, "writeBlockData processing BlockDataStream") }
+            .concatMapCompletable { blockDataStream ->
+                blockDataStream.headerPacket.writeToStream(socket.getOutputStream(), operationsScheduler)
+                    .doOnComplete { Log.v(TAG, "server wrote header packet") }
+                    .andThen(
+                        blockDataStream.sequencePackets
+                            .doOnNext { packet -> Log.v(TAG, "uke writing sequence packet: " + packet.data.size) }
+                            .concatMapCompletable { blockSequencePacket ->
+                                blockSequencePacket.writeToStream(
+                                    socket.getOutputStream(),
+                                    operationsScheduler
+                                )
                             }
-                }
+                            .doOnComplete { Log.v(TAG, "server wrote sequence packets") }
+                    )
+                    .andThen(datastore.incrementShareCount(blockDataStream.headerPacket))
+            }
     }
 
     /*
      * read blockdata packets as UKE and stream into datastore. Even if a transfer is interrupted we should still have
      * the files/metadata from packets we received
      */
-    private fun readBlockDataUke(): Single<HandshakeResult> {
-        return serverSocket
-                .flatMap { socket ->
-                    ScatterSerializable.parseWrapperFromCRC(
-                            BlockHeaderPacket.parser(),
+    private fun readBlockDataUke(socket: Socket): Single<HandshakeResult> {
+        return ScatterSerializable.parseWrapperFromCRC(
+            BlockHeaderPacket.parser(),
+            socket.getInputStream(),
+            operationsScheduler
+        )
+            .doOnSuccess { header -> Log.v(TAG, "uke reading header ${header.userFilename}") }
+            .flatMap { headerPacket ->
+                if (headerPacket.isEndOfStream) {
+                    Single.just(0)
+                } else {
+                    val m = BlockDataStream(
+                        headerPacket,
+                        ScatterSerializable.parseWrapperFromCRC(
+                            BlockSequencePacket.parser(),
                             socket.getInputStream(),
                             operationsScheduler
-                    )
-                            .doOnSuccess { header -> Log.v(TAG, "uke reading header ${header.userFilename}") }
-                            .flatMap { headerPacket ->
-                                if (headerPacket.isEndOfStream) {
-                                    Single.just(0)
-                                } else {
-                                    val m = BlockDataStream(
-                                            headerPacket,
-                                            ScatterSerializable.parseWrapperFromCRC(
-                                                    BlockSequencePacket.parser(),
-                                                    socket.getInputStream(),
-                                                    operationsScheduler
-                                            )
-                                                    .repeat()
-                                                    .takeUntil { p -> p.isEnd }
-                                                    .doOnNext { packet ->
-                                                        Log.v(TAG, "uke reading sequence packet: " + packet.data.size)
-                                                    }
-                                                    .doOnComplete { Log.v(TAG, "server read sequence packets") }
-                                    )
-                                    datastore.insertMessage(m).andThen(m.await()).toSingleDefault(1)
-                                }
-                            }
+                        )
                             .repeat()
-                            .takeWhile { n -> n > 0 }
-                            .reduce { a, b -> a + b }
-                            .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
-                            .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
-                            .doOnError { e -> Log.e(TAG, "uke: error when reading message: $e") }
-                            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                            .takeUntil { p -> p.isEnd }
+                            .doOnNext { packet ->
+                                Log.v(TAG, "uke reading sequence packet: " + packet.data.size)
+                            }
+                            .doOnComplete { Log.v(TAG, "server read sequence packets") }
+                    )
+                    datastore.insertMessage(m).andThen(m.await()).toSingleDefault(1)
                 }
+            }
+            .repeat()
+            .takeWhile { n -> n > 0 }
+            .reduce { a, b -> a + b }
+            .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
+            .toSingle(HandshakeResult(0,0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+            .doOnError { e -> Log.e(TAG, "uke: error when reading message: $e") }
+            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
 
     }
 
-    private val serverSocket: Single<Socket>
-        get() = ObservableServerSocket(SCATTERBRAIN_PORT)
-                .map { conn -> conn.socket }
-                .firstOrError()
-                .doOnSuccess { Log.v(TAG, "accepted server socket") }
+    private fun getServerSocket(): Single<Socket> {
+        return ObservableServerSocket(SCATTERBRAIN_PORT)
+            .map { conn -> conn.socket }
+            .firstOrError()
+            .doOnSuccess { Log.v(TAG, "accepted server socket") }
+    }
 
     /*
      * read blockdata packets as SEME and stream into datastore. Even if a transfer is interrupted we should still have
