@@ -611,7 +611,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private val serverSocket: Single<Socket>
         get() = socketFactory.create(SCATTERBRAIN_PORT)
-                .flatMapObservable { obj: InterceptableServerSocket -> obj.observeConnections() }
+                .flatMapObservable { obj: InterceptableServerSocket -> obj.acceptLoop() }
                 .map { conn -> conn.socket }
                 .firstOrError()
                 .doOnSuccess { Log.v(TAG, "accepted server socket") }
@@ -681,18 +681,5 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
             }
         }
-    }
-
-    init {
-        val tcpserverdisposable = socketFactory.create(SCATTERBRAIN_PORT)
-                .flatMapObservable { obj: InterceptableServerSocket -> obj.acceptLoop() }
-                .subscribeOn(operationsScheduler)
-                .repeat()
-                .retry()
-                .doOnComplete { Log.e(TAG, "tcp server completed. fueee") }
-                .subscribe(
-                        { socket: SocketConnection -> Log.v(TAG, "accepted socket: " + socket.socket) }
-                ) { err: Throwable -> Log.e(TAG, "error when accepting socket: $err") }
-        wifidirectDisposable.add(tcpserverdisposable)
     }
 }
