@@ -10,7 +10,6 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import io.reactivex.*
 import io.reactivex.Observable
-import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import io.reactivex.subjects.SingleSubject
@@ -22,7 +21,6 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
-import net.ballmerlabs.uscatterbrain.network.wifidirect.ObservableServerSocket.InterceptableServerSocketFactory
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.Companion.TAG
 import java.net.InetAddress
@@ -57,6 +55,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         private val channel: WifiP2pManager.Channel,
         private val mBroadcastReceiver: WifiDirectBroadcastReceiver
 ) : WifiDirectRadioModule {
+
+    private val groupOperationInProgress = AtomicReference(false)
+    private val groupConnectInProgress = AtomicReference(false)
 
     /*
      * we need to unregister and register the receiver when
@@ -609,8 +610,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     private val serverSocket: Single<Socket>
-        get() = socketFactory.create(SCATTERBRAIN_PORT)
-                .flatMapObservable { obj: ObservableServerSocket -> obj.acceptLoop() }
+        get() = ObservableServerSocket(SCATTERBRAIN_PORT)
                 .map { conn -> conn.socket }
                 .firstOrError()
                 .doOnSuccess { Log.v(TAG, "accepted server socket") }
@@ -660,10 +660,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     companion object {
         private const val SCATTERBRAIN_PORT = 7575
-        private val socketFactory = InterceptableServerSocketFactory()
-        private val groupOperationInProgress = AtomicReference(false)
-        private val groupConnectInProgress = AtomicReference(false)
-        private val wifidirectDisposable = CompositeDisposable()
         fun reasonCodeToString(reason: Int): String {
             return when (reason) {
                 WifiP2pManager.BUSY -> {
