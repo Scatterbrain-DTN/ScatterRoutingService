@@ -12,17 +12,17 @@ import java.net.Socket
  * observable for later use
  * @param port port to listen on
  */
-class InterceptableServerSocket(port: Int) : ServerSocket(port) {
+class ObservableServerSocket(port: Int) : ServerSocket(port) {
     private var closed = false
 
     class SocketConnection(val socket: Socket)
 
     class InterceptableServerSocketFactory {
-        private var serverSocket: InterceptableServerSocket? = null
-        fun create(port: Int): Single<InterceptableServerSocket> {
+        private var serverSocket: ObservableServerSocket? = null
+        fun create(port: Int): Single<ObservableServerSocket> {
             return Single.fromCallable {
                 if (serverSocket == null) {
-                    serverSocket = InterceptableServerSocket(port)
+                    serverSocket = ObservableServerSocket(port)
                 }
                 Log.v(WifiDirectRadioModule.TAG, "creating server socket")
                 serverSocket

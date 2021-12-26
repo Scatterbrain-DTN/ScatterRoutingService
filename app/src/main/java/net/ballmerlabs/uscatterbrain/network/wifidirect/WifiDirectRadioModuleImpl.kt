@@ -22,8 +22,7 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
-import net.ballmerlabs.uscatterbrain.network.wifidirect.InterceptableServerSocket.InterceptableServerSocketFactory
-import net.ballmerlabs.uscatterbrain.network.wifidirect.InterceptableServerSocket.SocketConnection
+import net.ballmerlabs.uscatterbrain.network.wifidirect.ObservableServerSocket.InterceptableServerSocketFactory
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.Companion.TAG
 import java.net.InetAddress
@@ -611,7 +610,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private val serverSocket: Single<Socket>
         get() = socketFactory.create(SCATTERBRAIN_PORT)
-                .flatMapObservable { obj: InterceptableServerSocket -> obj.acceptLoop() }
+                .flatMapObservable { obj: ObservableServerSocket -> obj.acceptLoop() }
                 .map { conn -> conn.socket }
                 .firstOrError()
                 .doOnSuccess { Log.v(TAG, "accepted server socket") }
