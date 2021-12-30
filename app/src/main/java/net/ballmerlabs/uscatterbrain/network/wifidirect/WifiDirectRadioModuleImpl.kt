@@ -396,6 +396,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                     == ConnectionRole.ROLE_UKE -> {
                 getServerSocket()
+                    .subscribeOn(operationsScheduler)
+                    .doOnError { err -> Log.e(TAG, "failed to get server socket: $err") }
                     .flatMap { socket ->
                         routingMetadataUke(
                             Flowable.just(
