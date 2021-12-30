@@ -27,7 +27,6 @@ import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.BuildConfig
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
-import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
@@ -434,7 +433,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun randomizeLuid(): Completable {
         return Single.just(UUID.randomUUID())
             .flatMapCompletable { luid ->
-                val hashed = bytes2uuid(LuidPacket.calculateHashFromUUID(luid))!!
+                val hashed = getHashUuid(luid)!!
                 setAdvertisingLuid(hashed)
             }
     }
@@ -907,9 +906,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 cachedConnection.connection
                     .firstOrError()
                     .flatMap { connection ->
-                        val hash = LuidPacket.calculateHashFromUUID(myLuid.get())
-                        Log.v(TAG, "writing hashed luid length ${hash.size}")
-                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(hashAsUUID(hash))!!)
+                        val hash = getHashUuid(myLuid.get())!!
+                        Log.v(TAG, "writing hashed luid $hash")
+                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
                             .doOnSuccess { res ->
                                 Log.v(
                                     TAG,
@@ -1079,7 +1078,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 randomizeLuid()
                     .andThen(connectSingle)
             else
-                setAdvertisingLuid(bytes2uuid(LuidPacket.calculateHashFromUUID(myLuid.get()))!!)
+                setAdvertisingLuid(getHashUuid(myLuid.get())!!)
                     .andThen(connectSingle)
         }
     }
@@ -1302,9 +1301,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .subscribeOn(operationsScheduler)
                         .doOnSubscribe { Log.v(TAG, "hello characteristic read subscribed") }
                         .flatMapCompletable { trans ->
-                            val luid = LuidPacket.calculateHashFromUUID(myLuid.get())
-                            Log.v(TAG, "hello characteristic read, replying with luid ${bytes2uuid(luid)}")
-                            trans.sendReply(uuid2bytes(hashAsUUID(luid)), BluetoothGatt.GATT_SUCCESS)
+                            val luid = getHashUuid(myLuid.get())
+                            Log.v(TAG, "hello characteristic read, replying with luid $luid}")
+                            trans.sendReply(uuid2bytes(luid), BluetoothGatt.GATT_SUCCESS)
                         }
                         .doOnError { err -> Log.e(TAG, "error in hello characteristic read: $err") }
                         .retry()

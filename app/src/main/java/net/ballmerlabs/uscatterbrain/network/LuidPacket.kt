@@ -6,8 +6,16 @@ import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.uscatterbrain.ScatterProto.Luid
 import net.ballmerlabs.uscatterbrain.ScatterProto.Luid.hashed
 import net.ballmerlabs.uscatterbrain.db.hashAsUUID
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import java.nio.ByteBuffer
 import java.util.*
+
+fun getHashUuid(uuid: UUID?): UUID? {
+    return if(uuid == null)
+        null
+    else
+        BluetoothLERadioModuleImpl.bytes2uuid(LuidPacket.calculateHashFromUUID(uuid))!!
+}
 
 /**
  * Wrapper class for Luid protobuf message
@@ -42,7 +50,7 @@ class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
         get() {
             val h = packet.valHash.hash.toByteArray()
             return if (!isHashed)
-                hashAsUUID(calculateHashFromUUID(luidVal))
+                getHashUuid(luidVal)!!
             else
                 hashAsUUID(h)
         }
