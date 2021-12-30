@@ -157,6 +157,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val discoveryPersistent = AtomicReference(false)
 
+    //block all incoming connections during sensitive operations like updating connection cache
+    private val incomingConnectionLock = BehaviorSubject.create<Boolean>()
+
     private val serverSubject = SingleSubject.create<CachedLEServerConnection>()
 
 
@@ -220,6 +223,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
         refreshInProgresss.accept(false)
         isAdvertising.onNext(Pair(OptionalBootstrap.empty(), AdvertisingSetCallback.ADVERTISE_SUCCESS))
+        incomingConnectionLock.onNext(false)
         Log.e(TAG, "init")
     }
 
@@ -231,7 +235,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     // luid is a temporary unique identifier used for a single transaction.
     private val myLuid = AtomicReference(UUID.randomUUID())
 
-    private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
     private val connectionCache = ConcurrentHashMap<UUID, CachedLEConnection>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
 
@@ -433,6 +436,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun randomizeLuid(): Completable {
         return Single.just(UUID.randomUUID())
             .flatMapCompletable { luid ->
+                myLuid.set(luid)
                 val hashed = getHashUuid(luid)!!
                 setAdvertisingLuid(hashed)
             }
@@ -902,7 +906,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun initiateOutgoingConnection(cachedConnection: CachedLEConnection, luid: UUID): Single<HandshakeResult> {
         return Single.defer {
             Log.e(TAG, "client handling luid $luid")
-            if (activeLuids.putIfAbsent(luid, true) == null) {
                 cachedConnection.connection
                     .firstOrError()
                     .flatMap { connection ->
@@ -925,11 +928,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     HandshakeResult.TransactionStatus.STATUS_FAIL
                                 )
                             )
-                            .doFinally { activeLuids.remove(luid) }
                     }
-            } else {
-                Single.error(IllegalStateException("device already connected (client)"))
-            }
         }
     }
 
@@ -1031,53 +1030,63 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private fun establishConnectionCached(device: RxBleDevice, luid: UUID? = null): Single<CachedLEConnection> {
-        val connectSingle = Single.fromCallable {
-            Log.e(TAG, "establishing cached connection to ${device.macAddress}, ${luid?:"null"}, ${connectionCache.size} devices connected")
-            val connection = if (luid == null) null else connectionCache[luid]
-            if (connection != null) {
-                Log.e(TAG, "cache HIT")
-                connection
-            } else {
-                val rawConnection = device.establishConnection(false)
-                    .doOnNext {
-                        Log.e(
-                            TAG,
-                            "established cached connection to ${device.macAddress}"
-                        )
-                    }
-                val newconnection = CachedLEConnection(channels, clientScheduler, device)
-                val c = retrieveLuidIfNull(luid, rawConnection)
-                    .map { connectionPair ->
-                        Log.v(TAG, "adding connection to cache under ${connectionPair.first}")
-                        val collision = connectionCache.putIfAbsent(connectionPair.first, newconnection)
-                        Log.e(TAG, "cache MISS, ${connectionCache.size} devices connected")
-                        if (collision == null) {
-                            newconnection.setOnDisconnect {
-                                val conn = connectionCache.remove(connectionPair.first)
-                                conn?.dispose()
-                                if (connectionCache.isEmpty()) {
-                                    removeLuid()
-                                } else {
-                                    Completable.complete()
-                                }
-                            }
-                            connectionPair.second
-                        } else {
-                            throw IllegalStateException("what the absolute hecking heck")
+        val connectSingle =
+            incomingConnectionLock.takeUntil { v -> !v }
+                .ignoreElements()
+                .andThen(
+            Single.fromCallable {
+                Log.e(
+                    TAG,
+                    "establishing cached connection to ${device.macAddress}, ${luid ?: "null"}, ${connectionCache.size} devices connected"
+                )
+                val connection = if (luid == null) null else connectionCache[luid]
+                if (connection != null) {
+                    Log.e(TAG, "cache HIT")
+                    connection
+                } else {
+                    val rawConnection = device.establishConnection(false)
+                        .doOnNext {
+                            Log.e(
+                                TAG,
+                                "established cached connection to ${device.macAddress}"
+                            )
                         }
-                    }
+                    val newconnection = CachedLEConnection(channels, clientScheduler, device)
+                    val c = retrieveLuidIfNull(luid, rawConnection)
+                        .map { connectionPair ->
+                            Log.v(TAG, "adding connection to cache under ${connectionPair.first}")
+                            Log.e(TAG, "cache MISS, ${connectionCache.size} devices connected")
+                            val collision =
+                                connectionCache.putIfAbsent(connectionPair.first, newconnection)
+                            if (collision == null) {
+                                newconnection.setOnDisconnect {
+                                    val conn = connectionCache.remove(connectionPair.first)
+                                    conn?.dispose()
+                                    if (connectionCache.isEmpty()) {
+                                        removeLuid()
+                                    } else {
+                                        Completable.complete()
+                                    }
+                                }
+                                connectionPair.second
+                            } else {
+                                throw IllegalStateException("what the absolute hecking heck")
+                            }
+                        }
 
                     newconnection.subscribeConnection(c)
                     newconnection
 
-            }
-        }
+                }
+            }.doFinally { incomingConnectionLock.onNext(false) })
 
         return Single.defer {
-            if (connectionCache.isEmpty() && activeLuids.isEmpty())
+            /*
+            if (connectionCache.isEmpty())
                 randomizeLuid()
                     .andThen(connectSingle)
             else
+             */
                 setAdvertisingLuid(getHashUuid(myLuid.get())!!)
                     .andThen(connectSingle)
         }
@@ -1269,7 +1278,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)!!
                             Log.e(TAG, "server handling luid $luid")
-                            if (activeLuids.putIfAbsent(luid, true) == null) {
+                            incomingConnectionLock.takeUntil { v -> !v }
+                                .ignoreElements()
+                                .andThen(
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(establishConnectionCached(trans.remoteDevice, luid))
                                     .flatMap { connection ->
@@ -1280,16 +1291,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         )
                                     }
                                     .doOnError { err -> Log.e(TAG, "error in handleConnection $err") }
-                                    .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-                                    .doFinally {
-                                        activeLuids.remove(luid)
-                                    }
-                            } else {
-                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                    .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-                                    .doOnError { err -> Log.e(TAG, "failed to notify remote peer $luid of duplicate connection: $err") }
-                                    .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-                            }
+                                    .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL)))
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
                         .doOnNext { t -> Log.v(TAG, "transactionResult ${t.success}") }
