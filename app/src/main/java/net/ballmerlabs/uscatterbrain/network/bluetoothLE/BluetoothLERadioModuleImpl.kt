@@ -157,8 +157,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val discoveryPersistent = AtomicReference(false)
 
-    //block all incoming connections during sensitive operations like updating connection cache
+    // block all incoming connections during sensitive operations like updating connection cache
     private val incomingConnectionLock = BehaviorSubject.create<Boolean>()
+
+    // only allow a single transaction at a time
+    private val globalTransactionLock = BehaviorSubject.create<Boolean>()
 
     private val serverSubject = SingleSubject.create<CachedLEServerConnection>()
 
@@ -224,6 +227,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         refreshInProgresss.accept(false)
         isAdvertising.onNext(Pair(OptionalBootstrap.empty(), AdvertisingSetCallback.ADVERTISE_SUCCESS))
         incomingConnectionLock.onNext(false)
+        globalTransactionLock.onNext(false)
         Log.e(TAG, "init")
     }
 
@@ -1039,6 +1043,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .andThen(
             Single.fromCallable {
                 incomingConnectionLock.onNext(true)
+                globalTransactionLock.onNext(true)
                 Log.e(
                     TAG,
                     "establishing cached connection to ${device.macAddress}, ${luid ?: "null"}, ${connectionCache.size} devices connected"
@@ -1232,6 +1237,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 // as they may be tainted
                                                 //clientConnection.dispose()
                                                 session.unlock()
+                                                globalTransactionLock.onNext(false)
                                             }
 
                                     }
@@ -1283,20 +1289,28 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)!!
                             Log.e(TAG, "server handling luid $luid")
-                            incomingConnectionLock.takeUntil { v -> !v }
-                                .ignoreElements()
-                                .andThen(
-                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                    .andThen(establishConnectionCached(trans.remoteDevice, luid))
-                                    .flatMap { connection ->
-                                        handleConnection(
-                                            connection,
-                                            trans.remoteDevice,
-                                            luid
-                                        )
+                            globalTransactionLock.firstOrError()
+                                .flatMap { lock ->
+                                    if (lock) {
+                                        trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
+                                            .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                                    } else {
+                                        incomingConnectionLock.takeUntil { v -> !v }
+                                            .ignoreElements()
+                                            .andThen(
+                                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                                                    .andThen(establishConnectionCached(trans.remoteDevice, luid))
+                                                    .flatMap { connection ->
+                                                        handleConnection(
+                                                            connection,
+                                                            trans.remoteDevice,
+                                                            luid
+                                                        )
+                                                    }
+                                                    .doOnError { err -> Log.e(TAG, "error in handleConnection $err") }
+                                                    .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL)))
                                     }
-                                    .doOnError { err -> Log.e(TAG, "error in handleConnection $err") }
-                                    .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL)))
+                                }
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
                         .doOnNext { t -> Log.v(TAG, "transactionResult ${t.success}") }
