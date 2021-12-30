@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGatt
+import android.icu.number.IntegerWidth
 import android.util.Log
 import com.google.protobuf.MessageLite
 import com.jakewharton.rxrelay2.PublishRelay
@@ -15,6 +16,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleI
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Wraps an RxBleServerConnection and provides channel locking and a convenient interface to
@@ -28,8 +30,16 @@ class CachedLEServerConnection(
         ) : Disposable {
     val luid: UUID? = null
     private val disposable = CompositeDisposable()
-    private val packetQueue = PublishRelay.create<ScatterSerializable<out MessageLite>>()
+    private val packetQueue = PublishRelay.create<Pair<ScatterSerializable<out MessageLite>, Int>>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
+    private val cookies = AtomicReference(0)
+    private val cookieCompleteRelay = PublishRelay.create<Int>()
+
+    private fun getCookie(): Int {
+        return cookies.getAndUpdate { v ->
+            Math.floorMod(v+1, Int.MAX_VALUE)
+        }
+    }
 
     /**
      * when a client reads from the semaphor characteristic, we need to
@@ -54,10 +64,11 @@ class CachedLEServerConnection(
     fun <T : MessageLite> serverNotify(
             packet: ScatterSerializable<T>
     ): Completable {
-        return Completable.fromAction {
-                        Log.e(TAG, "queue accepted packet ${packet.type}")
-                        packetQueue.accept(packet)
-                    }.doOnComplete { Log.v(TAG, "serverNotify for packet " + packet.type) }
+        val cookie = getCookie()
+        return cookieCompleteRelay.takeUntil { v -> v == cookie }
+            .doOnSubscribe { packetQueue.accept(Pair(packet, cookie)) }
+            .ignoreElements()
+            .doOnComplete { Log.v(TAG, "serverNotify for packet " + packet.type) }
 
     }
 
@@ -111,13 +122,13 @@ class CachedLEServerConnection(
                                                                 .andThen(
                                                                     connection.setupIndication(
                                                                         characteristic.uuid,
-                                                                        packet.writeToStream(20, scheduler),
+                                                                        packet.first.writeToStream(20, scheduler),
                                                                         trans.remoteDevice
                                                                     )
                                                                         .timeout(5, TimeUnit.SECONDS)
                                                                         .doOnError { err -> Log.e(TAG, "characteristic ${characteristic.uuid} err: $err") }
                                                                         .doOnComplete {
-                                                                            Log.v(TAG, "indication for packet ${packet.type}, ${characteristic.uuid} finished")
+                                                                            Log.v(TAG, "indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
                                                                         }
                                                                 )
                                                         }
@@ -139,6 +150,7 @@ class CachedLEServerConnection(
                                                         .doFinally {
                                                             Log.v(TAG, "releasing locked characteristic ${characteristic.uuid}")
                                                             characteristic.release()
+                                                            cookieCompleteRelay.accept(packet.second)
                                                         }
                                 }
                                 .doOnError { err ->

@@ -580,12 +580,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             { conn ->
                                 Log.v(TAG, "gatt client election hashed stage")
                                 conn.readElectLeader()
-                                        .doOnSuccess { Log.v(TAG, "client handshake received hashed election packet") }
-                                        .doOnError { err -> Log.e(TAG, "error while receiving election packet: $err") }
-                                        .map { electLeaderPacket ->
+                                    .doOnSuccess { Log.v(TAG, "client handshake received hashed election packet") }
+                                    .doOnError { err -> Log.e(TAG, "error while receiving election packet: $err") }
+                                    .map { electLeaderPacket ->
                                             session.votingStage.addPacket(electLeaderPacket)
                                             TransactionResult(TransactionResult.STAGE_ELECTION, session.device, session.luidStage.remoteHashed)
                                         }
+
                             })
 
                     /*
@@ -605,7 +606,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             packet.tagLuid(luidPacket.luidVal)
                                             session.votingStage.addPacket(packet)
                                             serverConn.serverNotify(packet)
-                                        }.toSingleDefault(OptionalBootstrap.empty())
+                                        }
+                                    .doOnError { err -> Log.e(TAG, "election server error $err") }
+                                    .toSingleDefault(OptionalBootstrap.empty())
                             },
                             { conn ->
                                 Log.v(TAG, "gatt client election stage")
@@ -1063,6 +1066,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     val conn = connectionCache.remove(connectionPair.first)
                                     conn?.dispose()
                                     if (connectionCache.isEmpty()) {
+                                        myLuid.set(UUID.randomUUID())
                                         removeLuid()
                                     } else {
                                         Completable.complete()
