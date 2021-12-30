@@ -1038,6 +1038,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .ignoreElements()
                 .andThen(
             Single.fromCallable {
+                incomingConnectionLock.onNext(true)
                 Log.e(
                     TAG,
                     "establishing cached connection to ${device.macAddress}, ${luid ?: "null"}, ${connectionCache.size} devices connected"
