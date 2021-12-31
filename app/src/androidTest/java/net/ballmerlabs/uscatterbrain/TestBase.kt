@@ -8,9 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import net.ballmerlabs.scatterbrainsdk.BinderWrapper
-import net.ballmerlabs.scatterbrainsdk.ScatterbrainAPI
 import net.ballmerlabs.scatterbrainsdk.BinderProvider
+import net.ballmerlabs.scatterbrainsdk.BinderWrapper
+import net.ballmerlabs.scatterbrainsdk.ScatterbrainBinderApi
 import net.ballmerlabs.scatterbrainsdk.internal.BinderWrapperImpl
 import net.ballmerlabs.scatterbrainsdk.internal.MockBinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.ScatterbrainBroadcastReceiverImpl
@@ -20,7 +20,7 @@ import org.junit.Rule
 abstract class TestBase {
     protected val testCoroutineScope = CoroutineScope(Dispatchers.Default)
     protected lateinit var binder: BinderWrapper
-    protected lateinit var regularBinder: ScatterbrainAPI
+    protected lateinit var regularBinder: ScatterbrainBinderApi
 
     @get:Rule
     val serviceRule = ServiceTestRule()
@@ -44,7 +44,7 @@ abstract class TestBase {
                 binderProvider
         )
         runBlocking { binder.startService() }
-        regularBinder = ScatterbrainAPI.Stub.asInterface(b)
+        regularBinder = ScatterbrainBinderApi.Stub.asInterface(b)
         regularBinder.clearDatastore()
         broadcastReceiver.register()
     }
