@@ -877,35 +877,41 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
         return Single.defer {
-            val remoteUuid = getAdvertisedLuid(scanResult)
-            Log.v(TAG, "scan result has luid ${remoteUuid?:"null"}")
-            val initialCachedConnection = if (remoteUuid != null) connectionCache[remoteUuid] else null
-            when {
-                remoteUuid != null && initialCachedConnection != null -> {
-                    initiateOutgoingConnection(initialCachedConnection, remoteUuid)
-                }
-                else -> {
-                    establishConnectionCached(scanResult.bleDevice, remoteUuid)
-                        .flatMap { cached ->
-                            cached.connection
-                                .concatMapSingle { raw ->
-                                    Log.v(TAG, "attempting to read hello characteristic")
-                                    raw.readCharacteristic(UUID_HELLO)
-                                        .flatMap { luid ->
-                                            val luidUuid = bytes2uuid(luid)!!
-                                            Log.v(TAG, "read remote luid from GATT $luidUuid")
-                                            initiateOutgoingConnection(
-                                                cached,
-                                                luidUuid
-                                            )
-                                        }
-                                }
-                                .firstOrError()
-                        }
+            val lock = globalTransactionLock.getAndSet(true)
+            if (lock) {
+                Single.just(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+            } else {
+                val remoteUuid = getAdvertisedLuid(scanResult)
+                Log.v(TAG, "scan result has luid ${remoteUuid ?: "null"}")
+                val initialCachedConnection =
+                    if (remoteUuid != null) connectionCache[remoteUuid] else null
+                when {
+                    remoteUuid != null && initialCachedConnection != null -> {
+                        initiateOutgoingConnection(initialCachedConnection, remoteUuid)
+                    }
+                    else -> {
+                        establishConnectionCached(scanResult.bleDevice, remoteUuid)
+                            .flatMap { cached ->
+                                cached.connection
+                                    .concatMapSingle { raw ->
+                                        Log.v(TAG, "attempting to read hello characteristic")
+                                        raw.readCharacteristic(UUID_HELLO)
+                                            .flatMap { luid ->
+                                                val luidUuid = bytes2uuid(luid)!!
+                                                Log.v(TAG, "read remote luid from GATT $luidUuid")
+                                                initiateOutgoingConnection(
+                                                    cached,
+                                                    luidUuid
+                                                )
+                                            }
+                                    }
+                                    .firstOrError()
+                            }
 
+                    }
                 }
             }
-        }
+        }.doFinally { globalTransactionLock.set(false) }
     }
 
 
@@ -1329,7 +1335,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     0,
                                                     HandshakeResult.TransactionStatus.STATUS_FAIL
                                                 )
-                                            ))
+                                            )).doFinally { globalTransactionLock.set(false) }
                             }
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
