@@ -233,7 +233,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val connectionCache = ConcurrentHashMap<UUID, CachedLEConnection>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
-    private val activetLuids = ConcurrentHashMap<UUID, Boolean>()
+    private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
+    private val transactionInProgressRelay = BehaviorRelay.create<Boolean>()
 
     /*
          * shortcut to generate a characteristic with the required permissions
@@ -872,11 +873,34 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
+    private fun updateConnected(luid: UUID?): Boolean {
+        val shouldUpdate = if (luid != null) {
+            activeLuids.putIfAbsent(luid, true) == null
+        } else {
+            true
+        }
+
+        if (shouldUpdate) {
+            transactionInProgressRelay.accept(true)
+        }
+        return shouldUpdate
+    }
+
+    private fun updateDisconnected(luid: UUID?) {
+        if (luid != null) {
+            activeLuids.remove(luid)
+        }
+
+        if (activeLuids.isEmpty()) {
+            transactionInProgressRelay.accept(false)
+        }
+    }
+
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
         return Single.defer {
             val remoteUuid = getAdvertisedLuid(scanResult)
-            if (remoteUuid == null || (remoteUuid != null && (activetLuids.putIfAbsent(remoteUuid, true) == null))) {
+            if (updateConnected(remoteUuid)) {
                 establishConnectionCached(scanResult.bleDevice, remoteUuid)
                     .flatMap { cached ->
                         cached.connection
@@ -894,7 +918,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             }
                             .firstOrError()
                     }
-                    .doFinally { activetLuids.remove(remoteUuid) }
+                    .doFinally { updateDisconnected(remoteUuid) }
             } else {
                 Single.error(IllegalStateException("already connected"))
             }
@@ -989,8 +1013,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
             .doOnComplete { Log.e(TAG, "discoverForever completed, retry") }
             .doOnError { err -> Log.e(TAG, "discoverForever error: $err") }
-        .repeat()
-        .retry()
+        .repeatWhen { transactionInProgressRelay.filter { p -> !p }.delay(5, TimeUnit.SECONDS, operationsScheduler)  }
+        .retryWhen { transactionInProgressRelay.filter { p -> !p }.delay(5, TimeUnit.SECONDS, operationsScheduler) }
     }
 
     /**
@@ -1057,6 +1081,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             val collision =
                                 connectionCache.putIfAbsent(connectionPair.first, newconnection)
                             if (collision == null) {
+                                updateConnected(connectionPair.first)
                                 newconnection.setOnDisconnect {
                                     Log.e(TAG, "client onDisconnect ${connectionPair.first}")
                                     val conn = connectionCache.remove(connectionPair.first)
@@ -1226,6 +1251,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 // if we encounter any errors or terminate, remove cached connections
                                                 // as they may be tainted
                                                 //clientConnection.dispose()
+                                                updateDisconnected(luid)
                                                 session.unlock()
                                             }
 
@@ -1278,7 +1304,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)!!
                             Log.e(TAG, "server handling luid $luid")
-                            if (activetLuids.putIfAbsent(luid, true) == null) {
+                            if (updateConnected(luid)) {
                                 Log.e(TAG, "transaction NOT locked, continuing")
                                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                     .andThen(
@@ -1300,7 +1326,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             "error in handleConnection $err"
                                         )
                                     }
-                                    .doFinally { activetLuids.remove(luid) }
+                                    .doFinally { updateDisconnected(luid) }
                                     .onErrorReturnItem(
                                         HandshakeResult(
                                             0,
