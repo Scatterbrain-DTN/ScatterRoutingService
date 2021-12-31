@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="net.ballmerlabs.uscatterbrain">
-    
+
     <permission
         android:name="net.ballmerlabs.scatterroutingservice.permission.ACCESS"
         android:label="Scatterbrain access"

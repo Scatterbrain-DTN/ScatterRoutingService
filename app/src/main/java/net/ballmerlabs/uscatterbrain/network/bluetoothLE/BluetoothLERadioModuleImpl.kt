@@ -674,6 +674,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             { serverConn ->
                                 Log.v(TAG, "gatt server upgrade stage")
                                 if (session.role == ConnectionRole.ROLE_UKE) {
+                                    Log.e(TAG, "upgrade role UKE")
                                     wifiDirectRadioModule.createGroup()
                                             .flatMap { bootstrap ->
                                                 val upgradePacket = bootstrap.toUpgrade(session.upgradeStage!!.sessionID)
@@ -687,6 +688,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             { conn ->
                                 Log.v(TAG, "gatt client upgrade stage")
                                 if (session.role == ConnectionRole.ROLE_SEME) {
+                                    Log.e(TAG, "upgrade role SEME")
                                     conn.readUpgrade()
                                             .doOnSuccess { Log.v(TAG, "client handshake received upgrade packet") }
                                             .doOnError { err -> Log.e(TAG, "error while receiving upgrade packet: $err") }
@@ -879,10 +881,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return Single.defer {
             val lock = globalTransactionLock.getAndSet(true)
             if (lock) {
-                Single.just(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                Log.e(TAG, "processScanResult LOCKED, skipping")
+                Single.never()
             } else {
                 val remoteUuid = getAdvertisedLuid(scanResult)
-                Log.v(TAG, "scan result has luid ${remoteUuid ?: "null"}")
+                Log.e(TAG, "scan result NOT LOCKED and has luid ${remoteUuid ?: "null"}")
                 val initialCachedConnection =
                     if (remoteUuid != null) connectionCache[remoteUuid] else null
                 when {
@@ -1000,6 +1003,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                 }
         }
+            .doOnComplete { Log.e(TAG, "discoverForever completed, retry") }
+            .doOnError { err -> Log.e(TAG, "discoverForever error: $err") }
         .repeat()
         .retry()
     }
@@ -1043,9 +1048,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun establishConnectionCached(device: RxBleDevice, luid: UUID? = null): Single<CachedLEConnection> {
         val connectSingle =
-            incomingConnectionLock.takeUntil { v -> !v }
-                .ignoreElements()
-                .andThen(
+            incomingConnectionLock.firstOrError().flatMapCompletable { v ->
+                if (!v) {
+                    incomingConnectionLock.onNext(true)
+                    Completable.complete()
+                } else {
+                    incomingConnectionLock.takeUntil { nv -> !nv }
+                        .ignoreElements()
+                }
+            }.andThen(
             Single.fromCallable {
                 incomingConnectionLock.onNext(true)
                 Log.e(
@@ -1073,6 +1084,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 connectionCache.putIfAbsent(connectionPair.first, newconnection)
                             if (collision == null) {
                                 newconnection.setOnDisconnect {
+                                    Log.e(TAG, "client onDisconnect ${connectionPair.first}")
                                     val conn = connectionCache.remove(connectionPair.first)
                                     conn?.dispose()
                                     if (connectionCache.isEmpty()) {
