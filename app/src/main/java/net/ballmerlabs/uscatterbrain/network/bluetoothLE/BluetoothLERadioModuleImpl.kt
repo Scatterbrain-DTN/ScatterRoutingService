@@ -885,34 +885,23 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 Single.never()
             } else {
                 val remoteUuid = getAdvertisedLuid(scanResult)
-                Log.e(TAG, "scan result NOT LOCKED and has luid ${remoteUuid ?: "null"}")
-                val initialCachedConnection =
-                    if (remoteUuid != null) connectionCache[remoteUuid] else null
-                when {
-                    remoteUuid != null && initialCachedConnection != null -> {
-                        initiateOutgoingConnection(initialCachedConnection, remoteUuid)
-                    }
-                    else -> {
-                        establishConnectionCached(scanResult.bleDevice, remoteUuid)
-                            .flatMap { cached ->
-                                cached.connection
-                                    .concatMapSingle { raw ->
-                                        Log.v(TAG, "attempting to read hello characteristic")
-                                        raw.readCharacteristic(UUID_HELLO)
-                                            .flatMap { luid ->
-                                                val luidUuid = bytes2uuid(luid)!!
-                                                Log.v(TAG, "read remote luid from GATT $luidUuid")
-                                                initiateOutgoingConnection(
-                                                    cached,
-                                                    luidUuid
-                                                )
-                                            }
+                establishConnectionCached(scanResult.bleDevice, remoteUuid)
+                    .flatMap { cached ->
+                        cached.connection
+                            .concatMapSingle { raw ->
+                                Log.v(TAG, "attempting to read hello characteristic")
+                                raw.readCharacteristic(UUID_HELLO)
+                                    .flatMap { luid ->
+                                        val luidUuid = bytes2uuid(luid)!!
+                                        Log.v(TAG, "read remote luid from GATT $luidUuid")
+                                        initiateOutgoingConnection(
+                                            cached,
+                                            luidUuid
+                                        )
                                     }
-                                    .firstOrError()
                             }
-
+                            .firstOrError()
                     }
-                }
             }
         }.doFinally { globalTransactionLock.set(false) }
     }
@@ -1058,7 +1047,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
             }.andThen(
             Single.fromCallable {
-                incomingConnectionLock.onNext(true)
                 Log.e(
                     TAG,
                     "establishing cached connection to ${device.macAddress}, ${luid ?: "null"}, ${connectionCache.size} devices connected"
