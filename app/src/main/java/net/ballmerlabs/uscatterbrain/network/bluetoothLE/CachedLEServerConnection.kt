@@ -68,6 +68,7 @@ class CachedLEServerConnection(
         return cookieCompleteRelay.takeUntil { v -> v == cookie }
             .doOnSubscribe { packetQueue.accept(Pair(packet, cookie)) }
             .ignoreElements()
+            .timeout(10, TimeUnit.SECONDS)
             .doOnComplete { Log.v(TAG, "serverNotify for packet " + packet.type) }
 
     }

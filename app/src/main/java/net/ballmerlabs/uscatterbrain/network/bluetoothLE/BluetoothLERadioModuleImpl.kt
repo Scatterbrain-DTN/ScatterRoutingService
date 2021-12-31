@@ -157,12 +157,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val discoveryPersistent = AtomicReference(false)
 
-    // block all incoming connections during sensitive operations like updating connection cache
-    private val incomingConnectionLock = BehaviorSubject.create<Boolean>()
-
-    // only allow a single transaction at a time
-    private val globalTransactionLock = AtomicReference(false)
-
     private val serverSubject = SingleSubject.create<CachedLEServerConnection>()
 
 
@@ -226,7 +220,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
         refreshInProgresss.accept(false)
         isAdvertising.onNext(Pair(OptionalBootstrap.empty(), AdvertisingSetCallback.ADVERTISE_SUCCESS))
-        incomingConnectionLock.onNext(false)
         Log.e(TAG, "init")
     }
 
@@ -240,6 +233,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val connectionCache = ConcurrentHashMap<UUID, CachedLEConnection>()
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
+    private val activetLuids = ConcurrentHashMap<UUID, Boolean>()
 
     /*
          * shortcut to generate a characteristic with the required permissions
@@ -602,6 +596,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 Log.v(TAG, "gatt server election stage")
                                 Single.just(session.luidStage.selfUnhashedPacket)
                                         .flatMapCompletable { luidPacket ->
+
                                             if (BuildConfig.DEBUG && luidPacket.isHashed) {
                                                 error("Assertion failed")
                                             }
@@ -617,6 +612,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 Log.v(TAG, "gatt client election stage")
                                 conn.readElectLeader()
                                         .flatMapCompletable { electLeaderPacket ->
+                                            Log.v(TAG, "gatt client recieved elect leader packet")
                                             electLeaderPacket.tagLuid(session.luidMap[session.device.address])
                                             session.votingStage.addPacket(electLeaderPacket)
                                             session.votingStage.verifyPackets()
@@ -879,12 +875,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
         return Single.defer {
-            val lock = globalTransactionLock.getAndSet(true)
-            if (lock) {
-                Log.e(TAG, "processScanResult LOCKED, skipping")
-                Single.never()
-            } else {
-                val remoteUuid = getAdvertisedLuid(scanResult)
+            val remoteUuid = getAdvertisedLuid(scanResult)
+            if (remoteUuid == null || (remoteUuid != null && (activetLuids.putIfAbsent(remoteUuid, true) == null))) {
                 establishConnectionCached(scanResult.bleDevice, remoteUuid)
                     .flatMap { cached ->
                         cached.connection
@@ -902,8 +894,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             }
                             .firstOrError()
                     }
+                    .doFinally { activetLuids.remove(remoteUuid) }
+            } else {
+                Single.error(IllegalStateException("already connected"))
             }
-        }.doFinally { globalTransactionLock.set(false) }
+        }
     }
 
 
@@ -1037,15 +1032,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun establishConnectionCached(device: RxBleDevice, luid: UUID? = null): Single<CachedLEConnection> {
         val connectSingle =
-            incomingConnectionLock.firstOrError().flatMapCompletable { v ->
-                if (!v) {
-                    incomingConnectionLock.onNext(true)
-                    Completable.complete()
-                } else {
-                    incomingConnectionLock.takeUntil { nv -> !nv }
-                        .ignoreElements()
-                }
-            }.andThen(
             Single.fromCallable {
                 Log.e(
                     TAG,
@@ -1092,7 +1078,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     newconnection
 
                 }
-            }.doFinally { incomingConnectionLock.onNext(false) })
+            }
 
         return Single.defer {
             /*
@@ -1241,7 +1227,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 // as they may be tainted
                                                 //clientConnection.dispose()
                                                 session.unlock()
-                                                globalTransactionLock.set(false)
                                             }
 
                                     }
@@ -1293,11 +1278,30 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)!!
                             Log.e(TAG, "server handling luid $luid")
-                            val lock = globalTransactionLock.getAndSet(true)
-                            if (lock) {
-                                Log.e(TAG, "transaction locked, returning gatt failure")
-                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
-                                    .toSingleDefault(
+                            if (activetLuids.putIfAbsent(luid, true) == null) {
+                                Log.e(TAG, "transaction NOT locked, continuing")
+                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                                    .andThen(
+                                        establishConnectionCached(
+                                            trans.remoteDevice,
+                                            luid
+                                        )
+                                    )
+                                    .flatMap { connection ->
+                                        handleConnection(
+                                            connection,
+                                            trans.remoteDevice,
+                                            luid
+                                        )
+                                    }
+                                    .doOnError { err ->
+                                        Log.e(
+                                            TAG,
+                                            "error in handleConnection $err"
+                                        )
+                                    }
+                                    .doFinally { activetLuids.remove(luid) }
+                                    .onErrorReturnItem(
                                         HandshakeResult(
                                             0,
                                             0,
@@ -1305,37 +1309,18 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         )
                                     )
                             } else {
-                                Log.e(TAG, "transaction NOT locked, continuing")
-                                incomingConnectionLock.takeUntil { v -> !v }
-                                    .ignoreElements()
-                                    .andThen(
-                                        trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                            .andThen(
-                                                establishConnectionCached(
-                                                    trans.remoteDevice,
-                                                    luid
-                                                )
-                                            )
-                                            .flatMap { connection ->
-                                                handleConnection(
-                                                    connection,
-                                                    trans.remoteDevice,
-                                                    luid
-                                                )
-                                            }
-                                            .doOnError { err ->
-                                                Log.e(
-                                                    TAG,
-                                                    "error in handleConnection $err"
-                                                )
-                                            }
-                                            .onErrorReturnItem(
-                                                HandshakeResult(
-                                                    0,
-                                                    0,
-                                                    HandshakeResult.TransactionStatus.STATUS_FAIL
-                                                )
-                                            )).doFinally { globalTransactionLock.set(false) }
+                                Log.e(TAG, "server connection not allowed, uuid $luid is locked")
+                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
+                                    .toSingleDefault( HandshakeResult(
+                                        0,
+                                        0,
+                                        HandshakeResult.TransactionStatus.STATUS_FAIL
+                                    ))
+                                    .onErrorReturnItem( HandshakeResult(
+                                        0,
+                                        0,
+                                        HandshakeResult.TransactionStatus.STATUS_FAIL
+                                    ))
                             }
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
