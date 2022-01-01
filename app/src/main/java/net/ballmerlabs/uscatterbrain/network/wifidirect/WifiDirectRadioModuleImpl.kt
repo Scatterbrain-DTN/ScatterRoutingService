@@ -8,7 +8,6 @@ import android.net.wifi.p2p.*
 import android.os.Looper
 import android.util.Log
 import androidx.core.app.ActivityCompat
-import androidx.core.graphics.scaleMatrix
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.subjects.CompletableSubject
@@ -25,7 +24,6 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.Companion.TAG
 import java.net.InetAddress
-import java.net.ServerSocket
 import java.net.Socket
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -626,9 +624,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     private fun getServerSocket(): Single<Socket> {
-        return ObservableServerSocket(SCATTERBRAIN_PORT)
+        return SingleServerSocket(SCATTERBRAIN_PORT)
+            .subscribeOn(operationsScheduler)
             .map { conn -> conn.socket }
-            .firstOrError()
             .doOnSuccess { Log.v(TAG, "accepted server socket") }
     }
 

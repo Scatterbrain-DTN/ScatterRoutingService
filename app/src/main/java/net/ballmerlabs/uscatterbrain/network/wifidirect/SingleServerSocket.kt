@@ -1,8 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.util.Log
-import io.reactivex.Observable
-import io.reactivex.Observer
+import io.reactivex.Single
+import io.reactivex.SingleObserver
 import java.net.ServerSocket
 import java.net.Socket
 
@@ -11,8 +11,7 @@ import java.net.Socket
  * observable for later use
  * @param port port to listen on
  */
-class ObservableServerSocket(port: Int) : Observable<ObservableServerSocket.SocketConnection>() {
-    private var closed = false
+class SingleServerSocket(port: Int) : Single<SingleServerSocket.SocketConnection>() {
     private val socket = ServerSocket(port)
     class SocketConnection(val socket: Socket)
 
@@ -21,14 +20,13 @@ class ObservableServerSocket(port: Int) : Observable<ObservableServerSocket.Sock
      * each accepted connection
      * @return observable returning each connection as a SocketConnection
      */
-    private fun acceptLoop(): Observable<SocketConnection> {
+    private fun acceptLoop(): Single<SocketConnection> {
         return fromCallable { SocketConnection(socket = socket.accept()) }
             .doOnError { err -> Log.e(WifiDirectRadioModule.TAG, "error on socket accept: $err") }
             .doFinally { socket.close() }
-            .repeatUntil { closed }
     }
 
-    override fun subscribeActual(observer: Observer<in SocketConnection>) {
+    override fun subscribeActual(observer: SingleObserver<in SocketConnection>) {
         acceptLoop().subscribe(observer)
     }
 }
