@@ -115,15 +115,15 @@ class CachedLEServerConnection(
                 .subscribeOn(scheduler)
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER), { req, packet ->
-                    Log.v(TAG, "received UUID_SEMAPHOR write ${req.remoteDevice.macAddress}")
+                    Log.v(TAG, "received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet: ${packet.first.type}")
                             selectCharacteristic()
                                 .flatMapCompletable { characteristic ->
-                                    Log.v(TAG, "LOCKED characteristic ${characteristic.uuid}")
+                                    Log.v(TAG, "LOCKED characteristic ${characteristic.uuid} packet: ${packet.first.type}")
                                                     connection.getOnCharacteristicReadRequest(characteristic.uuid)
                                                         .subscribeOn(scheduler)
                                                         .firstOrError()
                                                         .flatMapCompletable { trans ->
-                                                            Log.v(TAG, "characteristic ${characteristic.uuid} start indications")
+                                                            Log.v(TAG, "characteristic ${characteristic.uuid} start indications packet: ${packet.first.type}")
                                                             trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                                                 .andThen(
                                                                     connection.setupIndication(
