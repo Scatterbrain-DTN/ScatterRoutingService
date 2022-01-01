@@ -998,13 +998,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         discoveryPersistent.set(true)
         return discoverContinuous()
             .flatMapSingle { res ->
-                randomizeLuidIfOld()
+                val luidrandomized = if(randomizeLuidIfOld()) "randomized!" else "not randomized!"
+                Log.v(TAG, "raw scan result ${res.bleDevice.macAddress}, luid: $luidrandomized")
                 setAdvertisingLuid(getHashUuid(myLuid.get())!!).toSingleDefault(res)
             }
-            .filter { res -> getAdvertisedLuid(res) != null }
-            .distinct { res -> getAdvertisedLuid(res)!! }
+            .filter { res ->
+                val advertisingLuid = getAdvertisedLuid(res)
+                advertisingLuid != null && (!activeLuids.containsKey(advertisingLuid) && !connectionCache.containsKey(advertisingLuid))
+            }
             .concatMapMaybe { scanResult ->
-                Log.v(TAG, "received scan result ${scanResult.bleDevice}")
+                Log.v(TAG, "received scan result ${scanResult.bleDevice.macAddress}")
                 processScanResult(scanResult)
                     .doOnSuccess {
                         Log.e(
