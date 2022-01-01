@@ -58,6 +58,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private val groupOperationInProgress = AtomicReference(false)
     private val groupConnectInProgress = AtomicReference(false)
+    private val groupRemoveInProgress = AtomicReference(false)
 
     /*
      * we need to unregister and register the receiver when
@@ -99,7 +100,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     val listener = object : WifiP2pManager.ActionListener {
                         override fun onSuccess() {
                             Log.v(TAG, "successfully created group!")
-                            groupOperationInProgress.set(false)
                             if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                                 subject.onError(SecurityException("invalid permission"))
                             } else {
@@ -112,7 +112,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             if (groupRetry.getAndSet(groupRetry.get() - 1) > 0 &&
                                 ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                             ) {
-
                                 mManager.createGroup(channel, this)
                             } else {
                                 subject.onError(IllegalStateException("failed to create group ${reasonCodeToString(reason)}"))
@@ -190,12 +189,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
             }
             mBroadcastReceiver.observeConnectionInfo()
-                    .doOnSubscribe { mManager.removeGroup(channel, actionListener) }
-                    .doOnError { err -> Log.e(TAG, "removeGroup error: $err") }
-                    .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed }
-                    .ignoreElements()
-                    .doOnComplete { Log.v(TAG, "removeGroup return success") }
-                    .andThen(subject)
+                .doOnSubscribe { if (!groupRemoveInProgress.getAndSet(true)) mManager.removeGroup(channel, actionListener) }
+                .doOnError { err -> Log.e(TAG, "removeGroup error: $err") }
+                .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed }
+                .ignoreElements()
+                .doOnComplete { Log.v(TAG, "removeGroup return success") }
+                .andThen(subject)
+                .doFinally { groupRemoveInProgress.set(false) }
         }
 
         return retryDelay(c, 10, 1)
