@@ -890,9 +890,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
+    private fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
-        return Single.defer {
+        return Maybe.defer {
             val remoteUuid = getAdvertisedLuid(scanResult)!!
             if (updateConnected(remoteUuid)) {
                 establishConnectionCached(scanResult.bleDevice, remoteUuid)
@@ -913,8 +913,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .firstOrError()
                     }
                     .doFinally { updateDisconnected(remoteUuid) }
+                    .toMaybe()
             } else {
-                Single.error(IllegalStateException("already connected"))
+                Maybe.empty()
             }
         }
     }
@@ -995,10 +996,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun discoverForever(): Observable<HandshakeResult> {
         discoveryPersistent.set(true)
         return discoverContinuous()
-            .flatMapSingle { res -> setAdvertisingLuid(myLuid.get()).toSingleDefault(res) }
+            .flatMapSingle { res -> setAdvertisingLuid(getHashUuid(myLuid.get())!!).toSingleDefault(res) }
             .filter { res -> getAdvertisedLuid(res) != null }
             .distinct { res -> getAdvertisedLuid(res)!! }
-            .concatMapSingle { scanResult ->
+            .concatMapMaybe { scanResult ->
                 Log.v(TAG, "received scan result ${scanResult.bleDevice}")
                 processScanResult(scanResult)
                     .doOnSuccess {

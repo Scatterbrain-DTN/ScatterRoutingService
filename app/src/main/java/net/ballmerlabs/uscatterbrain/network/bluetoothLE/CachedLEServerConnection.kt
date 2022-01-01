@@ -66,10 +66,13 @@ class CachedLEServerConnection(
     ): Completable {
         val cookie = getCookie()
         return cookieCompleteRelay.takeUntil { v -> v == cookie }
-            .doOnSubscribe { packetQueue.accept(Pair(packet, cookie)) }
+            .doOnSubscribe {
+                Log.v(TAG, "serverNotify ACCEPTED packet ${packet.type} cookie: $cookie")
+                packetQueue.accept(Pair(packet, cookie))
+            }
             .ignoreElements()
             .timeout(10, TimeUnit.SECONDS)
-            .doOnComplete { Log.v(TAG, "serverNotify for packet " + packet.type) }
+            .doOnComplete { Log.v(TAG, "serverNotify COMPLETED for ${packet.type} cookie $cookie") }
 
     }
 
@@ -128,7 +131,7 @@ class CachedLEServerConnection(
                                                                         packet.first.writeToStream(20, scheduler),
                                                                         trans.remoteDevice
                                                                     )
-                                                                        .timeout(5, TimeUnit.SECONDS)
+                                                                        .timeout(10, TimeUnit.SECONDS)
                                                                         .doOnError { err -> Log.e(TAG, "characteristic ${characteristic.uuid} err: $err") }
                                                                         .doOnComplete {
                                                                             Log.v(TAG, "indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
@@ -140,6 +143,7 @@ class CachedLEServerConnection(
                                                             BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
                                                             BluetoothGatt.GATT_SUCCESS
                                                             )
+                                                                .subscribeOn(scheduler)
                                                                 .doOnComplete { Log.v(TAG, "successfully ACKed ${characteristic.uuid} start indications") }
                                                                 .doOnError { err -> Log.e(TAG, "error ACKing ${characteristic.uuid} start indication: $err") }
                                                                 .timeout(5, TimeUnit.SECONDS)
