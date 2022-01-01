@@ -899,7 +899,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
         Log.d(TAG, "scan result: " + scanResult.bleDevice.macAddress)
         return Single.defer {
-            val remoteUuid = getAdvertisedLuid(scanResult)
+            val remoteUuid = getAdvertisedLuid(scanResult)!!
             if (updateConnected(remoteUuid)) {
                 establishConnectionCached(scanResult.bleDevice, remoteUuid)
                     .flatMap { cached ->
@@ -981,36 +981,46 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .map { l -> l.toList() }
     }
 
+    private fun discoverContinuous(): Observable<ScanResult> {
+        return mClient.scanBleDevices(
+            ScanSettings.Builder()
+                .setScanMode(parseScanMode())
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .setShouldCheckLocationServicesState(true)
+                .build(),
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(SERVICE_UUID))
+                .build())
+    }
+
+
     /**
      * start device discovery forever, dispose to cancel.
      * @return observable of HandshakeResult containing transaction stats
      */
     override fun discoverForever(): Observable<HandshakeResult> {
         discoveryPersistent.set(true)
-        return Observable.defer {
-            discoverOnce(30, TimeUnit.SECONDS)
-                .flatMapObservable { results ->
-                    Log.e(TAG, "received scan results ${results.size}")
-                    Observable.fromIterable(results)
-                        .distinct { res -> res.bleDevice.macAddress }
-                        .concatMapSingle { scanResult ->
-                            processScanResult(scanResult)
-                                .doOnSuccess {
-                                    Log.e(
-                                        TAG,
-                                        "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete"
-                                    )
-                                }
-                                .doOnError { err ->
-                                    Log.e(
-                                        TAG,
-                                        "transaction for ${scanResult.bleDevice.macAddress} failed: $err"
-                                    )
-                                    err.printStackTrace()
-                                }
-                        }
-                }
-        }
+        return discoverContinuous()
+            .flatMapSingle { res -> setAdvertisingLuid(myLuid.get()).toSingleDefault(res) }
+            .filter { res -> getAdvertisedLuid(res) != null }
+            .distinct { res -> getAdvertisedLuid(res)!! }
+            .concatMapSingle { scanResult ->
+                Log.v(TAG, "received scan result ${scanResult.bleDevice}")
+                processScanResult(scanResult)
+                    .doOnSuccess {
+                        Log.e(
+                            TAG,
+                            "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete"
+                        )
+                    }
+                    .doOnError { err ->
+                        Log.e(
+                            TAG,
+                            "transaction for ${scanResult.bleDevice.macAddress} failed: $err"
+                        )
+                        err.printStackTrace()
+                    }
+            }
             .doOnComplete { Log.e(TAG, "discoverForever completed, retry") }
             .doOnError { err -> Log.e(TAG, "discoverForever error: $err") }
             .doOnSubscribe { Log.e(TAG, "subscribed discoverForever") }
@@ -1055,14 +1065,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
     }
 
-    private fun establishConnectionCached(device: RxBleDevice, luid: UUID? = null): Single<CachedLEConnection> {
+    private fun establishConnectionCached(device: RxBleDevice, luid: UUID): Single<CachedLEConnection> {
         val connectSingle =
             Single.fromCallable {
                 Log.e(
                     TAG,
                     "establishing cached connection to ${device.macAddress}, ${luid ?: "null"}, ${connectionCache.size} devices connected"
                 )
-                val connection = if (luid == null) null else connectionCache[luid]
+                val newconnection = CachedLEConnection(channels, clientScheduler, device)
+                val connection = connectionCache.putIfAbsent(luid, newconnection)
                 if (connection != null) {
                     Log.e(TAG, "cache HIT")
                     connection
@@ -1074,7 +1085,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 "established cached connection to ${device.macAddress}"
                             )
                         }
-                    val newconnection = CachedLEConnection(channels, clientScheduler, device)
                     newconnection.setOnDisconnect {
                         Log.e(TAG, "client onDisconnect $luid")
                         val conn = connectionCache.remove(luid)
@@ -1086,34 +1096,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             Completable.complete()
                         }
                     }
-                    val c = retrieveLuidIfNull(luid, rawConnection)
-                        .map { connectionPair ->
-                            Log.v(TAG, "adding connection to cache under ${connectionPair.first}")
-                            Log.e(TAG, "cache MISS, ${connectionCache.size} devices connected")
-                            val collision =
-                                connectionCache.putIfAbsent(connectionPair.first, newconnection)
-                            if (collision == null) {
-                                updateConnected(connectionPair.first)
-                                newconnection.setOnDisconnect {
-                                    Log.e(TAG, "client onDisconnect ${connectionPair.first}")
-                                    val conn = connectionCache.remove(connectionPair.first)
-                                    conn?.dispose()
-                                    if (connectionCache.isEmpty()) {
-                                        myLuid.set(UUID.randomUUID())
-                                        removeLuid()
-                                    } else {
-                                        Completable.complete()
-                                    }
-                                }
-                                connectionPair.second
-                            } else {
-                                throw IllegalStateException("what the absolute hecking heck")
-                            }
-                        }
-
-                    newconnection.subscribeConnection(c)
+                    newconnection.subscribeConnection(rawConnection)
                     newconnection
-
                 }
             }
 
