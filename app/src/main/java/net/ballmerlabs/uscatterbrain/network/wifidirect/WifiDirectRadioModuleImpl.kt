@@ -91,7 +91,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private fun createGroupSingle(): Completable {
         return Completable.defer {
-                val groupRetry = AtomicReference(5)
+                val groupRetry = AtomicReference(20)
                 val subject = CompletableSubject.create()
                 if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                     Completable.error(SecurityException("invalid permissions"))
@@ -120,7 +120,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                     }
                     mBroadcastReceiver.observeConnectionInfo()
-                            .doOnSubscribe { mManager.createGroup(channel, listener) }
+                            .doOnSubscribe { if (!groupOperationInProgress.getAndSet(true)) mManager.createGroup(channel, listener) }
                             .doOnError { err -> Log.e(TAG, "createGroup error: $err") }
                             .takeUntil { wifiP2pInfo -> (wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner) }
                             .ignoreElements()
