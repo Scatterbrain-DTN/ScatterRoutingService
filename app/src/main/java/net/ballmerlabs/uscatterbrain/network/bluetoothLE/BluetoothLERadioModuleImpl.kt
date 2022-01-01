@@ -873,12 +873,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun updateConnected(luid: UUID?): Boolean {
-        val shouldUpdate = if (luid != null) {
-            activeLuids.putIfAbsent(luid, true) == null
-        } else {
-            true
-        }
+    private fun updateConnected(luid: UUID): Boolean {
+        val shouldUpdate = activeLuids.putIfAbsent(luid, true) == null
 
         if (shouldUpdate) {
             transactionInProgressRelay.accept(true)
@@ -886,10 +882,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return shouldUpdate
     }
 
-    private fun updateDisconnected(luid: UUID?) {
-        if (luid != null) {
-            activeLuids.remove(luid)
-        }
+    private fun updateDisconnected(luid: UUID) {
+        activeLuids.remove(luid)
 
         if (activeLuids.isEmpty()) {
             transactionInProgressRelay.accept(false)
@@ -1247,7 +1241,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 // if we encounter any errors or terminate, remove cached connections
                                                 // as they may be tainted
                                                 //clientConnection.dispose()
-                                                updateDisconnected(luid)
                                                 session.unlock()
                                             }
 
@@ -1290,7 +1283,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .doOnError { Log.e(TAG, "failed to open server") }
                 .flatMapObservable { connectionRaw ->
                     Log.v(TAG, "gatt server initialized")
-                    serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, serverScheduler))
+                    serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, operationsScheduler))
                     //TODO:
                     val write = connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
                         .subscribeOn(operationsScheduler)

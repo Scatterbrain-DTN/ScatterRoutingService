@@ -109,6 +109,7 @@ class CachedLEServerConnection(
             connection.getOnCharacteristicReadRequest(
                 BluetoothLERadioModuleImpl.UUID_SEMAPHOR
             )
+                .subscribeOn(scheduler)
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER), { req, packet ->
                     Log.v(TAG, "received UUID_SEMAPHOR write ${req.remoteDevice.macAddress}")
@@ -116,6 +117,7 @@ class CachedLEServerConnection(
                                 .flatMapCompletable { characteristic ->
                                     Log.v(TAG, "LOCKED characteristic ${characteristic.uuid}")
                                                     connection.getOnCharacteristicReadRequest(characteristic.uuid)
+                                                        .subscribeOn(scheduler)
                                                         .firstOrError()
                                                         .flatMapCompletable { trans ->
                                                             Log.v(TAG, "characteristic ${characteristic.uuid} start indications")
