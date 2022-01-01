@@ -50,10 +50,7 @@ class CachedLEServerConnection(
     private fun selectCharacteristic(): Single<OwnedCharacteristic> {
         return Observable.mergeDelayError(
                 Observable.fromIterable(channels.values)
-                        .map { lockedCharactersitic ->
-                            Log.v(TAG, "checking locked characteristic: ${lockedCharactersitic.isLocked()}")
-                            lockedCharactersitic.awaitCharacteristic().toObservable()
-                        }
+                        .map { lockedCharactersitic -> lockedCharactersitic.awaitCharacteristic().toObservable() }
                     .subscribeOn(scheduler)
         )
                 .firstOrError()
