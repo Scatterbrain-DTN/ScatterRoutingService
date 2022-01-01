@@ -109,7 +109,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                         override fun onFailure(reason: Int) {
                             Log.w(TAG, "failed to create group: ${reasonCodeToString(reason)}")
-                            if (groupRetry.getAndSet(groupRetry.get() + 1) > 0 && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                            if (groupRetry.getAndSet(groupRetry.get() - 1) > 0 &&
+                                ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                            ) {
+
                                 mManager.createGroup(channel, this)
                             } else {
                                 subject.onError(IllegalStateException("failed to create group ${reasonCodeToString(reason)}"))
