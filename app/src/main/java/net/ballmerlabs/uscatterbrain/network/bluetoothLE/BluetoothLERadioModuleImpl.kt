@@ -1325,50 +1325,36 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             acquireWakelock()
                             val luid = bytes2uuid(trans.value)!!
                             Log.e(TAG, "server handling luid $luid")
-                            if (updateConnected(luid)) {
-                                Log.e(TAG, "transaction NOT locked, continuing")
-                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                    .andThen(
-                                        establishConnectionCached(
-                                            trans.remoteDevice,
-                                            luid
-                                        )
+                            Log.e(TAG, "transaction NOT locked, continuing")
+                            trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                                .andThen(
+                                    establishConnectionCached(
+                                        trans.remoteDevice,
+                                        luid
                                     )
-                                    .flatMap { connection ->
-                                        handleConnection(
-                                            connection,
-                                            trans.remoteDevice,
-                                            luid
-                                        )
-                                    }
-                                    .doOnError { err ->
-                                        Log.e(
-                                            TAG,
-                                            "error in handleConnection $err"
-                                        )
-                                    }
-                                    .doFinally { updateDisconnected(luid) }
-                                    .onErrorReturnItem(
-                                        HandshakeResult(
-                                            0,
-                                            0,
-                                            HandshakeResult.TransactionStatus.STATUS_FAIL
-                                        )
+                                )
+                                .flatMap { connection ->
+                                    handleConnection(
+                                        connection,
+                                        trans.remoteDevice,
+                                        luid
                                     )
-                            } else {
-                                Log.e(TAG, "server connection not allowed, uuid $luid is locked")
-                                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
-                                    .toSingleDefault( HandshakeResult(
+                                }
+                                .doOnError { err ->
+                                    Log.e(
+                                        TAG,
+                                        "error in handleConnection $err"
+                                    )
+                                }
+                                .doFinally { updateDisconnected(luid) }
+                                .onErrorReturnItem(
+                                    HandshakeResult(
                                         0,
                                         0,
                                         HandshakeResult.TransactionStatus.STATUS_FAIL
-                                    ))
-                                    .onErrorReturnItem( HandshakeResult(
-                                        0,
-                                        0,
-                                        HandshakeResult.TransactionStatus.STATUS_FAIL
-                                    ))
-                            }
+                                    )
+                                )
+
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
                         .doOnNext { t -> Log.v(TAG, "transactionResult ${t.success}") }
