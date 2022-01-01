@@ -165,6 +165,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     companion object {
         const val TAG = "BluetoothLE"
 
+        const val LUID_RANDOMIZE_DELAY = 400
+
         // scatterbrain service uuid. This is the same for every scatterbrain router.
         val SERVICE_UUID: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
 
@@ -235,6 +237,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
     private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
     private val transactionInProgressRelay = BehaviorRelay.create<Boolean>()
+    private val lastLuidRandomize = AtomicReference(Date())
 
     /*
          * shortcut to generate a characteristic with the required permissions
@@ -345,6 +348,23 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
                 }
 
+    }
+
+    private fun randomizeLuidIfOld(): Boolean {
+        val now = Date()
+        val old = lastLuidRandomize.getAndUpdate { old ->
+            if (now.compareTo(old) > LUID_RANDOMIZE_DELAY) {
+                now
+            } else {
+                old
+            }
+        }
+        return if (old.compareTo(now) > LUID_RANDOMIZE_DELAY) {
+            myLuid.set(UUID.randomUUID())
+            true
+        } else {
+            false
+        }
     }
 
     /**
@@ -1001,7 +1021,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun discoverForever(): Observable<HandshakeResult> {
         discoveryPersistent.set(true)
         return discoverContinuous()
-            .flatMapSingle { res -> setAdvertisingLuid(getHashUuid(myLuid.get())!!).toSingleDefault(res) }
+            .flatMapSingle { res ->
+                randomizeLuidIfOld()
+                setAdvertisingLuid(getHashUuid(myLuid.get())!!).toSingleDefault(res)
+            }
             .filter { res -> getAdvertisedLuid(res) != null }
             .distinct { res -> getAdvertisedLuid(res)!! }
             .concatMapMaybe { scanResult ->
@@ -1090,7 +1113,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         val conn = connectionCache.remove(luid)
                         conn?.dispose()
                         if (connectionCache.isEmpty()) {
-                            myLuid.set(UUID.randomUUID())
                             removeLuid()
                         } else {
                             Completable.complete()
@@ -1245,6 +1267,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 session.stage = TransactionResult.STAGE_TERMINATE
                                             }
                                             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+                                            .flatMap { item -> removeLuid().toSingleDefault(item) }
                                             .doFinally {
                                                 Log.e(TAG, "TERMINATION: session $device terminated")
                                                 // if we encounter any errors or terminate, remove cached connections
