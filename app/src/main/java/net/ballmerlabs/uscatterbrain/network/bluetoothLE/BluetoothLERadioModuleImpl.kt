@@ -1013,6 +1013,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
             .doOnComplete { Log.e(TAG, "discoverForever completed, retry") }
             .doOnError { err -> Log.e(TAG, "discoverForever error: $err") }
+            .doOnSubscribe { Log.e(TAG, "subscribed discoverForever") }
         .repeatWhen { transactionInProgressRelay.filter { p -> !p }.delay(5, TimeUnit.SECONDS, operationsScheduler)  }
         .retryWhen { transactionInProgressRelay.filter { p -> !p }.delay(5, TimeUnit.SECONDS, operationsScheduler) }
     }
@@ -1074,6 +1075,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             )
                         }
                     val newconnection = CachedLEConnection(channels, clientScheduler, device)
+                    newconnection.setOnDisconnect {
+                        Log.e(TAG, "client onDisconnect $luid")
+                        val conn = connectionCache.remove(luid)
+                        conn?.dispose()
+                        if (connectionCache.isEmpty()) {
+                            myLuid.set(UUID.randomUUID())
+                            removeLuid()
+                        } else {
+                            Completable.complete()
+                        }
+                    }
                     val c = retrieveLuidIfNull(luid, rawConnection)
                         .map { connectionPair ->
                             Log.v(TAG, "adding connection to cache under ${connectionPair.first}")
