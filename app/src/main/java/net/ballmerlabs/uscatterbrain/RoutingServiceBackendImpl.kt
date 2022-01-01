@@ -263,6 +263,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     }
 
     private fun asyncRefreshPeers() {
+        Log.v(TAG, "asyncRefreshPeers")
         val disp = AtomicReference<Disposable>()
         val d = radioModule.refreshPeers()
                 .timeout(

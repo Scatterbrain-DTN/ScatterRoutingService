@@ -425,6 +425,7 @@ class ScatterRoutingService : LifecycleService() {
 
         override fun manualRefreshPeers(callback: UnitCallback) {
             checkAdminPermission()
+            Log.v(TAG, "manualRefreshPeers")
             val handle = generateNewHandle()
             val disp = mBackend.radioModule.refreshPeers()
                     .doOnDispose { callbackHandles.remove(handle) }

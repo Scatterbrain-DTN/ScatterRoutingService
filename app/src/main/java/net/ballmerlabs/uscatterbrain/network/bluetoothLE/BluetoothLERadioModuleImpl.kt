@@ -847,17 +847,22 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     override fun refreshPeers(): Observable<HandshakeResult> {
+        Log.v(TAG, "refreshPeers called")
         return refreshInProgresss
                 .firstOrError()
                 .flatMapObservable { b ->
-                    if (b) refreshInProgresss.takeUntil { v -> !v }
-                        .flatMap {
-                            Observable.fromIterable(connectionCache.entries)
-                                .flatMapSingle { v ->
-                                    initiateOutgoingConnection(v.value, v.key)
-                                }
-                        }
+                    if (!b) {
+                        refreshInProgresss.takeUntil { v -> !v }
+                            .flatMap {
+                                Observable.fromIterable(connectionCache.entries)
+                                    .flatMapSingle { v ->
+                                        Log.v(TAG, "refreshing peer ${v.key}")
+                                        initiateOutgoingConnection(v.value, v.key)
+                                    }
+                            }
+                    }
                     else {
+                        Log.v(TAG, "refresh already in progress, skipping")
                         Observable.empty()
                     }
                 }
