@@ -49,7 +49,15 @@ interface BluetoothLEModule {
      * will not emit any values and no attempt at enabling disovery or advertisement will be made
      * @return Observable emitting handshake results
      */
-    fun observeTransactions(): Observable<HandshakeResult>
+    fun observeCompletedTransactions(): Observable<HandshakeResult>
+
+    /**
+     * Returns an observable that emits a boolean, true if a transaction is in progress and false
+     * if it has ended (completed or failed)
+     *
+     * @return Observable
+     */
+    fun observeTransactionStatus(): Observable<Boolean>
 
     /**
      * Similar to observeTransactions(), but enables active discovery before emitting any

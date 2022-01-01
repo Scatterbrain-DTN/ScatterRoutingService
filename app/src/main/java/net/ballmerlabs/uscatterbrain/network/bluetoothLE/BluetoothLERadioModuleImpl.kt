@@ -6,7 +6,6 @@ import android.bluetooth.BluetoothGattService
 import android.bluetooth.le.*
 import android.content.Context
 import android.os.ParcelUuid
-import android.os.PowerManager
 import android.util.Log
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.jakewharton.rxrelay2.BehaviorRelay
@@ -107,14 +106,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         private val mClient: RxBleClient,
         private val wifiDirectRadioModule: WifiDirectRadioModule,
         private val datastore: ScatterbrainDatastore,
-        powerManager: PowerManager,
         private val preferences: RouterPreferences,
 ) : BluetoothLEModule {
-    private val wakeLock = powerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
-            mContext.getString(R.string.wakelock_tag
-            ))
-
     private val serverStarted = AtomicReference(false)
 
     private val isAdvertising = BehaviorSubject.create<Pair<OptionalBootstrap<AdvertisingSet>, Int>>()
@@ -293,28 +286,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val d = transactionCompleteRelay.subscribe(
                 {
                     Log.v(TAG, "transaction complete, randomizing luid")
-                    releaseWakeLock()
                 }
         ) { err ->
             Log.e(TAG, "error in transactionCompleteRelay $err")
-            releaseWakeLock()
         }
         mGattDisposable.add(d)
-    }
-
-    /*
-     * we should always hold a wakelock directly after the adapter wakes up the device
-     * when a scatterbrain uuid is detected. The adapter is responsible for waking up the device
-     * via offloaded scanning, but NOT for keeping it awake.
-     */
-    private fun acquireWakelock() {
-        if (!wakeLock.isHeld)
-            wakeLock.acquire((10 * 60 * 1000).toLong())
-    }
-
-    private fun releaseWakeLock() {
-        if (wakeLock.isHeld)
-            wakeLock.release()
     }
 
     private val powerSave: String?
@@ -1051,6 +1027,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         .retryWhen { transactionInProgressRelay.filter { p -> !p }.delay(5, TimeUnit.SECONDS, operationsScheduler) }
     }
 
+
+    override fun observeTransactionStatus(): Observable<Boolean> {
+        return transactionInProgressRelay.delay(0, TimeUnit.SECONDS, operationsScheduler)
+    }
+
     /**
      * @return a completsable that completes when the current transaction is finished, with optional error state
      */
@@ -1064,7 +1045,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     /**
      * @return observable with transaction stats
      */
-    override fun observeTransactions(): Observable<HandshakeResult> {
+    override fun observeCompletedTransactions(): Observable<HandshakeResult> {
         return Observable.merge(
                 transactionCompleteRelay,
                 transactionErrorRelay.flatMap { exception -> throw exception }
@@ -1321,39 +1302,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .subscribeOn(operationsScheduler)
                         .flatMapSingle { trans ->
                             Log.e(TAG, "hello from ${trans.remoteDevice.macAddress}")
-                            //accquire wakelock
-                            acquireWakelock()
                             val luid = bytes2uuid(trans.value)!!
+                            updateConnected(luid)
                             Log.e(TAG, "server handling luid $luid")
                             Log.e(TAG, "transaction NOT locked, continuing")
                             trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                .andThen(
-                                    establishConnectionCached(
-                                        trans.remoteDevice,
-                                        luid
-                                    )
-                                )
-                                .flatMap { connection ->
-                                    handleConnection(
-                                        connection,
-                                        trans.remoteDevice,
-                                        luid
-                                    )
-                                }
-                                .doOnError { err ->
-                                    Log.e(
-                                        TAG,
-                                        "error in handleConnection $err"
-                                    )
-                                }
+                                .andThen(establishConnectionCached(trans.remoteDevice, luid))
+                                .flatMap { connection -> handleConnection(connection, trans.remoteDevice, luid) }
+                                .doOnError { err -> Log.e(TAG, "error in handleConnection $err") }
                                 .doFinally { updateDisconnected(luid) }
-                                .onErrorReturnItem(
-                                    HandshakeResult(
-                                        0,
-                                        0,
-                                        HandshakeResult.TransactionStatus.STATUS_FAIL
-                                    )
-                                )
+                                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
 
                         }
                         .doOnError { e -> Log.e(TAG, "failed to read hello characteristic: $e") }
@@ -1388,7 +1346,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .doOnComplete { Log.e(TAG, "gatt server completed. This shouldn't happen") }
                 .retry()
                 .repeat()
-                .doOnNext { releaseWakeLock() }
             ).subscribe(transactionCompleteRelay)
         mGattDisposable.add(d)
     }
