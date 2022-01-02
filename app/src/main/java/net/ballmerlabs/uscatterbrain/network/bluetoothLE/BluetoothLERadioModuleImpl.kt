@@ -1072,7 +1072,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     TAG,
                     "establishing cached connection to ${device.macAddress}, ${luid ?: "null"}, ${connectionCache.size} devices connected"
                 )
-                val newconnection = CachedLEConnection(channels, operationsScheduler, device)
+                val newconnection = CachedLEConnection(channels, clientScheduler, device)
                 val connection = connectionCache.putIfAbsent(luid, newconnection)
                 if (connection != null) {
                     Log.e(TAG, "cache HIT")
@@ -1161,7 +1161,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     session.singleServer(),
                                                     { client, server ->
                                                         server(connection)
-                                                            .subscribeOn(serverScheduler)
                                                             .doOnError { err ->
                                                                 Log.e(TAG, "error in gatt server transaction for ${device.macAddress}, stage: $stage, $err")
                                                                 err.printStackTrace()
@@ -1170,7 +1169,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                             .onErrorReturn { err -> OptionalBootstrap.err(err) }
                                                             .zipWith(
                                                                 client(clientConnection)
-                                                                    .subscribeOn(clientScheduler)
                                                                     .doOnSuccess { Log.v(TAG, "client handshake completed") }
                                                                     .doOnError { err ->
                                                                         Log.e(
@@ -1191,7 +1189,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     }
 
                                                 ).flatMap { result -> result }
-                                                    .subscribeOn(operationsScheduler)
                                                     .flatMap { v ->
                                                         when {
                                                             v.first.isError() -> Single.error(v.first.err)
@@ -1292,7 +1289,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .doOnError { Log.e(TAG, "failed to open server") }
                 .flatMapObservable { connectionRaw ->
                     Log.v(TAG, "gatt server initialized")
-                    serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, operationsScheduler))
+                    serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, serverScheduler))
                     //TODO:
                     val write = connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
                         .subscribeOn(operationsScheduler)
