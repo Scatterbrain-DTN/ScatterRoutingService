@@ -429,7 +429,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     if (m.isEndOfStream) {
                         Completable.complete()
                     } else {
-                        mDatastore.scatterMessageDao().incrementShareCount(getGlobalHash(m.hashList))
+                        mDatastore.scatterMessageDao().incrementShareCount(Base64.encodeToString(getGlobalHash(m.hashList), Base64.DEFAULT))
                                 .flatMapCompletable { v ->
                                     Log.e("debug", "incrementShareCount $v")
                                     if (v == 1)
@@ -648,8 +648,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnSuccess { p -> Log.v(TAG, "retrieved declareHashesPacket from datastore: " + p.size) }
                 .flatMapObservable { source -> Observable.fromIterable(source) }
                 .reduce(ArrayList<ByteArray>(), { list, hash ->
-                    list.add(hash)
-                    Log.v("debug", "declarehashes create hash ${Base64.encodeToString(hash, Base64.DEFAULT)}")
+                    list.add(Base64.decode(hash, Base64.DEFAULT))
+                    Log.v("debug", "declarehashes create hash $hash")
                     list
                 })
                 .map { hash ->
