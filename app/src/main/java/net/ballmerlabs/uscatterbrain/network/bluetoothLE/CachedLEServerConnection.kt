@@ -148,7 +148,6 @@ class CachedLEServerConnection(
                                                                 .doOnComplete { Log.v(TAG, "successfully ACKed ${characteristic.uuid} start indications") }
                                                                 .doOnError { err -> Log.e(TAG, "error ACKing ${characteristic.uuid} start indication: $err") }
                                                         )
-                                                        .timeout(10, TimeUnit.SECONDS, scheduler)
                                                         .doOnError{ err ->
                                                             Log.e(TAG, "error in gatt server indication $err")
                                                             errorRelay.accept(err)

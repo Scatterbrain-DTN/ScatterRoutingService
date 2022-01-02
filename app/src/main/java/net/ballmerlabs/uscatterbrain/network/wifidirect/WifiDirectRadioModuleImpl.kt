@@ -460,7 +460,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
                         120
                 ), 10, 1)
-                        .flatMap { info: WifiP2pInfo ->
+                        .flatMap { info ->
                             getTcpSocket(info.groupOwnerAddress)
                                     .flatMap { socket ->
                                         routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
@@ -476,6 +476,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                     list
                                                 })
                                                 .flatMap { p ->
+                                                    Log.v(TAG, "inserting identity packet seme")
                                                     datastore.insertIdentityPacket(p).toSingleDefault(
                                                             HandshakeResult(
                                                                     p.size,

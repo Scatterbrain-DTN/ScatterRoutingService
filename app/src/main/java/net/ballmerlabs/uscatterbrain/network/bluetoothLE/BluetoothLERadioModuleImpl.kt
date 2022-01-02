@@ -1225,7 +1225,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     else -> pair.first.item
                                                 }
                                             }
-                                            .flatMapSingle { bootstrapRequest ->
+                                            .firstOrError()
+                                            .flatMap { bootstrapRequest ->
                                                 bootstrapWifiP2p(bootstrapRequest)
                                                     .flatMap { r ->
                                                         removeWifiDirectGroup()
@@ -1233,7 +1234,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                             .toSingleDefault(r)
                                                     }
                                             }
-                                            .firstOrError()
                                             .doOnSuccess {
                                                 Log.v(TAG, "wifi direct bootstrap complete, unlocking session.")
                                                 session.stage = TransactionResult.STAGE_TERMINATE

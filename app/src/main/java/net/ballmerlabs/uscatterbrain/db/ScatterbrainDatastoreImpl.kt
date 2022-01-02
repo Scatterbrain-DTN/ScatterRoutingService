@@ -272,8 +272,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .subscribeOn(databaseScheduler)
                     .doOnSubscribe { Log.v(TAG, "subscribed to getTopRandoMessages") }
                     .toFlowable()
-                    .flatMap { source -> Flowable.fromIterable(source) }
-                    .doOnNext { message -> Log.v(TAG, "retrieved message: " + message.messageHashes.size) }
+                .doOnNext { message -> Log.v(TAG, "retrieved messages: " + message.size) }
+                .flatMap { source -> Flowable.fromIterable(source) }
 
                     .map { message ->
                         if (message.message.body == null) {
