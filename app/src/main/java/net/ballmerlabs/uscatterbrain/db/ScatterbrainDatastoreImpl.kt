@@ -420,7 +420,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     if (m.isEndOfStream) {
                         Completable.complete()
                     } else {
-                        mDatastore.scatterMessageDao().incrementShareCount(Base64.encodeToString(getGlobalHash(m.hashList), Base64.DEFAULT))
+                        mDatastore.scatterMessageDao().incrementShareCount(getGlobalHash(m.hashList))
                                 .flatMapCompletable { v ->
                                     Log.e("debug", "incrementShareCount $v")
                                     if (v == 1)

@@ -78,7 +78,7 @@ abstract class ScatterMessageDao {
     abstract fun getTotalSize(): Single<Long>
 
     @Query("UPDATE messages SET shareCount = shareCount + 1 WHERE globalhash = :globalhash")
-    abstract fun incrementShareCount(globalhash: String): Single<Int>
+    abstract fun incrementShareCount(globalhash: ByteArray): Single<Int>
 
     @Transaction
     @Query("SELECT * FROM messages WHERE globalhash NOT IN (:globalhashes)" +
@@ -92,7 +92,7 @@ abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")
-    abstract fun getTopHashes(count: Int): Single<List<String>>
+    abstract fun getTopHashes(count: Int): Single<List<ByteArray>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertMessages(messages: List<HashlessScatterMessage>): List<Long>
