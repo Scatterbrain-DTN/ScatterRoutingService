@@ -24,6 +24,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.Companion.TAG
 import java.net.InetAddress
+import java.net.ServerSocket
 import java.net.Socket
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -59,6 +60,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val groupOperationInProgress = AtomicReference(false)
     private val groupConnectInProgress = AtomicReference(false)
     private val groupRemoveInProgress = AtomicReference(false)
+    private val serverSocket = ServerSocket(SCATTERBRAIN_PORT)
 
     /*
      * we need to unregister and register the receiver when
@@ -625,7 +627,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     private fun getServerSocket(): Single<Socket> {
-        return SingleServerSocket(SCATTERBRAIN_PORT)
+        return SingleServerSocket(serverSocket)
             .subscribeOn(operationsScheduler)
             .map { conn -> conn.socket }
             .doOnSuccess { Log.v(TAG, "accepted server socket") }
