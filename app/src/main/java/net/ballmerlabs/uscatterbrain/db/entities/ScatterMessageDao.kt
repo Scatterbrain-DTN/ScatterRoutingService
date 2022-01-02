@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.db.entities
 
-import android.util.Base64
 import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Single
@@ -84,12 +83,12 @@ abstract class ScatterMessageDao {
     @Transaction
     @Query("SELECT * FROM messages WHERE globalhash NOT IN (:globalhashes)" +
             "ORDER BY RANDOM() LIMIT :count")
-    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<String>): Single<List<ScatterMessage>>
+    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>): Single<List<ScatterMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages WHERE globalhash NOT IN (:globalhashes)" +
             "AND fileSize < :sizeLimit ORDER BY RANDOM() LIMIT :count")
-    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<String>, sizeLimit: Long): Single<List<ScatterMessage>>
+    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>, sizeLimit: Long): Single<List<ScatterMessage>>
 
     @Transaction
     @Query("SELECT globalhash FROM messages ORDER BY RANDOM() LIMIT :count")
@@ -116,7 +115,7 @@ abstract class ScatterMessageDao {
             h.messageOwnerId = messageRes
         }
         __insertHashes(message.messageHashes)
-        message.message.globalhash = Base64.encodeToString(getGlobalHashDb(message.messageHashes), Base64.DEFAULT)
+        message.message.globalhash = getGlobalHashDb(message.messageHashes)
         message.identity_fingerprints.forEach { f -> f.message = messageRes }
         message.recipient_fingerprints.forEach { f -> f.message = messageRes }
 

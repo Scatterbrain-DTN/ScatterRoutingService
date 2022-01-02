@@ -259,7 +259,7 @@ interface ScatterbrainDatastore {
      */
     fun getTopRandomMessages(
             count: Int,
-            declareHashes: DeclareHashesPacket
+            delareHashes: DeclareHashesPacket
     ): Observable<BlockDataStream>
 
     /**

@@ -427,11 +427,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     }
                             ).flatMap { stats ->
                                 declareHashesUke(socket)
-                                    .flatMap { declareHashesPacket ->
+                                    .doOnSuccess {
                                         Log.v(
                                             TAG,
-                                            "received declare hashes packet uke ${declareHashesPacket.hashes.size}"
+                                            "received declare hashes packet uke"
                                         )
+                                    }
+                                    .flatMap { declareHashesPacket ->
                                         readBlockDataUke(socket)
                                             .toObservable()
                                             .mergeWith(
@@ -484,8 +486,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                 }
                                                 .flatMap { stats ->
                                                     declareHashesSeme(socket)
+                                                            .doOnSuccess { Log.v(TAG, "received declare hashes packet seme") }
                                                             .flatMapObservable { declareHashesPacket ->
-                                                                Log.v(TAG, "received declare hashes packet seme ${declareHashesPacket.hashes.size}")
                                                                 readBlockDataSeme(socket)
                                                                         .toObservable()
                                                                         .mergeWith(writeBlockDataSeme(socket, datastore.getTopRandomMessages(32, declareHashesPacket)

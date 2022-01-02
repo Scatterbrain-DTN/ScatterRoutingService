@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.net.wifi.p2p.WifiP2pInfo
-import android.util.Base64
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Single
@@ -90,7 +89,7 @@ interface WifiDirectRadioModule {
                                 headerPacket.sessionID,
                                 headerPacket.extension,
                                 getDefaultFileName(headerPacket),
-                                Base64.encodeToString(getGlobalHash(headerPacket.hashList), Base64.DEFAULT),
+                                getGlobalHash(headerPacket.hashList),
                                 headerPacket.userFilename,
                                 headerPacket.mime,
                                 headerPacket.sendDate,
