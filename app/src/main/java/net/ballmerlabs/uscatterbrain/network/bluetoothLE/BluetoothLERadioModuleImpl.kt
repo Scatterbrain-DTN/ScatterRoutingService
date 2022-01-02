@@ -940,13 +940,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .doOnError { e -> Log.e(TAG, "failed to write characteristic: $e") }
                             .ignoreElement()
                             .andThen (handleConnection(cachedConnection, cachedConnection.device, luid))
-                            .onErrorReturnItem(
-                                HandshakeResult(
-                                    0,
-                                    0,
-                                    HandshakeResult.TransactionStatus.STATUS_FAIL
-                                )
-                            )
                     }
         }
     }
