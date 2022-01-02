@@ -6,6 +6,7 @@ import android.os.FileObserver
 import android.os.ParcelFileDescriptor
 import android.os.ParcelUuid
 import android.provider.DocumentsContract
+import android.util.Base64
 import android.util.Log
 import android.util.Pair
 import android.webkit.MimeTypeMap
@@ -169,6 +170,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun insertMessage(stream: BlockDataStream): Completable {
         return Completable.defer {
+            Log.e(TAG, "inserting message hash: ${stream.entity?.message?.globalhash?: "null"}")
             stream.entity?.message?.receiveDate = Date().time
             if (stream.toDisk) {
                 insertMessageWithDisk(stream)
@@ -192,7 +194,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private fun insertMessageWithDisk(stream: BlockDataStream): Completable {
         return Completable.defer {
             val filePath = getFilePath(stream.headerPacket)
-            Log.e(TAG, "inserting message at filePath $filePath")
             stream.entity!!.message.filePath = filePath.absolutePath
             mDatastore.scatterMessageDao().messageCountSingle(filePath.absolutePath)
                     .subscribeOn(databaseScheduler)
@@ -263,12 +264,20 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun getTopRandomMessages(
-            count: Int,
-            delareHashes: DeclareHashesPacket
+        count: Int,
+        declareHashes: DeclareHashesPacket
     ): Observable<BlockDataStream> {
+
         return Observable.defer {
-            Log.v(TAG, "called getTopRandomMessages $count")
-            mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, delareHashes.hashes)
+            for (dh in declareHashes.hashes) {
+                val hash = Base64.encodeToString(dh, Base64.DEFAULT)
+                Log.v("debug", "getTopRandomMessages declarehashes hash $hash")
+            }
+            Log.v(TAG, "called getTopRandomMessages $count with hashes ${declareHashes.hashes.size}")
+            mDatastore.scatterMessageDao().getTopRandomExclusingHash(
+                count,
+                declareHashes.hashes.map { h -> Base64.encodeToString(h, Base64.DEFAULT) }
+            )
                     .subscribeOn(databaseScheduler)
                     .doOnSubscribe { Log.v(TAG, "subscribed to getTopRandoMessages") }
                     .toFlowable()
@@ -640,6 +649,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .flatMapObservable { source -> Observable.fromIterable(source) }
                 .reduce(ArrayList<ByteArray>(), { list, hash ->
                     list.add(hash)
+                    Log.v("debug", "declarehashes create hash ${Base64.encodeToString(hash, Base64.DEFAULT)}")
                     list
                 })
                 .map { hash ->
@@ -733,7 +743,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             sessionid = 0,
                             extension = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(path).toString()),
                             filePath = path.absolutePath,
-                            globalhash = globalhash,
+                            globalhash = Base64.encodeToString(globalhash, Base64.DEFAULT),
                             userFilename = path.name,
                             mimeType = ScatterbrainApi.getMimeType(path),
                             sendDate = Date().time,
@@ -872,7 +882,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                 sessionid = 0,
                                                 extension = message.extension,
                                                 filePath = newFile.absolutePath,
-                                                globalhash = getGlobalHash(hashes),
+                                                globalhash = Base64.encodeToString(getGlobalHash(hashes), Base64.DEFAULT),
                                                 userFilename = message.filename ,
                                                 mimeType = MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(newFile).toString()),
                                                 sendDate = Date().time,
@@ -915,7 +925,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             sessionid = 0,
                                             extension = "",
                                             filePath = getNoFilename(message.body!!),
-                                            globalhash = getGlobalHash(hashes),
+                                            globalhash = Base64.encodeToString(getGlobalHash(hashes), Base64.DEFAULT),
                                             userFilename = "",
                                             mimeType = "application/octet-stream",
                                             sendDate = Date().time,

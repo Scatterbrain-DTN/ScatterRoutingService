@@ -2,18 +2,12 @@
   "formatVersion": 1,
   "database": {
     "version": 12,
-    "identityHash": "8954df4190d0e3135298bbc25ecec726",
+    "identityHash": "3c78caa92d87389c5242e173f5ee12d1",
     "entities": [
       {
         "tableName": "messages",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`messageID` INTEGER PRIMARY KEY AUTOINCREMENT, `body` BLOB, `application` TEXT NOT NULL, `sig` BLOB, `sessionid` INTEGER NOT NULL, `extension` TEXT NOT NULL, `filepath` TEXT NOT NULL, `globalhash` BLOB NOT NULL, `userFilename` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `sendDate` INTEGER NOT NULL, `receiveDate` INTEGER NOT NULL, `uuid` TEXT NOT NULL DEFAULT '0000-0000-0000-000000000000', `fileSize` INTEGER NOT NULL DEFAULT -1, `shareCount` INTEGER NOT NULL DEFAULT 0, `packageName` TEXT NOT NULL DEFAULT '')",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`body` BLOB, `application` TEXT NOT NULL, `sig` BLOB, `sessionid` INTEGER NOT NULL, `extension` TEXT NOT NULL, `filepath` TEXT NOT NULL, `globalhash` TEXT NOT NULL, `userFilename` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `sendDate` INTEGER NOT NULL, `receiveDate` INTEGER NOT NULL, `uuid` TEXT NOT NULL DEFAULT '0000-0000-0000-000000000000', `fileSize` INTEGER NOT NULL DEFAULT -1, `shareCount` INTEGER NOT NULL DEFAULT 0, `packageName` TEXT NOT NULL DEFAULT '', `messageID` INTEGER PRIMARY KEY AUTOINCREMENT)",
         "fields": [
-          {
-            "fieldPath": "messageID",
-            "columnName": "messageID",
-            "affinity": "INTEGER",
-            "notNull": false
-          },
           {
             "fieldPath": "body",
             "columnName": "body",
@@ -51,9 +45,9 @@
             "notNull": true
           },
           {
-            "fieldPath": "globalhash",
+            "fieldPath": "globalhashStr",
             "columnName": "globalhash",
-            "affinity": "BLOB",
+            "affinity": "TEXT",
             "notNull": true
           },
           {
@@ -107,6 +101,12 @@
             "affinity": "TEXT",
             "notNull": true,
             "defaultValue": "''"
+          },
+          {
+            "fieldPath": "messageID",
+            "columnName": "messageID",
+            "affinity": "INTEGER",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -145,14 +145,8 @@
       },
       {
         "tableName": "identities",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identityID` INTEGER PRIMARY KEY AUTOINCREMENT, `givenname` TEXT NOT NULL, `publickey` BLOB NOT NULL, `signature` BLOB NOT NULL, `fingerprint` TEXT NOT NULL, `privatekey` BLOB)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`givenname` TEXT NOT NULL, `publickey` BLOB NOT NULL, `signature` BLOB NOT NULL, `fingerprint` TEXT NOT NULL, `privatekey` BLOB, `identityID` INTEGER PRIMARY KEY AUTOINCREMENT)",
         "fields": [
-          {
-            "fieldPath": "identityID",
-            "columnName": "identityID",
-            "affinity": "INTEGER",
-            "notNull": false
-          },
           {
             "fieldPath": "givenName",
             "columnName": "givenname",
@@ -182,6 +176,12 @@
             "columnName": "privatekey",
             "affinity": "BLOB",
             "notNull": false
+          },
+          {
+            "fieldPath": "identityID",
+            "columnName": "identityID",
+            "affinity": "INTEGER",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -204,8 +204,14 @@
       },
       {
         "tableName": "hashes",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`hashID` INTEGER PRIMARY KEY AUTOINCREMENT, `messageOwnerId` INTEGER, `hash` BLOB NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`hash` BLOB NOT NULL, `hashID` INTEGER PRIMARY KEY AUTOINCREMENT, `messageOwnerId` INTEGER)",
         "fields": [
+          {
+            "fieldPath": "hash",
+            "columnName": "hash",
+            "affinity": "BLOB",
+            "notNull": true
+          },
           {
             "fieldPath": "hashID",
             "columnName": "hashID",
@@ -217,12 +223,6 @@
             "columnName": "messageOwnerId",
             "affinity": "INTEGER",
             "notNull": false
-          },
-          {
-            "fieldPath": "hash",
-            "columnName": "hash",
-            "affinity": "BLOB",
-            "notNull": true
           }
         ],
         "primaryKey": {
@@ -236,20 +236,8 @@
       },
       {
         "tableName": "keys",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`keyID` INTEGER PRIMARY KEY AUTOINCREMENT, `identityFK` INTEGER, `key` TEXT NOT NULL, `value` BLOB NOT NULL, FOREIGN KEY(`identityFK`) REFERENCES `identities`(`identityID`) ON UPDATE CASCADE ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `value` BLOB NOT NULL, `keyID` INTEGER PRIMARY KEY AUTOINCREMENT, `identityFK` INTEGER, FOREIGN KEY(`identityFK`) REFERENCES `identities`(`identityID`) ON UPDATE CASCADE ON DELETE CASCADE )",
         "fields": [
-          {
-            "fieldPath": "keyID",
-            "columnName": "keyID",
-            "affinity": "INTEGER",
-            "notNull": false
-          },
-          {
-            "fieldPath": "identityFK",
-            "columnName": "identityFK",
-            "affinity": "INTEGER",
-            "notNull": false
-          },
           {
             "fieldPath": "key",
             "columnName": "key",
@@ -261,6 +249,18 @@
             "columnName": "value",
             "affinity": "BLOB",
             "notNull": true
+          },
+          {
+            "fieldPath": "keyID",
+            "columnName": "keyID",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "identityFK",
+            "columnName": "identityFK",
+            "affinity": "INTEGER",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -286,14 +286,8 @@
       },
       {
         "tableName": "ClientApp",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`clientAppID` INTEGER PRIMARY KEY AUTOINCREMENT, `identityFK` INTEGER, `packageName` TEXT NOT NULL, `packageSignature` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identityFK` INTEGER, `packageName` TEXT NOT NULL, `packageSignature` TEXT, `clientAppID` INTEGER PRIMARY KEY AUTOINCREMENT)",
         "fields": [
-          {
-            "fieldPath": "clientAppID",
-            "columnName": "clientAppID",
-            "affinity": "INTEGER",
-            "notNull": false
-          },
           {
             "fieldPath": "identityFK",
             "columnName": "identityFK",
@@ -310,6 +304,12 @@
             "fieldPath": "packageSignature",
             "columnName": "packageSignature",
             "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "clientAppID",
+            "columnName": "clientAppID",
+            "affinity": "INTEGER",
             "notNull": false
           }
         ],
@@ -341,18 +341,18 @@
       },
       {
         "tableName": "IdentityId",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`message` INTEGER NOT NULL, `uuid` TEXT NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `message` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
         "fields": [
-          {
-            "fieldPath": "message",
-            "columnName": "message",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
           {
             "fieldPath": "uuid",
             "columnName": "uuid",
             "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "INTEGER",
             "notNull": true
           }
         ],
@@ -369,7 +369,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8954df4190d0e3135298bbc25ecec726')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3c78caa92d87389c5242e173f5ee12d1')"
     ]
   }
 }

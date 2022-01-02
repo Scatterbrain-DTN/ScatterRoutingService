@@ -30,7 +30,7 @@ class UuidTypeConverter {
             ClientApp::class,
             IdentityId::class
                    ],
-        version = 12,
+        version = 13,
         exportSchema = true,
         autoMigrations = []
 )

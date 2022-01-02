@@ -1,6 +1,6 @@
 package net.ballmerlabs.uscatterbrain.db.entities
 
-import android.os.IBinder
+import android.util.Base64
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
@@ -36,16 +36,17 @@ data class HashlessScatterMessage(
         var sessionid: Int,
         var extension: String,
         @ColumnInfo(name = "filepath") var filePath: String,
-        @ColumnInfo(name = "globalhash") var globalhash: ByteArray,
+        @ColumnInfo(name = "globalhash") var globalhash: String,
         var userFilename: String = "",
         var mimeType: String = "application/octet-stream",
         var sendDate: Long,
         var receiveDate: Long,
-        @ColumnInfo(name = "uuid", defaultValue = "0000-0000-0000-000000000000") var uuid: UUID = hashAsUUID(globalhash),
+        @ColumnInfo(name = "uuid", defaultValue = "0000-0000-0000-000000000000") var uuid: UUID = hashAsUUID(Base64.decode(globalhash, Base64.DEFAULT)),
         @ColumnInfo(defaultValue = "-1") var fileSize: Long,
         @ColumnInfo(defaultValue = "0") var shareCount: Int = 0,
         @ColumnInfo(defaultValue = "") var packageName: String
         ) {
+
     companion object {
         fun hash2hashs(hashes: List<ByteArray>): List<Hashes> {
             val result = ArrayList<Hashes>()
