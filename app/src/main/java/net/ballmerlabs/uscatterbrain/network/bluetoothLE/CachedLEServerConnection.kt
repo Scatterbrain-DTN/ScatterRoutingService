@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGatt
+import android.icu.number.IntegerWidth
 import android.util.Log
 import com.google.protobuf.MessageLite
 import com.jakewharton.rxrelay2.PublishRelay
@@ -143,6 +144,7 @@ class CachedLEServerConnection(
                                                             BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
                                                             BluetoothGatt.GATT_SUCCESS
                                                             )
+                                                                .subscribeOn(scheduler)
                                                                 .doOnComplete { Log.v(TAG, "successfully ACKed ${characteristic.uuid} start indications") }
                                                                 .doOnError { err -> Log.e(TAG, "error ACKing ${characteristic.uuid} start indication: $err") }
                                                         )
@@ -165,6 +167,7 @@ class CachedLEServerConnection(
                                 .onErrorComplete()
                 })
                 .flatMapCompletable { obs -> obs }
+                .subscribeOn(scheduler)
                 .repeat()
                 .retry()
                 .subscribe(
