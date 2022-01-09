@@ -152,7 +152,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val serverSubject = SingleSubject.create<CachedLEServerConnection>()
 
-
     // a "channel" is a characteristc that protobuf messages are written to.
     private val channels = ConcurrentHashMap<UUID, LockedCharactersitic>()
     companion object {
@@ -172,6 +171,20 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
         // characteristic to initiate a session
         val UUID_HELLO: UUID = UUID.fromString("5d1b424e-ff15-49b4-b557-48274634a01a")
+
+        private val discoveryDispoable = AtomicReference<Disposable>()
+
+        private val transactionCompleteRelay = PublishRelay.create<HandshakeResult>()
+
+        // luid is a temporary unique identifier used for a single transaction.
+        private val myLuid = AtomicReference(UUID.randomUUID())
+
+        private val connectionCache = ConcurrentHashMap<UUID, CachedLEConnection>()
+        private val transactionErrorRelay = PublishRelay.create<Throwable>()
+        private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
+        private val transactionInProgressRelay = BehaviorRelay.create<Boolean>()
+        private val lastLuidRandomize = AtomicReference(Date())
+
 
         // number of channels. This can be increased or decreased for performance
         private const val NUM_CHANNELS = 8
@@ -204,6 +217,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
+    private val mGattDisposable = CompositeDisposable()
+
 
     init {
         // initialize our channels
@@ -216,21 +231,20 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         refreshInProgresss.accept(false)
         isAdvertising.onNext(Pair(OptionalBootstrap.empty(), AdvertisingSetCallback.ADVERTISE_SUCCESS))
         Log.e(TAG, "init")
+        val disp = mClient.observeStateChanges()
+            .flatMapCompletable { s ->
+                if (s == RxBleClient.State.READY) {
+                    startAdvertise()
+                } else {
+                    stopAdvertise()
+                }
+            }
+            .doOnComplete { Log.e(TAG, "adapter state change observable completed") }
+            .doOnError { err -> Log.e(TAG, "adapter state change error $err") }
+            .subscribe()
+        mGattDisposable.add(disp)
+        observeTransactionComplete()
     }
-
-    private val mGattDisposable = CompositeDisposable()
-    private val discoveryDispoable = AtomicReference<Disposable>()
-
-    private val transactionCompleteRelay = PublishRelay.create<HandshakeResult>()
-
-    // luid is a temporary unique identifier used for a single transaction.
-    private val myLuid = AtomicReference(UUID.randomUUID())
-
-    private val connectionCache = ConcurrentHashMap<UUID, CachedLEConnection>()
-    private val transactionErrorRelay = PublishRelay.create<Throwable>()
-    private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
-    private val transactionInProgressRelay = BehaviorRelay.create<Boolean>()
-    private val lastLuidRandomize = AtomicReference(Date())
 
     /*
          * shortcut to generate a characteristic with the required permissions
@@ -347,7 +361,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * start offloaded advertising. This should continue even after the phone is asleep
      */
     override fun startAdvertise(luid: UUID?): Completable {
-        return isAdvertising
+        val advertise = isAdvertising
             .firstOrError()
             .flatMapCompletable { v ->
             if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
@@ -392,6 +406,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 Log.v(TAG, "startAdvertise completed")
                 advertisingLock.set(false)
         }
+
+        return awaitBluetoothEnabled().andThen(advertise)
     }
 
     private fun setAdvertisingLuid(luid: UUID): Completable {
@@ -976,6 +992,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .build())
     }
 
+    private fun awaitBluetoothEnabled(): Completable {
+        return Completable.defer {
+            if (mClient.state == RxBleClient.State.READY) {
+                Completable.complete()
+            } else {
+                mClient.observeStateChanges()
+                    .takeUntil { v -> v == RxBleClient.State.READY }
+                    .ignoreElements()
+            }
+        }
+    }
 
     /**
      * start device discovery forever, dispose to cancel.
@@ -983,7 +1010,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun discoverForever(): Observable<HandshakeResult> {
         discoveryPersistent.set(true)
-        return discoverContinuous()
+        val discover =  discoverContinuous()
             .flatMapSingle { res ->
                 val isold = randomizeLuidIfOld()
                 val luidrandomized = if(isold) "randomized!" else "not randomized!"
@@ -1016,8 +1043,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doOnComplete { Log.e(TAG, "discoverForever completed, retry") }
             .doOnError { err -> Log.e(TAG, "discoverForever error: $err") }
             .doOnSubscribe { Log.e(TAG, "subscribed discoverForever") }
-        .repeatWhen { transactionInProgressRelay.filter { p -> !p }.delay(5, TimeUnit.SECONDS, operationsScheduler)  }
-        .retryWhen { transactionInProgressRelay.filter { p -> !p }.delay(5, TimeUnit.SECONDS, operationsScheduler) }
+
+        return awaitBluetoothEnabled()
+            .andThen(discover)
+            .repeat()
+            .retry()
     }
 
 
@@ -1469,9 +1499,5 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val uuid: UUID
             get() = lockedCharactersitic.uuid
 
-    }
-
-    init {
-        observeTransactionComplete()
     }
 }
