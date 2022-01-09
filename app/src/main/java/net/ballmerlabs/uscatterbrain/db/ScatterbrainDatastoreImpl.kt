@@ -1118,7 +1118,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     BlockSequencePacket.newBuilder()
                             .setSequenceNumber(seq)
                             .setData(ByteString.copyFrom(b))
-                            .build().data
+                            .build().calculateHash()
                 }).reduce(ArrayList(), { list, b ->
                     list.add(b)
                     list
