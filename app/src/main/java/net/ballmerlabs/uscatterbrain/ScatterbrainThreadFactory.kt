@@ -24,7 +24,7 @@ class ScatterbrainThreadFactory : AtomicLong(), ThreadFactory {
     }
 
     override fun toChar(): Char {
-        return get().toChar()
+        return get().toInt().toChar()
     }
 
     override fun toShort(): Short {

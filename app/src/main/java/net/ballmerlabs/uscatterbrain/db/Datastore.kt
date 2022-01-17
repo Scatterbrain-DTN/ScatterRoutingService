@@ -48,5 +48,5 @@ abstract class Datastore : RoomDatabase() {
             fromColumnName = "to",
             toColumnName = "recipient_fingerprint"
     )
-    class MigrationSpec9: AutoMigrationSpec {}
+    class MigrationSpec9: AutoMigrationSpec
 }

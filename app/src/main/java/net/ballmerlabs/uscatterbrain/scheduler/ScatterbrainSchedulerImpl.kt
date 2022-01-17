@@ -28,7 +28,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         powerManager: PowerManager
         ) : ScatterbrainScheduler {
     private val discoveryLock = AtomicReference(false)
-    override val isDiscovering
+    override val isDiscovering: Boolean
         get() = discoveryLock.get()
     private var isAdvertising = false
     private val wakeLock = powerManager.newWakeLock(

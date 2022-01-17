@@ -12,7 +12,7 @@ apply from: '../RxAndroidBle/dependencies.gradle'
 def protobuf_version = "3.11.1"
 
 android {
-    buildToolsVersion "29.0.3"
+    buildToolsVersion "30.0.2"
     defaultConfig {
         minSdkVersion 26
         targetSdkVersion 31

@@ -10,7 +10,10 @@ import android.util.Log
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
-import com.polidea.rxandroidble2.*
+import com.polidea.rxandroidble2.RxBleClient
+import com.polidea.rxandroidble2.RxBleDevice
+import com.polidea.rxandroidble2.ServerConfig
+import com.polidea.rxandroidble2.Timeout
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanResult
 import com.polidea.rxandroidble2.scan.ScanSettings
@@ -22,12 +25,14 @@ import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.BuildConfig
 import net.ballmerlabs.uscatterbrain.R
+import net.ballmerlabs.uscatterbrain.RouterPreferences
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
-import net.ballmerlabs.uscatterbrain.network.*
+import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
+import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -40,7 +45,6 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
-import kotlin.collections.ArrayList
 
 data class OptionalBootstrap<T>(
         val item: T? = null,
@@ -162,8 +166,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         // scatterbrain service uuid. This is the same for every scatterbrain router.
         val SERVICE_UUID: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
 
-        val ADVERTISE_DATA_LUID_UUID = UUID.fromString("e1fe2989-e9b1-4d72-bd5d-35de26d82127")
-
         // GATT characteristic uuid for semaphor used for a device to  lock a channel.
         // This is to overcome race conditions caused by the statefulness of the GATT DB
         // we really shouldn't need this but android won't let us have two GATT DBs
@@ -263,37 +265,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         )
         mService.addCharacteristic(characteristic)
         return characteristic
-    }
-
-    private fun getLuidClient(conn: CachedLEConnection): Single<LuidPacket> {
-        return conn.readLuid()
-                .doOnError { err ->
-                    Log.e(TAG, "error while receiving luid packet: $err")
-                    err.printStackTrace()
-                }
-                .flatMap { luidPacket ->
-                    if (luidPacket.protoVersion != ScatterRoutingService.PROTO_VERSION) {
-                        Log.e(TAG, "error, device connected with invalid protocol version: " + luidPacket.protoVersion)
-                        return@flatMap Single.error(java.lang.IllegalStateException("invalid proto version"))
-                    }
-
-                    Log.e("debug", "version: ${luidPacket.protoVersion} hash ${luidPacket.hashAsUUID}")
-
-                    Log.v(TAG, "client handshake received hashed luid packet: " + luidPacket.valCase)
-                    Single.just(luidPacket)
-                }
-    }
-
-    private fun getLuidServer(serverConn: CachedLEServerConnection): Completable {
-        return Single.fromCallable {
-            LuidPacket.newBuilder()
-                    .enableHashing(ScatterRoutingService.PROTO_VERSION)
-                    .setLuid(myLuid.get())
-                    .build()
-        }
-                .flatMapCompletable { luidpacket ->
-                    serverConn.serverNotify(luidpacket)
-                }
     }
 
     private fun observeTransactionComplete() {
@@ -442,16 +413,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Completable.error(IllegalStateException("failed to set advertising data"))
             }
     }
-
-    private fun randomizeLuid(): Completable {
-        return Single.just(UUID.randomUUID())
-            .flatMapCompletable { luid ->
-                myLuid.set(luid)
-                val hashed = getHashUuid(luid)!!
-                setAdvertisingLuid(hashed)
-            }
-    }
-
 
     private fun removeLuid(): Completable {
         return Completable.defer {
@@ -720,7 +681,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 }
                                             }
                                 } else {
-                                    Single.just(TransactionResult<BootstrapRequest>(
+                                    Single.just(TransactionResult(
                                             TransactionResult.STAGE_SUSPEND,
                                             session.device,
                                             session.luidStage.remoteHashed)
@@ -954,32 +915,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-
-    /*
-     * discover LE devices. Currently this runs forever and sets a global disposable
-     * so we can kill it if we want.
-     * This only scans for scatterbrain UUIDs
-     * TODO: make sure this runs on correct scheduler
-     */
-    private fun discoverOnce(duration: Long, timeUnit: TimeUnit): Single<List<ScanResult>> {
-        Log.d(TAG, "discover once called")
-        return mClient.scanBleDevices(
-                ScanSettings.Builder()
-                        .setScanMode(parseScanMode())
-                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .setShouldCheckLocationServicesState(true)
-                        .build(),
-                ScanFilter.Builder()
-                        .setServiceUuid(ParcelUuid(SERVICE_UUID))
-                        .build())
-            .take(duration, timeUnit, operationsScheduler)
-            .reduce(ArrayList(), { list: ArrayList<ScanResult>, result ->
-                list.add(result)
-                list
-            })
-            .map { l -> l.toList() }
-    }
-
     private fun discoverContinuous(): Observable<ScanResult> {
         return mClient.scanBleDevices(
             ScanSettings.Builder()
@@ -1103,7 +1038,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             Single.fromCallable {
                 Log.e(
                     TAG,
-                    "establishing cached connection to ${device.macAddress}, ${luid ?: "null"}, ${connectionCache.size} devices connected"
+                    "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
                 val newconnection = CachedLEConnection(channels, operationsScheduler, device)
                 val connection = connectionCache.putIfAbsent(luid, newconnection)
@@ -1133,31 +1068,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
             }
 
-        return Single.defer {
-            /*
-            if (connectionCache.isEmpty())
-                randomizeLuid()
+        return setAdvertisingLuid(getHashUuid(myLuid.get())!!)
                     .andThen(connectSingle)
-            else
-             */
-                setAdvertisingLuid(getHashUuid(myLuid.get())!!)
-                    .andThen(connectSingle)
-        }
-    }
-
-    private fun retrieveLuidIfNull(luid: UUID?, conn: Observable<RxBleConnection>): Observable<Pair<UUID, RxBleConnection>> {
-        return if (luid != null)
-            conn.map { c -> Pair(luid, c) }
-        else {
-            conn.flatMapSingle { c ->
-                c.readCharacteristic(UUID_HELLO)
-                    .map { bytes ->
-                        Log.v(TAG, "retrieveLuidIfNull hello characteristic read")
-                        Pair(bytes2uuid(bytes)!!, c)
-                    }
-            }
-
-        }
     }
 
     private fun handleConnection(clientConnection: CachedLEConnection, device: RxBleDevice, luid: UUID): Maybe<HandshakeResult> {
@@ -1165,7 +1077,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             if (updateConnected(luid)) {
                 serverSubject
                     .flatMap { connection ->
-                        Log.v(TAG, "successfully connected to ${luid}")
+                        Log.v(TAG, "successfully connected to $luid")
                         val s = LeDeviceSession(
                             device.bluetoothDevice,
                             myLuid.get(),
@@ -1450,10 +1362,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
         private fun asUnlocked(): OwnedCharacteristic {
             return OwnedCharacteristic(this)
-        }
-
-        fun isLocked(): Boolean {
-            return lockState.blockingFirst()
         }
 
         val uuid: UUID

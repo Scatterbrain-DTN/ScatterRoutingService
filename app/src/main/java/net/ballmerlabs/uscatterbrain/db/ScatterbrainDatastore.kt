@@ -32,7 +32,7 @@ const val CACHE_FILES_PATH = "systemFiles"
 class ACL(val packageName: String, val appsig: String)
 
 class OpenFile(path: File, append: Boolean) : Closeable {
-    val inputStream: FileInputStream
+    private val inputStream: FileInputStream
     private var mOs: FileOutputStream
     private val mFile: File = path
     private val mMode: ScatterbrainDatastore.WriteMode = ScatterbrainDatastore.WriteMode.OVERWRITE
@@ -235,7 +235,7 @@ fun getDefaultFileName(packet: BlockHeaderPacket): String {
 interface ScatterbrainDatastore {
     /**
      * For internal use, synchronously inserts messages into the database
-     * @param messages list of room entities to insert
+     * @param message list of room entities to insert
      * @return list of primary keys for rows inserted
      */
     fun insertMessages(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable

@@ -367,7 +367,7 @@ class ScatterRoutingService : LifecycleService() {
 
         /**
          * Immediately fires callback, used to verify the router is running
-         * @param unit callback that immediately calls onComplete()
+         * @param callback callback that immediately calls onComplete()
          */
         override fun ping(callback: UnitCallback) {
             callback.onComplete()
@@ -655,15 +655,13 @@ class ScatterRoutingService : LifecycleService() {
                 ?.build()!!
         component.accept(c)
         mBackend = c.scatterRoutingService()!!
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_FOREGROUND,
-                "fmef",
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
+        val channel = NotificationChannel(
+            NOTIFICATION_CHANNEL_FOREGROUND,
+            "fmef",
+            NotificationManager.IMPORTANCE_DEFAULT
+        )
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
         val notificationIntent = Intent(this, ScatterRoutingService::class.java)
         val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)

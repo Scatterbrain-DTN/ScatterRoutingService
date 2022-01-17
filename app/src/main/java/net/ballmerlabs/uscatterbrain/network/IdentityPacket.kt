@@ -148,7 +148,7 @@ class IdentityPacket(packet: ScatterProto.Identity) :
          *
          * @return the boolean
          */
-        fun signEd25519(): ByteArray {
+        private fun signEd25519(): ByteArray {
             if (secretkey!!.size != Sign.SECRETKEYBYTES) throw IllegalStateException("invalid key length")
             val messagebytes = sumBytes()
             val sig = ByteArray(Sign.ED25519_BYTES)

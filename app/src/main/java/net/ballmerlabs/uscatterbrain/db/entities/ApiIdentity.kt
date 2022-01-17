@@ -55,7 +55,7 @@ open class ApiIdentity protected constructor(builder: Builder) : Identity(
             return result
         }
 
-        fun getPubkeyFingerprint(): UUID {
+        private fun getPubkeyFingerprint(): UUID {
             val fingeprint = ByteArray(GenericHash.BYTES)
             LibsodiumInterface.sodium.crypto_generichash(
                     fingeprint,

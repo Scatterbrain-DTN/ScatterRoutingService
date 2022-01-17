@@ -12,7 +12,7 @@ import java.util.*
  * holds state for the luid stage of the bluetooth LE transport FSM
  */
 class LuidStage(val selfUnhashed: UUID, val remoteHashed: UUID) : LeDeviceSession.Stage {
-    var remoteUnhashed: LuidPacket? = null
+    private var remoteUnhashed: LuidPacket? = null
     val selfUnhashedPacket = LuidPacket.newBuilder()
             .setLuid(selfUnhashed)
             .build()

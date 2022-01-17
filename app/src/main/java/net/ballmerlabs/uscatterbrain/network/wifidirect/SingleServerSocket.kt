@@ -5,12 +5,11 @@ import io.reactivex.Single
 import io.reactivex.SingleObserver
 import java.net.ServerSocket
 import java.net.Socket
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Accepts TCP sockets in a loop, relaying the accepted connections to an
  * observable for later use
- * @param port port to listen on
+ * @param socket serversocket to listen with
  */
 class SingleServerSocket(private val socket: ServerSocket) : Single<SingleServerSocket.SocketConnection>() {
     class SocketConnection(val socket: Socket)
