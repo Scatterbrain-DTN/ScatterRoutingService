@@ -13,8 +13,4 @@ class UpgradeStage(private val provides: AdvertisePacket.Provides) : LeDeviceSes
     override fun reset() {
         sessionID = Random(System.nanoTime()).nextInt()
     }
-
-    companion object {
-        const val TAG = "UpgradeStage"
-    }
 }

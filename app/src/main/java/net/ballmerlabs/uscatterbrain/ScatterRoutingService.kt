@@ -4,7 +4,6 @@ import android.app.*
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.*
-import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
@@ -13,6 +12,7 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.*
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
@@ -22,6 +22,7 @@ import kotlin.collections.ArrayList
  * Main foreground service class for Scatterbrain.
  */
 class ScatterRoutingService : LifecycleService() {
+    private val LOG by scatterLog()
     private lateinit var mBackend: RoutingServiceBackend
     private val isStarted = AtomicReference(false)
     data class Callback(
@@ -48,8 +49,8 @@ class ScatterRoutingService : LifecycleService() {
                 }
                 if (packageName != null) {
                     val disp = mBackend.datastore.updatePackage(packageName).subscribe(
-                            { Log.v(TAG, "updated package name $packageName") },
-                            { err -> Log.e(TAG, "failed to update package $packageName : $err") }
+                            { LOG.v("updated package name $packageName") },
+                            { err -> LOG.e("failed to update package $packageName : $err") }
                     )
                 }
                 return packageName ?: ""
@@ -425,7 +426,7 @@ class ScatterRoutingService : LifecycleService() {
 
         override fun manualRefreshPeers(callback: UnitCallback) {
             checkAdminPermission()
-            Log.v(TAG, "manualRefreshPeers")
+            LOG.v("manualRefreshPeers")
             val handle = generateNewHandle()
             val disp = mBackend.radioModule.refreshPeers()
                     .doOnDispose { callbackHandles.remove(handle) }
@@ -683,12 +684,12 @@ class ScatterRoutingService : LifecycleService() {
         val started = isStarted.getAndSet(true)
         if (!started) {
             try {
-                Log.v(TAG, "called onbind")
-                Log.v(TAG, "initialized datastore")
+                LOG.v("called onbind")
+                LOG.v("initialized datastore")
                 mBackend.wifiDirect.registerReceiver()
             } catch (e: Exception) {
                 e.printStackTrace()
-                Log.v(TAG, "exception")
+                LOG.v("exception")
             }
         } else {
             isStarted.set(false)
@@ -706,7 +707,6 @@ class ScatterRoutingService : LifecycleService() {
 
     companion object {
         const val PROTO_VERSION = 8
-        const val TAG = "ScatterRoutingService"
         private val component = BehaviorRelay.create<RoutingServiceComponent>()
         private const val NOTIFICATION_CHANNEL_FOREGROUND = "foreground"
         const val PERMISSION_DENIED_STR = "permission denied"

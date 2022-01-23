@@ -106,6 +106,10 @@ dependencies {
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     // (see https://github.com/ReactiveX/RxJava/releases for latest 3.x.x version)
     implementation("androidx.security:security-crypto:1.1.0-alpha03")
+
+    //reflect for logging
+    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.6.0'
+
     implementation project(':scatterbrainSDK')
     androidTestImplementation project(':scatterbrainSDK')
     implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.1'

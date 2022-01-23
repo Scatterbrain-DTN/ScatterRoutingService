@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.util.Log
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
@@ -13,6 +12,7 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.io.InputStream
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -31,6 +31,7 @@ class CachedLEConnection(
     private val scheduler: Scheduler,
     val device: RxBleDevice
         ) : Disposable {
+    private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
     private val timeout: Long = 20
 
@@ -49,13 +50,13 @@ class CachedLEConnection(
     fun subscribeConnection(rawConnection: Observable<RxBleConnection>) {
         rawConnection.doOnSubscribe { disp ->
             disposable.add(disp)
-            Log.v(TAG, "subscribed to connection subject")
+            LOG.v("subscribed to connection subject")
         }
             .doOnError { err ->
-                Log.e(TAG, "raw connection error: $err")
+                LOG.e("raw connection error: $err")
                 onDisconnect().subscribeOn(scheduler).blockingAwait()
             }
-            .doOnComplete { Log.e(TAG, "raw connection completed") }
+            .doOnComplete { LOG.e("raw connection completed") }
             .concatWith(onDisconnect())
             .subscribe(connection)
     }
@@ -83,13 +84,13 @@ class CachedLEConnection(
                         .flatMapCompletable { c ->
                             val subject = channelNotifs[uuid]
                             c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                                .doOnNext { Log.v(TAG, "preemptively enabled indications for $uuid") }
-                                .doOnComplete { Log.e(TAG, "indications completed. This is bad") }
-                                .doOnError { Log.e(TAG, "failed to preemptively enable indications for $uuid") }
+                                .doOnNext { LOG.v("preemptively enabled indications for $uuid") }
+                                .doOnComplete { LOG.e("indications completed. This is bad") }
+                                .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
                                 .flatMapCompletable { obs ->
                                     obs
-                                        .doOnNext { b -> Log.v(TAG, "read ${b.size} bytes for channel $uuid") }
-                                        .doOnError { e -> Log.e(TAG, "error in notication obs $e") }
+                                        .doOnNext { b -> LOG.v("read ${b.size} bytes for channel $uuid") }
+                                        .doOnError { e -> LOG.e("error in notication obs $e") }
                                         .subscribe(subject!!)
                                     Completable.complete()
                                 }
@@ -97,9 +98,9 @@ class CachedLEConnection(
                         }
 
                 }
-            .doOnError { e -> Log.e(TAG, "failed to preemtively enable indications $e") }
+            .doOnError { e -> LOG.e("failed to preemtively enable indications $e") }
                 .onErrorComplete() //We can swallow errors here since indications are enabled already if failed
-                .doOnComplete { Log.v(TAG, "all notifications enabled")}
+                .doOnComplete { LOG.v("all notifications enabled")}
     }
 
     /**
@@ -120,7 +121,7 @@ class CachedLEConnection(
                         uuid
                     }
                 }
-                .doOnSuccess{ uuid -> Log.v(TAG, "client selected channel $uuid") }
+                .doOnSuccess{ uuid -> LOG.v("client selected channel $uuid") }
     }
 
     /**
@@ -150,7 +151,7 @@ class CachedLEConnection(
     fun readAdvertise(): Single<AdvertisePacket> {
         return cachedNotification().flatMap { input ->
             ScatterSerializable.parseWrapperFromCRC(AdvertisePacket.parser(), input, scheduler)
-                .doOnSubscribe { Log.v(TAG, "called readAdvertise") }
+                .doOnSubscribe { LOG.v("called readAdvertise") }
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
@@ -162,7 +163,7 @@ class CachedLEConnection(
     fun readUpgrade(): Single<UpgradePacket> {
         return cachedNotification().flatMap { input ->
             ScatterSerializable.parseWrapperFromCRC(UpgradePacket.parser(), input, scheduler)
-                .doOnSubscribe { Log.v(TAG, "called readUpgrade") }
+                .doOnSubscribe { LOG.v("called readUpgrade") }
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
@@ -174,7 +175,7 @@ class CachedLEConnection(
     fun readBlockHeader(): Single<BlockHeaderPacket> {
         return cachedNotification().flatMap { input ->
             ScatterSerializable.parseWrapperFromCRC(BlockHeaderPacket.parser(), input, scheduler)
-                .doOnSubscribe { Log.v(TAG, "called readBlockHeader") }
+                .doOnSubscribe { LOG.v("called readBlockHeader") }
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
@@ -186,7 +187,7 @@ class CachedLEConnection(
     fun readBlockSequence(): Single<BlockSequencePacket> {
         return cachedNotification().flatMap { input ->
             ScatterSerializable.parseWrapperFromCRC(BlockSequencePacket.parser(), input, scheduler)
-                .doOnSubscribe { Log.v(TAG, "called readBlockSequence") }
+                .doOnSubscribe { LOG.v("called readBlockSequence") }
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
@@ -198,7 +199,7 @@ class CachedLEConnection(
     fun readDeclareHashes(): Single<DeclareHashesPacket> {
         return cachedNotification().flatMap { input ->
             ScatterSerializable.parseWrapperFromCRC(DeclareHashesPacket.parser(), input, scheduler)
-                .doOnSubscribe { Log.v(TAG, "called readDeclareHashes") }
+                .doOnSubscribe { LOG.v("called readDeclareHashes") }
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
@@ -210,7 +211,7 @@ class CachedLEConnection(
     fun readElectLeader(): Single<ElectLeaderPacket> {
         return cachedNotification().flatMap { input ->
             ScatterSerializable.parseWrapperFromCRC(ElectLeaderPacket.parser(), input, scheduler)
-                .doOnSubscribe { Log.v(TAG, "called readElectLeader") }
+                .doOnSubscribe { LOG.v("called readElectLeader") }
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
@@ -222,7 +223,7 @@ class CachedLEConnection(
     fun readIdentityPacket(): Single<IdentityPacket> {
         return cachedNotification().flatMap { input ->
             ScatterSerializable.parseWrapperFromCRC(IdentityPacket.parser(), input, scheduler)
-                .doOnSubscribe { Log.v(TAG, "called readIdentityPacket") }
+                .doOnSubscribe { LOG.v("called readIdentityPacket") }
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
@@ -234,7 +235,7 @@ class CachedLEConnection(
     fun readLuid(): Single<LuidPacket> {
         return cachedNotification().flatMap { input ->
             ScatterSerializable.parseWrapperFromCRC(LuidPacket.parser(), input, scheduler)
-                .doOnSubscribe { Log.v(TAG, "called readLuid") }
+                .doOnSubscribe { LOG.v("called readLuid") }
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
@@ -243,7 +244,7 @@ class CachedLEConnection(
      * dispose this connection
      */
     override fun dispose() {
-        Log.e(TAG, "CachedLEConnection disposed")
+        LOG.e("CachedLEConnection disposed")
         disposable.dispose()
     }
 
@@ -253,9 +254,4 @@ class CachedLEConnection(
     override fun isDisposed(): Boolean {
         return disposable.isDisposed
     }
-
-    companion object {
-        const val TAG = "CachedLEConnection"
-    }
-
 }

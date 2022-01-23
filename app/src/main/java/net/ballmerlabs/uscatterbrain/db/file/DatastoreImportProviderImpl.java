@@ -11,13 +11,13 @@ import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract.Document;
 import android.provider.DocumentsContract.Root;
 import android.provider.DocumentsProvider;
-import android.util.Log;
 
 import androidx.annotation.Nullable;
 
 import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.ScatterRoutingService;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
+import net.ballmerlabs.uscatterbrain.util.Logger;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -48,6 +48,7 @@ import javax.inject.Singleton;
 @Singleton
 public class DatastoreImportProviderImpl extends DocumentsProvider
         implements DatastoreImportProvider {
+    private static final Logger LOG = new Logger(DatastoreImportProviderImpl.class);
     private static final String TAG = "DatastoreImportProvider";
     private static final String USER_ROOT_ID = "/userroot/";
     private static final String CACHE_ROOT_ID = "/cacheroot/";
@@ -107,12 +108,12 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
         if (fileMetaData.size() > 0) {
             final MatrixCursor.RowBuilder row = result.newRow();
             for (String column : DEFAULT_DOCUMENT_PROJECTION) {
-                Log.v(TAG, "adding column: " + column + " : "  + fileMetaData.get(column));
+                LOG.v("adding column: " + column + " : "  + fileMetaData.get(column));
                 row.add(column, fileMetaData.get(column));
             }
-            Log.v(TAG, "adding file row: " + row);
+            LOG.v("adding file row: " + row);
         } else {
-            Log.e(TAG, "file metadata was zero");
+            LOG.e("file metadata was zero");
 
         }
     }
@@ -156,7 +157,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
 
     @Override
     public Cursor queryDocument(String documentId, String[] projection) {
-        Log.v(TAG, "querying file metadata: " + documentId);
+        LOG.v("querying file metadata: " + documentId);
         final MatrixCursor result =  new MatrixCursor(
                 (projection == null || projection.length == 0) ? DEFAULT_DOCUMENT_PROJECTION : projection
         );
@@ -175,7 +176,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
             } else if (fileMetaData.size() > 0) {
                 addFileRow(result, fileMetaData);
             } else {
-                Log.e(TAG, "file does not exist");
+                LOG.e("file does not exist");
                 addFileRow(result, getDefaultFileMetadata(f));
             }
         }
@@ -184,7 +185,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
 
     @Override
     public Cursor queryChildDocuments(String parentDocumentId, String[] projection, String sortOrder) {
-        Log.v(TAG, "queryChildDocuments: " + parentDocumentId);
+        LOG.v("queryChildDocuments: " + parentDocumentId);
         final MatrixCursor result =  new MatrixCursor(
                 (projection == null || projection.length == 0) ? DEFAULT_DOCUMENT_PROJECTION : projection
         );
@@ -209,7 +210,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
                     if (r.size() > 0) {
                         addFileRow(result, r);
                     } else {
-                        Log.e(TAG, "queryChildDocuments failed to retrieve file: " + file);
+                        LOG.e("queryChildDocuments failed to retrieve file: " + file);
                         addFileRow(result, getDefaultFileMetadata(f));
                     }
                 }
@@ -233,7 +234,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
 
     @Override
     public ParcelFileDescriptor openDocument(String documentId, String mode, @Nullable CancellationSignal signal) {
-        Log.v(TAG, "openDocument: " + documentId);
+        LOG.v("openDocument: " + documentId);
         if (documentId.equals(USER_ROOT_ID)) {
             return getDescriptor(datastore.getUserDir(), mode);
         } else if (documentId.equals(CACHE_ROOT_ID)) {
@@ -259,7 +260,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
             parent = parentDocumentId;
         }
 
-        Log.v(TAG, "parentID: " + parentDocumentId.compareTo(USER_ROOT_ID));
+        LOG.v("parentID: " + parentDocumentId.compareTo(USER_ROOT_ID));
         if (Document.MIME_TYPE_DIR.equals(mimeType)) {
             f = new File(parent, displayName);
             if (!f.mkdirs()) {
@@ -267,24 +268,24 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
             }
         } else {
             f = new File(parent, displayName);
-            Log.v(TAG, "creating file: " + f.getAbsolutePath());
+            LOG.v("creating file: " + f.getAbsolutePath());
             try {
                 if (!f.createNewFile()) {
-                    Log.e(TAG, "failed to create new file: " + displayName);
+                    LOG.e("failed to create new file: " + displayName);
                     return  null;
                 }
 
                 if (!f.setReadable(true)) {
-                    Log.e(TAG, "failed to set file readable");
+                    LOG.e("failed to set file readable");
                     return null;
                 }
 
                 if (!f.setWritable(true)) {
-                    Log.e(TAG, "failed to set file writable");
+                    LOG.e("failed to set file writable");
                     return null;
                 }
             } catch (IOException e) {
-                Log.e(TAG, "IOException when creating new file: " + displayName);
+                LOG.e("IOException when creating new file: " + displayName);
                 return null;
             }
         }
@@ -293,7 +294,7 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
 
     @Override
     public void deleteDocument(String documentId) throws FileNotFoundException {
-        Log.v(TAG, "deleteDocument: " + documentId);
+        LOG.v("deleteDocument: " + documentId);
         final File file = new File(documentId);
         if (!file.delete()) {
             throw new FileNotFoundException("failed to delete file");
@@ -323,11 +324,11 @@ public class DatastoreImportProviderImpl extends DocumentsProvider
          */
 
         ScatterRoutingService.Companion.getComponent()
-                .doOnSuccess(success -> Log.v(TAG, "injecting DatastoreImportProvider"))
+                .doOnSuccess(success -> LOG.v("injecting DatastoreImportProvider"))
                 .subscribe(
                         component -> component.inject(this),
                         error -> {
-                         Log.e(TAG, "failed to inject dependencies for documentsprovider" +
+                         LOG.e("failed to inject dependencies for documentsprovider" +
                                  error);
                          error.printStackTrace();
                         });

@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network
 
-import android.util.Log
 import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.uscatterbrain.ScatterProto.Luid
@@ -95,7 +94,6 @@ class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
                         .setHash(ByteString.copyFrom(calculateHashFromUUID(uuid!!)))
                         .setProtoversion(version)
                         .build()
-                Log.e("debug", "hashed packet size ${h.hash.size()}")
                 Luid.newBuilder()
                         .setValHash(h)
                         .build()
@@ -113,7 +111,6 @@ class LuidPacket (packet: Luid) : ScatterSerializable<Luid>(packet) {
     companion object {
         fun calculateHashFromUUID(uuid: UUID): ByteArray {
             val hashbytes = ByteArray(GenericHash.BYTES)
-            Log.e("debug", "hash size ${hashbytes.size}")
             val uuidBuffer = ByteBuffer.allocate(16)
             uuidBuffer.putLong(uuid.mostSignificantBits)
             uuidBuffer.putLong(uuid.leastSignificantBits)

@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.util.Log
 import com.goterl.lazysodium.interfaces.GenericHash
 import io.reactivex.Completable
 import io.reactivex.Observable
@@ -8,6 +7,7 @@ import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
 import java.util.*
 import kotlin.collections.ArrayList
@@ -19,6 +19,7 @@ import kotlin.collections.HashSet
  * to which transport to switch to.
  */
 class VotingStage : LeDeviceSession.Stage {
+    private val LOG by scatterLog()
     private val hashedPackets = ArrayList<ElectLeaderPacket>()
     private val unhashedPackets = ArrayList<ElectLeaderPacket>()
     private var tiebreaker = UUID.randomUUID()
@@ -89,7 +90,7 @@ class VotingStage : LeDeviceSession.Stage {
                     compare = c
                 }
             } else {
-                Log.w("debug", "luid tag was null in tiebreak")
+                LOG.w("luid tag was null in tiebreak")
             }
         }
         if (ret == null) {

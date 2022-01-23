@@ -5,19 +5,18 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.NetworkInfo
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.net.wifi.p2p.WifiP2pManager.ConnectionInfoListener
 import android.net.wifi.p2p.WifiP2pManager.PeerListListener
-import android.util.Log
 import androidx.core.app.ActivityCompat
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
@@ -34,6 +33,9 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
         private val channel: WifiP2pManager.Channel,
         @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationScheduler: Scheduler
 ) : BroadcastReceiver(), WifiDirectBroadcastReceiver {
+    
+    private val LOG by scatterLog()
+    
     enum class P2pState {
         STATE_DISABLED, STATE_ENABLED
     }
@@ -45,13 +47,13 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private val mListener = PeerListListener { value: WifiP2pDeviceList -> deviceListSubject.onNext(value) }
     private val mConnectionInfoListener = ConnectionInfoListener { value: WifiP2pInfo ->
         connectionSubject.onNext(value)
-        Log.v(TAG, "retrieved WifiP2pInfo: ${value.groupFormed}")
+        LOG.v("retrieved WifiP2pInfo: ${value.groupFormed}")
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         if (WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION == action) {
-            Log.v(TAG, "WIFI_P2P_STATE_CHANGED_ACTION")
+            LOG.v("WIFI_P2P_STATE_CHANGED_ACTION")
             // Determine if Wifi P2P mode is enabled
             val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
             if (state == WifiP2pManager.WIFI_P2P_STATE_ENABLED) {
@@ -61,22 +63,22 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
             }
         } else if (WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION == action) {
             // The peer list has changed!
-            Log.v(TAG, "WIFI_P2P_PEERS_CHANGED_ACTION")
+            LOG.v("WIFI_P2P_PEERS_CHANGED_ACTION")
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
                     == PackageManager.PERMISSION_GRANTED) {
-                        Log.e(TAG, "cannot request peers without ACCESS_FINE_LOCATION permission")
+                        LOG.e("cannot request peers without ACCESS_FINE_LOCATION permission")
                         manager.requestPeers(channel, mListener)
             }
         } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION == action) {
             // Connection state changed!
-            Log.v(TAG, "WIFI_P2P_CONNECTION_CHANGED_ACTION")
+            LOG.v("WIFI_P2P_CONNECTION_CHANGED_ACTION")
             manager.requestConnectionInfo(channel, mConnectionInfoListener)
         } else if (WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION == action) {
             val device = intent.getParcelableExtra<WifiP2pDevice>(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE)
             if (device == null) {
-                Log.e(TAG, "device was null")
+                LOG.e("device was null")
             } else {
-                Log.v(TAG, "WIFI_P2P_THIS_DEVICE_CHANGED_ACTION ${device.isGroupOwner}")
+                LOG.v("WIFI_P2P_THIS_DEVICE_CHANGED_ACTION ${device.isGroupOwner}")
                 thisDeviceChangedSubject.onNext(device)
             }
         }
@@ -101,9 +103,4 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     override fun asReceiver(): BroadcastReceiver {
         return this
     }
-
-    companion object {
-        private const val TAG = "WifiBroadcastReceiver"
-    }
-
 }

@@ -6,9 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.os.RemoteException
-import android.util.Log
 import com.goterl.lazysodium.interfaces.Sign
-import com.polidea.rxandroidble2.internal.RxBleLog
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import io.reactivex.Completable
@@ -28,6 +26,7 @@ import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -48,19 +47,16 @@ class RoutingServiceBackendImpl @Inject constructor(
         override val prefs: RouterPreferences,
         val context: Context
 ) : RoutingServiceBackend {
+    private val LOG by scatterLog()
     private val protocolDisposableSet = Collections.newSetFromMap(ConcurrentHashMap<Disposable, Boolean>())
 
-    companion object {
-        const val TAG = "RoutingServiceBackend"
-    }
-
     init {
-        Log.e(TAG, "initializing backend")
+        LOG.e("initializing backend")
         RxJavaPlugins.setErrorHandler { e: Throwable ->
-            Log.e(TAG, "received an unhandled exception: $e")
+            LOG.e("received an unhandled exception: $e")
             e.printStackTrace()
         }
-       // RxBleLog.setLogLevel(RxBleLog.VERBOSE)
+       // RxBleLOG.setLogLevel(RxBleLOG.VERBOSE)
     }
 
     /**
@@ -168,7 +164,6 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .andThen(
                         Observable.fromIterable(messages)
                                 .flatMapCompletable { message ->
-                                    Log.e("debug", "inserting file")
                                     datastore.insertAndHashFileFromApi(
                                             message,
                                             DEFAULT_BLOCKSIZE,
@@ -179,7 +174,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                                 .doOnComplete { asyncRefreshPeers() }
                 )
                 .doOnError { err ->
-                    Log.e(TAG, "failed sendAndSignMessages: $err")
+                    LOG.e("failed sendAndSignMessages: $err")
                     err.printStackTrace()
                 }
     }
@@ -211,7 +206,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     override fun removeIdentity(name: UUID, callingPackageName: String): Completable {
         return datastore.deleteIdentities(name)
                 .doOnError {
-                    e -> Log.e(ScatterRoutingService.TAG, "failed to remove identity: $e")
+                    e -> LOG.e("failed to remove identity: $e")
                     e.printStackTrace()
                 }
     }
@@ -263,7 +258,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     }
 
     private fun asyncRefreshPeers() {
-        Log.v(TAG, "asyncRefreshPeers")
+        LOG.v("asyncRefreshPeers")
         val disp = AtomicReference<Disposable>()
         val d = radioModule.refreshPeers()
                 .timeout(
@@ -280,9 +275,9 @@ class RoutingServiceBackendImpl @Inject constructor(
                     }
                 }
                 .subscribe(
-                        { Log.v(ScatterRoutingService.TAG, "async refresh peers successful") },
+                        { LOG.v("async refresh peers successful") },
                         { err ->
-                            Log.e(ScatterRoutingService.TAG, "error in async refresh peers: $err")
+                            LOG.e("error in async refresh peers: $err")
                             err.printStackTrace()
                         }
                 )

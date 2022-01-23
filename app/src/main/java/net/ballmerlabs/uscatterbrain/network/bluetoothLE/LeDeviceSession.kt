@@ -1,16 +1,14 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothDevice
-import android.util.Log
 import android.util.Pair
-import com.polidea.rxandroidble2.internal.util.GattServerTransaction
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
-import net.ballmerlabs.uscatterbrain.network.LuidPacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -46,6 +44,7 @@ class LeDeviceSession(
         val server: CachedLEServerConnection,
         val remoteLuid: UUID
 ) {
+    private val LOG by scatterLog()
     val luidStage: LuidStage = LuidStage(luid, remoteLuid) //exchange hashed and unhashed luids
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities
     val votingStage: VotingStage = VotingStage() //determine if an upgrade takes place
@@ -96,7 +95,7 @@ class LeDeviceSession(
      */
     fun singleServer(): Single<ServerTransaction> {
         return Single.fromCallable { transactionMap[stage]!!.second }
-                .doOnError { err: Throwable -> Log.e(TAG, "failed to get single server for stage $stage: $err") }
+                .doOnError { err: Throwable -> LOG.e("failed to get single server for stage $stage: $err") }
     }
 
     /**
@@ -105,7 +104,7 @@ class LeDeviceSession(
      */
     fun singleClient(): Single<ClientTransaction> {
         return Single.fromCallable { transactionMap[stage]!!.first }
-                .doOnError { err: Throwable -> Log.e(TAG, "failed to get single client for stage $stage: $err") }
+                .doOnError { err: Throwable -> LOG.e("failed to get single client for stage $stage: $err") }
     }
 
     /**
@@ -144,7 +143,6 @@ class LeDeviceSession(
     }
     
     companion object {
-        const val TAG = "LeDeviceSession"
         const val INITIAL_STAGE = TransactionResult.STAGE_LUID
     }
 

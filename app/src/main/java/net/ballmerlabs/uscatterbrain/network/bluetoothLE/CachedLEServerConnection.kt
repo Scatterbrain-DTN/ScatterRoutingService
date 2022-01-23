@@ -1,8 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGatt
-import android.icu.number.IntegerWidth
-import android.util.Log
 import com.google.protobuf.MessageLite
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleServerConnection
@@ -13,6 +11,7 @@ import io.reactivex.disposables.Disposable
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -29,6 +28,7 @@ class CachedLEServerConnection(
         private  val scheduler: Scheduler
         ) : Disposable {
     val luid: UUID? = null
+    private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
     private val packetQueue = PublishRelay.create<Pair<ScatterSerializable<out MessageLite>, Int>>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
@@ -54,7 +54,7 @@ class CachedLEServerConnection(
                     .subscribeOn(scheduler)
         )
                 .firstOrError()
-                .doOnSuccess { char -> Log.v(TAG, "selected characteristic $char") }
+                .doOnSuccess { char -> LOG.v("selected characteristic $char") }
     }
 
     /**
@@ -68,12 +68,12 @@ class CachedLEServerConnection(
         val cookie = getCookie()
         return cookieCompleteRelay.takeUntil { v -> v == cookie }
             .doOnSubscribe {
-                Log.v(TAG, "serverNotify ACCEPTED packet ${packet.type} cookie: $cookie")
+                LOG.v("serverNotify ACCEPTED packet ${packet.type} cookie: $cookie")
                 packetQueue.accept(Pair(packet, cookie))
             }
             .ignoreElements()
             .timeout(20, TimeUnit.SECONDS)
-            .doOnComplete { Log.v(TAG, "serverNotify COMPLETED for ${packet.type} cookie $cookie") }
+            .doOnComplete { LOG.v("serverNotify COMPLETED for ${packet.type} cookie $cookie") }
 
     }
 
@@ -81,7 +81,7 @@ class CachedLEServerConnection(
      * dispose this connected
      */
     override fun dispose() {
-        Log.e(TAG, "CachedLEServerConnection disposed")
+        LOG.e("CachedLEServerConnection disposed")
         disposable.dispose()
     }
 
@@ -91,10 +91,6 @@ class CachedLEServerConnection(
      */
     override fun isDisposed(): Boolean {
         return disposable.isDisposed
-    }
-
-    companion object {
-        const val TAG = "LEServerConn"
     }
 
     init {
@@ -116,15 +112,15 @@ class CachedLEServerConnection(
                 .subscribeOn(scheduler)
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER), { req, packet ->
-                    Log.v(TAG, "received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet: ${packet.first.type}")
+                    LOG.v("received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet: ${packet.first.type}")
                             selectCharacteristic()
                                 .flatMapCompletable { characteristic ->
-                                    Log.v(TAG, "LOCKED characteristic ${characteristic.uuid} packet: ${packet.first.type}")
+                                    LOG.v("LOCKED characteristic ${characteristic.uuid} packet: ${packet.first.type}")
                                                     connection.getOnCharacteristicReadRequest(characteristic.uuid)
                                                         .subscribeOn(scheduler)
                                                         .firstOrError()
                                                         .flatMapCompletable { trans ->
-                                                            Log.v(TAG, "characteristic ${characteristic.uuid} start indications packet: ${packet.first.type}")
+                                                            LOG.v("characteristic ${characteristic.uuid} start indications packet: ${packet.first.type}")
                                                             trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                                                 .andThen(
                                                                     connection.setupIndication(
@@ -133,9 +129,9 @@ class CachedLEServerConnection(
                                                                         trans.remoteDevice
                                                                     )
                                                                         .timeout(20, TimeUnit.SECONDS)
-                                                                        .doOnError { err -> Log.e(TAG, "characteristic ${characteristic.uuid} err: $err") }
+                                                                        .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
                                                                         .doOnComplete {
-                                                                            Log.v(TAG, "indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
+                                                                            LOG.v("indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
                                                                         }
                                                                 )
                                                         }
@@ -145,23 +141,23 @@ class CachedLEServerConnection(
                                                             BluetoothGatt.GATT_SUCCESS
                                                             )
                                                                 .subscribeOn(scheduler)
-                                                                .doOnComplete { Log.v(TAG, "successfully ACKed ${characteristic.uuid} start indications") }
-                                                                .doOnError { err -> Log.e(TAG, "error ACKing ${characteristic.uuid} start indication: $err") }
+                                                                .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
+                                                                .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
                                                         )
                                                         .doOnError{ err ->
-                                                            Log.e(TAG, "error in gatt server indication $err")
+                                                            LOG.e("error in gatt server indication $err")
                                                             errorRelay.accept(err)
                                                         }
                                                         .timeout(20, TimeUnit.SECONDS)
                                                         .onErrorComplete()
                                                         .doFinally {
-                                                            Log.v(TAG, "releasing locked characteristic ${characteristic.uuid}")
+                                                            LOG.v("releasing locked characteristic ${characteristic.uuid}")
                                                             characteristic.release()
                                                             cookieCompleteRelay.accept(packet.second)
                                                         }
                                 }
                                 .doOnError { err ->
-                                    Log.e(TAG, "error in gatt server selectCharacteristic: $err")
+                                    LOG.e("error in gatt server selectCharacteristic: $err")
                                 }
                                 .onErrorComplete()
                 })
@@ -170,8 +166,8 @@ class CachedLEServerConnection(
                 .repeat()
                 .retry()
                 .subscribe(
-                        { Log.e(TAG, "timing characteristic write handler completed prematurely") },
-                        { err -> Log.e(TAG, "timing characteristic handler error: $err") }
+                        { LOG.e("timing characteristic write handler completed prematurely") },
+                        { err -> LOG.e("timing characteristic handler error: $err") }
                 )
         disposable.add(d)
     }

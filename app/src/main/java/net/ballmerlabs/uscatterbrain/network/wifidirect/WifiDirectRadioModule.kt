@@ -138,8 +138,4 @@ interface WifiDirectRadioModule {
             }
         }
     }
-
-    companion object {
-        const val TAG = "WifiDirectRadioModule"
-    }
 }

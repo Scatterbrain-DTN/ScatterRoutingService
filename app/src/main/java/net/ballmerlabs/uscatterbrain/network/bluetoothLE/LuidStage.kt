@@ -1,9 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.util.Log
 import io.reactivex.Completable
 import io.reactivex.Single
-import net.ballmerlabs.uscatterbrain.ScatterRoutingService
 import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.LuidPacket
 import java.util.*
@@ -40,7 +38,6 @@ class LuidStage(val selfUnhashed: UUID, val remoteHashed: UUID) : LeDeviceSessio
         } else Single.zip(
                 Single.just(remoteHashed),
                 Single.just(remoteUnhashed), { hashed, unhashed ->
-                Log.e("debug", "luid stage verify hash $hashed, ${unhashed.luidVal}")
                 val hash = LuidPacket.calculateHashFromUUID(unhashed.luidVal)
                 hashAsUUID(hash).compareTo(hashed) == 0
             })

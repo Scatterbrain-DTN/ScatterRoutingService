@@ -6,7 +6,6 @@ import android.os.FileObserver
 import android.os.ParcelFileDescriptor
 import android.os.ParcelUuid
 import android.provider.DocumentsContract
-import android.util.Log
 import android.util.Pair
 import android.webkit.MimeTypeMap
 import com.github.davidmoten.rx2.Bytes
@@ -27,6 +26,7 @@ import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.entities.*
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.io.*
 import java.util.*
 import java.util.concurrent.Callable
@@ -106,6 +106,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         @param:Named(RoutingServiceComponent.NamedSchedulers.DATABASE) private val databaseScheduler: Scheduler,
         private val preferences: RouterPreferences
 ) : ScatterbrainDatastore {
+    private val LOG by scatterLog()
     private val mOpenFiles: ConcurrentHashMap<File, OpenFile> = ConcurrentHashMap()
     private val userFilesDir: File = File(ctx.filesDir, USER_FILES_PATH)
     private val cacheFilesDir: File = File(ctx.filesDir, CACHE_FILES_PATH)
@@ -158,10 +159,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return stream.sequencePackets
                 .map<BlockSequencePacket> { packet ->
                     if (packet.verifyHash(stream.headerPacket)) {
-                        Log.v(TAG, "hash verified")
+                        LOG.v("hash verified")
                         packet
                     } else {
-                        Log.e(TAG, "hash invalid")
+                        LOG.e("hash invalid")
                         null
                     }
                 }.ignoreElements()
@@ -192,7 +193,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private fun insertMessageWithDisk(stream: BlockDataStream): Completable {
         return Completable.defer {
             val filePath = getFilePath(stream.headerPacket)
-            Log.e(TAG, "inserting message at filePath $filePath")
+            LOG.e("inserting message at filePath $filePath")
             stream.entity!!.message.filePath = filePath.absolutePath
             mDatastore.scatterMessageDao().messageCountSingle(filePath.absolutePath)
                     .subscribeOn(databaseScheduler)
@@ -210,7 +211,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .subscribeOn(databaseScheduler)
         }
                 .doOnError { err ->
-                    Log.e(TAG, "error inserting messsage $err")
+                    LOG.e("error inserting messsage $err")
                     err.printStackTrace()
                 }
                 .onErrorResumeNext { discardStream(stream) }
@@ -232,7 +233,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     if (packet.verifyHash(stream.headerPacket)) {
                                         Flowable.just(packet.data)
                                     } else {
-                                        Log.e(TAG, "invalid hash")
+                                        LOG.e("invalid hash")
                                         Flowable.error(SecurityException("failed to verify hash"))
                                     }
                                 }
@@ -245,7 +246,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     }
                 }
                 .doOnError { err ->
-                    Log.e(TAG, "error inserting messsage $err")
+                    LOG.e("error inserting messsage $err")
                     err.printStackTrace()
                 }
                 .onErrorResumeNext { discardStream(stream) }
@@ -267,12 +268,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             delareHashes: DeclareHashesPacket
     ): Observable<BlockDataStream> {
         return Observable.defer {
-            Log.v(TAG, "called getTopRandomMessages $count")
+            LOG.v("called getTopRandomMessages $count")
             mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, delareHashes.hashes)
                     .subscribeOn(databaseScheduler)
-                    .doOnSubscribe { Log.v(TAG, "subscribed to getTopRandoMessages") }
+                    .doOnSubscribe { LOG.v("subscribed to getTopRandoMessages") }
                     .toFlowable()
-                .doOnNext { message -> Log.v(TAG, "retrieved messages: " + message.size) }
+                .doOnNext { message -> LOG.v("retrieved messages: " + message.size) }
                 .flatMap { source -> Flowable.fromIterable(source) }
 
                     .map { message ->
@@ -396,7 +397,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                                     .ignoreElement()
                                         }
                             }
-                            .doOnError { e-> Log.e(TAG, "failed to insert identity: $e") }
+                            .doOnError { e-> LOG.e("failed to insert identity: $e") }
                             .onErrorComplete()
                 }
     }
@@ -422,7 +423,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     } else {
                         mDatastore.scatterMessageDao().incrementShareCount(getGlobalHash(m.hashList))
                                 .flatMapCompletable { v ->
-                                    Log.e("debug", "incrementShareCount $v")
                                     if (v == 1)
                                         Completable.complete()
                                     else Completable.error(IllegalStateException("failed to increment share count"))
@@ -553,7 +553,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun insertIdentityPacket(identity: List<IdentityPacket>): Completable {
         return Observable.fromIterable(identity)
                 .filter { i -> !i.isEnd}
-                .doOnNext { id -> Log.v(TAG, "inserting identity: ${id.fingerprint}")}
+                .doOnNext { id -> LOG.v("inserting identity: ${id.fingerprint}")}
                 .flatMap { i ->
                     if (i.isEnd || i.isEmpty()) {
                         Observable.never()
@@ -571,7 +571,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 keys2keys(i.keymap)
                         )
                         if (!i.verifyed25519(i.pubkey)) {
-                            Log.e(TAG, "identity " + i.name + " " + i.fingerprint + " failed sig check")
+                            LOG.e("identity " + i.name + " " + i.fingerprint + " failed sig check")
                             Observable.never()
                         } else {
                             Observable.just(finalIdentity)
@@ -617,8 +617,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     mDatastore.identityDao().getTopRandom(num)
                             .subscribeOn(databaseScheduler)
                             .flatMapObservable { source -> Observable.fromIterable(source) }
-                            .doOnComplete { Log.v(TAG, "datastore retrieved identities: $num") }
-                            .doOnNext { Log.v(TAG, "retrieved single identity") }
+                            .doOnComplete { LOG.v("datastore retrieved identities: $num") }
+                            .doOnNext { LOG.v("retrieved single identity") }
                             .toFlowable(BackpressureStrategy.BUFFER)
                             .zipWith(seq, { identity, _ ->
                                 IdentityPacket.newBuilder()
@@ -636,7 +636,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 preferences.getInt(ctx.getString(R.string.pref_declarehashescap), 512)
         )
                 .subscribeOn(databaseScheduler)
-                .doOnSuccess { p -> Log.v(TAG, "retrieved declareHashesPacket from datastore: " + p.size) }
+                .doOnSuccess { p -> LOG.v("retrieved declareHashesPacket from datastore: " + p.size) }
                 .flatMapObservable { source -> Observable.fromIterable(source) }
                 .reduce(ArrayList<ByteArray>(), { list, hash ->
                     list.add(hash)
@@ -724,7 +724,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun insertAndHashLocalFile(path: File, blocksize: Int): Map<String, Serializable> {
         return hashFile(path, blocksize)
                 .flatMapCompletable { hashes ->
-                    Log.e(TAG, "hashing local file, len:" + hashes.size)
+                    LOG.e("hashing local file, len:" + hashes.size)
                     val globalhash = getGlobalHash(hashes)
                     val message = HashlessScatterMessage(
                             body = null,
@@ -861,7 +861,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 .flatMapCompletable { hashes ->
                                     val newFile = File(cacheDir, getDefaultFileName(hashes)
                                             + message.extension)
-                                    Log.v(TAG, "filepath from api: " + newFile.absolutePath)
+                                    LOG.v("filepath from api: " + newFile.absolutePath)
                                     if (!file.renameTo(newFile)) {
                                         Completable.error(IllegalStateException("failed to rename to $newFile"))
                                     } else {
@@ -896,7 +896,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                         if (sign != null) {
                                             getIdentityKey(sign)
                                                     .flatMapCompletable { keypair ->
-                                                        Log.e("debug", "signing message")
                                                         dbmessage.message.sig = signEd25519(keypair.secretkey, dbmessage)
                                                         insertMessages(dbmessage)
                                                     }
@@ -1074,7 +1073,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun insertFile(stream: BlockDataStream): Single<Long> {
         val file = getFilePath(stream.headerPacket)
-        Log.v(TAG, "insertFile: $file")
+        LOG.v("insertFile: $file")
         return Completable.fromAction {
             if (!file.createNewFile()) {
                 throw IllegalStateException("file $file already exists")
@@ -1091,7 +1090,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Single.just(Pair(old, file))
                 .flatMapCompletable { pair ->
                     if (!pair.second.createNewFile()) {
-                        Log.w(TAG, "copyFile overwriting existing file")
+                        LOG.w("copyFile overwriting existing file")
                     }
                     if (!pair.first.valid()) {
                         Completable.error(IllegalStateException("invalid file descriptor: " + pair.first))
@@ -1142,33 +1141,27 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         .build()
                 r.add(blockSequencePacket.calculateHash())
                 seqnum++
-                Log.e("debug", "hashing $read")
             }
             r
         }.subscribeOn(databaseScheduler)
     }
 
     override fun readFile(path: File, blocksize: Int): Flowable<BlockSequencePacket> {
-        Log.v(TAG, "called readFile $path")
+        LOG.v("called readFile $path")
         return if (!path.exists()) {
             Flowable.error(FileNotFoundException(path.toString()))
         } else Flowable.fromCallable { FileInputStream(path) }
-                .doOnSubscribe { Log.v(TAG, "subscribed to readFile") }
+                .doOnSubscribe { LOG.v("subscribed to readFile") }
                 .flatMap {
                     Bytes.from(path, blocksize)
                             .zipWith(seq, { bytes, seqnum ->
-                                Log.e("debug", "reading " + bytes.size)
                                 BlockSequencePacket.newBuilder()
                                         .setSequenceNumber(seqnum)
                                         .setEnd(seqnum >= floor(path.length().toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                                         .setData(ByteString.copyFrom(bytes))
                                         .build()
                             }).subscribeOn(databaseScheduler)
-                }.doOnComplete { Log.v(TAG, "readfile completed") }
-    }
-
-    companion object {
-        private const val TAG = "ScatterbrainDatastore"
+                }.doOnComplete { LOG.v("readfile completed") }
     }
 
     init {
@@ -1179,7 +1172,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .timeout(5, TimeUnit.SECONDS, databaseScheduler)
                 .subscribe(
                         { packages -> cachedPackages.addAll(packages)},
-                        {err -> Log.e(TAG, "failed to initialize package cache: $err")}
+                        {err -> LOG.e("failed to initialize package cache: $err")}
                 )
 
         disposable.add(d)
@@ -1189,27 +1182,27 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 when (i) {
                     CLOSE_WRITE -> {
                         if (s != null && s.isNotEmpty()) {
-                            Log.v(TAG, "file closed in user directory; $s")
+                            LOG.v("file closed in user directory; $s")
                             val f = File(userFilesDir, s)
                             if (!f.isDirectory) {
                                 if (f.exists() && f.length() > 0) {
                                     insertAndHashLocalFile(f, DEFAULT_BLOCKSIZE)
                                 } else if (f.length() == 0L) {
-                                    Log.e(TAG, "file length was zero, not hashing")
+                                    LOG.e("file length was zero, not hashing")
                                 } else {
-                                    Log.e(TAG, "closed file does not exist, race condition??!")
+                                    LOG.e("closed file does not exist, race condition??!")
                                 }
                             }
                         }
                     }
                     OPEN -> {
                         if (s != null) {
-                            Log.v(TAG, "file created in user directory: $s")
+                            LOG.v("file created in user directory: $s")
                         }
                     }
                     DELETE -> {
                         if (s != null) {
-                            Log.v(TAG, "file deleted in user directory: $s")
+                            LOG.v("file deleted in user directory: $s")
                         }
                     }
                 }

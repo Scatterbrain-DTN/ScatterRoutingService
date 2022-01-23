@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 import android.util.Log
 import io.reactivex.Single
 import io.reactivex.SingleObserver
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.ServerSocket
 import java.net.Socket
 
@@ -12,6 +13,7 @@ import java.net.Socket
  * @param socket serversocket to listen with
  */
 class SingleServerSocket(private val socket: ServerSocket) : Single<SingleServerSocket.SocketConnection>() {
+    private val LOG by scatterLog()
     class SocketConnection(val socket: Socket)
 
     /**
@@ -24,7 +26,7 @@ class SingleServerSocket(private val socket: ServerSocket) : Single<SingleServer
             val sock = socket.accept()
             SocketConnection(socket = sock)
         }
-            .doOnError { err -> Log.e(WifiDirectRadioModule.TAG, "error on socket accept: $err") }
+            .doOnError { err -> LOG.e("error on socket accept: $err") }
     }
 
     override fun subscribeActual(observer: SingleObserver<in SocketConnection>) {

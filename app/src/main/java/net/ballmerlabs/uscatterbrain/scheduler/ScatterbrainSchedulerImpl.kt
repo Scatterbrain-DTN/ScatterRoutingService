@@ -3,13 +3,13 @@ package net.ballmerlabs.uscatterbrain.scheduler
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
-import android.util.Log
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,6 +27,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         private val context: Context,
         powerManager: PowerManager
         ) : ScatterbrainScheduler {
+    private val LOG by scatterLog()
     private val discoveryLock = AtomicReference(false)
     override val isDiscovering: Boolean
         get() = discoveryLock.get()
@@ -72,16 +73,16 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             .subscribe(
                 { res ->
                     if(res) {
-                        Log.v(TAG, "transaction started, acquiring wakelock")
+                        LOG.v("transaction started, acquiring wakelock")
                         acquireWakelock()
                     }
                     else {
-                        Log.v(TAG, "transaction completed, releasing wakelock")
+                        LOG.v("transaction completed, releasing wakelock")
                         releaseWakeLock()
                     }
                 },
                 { err ->
-                    Log.e(TAG, "error in observeTransactionStatus: wakelocks broked")
+                    LOG.e("error in observeTransactionStatus: wakelocks broked")
                     err.printStackTrace()
                 }
             )
@@ -90,10 +91,10 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 .doOnDispose { discoveryLock.set(false) })
                 .subscribe(
                     { res ->
-                        Log.v(TAG, "finished transaction: ${res.success}")
+                        LOG.v("finished transaction: ${res.success}")
                     },
                     { err ->
-                    Log.e(TAG, "error in transaction: $err")
+                    LOG.e("error in transaction: $err")
                     err.printStackTrace()
                 })
         compositeDisposable.add(d)
@@ -119,13 +120,9 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     override val isPassive: Boolean
         get() = isAdvertising && !isDiscovering
 
-    companion object {
-        const val TAG = "Scheduler"
-    }
-
     init {
         val d = this.bluetoothLEModule.observeCompletedTransactions()
                 .subscribe({ transactionStats -> broadcastTransactionResult(transactionStats) }
-                ) { Log.e(TAG, "fatal error, transaction relay somehow called onError") }
+                ) { LOG.e("fatal error, transaction relay somehow called onError") }
     }
 }

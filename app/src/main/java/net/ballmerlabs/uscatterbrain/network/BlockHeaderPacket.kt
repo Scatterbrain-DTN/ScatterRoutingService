@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network
 
-import android.util.Log
 import com.google.protobuf.ByteString
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
@@ -99,9 +98,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
                 return ""
             }
 
-            val ext: String = getDefaultFileName(this) + "." + extension
-            Log.e("debug", "getAutogenFilename: $ext")
-            return ext
+            return getDefaultFileName(this) + "." + extension
         }
 
     override val type: PacketType
