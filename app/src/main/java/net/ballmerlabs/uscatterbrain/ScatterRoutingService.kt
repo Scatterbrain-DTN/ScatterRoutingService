@@ -593,59 +593,6 @@ class ScatterRoutingService : LifecycleService() {
         return n
     }
 
-    private inline fun <reified T: Parcelable> broadcastAsyncResult(
-            packageName: String,
-            handle: Int,
-            result: T,
-            permission: String
-    ) {
-        Intent().also { intent ->
-            intent.action = ScatterbrainApi.BROADCAST_RESULT
-            intent.`package` = packageName
-            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, Bundle().apply {
-                putParcelable(ScatterbrainApi.EXTRA_ASYNC_RESULT, result)
-            })
-            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
-            applicationContext.sendBroadcast(intent, permission)
-        }
-    }
-
-    private fun broadcastAsyncResult(
-            packageName: String,
-            handle: Int,
-            result: ByteArray,
-            permission: String
-    ) {
-        Intent().also { intent ->
-            intent.action = ScatterbrainApi.BROADCAST_RESULT
-            intent.`package` = packageName
-            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, Bundle().apply {
-                putByteArray(ScatterbrainApi.EXTRA_ASYNC_RESULT, result)
-            })
-            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
-            applicationContext.sendBroadcast(intent, permission)
-        }
-    }
-
-    private fun broadcastAsyncResult(packageName: String, handle: Int, permission: String) {
-        Intent().also { intent ->
-            intent.action = ScatterbrainApi.BROADCAST_RESULT
-            intent.`package` = packageName
-            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
-            applicationContext.sendBroadcast(intent, permission)
-        }
-    }
-
-    private fun broadcastAsyncError(packageName: String, handle: Int, message: String, permission: String) {
-        Intent().also { intent ->
-            intent.action = ScatterbrainApi.BROADCAST_ERROR
-            intent.`package` = packageName
-            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_RESULT, message)
-            intent.putExtra(ScatterbrainApi.EXTRA_ASYNC_HANDLE, handle)
-            applicationContext.sendBroadcast(intent, permission)
-        }
-    }
-
     /*
      * create dagger components when we have access to context
      */
