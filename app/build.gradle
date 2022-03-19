@@ -9,7 +9,7 @@ plugins {
 }
 
 apply from: '../RxAndroidBle/dependencies.gradle'
-def protobuf_version = "3.11.1"
+def protobuf_version = "3.18.0"
 
 android {
     buildToolsVersion "30.0.2"
