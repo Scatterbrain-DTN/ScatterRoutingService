@@ -57,32 +57,32 @@ class ScatterRoutingService : LifecycleService() {
             }
 
         // fail if access permission is not granted
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         private fun checkAccessPermission() {
             if (checkPermission(ScatterbrainApi.PERMISSION_SUPERUSER)) {
                 return
             }
             if (!checkPermission(ScatterbrainApi.PERMISSION_ACCESS)) {
-                throw RemoteException(PERMISSION_DENIED_STR)
+                throw UnauthorizedException()
             }
         }
 
         // fail if admin permission is not granted
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         private fun checkAdminPermission() {
             if (checkPermission(ScatterbrainApi.PERMISSION_SUPERUSER)) {
                 return
             }
             if (!checkPermission(ScatterbrainApi.PERMISSION_ADMIN)) {
-                throw RemoteException(PERMISSION_DENIED_STR)
+                throw UnauthorizedException()
             }
         }
 
         //fail if superuser permission is not granted
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         private fun checkSuperuserPermission() {
             if (!checkPermission(ScatterbrainApi.PERMISSION_SUPERUSER)) {
-                throw RemoteException(PERMISSION_DENIED_STR)
+                throw UnauthorizedException()
             }
         }
 
@@ -90,9 +90,9 @@ class ScatterRoutingService : LifecycleService() {
          * Get scattermessage by database id.
          * @param id id unique to sqlite table
          * @return message matching id
-         * @throws RemoteException if message not found
+         * @throws UnauthorizedException if message not found
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun getById(id: Long): ScatterMessage {
             checkAccessPermission()
             return mBackend.datastore.getApiMessages(id)
@@ -104,7 +104,7 @@ class ScatterRoutingService : LifecycleService() {
          * @param application identifier
          * @return list of messages, may be zero
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun getByApplication(application: String): List<ScatterMessage> {
             checkAccessPermission()
             return mBackend.datastore.getApiMessages(application).blockingGet()
@@ -116,7 +116,7 @@ class ScatterRoutingService : LifecycleService() {
          *
          * @return list of identities
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun getIdentities(): List<Identity> {
             checkAccessPermission()
             return mBackend.datastore.allIdentities
@@ -127,7 +127,7 @@ class ScatterRoutingService : LifecycleService() {
          * @param fingerprint
          * @return identity
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun getIdentityByFingerprint(fingerprint: ParcelUuid): Identity {
             checkAccessPermission()
             return mBackend.datastore.getApiIdentityByFingerprint(fingerprint.uuid).blockingGet()
@@ -137,7 +137,7 @@ class ScatterRoutingService : LifecycleService() {
          * enqueues a message onto the datastore.
          * @param message
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun sendMessage(message: ScatterMessage) {
             checkAccessPermission()
             mBackend.sendMessage(message, callingPackageName).blockingAwait()
@@ -147,7 +147,7 @@ class ScatterRoutingService : LifecycleService() {
          * enqueues a list of messages onto the datastore
          * @param messages list of messages
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun sendMessages(messages: List<ScatterMessage>) {
             checkAccessPermission()
             mBackend.sendMessages(messages, callingPackageName).blockingAwait()
@@ -157,7 +157,7 @@ class ScatterRoutingService : LifecycleService() {
          * signs arbitrary data with a scatterbrain identity.
          * @param data data to sign
          * @param identity fingerprint of identiy to sign with
-         * @throws RemoteException if application is not authorized to use identity or if
+         * @throws UnauthorizedException if application is not authorized to use identity or if
          * identity does not exist
          */
         override fun signDataDetached(data: ByteArray, identity: ParcelUuid): ByteArray {
@@ -168,11 +168,11 @@ class ScatterRoutingService : LifecycleService() {
          * sends a message and signs with specified identity fingerprint
          * @param message scattermessage to send
          * @param identity fingerprint of identity to sign with
-         * @throws RemoteException if application is not authorized to use identity or if identity
+         * @throws UnauthorizedException if application is not authorized to use identity or if identity
          * does not exist
          */
         @RequiresApi(api = Build.VERSION_CODES.P)
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun sendAndSignMessage(message: ScatterMessage, identity: ParcelUuid) {
             mBackend.sendAndSignMessage(message, identity.uuid, callingPackageName).blockingAwait()
         }
@@ -180,7 +180,7 @@ class ScatterRoutingService : LifecycleService() {
         /**
          * starts active discovery with one or more transport layers
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun startDiscovery() {
             checkAdminPermission()
             mBackend.scheduler.start()
@@ -189,7 +189,7 @@ class ScatterRoutingService : LifecycleService() {
         /**
          * stops active discovery with all transport layers
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun stopDiscovery() {
             checkAdminPermission()
             mBackend.scheduler.stop()
@@ -198,7 +198,7 @@ class ScatterRoutingService : LifecycleService() {
         /**
          * starts passive listening for connections on all transports
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun startPassive() {
             checkAdminPermission()
             mBackend.radioModule.startServer()
@@ -207,7 +207,7 @@ class ScatterRoutingService : LifecycleService() {
         /**
          * stops passive listening for connections on all transports
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun stopPassive() {
             checkAdminPermission()
             mBackend.radioModule.stopServer()
@@ -218,7 +218,7 @@ class ScatterRoutingService : LifecycleService() {
          * @param name name for this identity
          * @return identity object generated
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun generateIdentity(name: String, callback: IdentityCallback) {
             checkAccessPermission()
             val handle = generateNewHandle()
@@ -233,7 +233,7 @@ class ScatterRoutingService : LifecycleService() {
         }
 
 
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun getIdentity(fingerprint: ParcelUuid, callback: IdentityCallback) {
             checkAccessPermission()
             val handle = generateNewHandle()
@@ -253,7 +253,7 @@ class ScatterRoutingService : LifecycleService() {
          * @param identity fingerprint of identity to remove
          * @return true if identity removed, false otherwise
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun removeIdentity(identity: ParcelUuid, callback: BoolCallback) {
             checkSuperuserPermission()
             val handle = generateNewHandle()
@@ -273,10 +273,10 @@ class ScatterRoutingService : LifecycleService() {
          * authorizes an app by package name to use a specific identity
          * @param identity fingerprint of identity to authorize
          * @param packagename package name of app
-         * @throws RemoteException if package name not found or if permission denied
+         * @throws UnauthorizedException if package name not found or if permission denied
          */
         @RequiresApi(api = Build.VERSION_CODES.P)
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun authorizeApp(identity: ParcelUuid, packagename: String, callback: UnitCallback) {
             checkSuperuserPermission()
             val handle = generateNewHandle()
@@ -294,10 +294,10 @@ class ScatterRoutingService : LifecycleService() {
          * deauthorizes an app by package name to use a specific identity
          * @param identity fingerprint of identity to deauthorize
          * @param packagename package name of app
-         * @throws RemoteException if package name not found or if permission denied
+         * @throws UnauthorizedException if package name not found or if permission denied
          */
         @RequiresApi(api = Build.VERSION_CODES.P)
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun deauthorizeApp(identity: ParcelUuid, packagename: String) {
             checkSuperuserPermission()
             mBackend.deauthorizeApp(identity.uuid, packagename).blockingAwait()
@@ -341,7 +341,7 @@ class ScatterRoutingService : LifecycleService() {
          * returns true if active discovery is running
          * @return is discovering
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun isDiscovering(): Boolean {
             checkAccessPermission()
             return mBackend.scheduler.isDiscovering
@@ -351,7 +351,7 @@ class ScatterRoutingService : LifecycleService() {
          * returns true if passive listening
          * @return is passive
          */
-        @Throws(RemoteException::class)
+        @Throws(UnauthorizedException::class)
         override fun isPassive(): Boolean {
             checkAccessPermission()
             return mBackend.scheduler.isPassive
