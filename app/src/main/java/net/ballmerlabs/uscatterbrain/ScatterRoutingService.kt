@@ -1,9 +1,14 @@
 package net.ballmerlabs.uscatterbrain
 
-import android.app.*
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.*
+import android.os.Binder
+import android.os.Build
+import android.os.IBinder
+import android.os.ParcelUuid
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
@@ -16,7 +21,6 @@ import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.collections.ArrayList
 
 /**
  * Main foreground service class for Scatterbrain.
@@ -311,10 +315,10 @@ class ScatterRoutingService : LifecycleService() {
             val disp = mBackend.datastore.getACLs(identity.uuid)
                     .flatMapObservable { acl -> Observable.fromIterable(acl) }
                     .map { acl -> acl.packageName }
-                    .reduce(ArrayList<String>(), { list, acl ->
+                    .reduce(ArrayList<String>()) { list, acl ->
                         list.add(acl)
                         return@reduce list
-                    })
+                    }
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
@@ -607,16 +611,6 @@ class ScatterRoutingService : LifecycleService() {
         )
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
-        val notificationIntent = Intent(this, ScatterRoutingService::class.java)
-        val pendingIntent = PendingIntent.getService(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
-        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
-            .setContentTitle("ScatterRoutingService")
-            .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
-            .setSmallIcon(R.drawable.ic_launcher_background)
-            .setContentIntent(pendingIntent)
-            .setTicker("fmef am tire")
-            .build()
-        startForeground(1, notification)
     }
 
     /*
@@ -635,6 +629,13 @@ class ScatterRoutingService : LifecycleService() {
                 e.printStackTrace()
                 LOG.v("exception")
             }
+            val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
+                    .setContentTitle("ScatterRoutingService")
+                    .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
+                    .setSmallIcon(R.drawable.ic_launcher_background)
+                    .setTicker("fmef am tire")
+                    .build()
+            startForeground(1, notification)
         } else {
             isStarted.set(false)
         }
@@ -650,10 +651,8 @@ class ScatterRoutingService : LifecycleService() {
     }
 
     companion object {
-        const val PROTO_VERSION = 8
         private val component = BehaviorRelay.create<RoutingServiceComponent>()
         private const val NOTIFICATION_CHANNEL_FOREGROUND = "foreground"
-        const val PERMISSION_DENIED_STR = "permission denied"
         fun getComponent(): Single<RoutingServiceComponent> {
             return component.firstOrError()
         }
