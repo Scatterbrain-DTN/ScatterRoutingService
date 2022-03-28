@@ -48,10 +48,7 @@ class ScatterRoutingService : LifecycleService() {
                     packageName = packages[0]
                 }
                 if (packageName != null) {
-                    val disp = mBackend.datastore.updatePackage(packageName).subscribe(
-                            { LOG.v("updated package name $packageName") },
-                            { err -> LOG.e("failed to update package $packageName : $err") }
-                    )
+                    mBackend.datastore.updatePackage(packageName).blockingAwait()
                 }
                 return packageName ?: ""
             }

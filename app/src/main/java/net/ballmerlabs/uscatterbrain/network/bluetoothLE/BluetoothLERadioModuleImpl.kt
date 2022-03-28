@@ -1,11 +1,14 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import android.Manifest
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.le.*
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.ParcelUuid
+import androidx.core.app.ActivityCompat
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
@@ -24,6 +27,7 @@ import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
 import net.ballmerlabs.uscatterbrain.BuildConfig
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
@@ -365,7 +369,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .build()
                     }
                     if (!advertisingLock.getAndSet(true)) {
-                      mAdvertiser.startAdvertisingSet(settings, serviceData, responsedata, null, null, advertiseSetCallback)
+                        if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                            throw PermissionsNotAcceptedException()
+                        } else {
+                            mAdvertiser.startAdvertisingSet(settings, serviceData, responsedata, null, null, advertiseSetCallback)
+                        }
                     }
                     mapAdvertiseComplete(true)
                 }
@@ -382,21 +390,28 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
-            isAdvertising
-                .firstOrError()
-                .flatMapCompletable { v ->
-                if (v.first.isPresent) {
-                    awaitAdvertiseDataUpdate()
-                        .doOnSubscribe {
-                            v.first.item!!.setScanResponseData(AdvertiseData.Builder()
-                            .setIncludeDeviceName(false)
-                            .setIncludeTxPowerLevel(false)
-                            .addServiceUuid(ParcelUuid(luid))
-                            .build())
+            if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                Completable.error(PermissionsNotAcceptedException())
+            } else {
+                isAdvertising
+                        .firstOrError()
+                        .flatMapCompletable { v ->
+                            if (v.first.isPresent) {
+                                awaitAdvertiseDataUpdate()
+                                        .doOnSubscribe {
+                                            if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
+                                                v.first.item!!.setScanResponseData(AdvertiseData.Builder()
+                                                        .setIncludeDeviceName(false)
+                                                        .setIncludeTxPowerLevel(false)
+                                                        .addServiceUuid(ParcelUuid(luid))
+                                                        .build())
+                                            }
+
+                                        }
+                            } else {
+                                Completable.error(IllegalStateException("failed to set advertising data randomizeLuid"))
+                            }
                         }
-                } else {
-                    Completable.error(IllegalStateException("failed to set advertising data randomizeLuid"))
-                }
             }
         }
             .doOnComplete { LOG.v("successfully set luid $luid") }
@@ -415,21 +430,25 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private fun removeLuid(): Completable {
         return Completable.defer {
-            isAdvertising
-                .firstOrError()
-                .flatMapCompletable { v ->
-                    if (v.first.isPresent) {
-                        awaitAdvertiseDataUpdate()
-                            .doOnSubscribe {
-                                v.first.item!!.setScanResponseData(AdvertiseData.Builder()
-                                    .setIncludeDeviceName(false)
-                                    .setIncludeTxPowerLevel(false)
-                                    .build())
+            if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                Completable.error(PermissionsNotAcceptedException())
+            } else {
+                isAdvertising
+                        .firstOrError()
+                        .flatMapCompletable { v ->
+                            if (v.first.isPresent) {
+                                awaitAdvertiseDataUpdate()
+                                        .doOnSubscribe {
+                                            v.first.item!!.setScanResponseData(AdvertiseData.Builder()
+                                                    .setIncludeDeviceName(false)
+                                                    .setIncludeTxPowerLevel(false)
+                                                    .build())
+                                        }
+                            } else {
+                                Completable.error(IllegalStateException("failed to set advertising data removeLuid"))
                             }
-                    } else {
-                        Completable.error(IllegalStateException("failed to set advertising data removeLuid"))
-                    }
-                }
+                        }
+            }
         }
             .doOnComplete { LOG.v("successfully removed luid") }
     }
@@ -440,7 +459,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun stopAdvertise(): Completable {
         LOG.v("stopping LE advertise")
         return Completable.fromAction {
-            mAdvertiser.stopAdvertisingSet(advertiseSetCallback)
+            if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
+                mAdvertiser.stopAdvertisingSet(advertiseSetCallback)
+            } else {
+                throw PermissionsNotAcceptedException()
+            }
             mapAdvertiseComplete(false)
         }
     }
