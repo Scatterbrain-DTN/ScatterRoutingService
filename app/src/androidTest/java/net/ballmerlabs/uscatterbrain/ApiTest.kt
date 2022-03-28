@@ -10,6 +10,7 @@ import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import net.ballmerlabs.uscatterbrain.network.IdentityPacket
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.sql.Time
 import java.util.*
 import java.util.concurrent.TimeoutException
 import kotlin.collections.ArrayList
@@ -76,6 +77,12 @@ class ApiTest: TestBase() {
             list.add(message)
         }
         runBlocking { syncSendMesssages(list) }
+    }
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun getPermissions() {
+        runBlocking { binder.getPermissionStatus() }
     }
 
     @Test

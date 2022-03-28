@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -10,17 +11,21 @@ import android.os.Build
 import android.os.IBinder
 import android.os.ParcelUuid
 import androidx.annotation.RequiresApi
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
+import com.goterl.lazysodium.interfaces.Hash
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.*
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import java.security.Permission
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.collections.HashMap
 
 /**
  * Main foreground service class for Scatterbrain.
@@ -35,6 +40,7 @@ class ScatterRoutingService : LifecycleService() {
     )
     private val callbackHandles = ConcurrentHashMap<Int, Callback>()
     private val callbackNum = AtomicReference(0)
+
     private val binder: ScatterbrainBinderApi.Stub = object : ScatterbrainBinderApi.Stub() {
         private fun checkPermission(permName: String): Boolean {
             val pm = applicationContext.packageManager
@@ -556,8 +562,49 @@ class ScatterRoutingService : LifecycleService() {
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
+
+        override fun getPermissionsGranted(callback: PermissionCallback) {
+            checkAccessPermission()
+            val handle = generateNewHandle()
+            val disp = Single.fromCallable {
+                val map = HashMap<String, Boolean>()
+                val advertise = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                    ActivityCompat.checkSelfPermission(
+                            applicationContext, Manifest.permission.BLUETOOTH_ADVERTISE
+                    ) == PackageManager.PERMISSION_GRANTED
+                else
+                    true
+                map[PermissionStatus.PERMISSION_BLUETOOTH_ADVERTISE] = advertise
+
+                val connect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                    ActivityCompat.checkSelfPermission(
+                            applicationContext, Manifest.permission.BLUETOOTH_CONNECT
+                    ) == PackageManager.PERMISSION_GRANTED
+                else
+                    true
+                map[PermissionStatus.PERMISSION_BLUETOOTH_CONNECT] = connect
+
+                val location = ActivityCompat.checkSelfPermission(
+                        applicationContext, Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+                        || ActivityCompat.checkSelfPermission(
+                        applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                map[PermissionStatus.PERMISSION_LOCATION] = location
+                PermissionStatus(map)
+            }
+                    .doOnDispose { callbackHandles.remove(handle) }
+                    .doFinally { callbackHandles.remove(handle) }
+                    .subscribe(
+                            { r -> callback.onPermission(r) },
+                            { e -> callback.onError(e.toString()) }
+                    )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
         /**
-         * Gets a list of packages this service has interacted with
+        * Gets a list of packages this service has interacted with
          */
         override fun getKnownPackagesAsync(callback: StringCallback) {
             checkSuperuserPermission()
