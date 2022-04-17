@@ -239,9 +239,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 }
                                 .reduce { obj, other -> obj + other }
                                 .flatMapCompletable { bytes ->
-                                    stream.entity!!.message.body = bytes
-                                    stream.entity.message.fileSize = bytes.size.toLong()
-                                    insertMessages(stream.entity)
+                                    if (bytes.size <=  ScatterbrainApi.MAX_BODY_SIZE) {
+                                        stream.entity!!.message.body = bytes
+                                        stream.entity.message.fileSize = bytes.size.toLong()
+                                        insertMessages(stream.entity)
+                                    } else {
+                                        LOG.e("received message with invalid size ${bytes.size}, skipping")
+                                        Completable.complete()
+                                    }
                                 }.subscribeOn(databaseScheduler)
                     }
                 }
