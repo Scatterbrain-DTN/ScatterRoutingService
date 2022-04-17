@@ -157,15 +157,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         //TODO: we read and discard packets here because currently, but eventually
         // it would be a good idea to check the hash first and add support for aborting the transfer
         return stream.sequencePackets
-                .map<BlockSequencePacket> { packet ->
-                    if (packet.verifyHash(stream.headerPacket)) {
-                        LOG.v("hash verified")
-                        packet
-                    } else {
-                        LOG.e("hash invalid")
-                        null
-                    }
-                }.ignoreElements()
+                .flatMapCompletable { Completable.complete() }
     }
 
     override fun insertMessage(stream: BlockDataStream): Completable {
