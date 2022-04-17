@@ -254,13 +254,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun readBody(body: ByteArray, blocksize: Int): Flowable<BlockSequencePacket> {
         return Bytes.from(ByteArrayInputStream(body), blocksize)
-                .zipWith(seq, { bytes, seq ->
+                .zipWith(seq) { bytes, seq ->
                     BlockSequencePacket.newBuilder()
                             .setData(ByteString.copyFrom(bytes))
                             .setEnd(seq >= floor(body.size.toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                             .setSequenceNumber(seq)
                             .build()
-                })
+                }
     }
 
     override fun getTopRandomMessages(
@@ -387,10 +387,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             acl.identityFK = identityId
                                             acl
                                         }
-                                        .reduce(ArrayList<ClientApp>(), { list, acl ->
+                                        .reduce(ArrayList<ClientApp>()) { list, acl ->
                                             list.add(acl)
                                             list
-                                        })
+                                        }
                                         .flatMapCompletable { a ->
                                             mDatastore.identityDao().insertClientAppsReplace(a)
                                                     .subscribeOn(databaseScheduler)
@@ -405,10 +405,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun deleteIdentities(vararg identity: UUID): Completable {
         return Observable.fromIterable(identity.asList())
                 .map { f -> JustFingerprint(f) }
-                .reduce(ArrayList<JustFingerprint>(), {list, f ->
+                .reduce(ArrayList<JustFingerprint>()) { list, f ->
                     list.add(f)
                     list
-                })
+                }
                 .flatMapCompletable { l ->
                     mDatastore.identityDao().deleteIdentityByFingerprint(l)
                             .subscribeOn(databaseScheduler)
@@ -510,10 +510,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             kid,
                             keys2keysBytes(identity.extraKeys)
                     )
-                }.reduce(ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>(), { list, id ->
+                }.reduce(ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>()) { list, id ->
                     list.add(id)
                     list
-                }).flatMapCompletable { ids ->
+                }.flatMapCompletable { ids ->
                     this.insertIdentity(ids)
                 }
     }
@@ -578,10 +578,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         }
                     }
                 }
-                .reduce(ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>(), { list, id ->
+                .reduce(ArrayList<net.ballmerlabs.uscatterbrain.db.entities.Identity>()) { list, id ->
                     list.add(id)
                     list
-                })
+                }
                 .flatMapCompletable { ids ->
                     this.insertIdentity(ids)
                 }
@@ -620,13 +620,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .doOnComplete { LOG.v("datastore retrieved identities: $num") }
                             .doOnNext { LOG.v("retrieved single identity") }
                             .toFlowable(BackpressureStrategy.BUFFER)
-                            .zipWith(seq, { identity, _ ->
+                            .zipWith(seq) { identity, _ ->
                                 IdentityPacket.newBuilder()
                                         .setName(identity.identity.givenName)
                                         .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
                                         .setSig(identity.identity.signature)
                                         .build()!!
-                            })
+                            }
                             .concatWith(Single.just(IdentityPacket.newBuilder().setEnd().build()!!))
                 }
     }
@@ -638,10 +638,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .subscribeOn(databaseScheduler)
                 .doOnSuccess { p -> LOG.v("retrieved declareHashesPacket from datastore: " + p.size) }
                 .flatMapObservable { source -> Observable.fromIterable(source) }
-                .reduce(ArrayList<ByteArray>(), { list, hash ->
+                .reduce(ArrayList<ByteArray>()) { list, hash ->
                     list.add(hash)
                     list
-                })
+                }
                 .map { hash ->
                     if (hash.size == 0) {
                         DeclareHashesPacket.newBuilder().optOut().build()
@@ -683,10 +683,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             clientApp.packageSignature!!
                     )
                 }
-                .reduce(ArrayList(), { list, acl ->
+                .reduce(ArrayList()) { list, acl ->
                     list.add(acl)
                     list
-                })
+                }
     }
 
     override val allIdentities: List<Identity>
@@ -700,10 +700,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .setSig(identity.identity.signature)
                             .setHasPrivateKey(identity.identity.privatekey != null)
                             .build()
-                }.reduce(ArrayList<Identity>(), { list, id ->
+                }.reduce(ArrayList<Identity>()) { list, id ->
                     list.add(id)
                     list
-                }).blockingGet()
+                }.blockingGet()
 
     override fun getFileMetadataSync(path: File): Map<String, Serializable> {
         return getMessageByPath(path.absolutePath)
@@ -784,10 +784,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private fun getApiMessage(entities: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<ArrayList<ScatterMessage>> {
         return entities
                 .map { message -> message2message(message) }
-                .reduce(java.util.ArrayList<ScatterMessage>(), { list, m ->
+                .reduce(java.util.ArrayList<ScatterMessage>()) { list, m ->
                     list.add(m)
                     list
-                })
+                }
     }
 
     private fun getApiMessage(entity: Single<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<ScatterMessage> {
@@ -809,7 +809,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 Single.just(message)
             } else {
                 mDatastore.identityDao().getIdentityByFingerprintMaybe(fingerprint)
-                        .zipWith(Maybe.just(message), { id, m -> kotlin.Pair(id, m) })
+                        .zipWith(Maybe.just(message)) { id, m -> kotlin.Pair(id, m) }
                         .filter { pair -> verifyed25519(pair.first.identity.publicKey, pair.second) }
                         .map { pair -> pair.second }
                         .toSingle(message)
@@ -1113,15 +1113,15 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     private fun hashData(data: ByteArray, blocksize: Int): Single<MutableList<ByteArray>> {
         return Bytes.from(ByteArrayInputStream(data), blocksize)
-                .zipWith(seq, { b, seq ->
+                .zipWith(seq) { b, seq ->
                     BlockSequencePacket.newBuilder()
                             .setSequenceNumber(seq)
                             .setData(ByteString.copyFrom(b))
                             .build().calculateHash()
-                }).reduce(ArrayList(), { list, b ->
+                }.reduce(ArrayList()) { list, b ->
                     list.add(b)
                     list
-                })
+                }
     }
 
     override fun hashFile(path: File, blocksize: Int): Single<List<ByteArray>> {
@@ -1154,13 +1154,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnSubscribe { LOG.v("subscribed to readFile") }
                 .flatMap {
                     Bytes.from(path, blocksize)
-                            .zipWith(seq, { bytes, seqnum ->
+                            .zipWith(seq) { bytes, seqnum ->
                                 BlockSequencePacket.newBuilder()
                                         .setSequenceNumber(seqnum)
                                         .setEnd(seqnum >= floor(path.length().toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                                         .setData(ByteString.copyFrom(bytes))
                                         .build()
-                            }).subscribeOn(databaseScheduler)
+                            }.subscribeOn(databaseScheduler)
                 }.doOnComplete { LOG.v("readfile completed") }
     }
 
