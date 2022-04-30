@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.FileObserver
 import android.os.ParcelFileDescriptor
 import android.os.ParcelUuid
+import android.os.SharedMemory
 import android.provider.DocumentsContract
 import android.util.Pair
 import android.webkit.MimeTypeMap
@@ -59,7 +60,10 @@ class ApiMessageBuilder(from: UUID?, id: UUID) : ScatterMessage.Builder(
          * @return builder class
          */
         fun newInstance(data: ByteArray, id: UUID, from: UUID?): ScatterMessage.Builder {
-            return ApiMessageBuilder(from, id).setBody(data)
+            val shared = SharedMemory.create("scatterMessage", data.size)
+            val buf = shared.mapReadWrite()
+            buf.put(data)
+            return ApiMessageBuilder(from, id).setBody(shared)
         }
 
         /**
@@ -904,15 +908,18 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     }
                                 }.subscribeOn(databaseScheduler)
                     } else {
-                        hashData(message.body!!, blocksize)
+                        val buf = message.body!!.mapReadOnly()
+                        val body = ByteArray(buf.remaining())
+                        buf.get(body)
+                        hashData(body, blocksize)
                                 .flatMapCompletable { hashes ->
                                     val hm = HashlessScatterMessage(
-                                            body = message.body,
+                                            body = body,
                                             application = message.application,
                                             sig = null,
                                             sessionid = 0,
                                             extension = "",
-                                            filePath = getNoFilename(message.body!!),
+                                            filePath = getNoFilename(body),
                                             globalhash = getGlobalHash(hashes),
                                             userFilename = "",
                                             mimeType = "application/octet-stream",
