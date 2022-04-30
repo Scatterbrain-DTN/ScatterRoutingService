@@ -92,9 +92,11 @@ class WifiDirectTest {
     fun createAndRemoveGroup() {
         for (x in 0..5) {
             assert(radioModule.createGroup()
-                    .timeout(60, TimeUnit.SECONDS)
+                    .timeout(10, TimeUnit.SECONDS)
                     .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
-            radioModule.removeGroup().blockingAwait()
+            radioModule.removeGroup()
+                    .timeout(10, TimeUnit.SECONDS)
+                    .blockingAwait()
         }
     }
 
