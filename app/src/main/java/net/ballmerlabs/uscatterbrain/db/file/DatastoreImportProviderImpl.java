@@ -49,7 +49,6 @@ import javax.inject.Singleton;
 public class DatastoreImportProviderImpl extends DocumentsProvider
         implements DatastoreImportProvider {
     private static final Logger LOG = new Logger(DatastoreImportProviderImpl.class);
-    private static final String TAG = "DatastoreImportProvider";
     private static final String USER_ROOT_ID = "/userroot/";
     private static final String CACHE_ROOT_ID = "/cacheroot/";
     private static final String[] DEFAULT_ROOT = new String[] {

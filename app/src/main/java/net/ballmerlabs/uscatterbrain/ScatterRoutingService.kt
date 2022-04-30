@@ -14,18 +14,15 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
-import com.goterl.lazysodium.interfaces.Hash
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.*
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.security.Permission
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.collections.HashMap
 
 /**
  * Main foreground service class for Scatterbrain.

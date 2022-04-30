@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
-import android.util.Log
 import io.reactivex.Single
 import io.reactivex.SingleObserver
 import net.ballmerlabs.uscatterbrain.util.scatterLog

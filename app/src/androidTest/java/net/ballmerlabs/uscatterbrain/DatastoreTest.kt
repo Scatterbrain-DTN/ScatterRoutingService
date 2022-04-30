@@ -1,12 +1,8 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.content.Context
-import android.util.Log
 import androidx.room.Room
-import androidx.room.migration.AutoMigrationSpec
-import androidx.room.migration.Migration
 import androidx.room.testing.MigrationTestHelper
-import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner

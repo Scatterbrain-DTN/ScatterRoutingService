@@ -16,7 +16,6 @@ import net.ballmerlabs.scatterbrainsdk.internal.MockBinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.ScatterbrainBroadcastReceiverImpl
 import org.junit.Before
 import org.junit.Rule
-import kotlin.coroutines.coroutineContext
 
 abstract class TestBase {
     protected val testCoroutineScope = CoroutineScope(Dispatchers.Default)

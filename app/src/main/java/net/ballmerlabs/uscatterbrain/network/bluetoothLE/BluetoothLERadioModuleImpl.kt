@@ -1118,54 +1118,53 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     .concatMap { stage ->
                                         Single.zip(
                                             session.singleClient(),
-                                            session.singleServer(),
-                                            { client, server ->
-                                                server(connection)
+                                            session.singleServer()
+
+                                        ) { client, server ->
+                                            server(connection)
                                                     .subscribeOn(serverScheduler)
                                                     .doOnError { err ->
                                                         LOG.e(
-                                                            "error in gatt server transaction for ${device.macAddress}, stage: $stage, $err"
+                                                                "error in gatt server transaction for ${device.macAddress}, stage: $stage, $err"
                                                         )
                                                         err.printStackTrace()
                                                     }
                                                     .doOnSuccess {
                                                         LOG.v(
-                                                            "server handshake completed"
+                                                                "server handshake completed"
                                                         )
                                                     }
                                                     .onErrorReturn { err ->
                                                         OptionalBootstrap.err(
-                                                            err
+                                                                err
                                                         )
                                                     }
                                                     .zipWith(
-                                                        client(clientConnection)
-                                                            .subscribeOn(clientScheduler)
-                                                            .doOnSuccess {
-                                                                LOG.v(
-                                                                    "client handshake completed"
-                                                                )
-                                                            }
-                                                            .doOnError { err ->
-                                                                LOG.e(
-                                                                    "error in gatt client transaction for ${device.macAddress}, stage: $stage, $err"
-                                                                )
-                                                                err.printStackTrace()
-                                                            }
-                                                            .onErrorReturn {
-                                                                TransactionResult(
-                                                                    TransactionResult.STAGE_TERMINATE,
-                                                                    device.bluetoothDevice,
-                                                                    luid,
-                                                                    err = true
-                                                                )
-                                                            },
-                                                        { first, second ->
-                                                            Pair(first, second)
-                                                        })
-                                            }
-
-                                        ).flatMap { result -> result }
+                                                            client(clientConnection)
+                                                                    .subscribeOn(clientScheduler)
+                                                                    .doOnSuccess {
+                                                                        LOG.v(
+                                                                                "client handshake completed"
+                                                                        )
+                                                                    }
+                                                                    .doOnError { err ->
+                                                                        LOG.e(
+                                                                                "error in gatt client transaction for ${device.macAddress}, stage: $stage, $err"
+                                                                        )
+                                                                        err.printStackTrace()
+                                                                    }
+                                                                    .onErrorReturn {
+                                                                        TransactionResult(
+                                                                                TransactionResult.STAGE_TERMINATE,
+                                                                                device.bluetoothDevice,
+                                                                                luid,
+                                                                                err = true
+                                                                        )
+                                                                    }
+                                                    ) { first, second ->
+                                                        Pair(first, second)
+                                                    }
+                                        }.flatMap { result -> result }
                                             .subscribeOn(operationsScheduler)
                                             .flatMap { v ->
                                                 when {
@@ -1360,7 +1359,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         private val lockState = BehaviorRelay.create<Boolean>()
         fun awaitCharacteristic(): Single<OwnedCharacteristic> {
             return Single.just(asUnlocked())
-                    .zipWith(lockState.filter { p -> !p }.firstOrError(), { ch, _ -> ch })
+                    .zipWith(lockState.filter { p -> !p }.firstOrError()) { ch, _ -> ch }
                     .map { ch ->
                         lock()
                         ch

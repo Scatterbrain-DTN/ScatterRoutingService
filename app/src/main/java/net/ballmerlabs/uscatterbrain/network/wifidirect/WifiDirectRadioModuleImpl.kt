@@ -412,11 +412,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 .andThen(
                                     identityPacketUke(datastore.getTopRandomIdentities(20), socket)
                                         .reduce(
-                                            ArrayList(),
-                                            { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
-                                                list.add(packet)
-                                                list
-                                            }).flatMap { p: ArrayList<IdentityPacket> ->
+                                            ArrayList()
+                                        ) { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
+                                            list.add(packet)
+                                            list
+                                        }.flatMap { p: ArrayList<IdentityPacket> ->
                                             datastore.insertIdentityPacket(p).toSingleDefault(
                                                 HandshakeResult(
                                                     p.size,
@@ -445,7 +445,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                         socket
                                                     ).toObservable()
                                                 )
-                                                .reduce(stats, { obj, stats -> obj.from(stats) })
+                                                .reduce(stats) { obj, stats -> obj.from(stats) }
                                         }
                                 }
                         }
@@ -468,11 +468,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                 datastore.getTopRandomIdentities(preferences.getInt(mContext.getString(R.string.pref_identitycap), 200))
                                             )
                                         )
-                                        .reduce(ArrayList(), { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
+                                        .reduce(ArrayList()) { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
                                             list.add(packet)
                                             list
-                                        })
-                                        .flatMap { p ->
+                                        }
+                                            .flatMap { p ->
                                             LOG.v("inserting identity packet seme")
                                             datastore.insertIdentityPacket(p).toSingleDefault(
                                                 HandshakeResult(
@@ -491,7 +491,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                         .mergeWith(writeBlockDataSeme(socket, datastore.getTopRandomMessages(32, declareHashesPacket)
                                                             .toFlowable(BackpressureStrategy.BUFFER)).toObservable())
                                                 }
-                                                .reduce(stats, { obj, st -> obj.from(st) })
+                                                .reduce(stats) { obj, st -> obj.from(st) }
                                         }
                                 }
                         }
@@ -514,8 +514,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .doOnError { err -> LOG.e("retryDelay caught exception: $err")}
                 .retryWhen { errors: Observable<Throwable> ->
                     errors
-                        .zipWith(Observable.range(1, count), { _: Throwable, i: Int -> i })
-                        .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+                        .zipWith(Observable.range(1, count)) { _: Throwable, i: Int -> i }
+                            .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
                 }
         }
 
@@ -524,8 +524,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .doOnError { err -> LOG.e("retryDelay caught exception: $err")}
             .retryWhen { errors: Flowable<Throwable> ->
                 errors
-                    .zipWith(Flowable.range(1, count), { _: Throwable, i: Int -> i })
-                    .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+                    .zipWith(Flowable.range(1, count)) { _: Throwable, i: Int -> i }
+                        .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
             }
     }
 
@@ -534,8 +534,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .doOnError { err -> LOG.e("retryDelay caught exception: $err")}
             .retryWhen { errors ->
                 errors
-                    .zipWith(Flowable.range(1, count), { _, i: Int -> i })
-                    .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+                    .zipWith(Flowable.range(1, count)) { _, i: Int -> i }
+                        .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
             }
     }
 

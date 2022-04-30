@@ -135,7 +135,7 @@ class VotingStage : LeDeviceSession.Stage {
             Completable.error(IllegalStateException("size conflict"))
         } else Observable.zip(
                 Observable.fromIterable(hashedPackets),
-                Observable.fromIterable(unhashedPackets), { obj: ElectLeaderPacket?, packet -> obj!!.verifyHash(packet) })
+                Observable.fromIterable(unhashedPackets)) { obj: ElectLeaderPacket?, packet -> obj!!.verifyHash(packet) }
                 .flatMap { bool: Boolean? ->
                     if (!bool!!) {
                         return@flatMap Observable.error<Boolean>(java.lang.IllegalStateException("failed to verify hash"))

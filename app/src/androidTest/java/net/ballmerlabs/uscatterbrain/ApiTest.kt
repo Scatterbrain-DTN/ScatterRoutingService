@@ -10,10 +10,8 @@ import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import net.ballmerlabs.uscatterbrain.network.IdentityPacket
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.sql.Time
 import java.util.*
 import java.util.concurrent.TimeoutException
-import kotlin.collections.ArrayList
 import kotlin.random.Random
 
 @RunWith(AndroidJUnit4ClassRunner::class)

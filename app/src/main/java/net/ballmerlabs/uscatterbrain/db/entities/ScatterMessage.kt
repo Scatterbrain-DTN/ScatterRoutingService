@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.db.entities
 
 import androidx.room.Embedded
-import androidx.room.Junction
 import androidx.room.Relation
 import net.ballmerlabs.uscatterbrain.network.Verifiable
 import java.util.*

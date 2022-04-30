@@ -22,9 +22,11 @@ import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackend.Applications
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.entities.*
-import net.ballmerlabs.uscatterbrain.network.*
+import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
+import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
+import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
+import net.ballmerlabs.uscatterbrain.network.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.io.*
@@ -35,7 +37,6 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
-import kotlin.collections.ArrayList
 import kotlin.math.floor
 import kotlin.math.min
 

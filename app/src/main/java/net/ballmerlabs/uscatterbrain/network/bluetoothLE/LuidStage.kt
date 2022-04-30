@@ -37,10 +37,10 @@ class LuidStage(val selfUnhashed: UUID, val remoteHashed: UUID) : LeDeviceSessio
             Completable.error(InvalidLuidException("remotepacket not set"))
         } else Single.zip(
                 Single.just(remoteHashed),
-                Single.just(remoteUnhashed), { hashed, unhashed ->
-                val hash = LuidPacket.calculateHashFromUUID(unhashed.luidVal)
-                hashAsUUID(hash).compareTo(hashed) == 0
-            })
+                Single.just(remoteUnhashed)) { hashed, unhashed ->
+            val hash = LuidPacket.calculateHashFromUUID(unhashed.luidVal)
+            hashAsUUID(hash).compareTo(hashed) == 0
+        }
                 .flatMap { bool ->
                     if (!bool) {
                         Single.error(InvalidLuidException("failed to verify hash"))

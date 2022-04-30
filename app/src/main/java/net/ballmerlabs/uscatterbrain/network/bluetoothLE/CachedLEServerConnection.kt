@@ -111,57 +111,57 @@ class CachedLEServerConnection(
             )
                 .subscribeOn(scheduler)
                 .toFlowable(BackpressureStrategy.BUFFER)
-                .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER), { req, packet ->
+                .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER)) { req, packet ->
                     LOG.v("received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet: ${packet.first.type}")
-                            selectCharacteristic()
-                                .flatMapCompletable { characteristic ->
-                                    LOG.v("LOCKED characteristic ${characteristic.uuid} packet: ${packet.first.type}")
-                                                    connection.getOnCharacteristicReadRequest(characteristic.uuid)
-                                                        .subscribeOn(scheduler)
-                                                        .firstOrError()
-                                                        .flatMapCompletable { trans ->
-                                                            LOG.v("characteristic ${characteristic.uuid} start indications packet: ${packet.first.type}")
-                                                            trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                                                .andThen(
-                                                                    connection.setupIndication(
-                                                                        characteristic.uuid,
-                                                                        packet.first.writeToStream(20, scheduler),
-                                                                        trans.remoteDevice
-                                                                    )
-                                                                        .timeout(20, TimeUnit.SECONDS)
-                                                                        .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
-                                                                        .doOnComplete {
-                                                                            LOG.v("indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
-                                                                        }
-                                                                )
-                                                        }
-                                                        .mergeWith(
-                                                            req.sendReply(
-                                                            BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
-                                                            BluetoothGatt.GATT_SUCCESS
+                    selectCharacteristic()
+                            .flatMapCompletable { characteristic ->
+                                LOG.v("LOCKED characteristic ${characteristic.uuid} packet: ${packet.first.type}")
+                                connection.getOnCharacteristicReadRequest(characteristic.uuid)
+                                        .subscribeOn(scheduler)
+                                        .firstOrError()
+                                        .flatMapCompletable { trans ->
+                                            LOG.v("characteristic ${characteristic.uuid} start indications packet: ${packet.first.type}")
+                                            trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                                                    .andThen(
+                                                            connection.setupIndication(
+                                                                    characteristic.uuid,
+                                                                    packet.first.writeToStream(20, scheduler),
+                                                                    trans.remoteDevice
                                                             )
-                                                                .subscribeOn(scheduler)
-                                                                .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
-                                                                .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
-                                                        )
-                                                        .doOnError{ err ->
-                                                            LOG.e("error in gatt server indication $err")
-                                                            errorRelay.accept(err)
-                                                        }
-                                                        .timeout(20, TimeUnit.SECONDS)
-                                                        .onErrorComplete()
-                                                        .doFinally {
-                                                            LOG.v("releasing locked characteristic ${characteristic.uuid}")
-                                                            characteristic.release()
-                                                            cookieCompleteRelay.accept(packet.second)
-                                                        }
-                                }
-                                .doOnError { err ->
-                                    LOG.e("error in gatt server selectCharacteristic: $err")
-                                }
-                                .onErrorComplete()
-                })
-                .flatMapCompletable { obs -> obs }
+                                                                    .timeout(20, TimeUnit.SECONDS)
+                                                                    .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
+                                                                    .doOnComplete {
+                                                                        LOG.v("indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
+                                                                    }
+                                                    )
+                                        }
+                                        .mergeWith(
+                                                req.sendReply(
+                                                        BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
+                                                        BluetoothGatt.GATT_SUCCESS
+                                                )
+                                                        .subscribeOn(scheduler)
+                                                        .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
+                                                        .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
+                                        )
+                                        .doOnError { err ->
+                                            LOG.e("error in gatt server indication $err")
+                                            errorRelay.accept(err)
+                                        }
+                                        .timeout(20, TimeUnit.SECONDS)
+                                        .onErrorComplete()
+                                        .doFinally {
+                                            LOG.v("releasing locked characteristic ${characteristic.uuid}")
+                                            characteristic.release()
+                                            cookieCompleteRelay.accept(packet.second)
+                                        }
+                            }
+                            .doOnError { err ->
+                                LOG.e("error in gatt server selectCharacteristic: $err")
+                            }
+                            .onErrorComplete()
+                }
+                    .flatMapCompletable { obs -> obs }
                 .subscribeOn(scheduler)
                 .repeat()
                 .retry()
