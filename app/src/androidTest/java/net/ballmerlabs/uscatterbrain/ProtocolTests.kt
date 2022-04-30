@@ -188,7 +188,7 @@ class ProtocolTests {
         val identityPacket = IdentityPacket.newBuilder()
                 .setScatterbrainPubkey(ByteString.copyFrom(keypair.publickey))
                 .setName(name)
-                .setSig(apiIdentity.sig)
+                .setSig(apiIdentity.identity.sig)
                 .build()
         assert(identityPacket != null)
         testSerialize(IdentityPacket.parser(), identityPacket!!) { packet ->

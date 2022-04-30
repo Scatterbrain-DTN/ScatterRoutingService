@@ -139,12 +139,12 @@ class ApiTest: TestBase() {
                 .build()
 
         val packet = IdentityPacket.newBuilder()
-                .setName(identity.name)
-                .setSig(identity.sig)
-                .setScatterbrainPubkey(ByteString.copyFrom(identity.publicKey))
+                .setName(identity.identity.name)
+                .setSig(identity.identity.sig)
+                .setScatterbrainPubkey(ByteString.copyFrom(identity.identity.publicKey))
                 .build()
 
-        assert(packet!!.verifyed25519(identity.publicKey))
+        assert(packet!!.verifyed25519(identity.identity.publicKey))
     }
 
     @Test
