@@ -181,11 +181,12 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     override fun generateIdentity(name: String, callingPackageName: String): Single<Identity> {
         return Single.defer {
-            val identity: ApiIdentity = ApiIdentity.newBuilder()
+            val apiidentity = ApiIdentity.newBuilder()
                     .setName(name)
                     .sign(ApiIdentity.newPrivateKey())
                     .build()
-            datastore.insertApiIdentity(identity)
+            val identity = apiidentity.identity
+            datastore.insertApiIdentity(apiidentity)
                     .andThen(authorizeApp(identity.fingerprint, callingPackageName))
                     .toSingleDefault(identity)
                     .doOnSuccess {
@@ -200,7 +201,7 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     override fun getIdentity(fingerprint: UUID): Single<Identity> {
         return datastore.getApiIdentityByFingerprint(fingerprint)
-                .map { id -> id }
+                .map { id -> id.identity }
     }
 
     override fun removeIdentity(name: UUID, callingPackageName: String): Completable {

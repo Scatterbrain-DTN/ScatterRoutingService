@@ -477,16 +477,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun insertApiIdentity(identity: ApiIdentity): Completable {
         return Single.just(identity)
                 .map { dbidentity ->
+                    val id = dbidentity.identity
                     val kid = KeylessIdentity(
-                            dbidentity.name,
-                            dbidentity.publicKey,
-                            dbidentity.sig,
-                            dbidentity.fingerprint,
+                            id.name,
+                            id.publicKey,
+                            id.sig,
+                            id.fingerprint,
                             dbidentity.privateKey
                     )
                     Identity(
                             kid,
-                            keys2keysBytes(identity.extraKeys)
+                            keys2keysBytes(id.extraKeys)
                     )
                 }.flatMapCompletable { ids ->
                     this.insertIdentity(ids)
@@ -698,7 +699,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .setHasPrivateKey(identity.identity.privatekey != null)
                             .build()
                 }.reduce(ArrayList<Identity>()) { list, id ->
-                    list.add(id)
+                    list.add(id.identity)
                     list
                 }.blockingGet()
 

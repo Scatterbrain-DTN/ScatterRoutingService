@@ -137,7 +137,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(UnauthorizedException::class)
         override fun getIdentityByFingerprint(fingerprint: ParcelUuid): Identity {
             checkAccessPermission()
-            return mBackend.datastore.getApiIdentityByFingerprint(fingerprint.uuid).blockingGet()
+            return mBackend.datastore.getApiIdentityByFingerprint(fingerprint.uuid).blockingGet().identity
         }
 
         /**
