@@ -191,14 +191,22 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
 
                 }
-                mBroadcastReceiver.observeConnectionInfo()
-                    .doOnSubscribe { if (!groupRemoveInProgress.getAndSet(true)) mManager.removeGroup(channel, actionListener) }
-                    .doOnError { err -> LOG.e("removeGroup error: $err") }
-                    .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed }
-                    .ignoreElements()
-                    .doOnComplete { LOG.v("removeGroup return success") }
-                    .andThen(subject)
-                    .doFinally { groupRemoveInProgress.set(false) }
+                if (!groupRemoveInProgress.getAndSet(true)) {
+                    Completable.complete()
+                } else {
+                    subject
+                            .doOnSubscribe {
+                                mManager.removeGroup(channel, actionListener)
+                            }
+                            .andThen(mBroadcastReceiver.observeConnectionInfo()
+                                    .doOnError { err -> LOG.e("removeGroup error: $err") }
+                                    .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed }
+                                    .ignoreElements()
+                                    .doOnComplete { LOG.v("removeGroup return success") }
+                                    .doFinally { groupRemoveInProgress.set(false) }
+                            )
+                }
+
             }
 
             return retryDelay(c, 10, 1)

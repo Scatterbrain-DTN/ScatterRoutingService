@@ -90,7 +90,7 @@ class WifiDirectTest {
     @Test
     @Throws(TimeoutException::class)
     fun createAndRemoveGroup() {
-        for (x in 0..5) {
+        for (x in 0..20) {
             assert(radioModule.createGroup()
                     .timeout(10, TimeUnit.SECONDS)
                     .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
