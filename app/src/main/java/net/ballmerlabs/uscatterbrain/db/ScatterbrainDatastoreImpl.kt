@@ -63,7 +63,7 @@ class ApiMessageBuilder(from: UUID?, id: UUID) : ScatterMessage.Builder(
             val shared = SharedMemory.create("scatterMessage", data.size)
             val buf = shared.mapReadWrite()
             buf.put(data)
-            return ApiMessageBuilder(from, id).setBody(shared)
+            return ApiMessageBuilder(from, id).setShm(shared)
         }
 
         /**
@@ -908,10 +908,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                     }
                                 }.subscribeOn(databaseScheduler)
                     } else {
-                        val buf = message.body!!.mapReadOnly()
+                        val buf = message.shm!!.mapReadOnly()
                         val body = ByteArray(buf.remaining())
                         buf.get(body)
-                        message.body!!.close()
+                        message.shm!!.close()
                         hashData(body, blocksize)
                                 .flatMapCompletable { hashes ->
                                     val hm = HashlessScatterMessage(
