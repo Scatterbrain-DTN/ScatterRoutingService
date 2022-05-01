@@ -911,6 +911,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         val buf = message.body!!.mapReadOnly()
                         val body = ByteArray(buf.remaining())
                         buf.get(body)
+                        message.body!!.close()
                         hashData(body, blocksize)
                                 .flatMapCompletable { hashes ->
                                     val hm = HashlessScatterMessage(
@@ -925,7 +926,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                             mimeType = "application/octet-stream",
                                             sendDate = Date().time,
                                             receiveDate = Date().time,
-                                            fileSize = message.body!!.size.toLong(),
+                                            fileSize = body.size.toLong(),
                                             packageName = packageName
                                     )
                                     val dbmessage = ScatterMessage(
