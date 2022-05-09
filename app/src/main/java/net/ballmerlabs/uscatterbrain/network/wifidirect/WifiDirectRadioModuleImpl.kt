@@ -74,6 +74,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             try {
                 mContext.unregisterReceiver(mBroadcastReceiver.asReceiver())
             } catch (illegalArgumentException: IllegalArgumentException) {
+                FirebaseCrashlytics.getInstance().recordException(illegalArgumentException)
                 LOG.w("attempted to unregister nonexistent receiver, ignore.")
             }
         }
@@ -133,7 +134,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
             }
 
-
         }
 
 
@@ -155,7 +155,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     mManager.requestGroupInfo(channel, listener)
                 }
                 subject
-            }
+            }.doOnError { err -> FirebaseCrashlytics.getInstance().recordException(err) }
         }
 
         /**
@@ -177,7 +177,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                         .toSingle()
                 }
-            }
+            }.doOnError { err -> FirebaseCrashlytics.getInstance().recordException(err) }
         }
 
         override fun removeGroup(): Completable {
@@ -213,6 +213,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
 
             return retryDelay(c, 10, 1)
+                    .doOnError { err -> FirebaseCrashlytics.getInstance().recordException(err) }
         }
 
         private fun getTcpSocket(address: InetAddress): Single<Socket> {
@@ -264,7 +265,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     subject
                 }
 
-            }
+            }.doOnError { err -> FirebaseCrashlytics.getInstance().recordException(err) }
         }
 
         /*

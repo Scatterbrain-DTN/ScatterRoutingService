@@ -14,6 +14,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
 import io.reactivex.Single
@@ -30,11 +31,12 @@ import java.util.concurrent.atomic.AtomicReference
 class ScatterRoutingService : LifecycleService() {
     private val LOG by scatterLog()
     private lateinit var mBackend: RoutingServiceBackend
-    private val isStarted = AtomicReference(false)
+
     data class Callback(
             val packageName: String,
             val disposable: Disposable
     )
+
     private val callbackHandles = ConcurrentHashMap<Int, Callback>()
     private val callbackNum = AtomicReference(0)
 
@@ -325,7 +327,7 @@ class ScatterRoutingService : LifecycleService() {
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { s-> callback.onString(s) },
+                            { s -> callback.onString(s) },
                             { err -> callback.onError(err.message) }
                     )
             callbackHandles[handle] = Callback(callingPackageName, disp)
@@ -601,7 +603,7 @@ class ScatterRoutingService : LifecycleService() {
         }
 
         /**
-        * Gets a list of packages this service has interacted with
+         * Gets a list of packages this service has interacted with
          */
         override fun getKnownPackagesAsync(callback: StringCallback) {
             checkSuperuserPermission()
@@ -610,8 +612,8 @@ class ScatterRoutingService : LifecycleService() {
                     .doOnDispose { callbackHandles.remove(handle) }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
-                            { r ->  callback.onString(r) },
-                            { err -> callback.onError(err.message)}
+                            { r -> callback.onString(r) },
+                            { err -> callback.onError(err.message) }
                     )
 
             callbackHandles[handle] = Callback(callingPackageName, disp)
@@ -649,9 +651,9 @@ class ScatterRoutingService : LifecycleService() {
         component.accept(c)
         mBackend = c.scatterRoutingService()!!
         val channel = NotificationChannel(
-            NOTIFICATION_CHANNEL_FOREGROUND,
-            "fmef",
-            NotificationManager.IMPORTANCE_DEFAULT
+                NOTIFICATION_CHANNEL_FOREGROUND,
+                "fmef",
+                NotificationManager.IMPORTANCE_DEFAULT
         )
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
@@ -663,26 +665,21 @@ class ScatterRoutingService : LifecycleService() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        val started = isStarted.getAndSet(true)
-        if (!started) {
-            try {
-                LOG.v("called onbind")
-                LOG.v("initialized datastore")
-                mBackend.wifiDirect.registerReceiver()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                LOG.v("exception")
-            }
-            val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
-                    .setContentTitle("ScatterRoutingService")
-                    .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
-                    .setSmallIcon(R.drawable.ic_launcher_background)
-                    .setTicker("fmef am tire")
-                    .build()
-            startForeground(1, notification)
-        } else {
-            isStarted.set(false)
+        try {
+            mBackend.wifiDirect.registerReceiver()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            FirebaseCrashlytics.getInstance().recordException(e)
+            LOG.e("exception when registering receiver $e")
+            throw e
         }
+        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
+                .setContentTitle("ScatterRoutingService")
+                .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
+                .setSmallIcon(R.drawable.ic_launcher_background)
+                .setTicker("fmef am tire")
+                .build()
+        startForeground(1, notification)
         return Service.START_NOT_STICKY
     }
 
