@@ -148,7 +148,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
                 }
                 if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    subject.onError(SecurityException("invalid permission"))
+                    val error = SecurityException("invalid permission")
+                    FirebaseCrashlytics.getInstance().recordException(error)
+                    subject.onError(error)
                 } else {
                     mManager.requestGroupInfo(channel, listener)
                 }
@@ -248,9 +250,17 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
                 if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION)
                     != PackageManager.PERMISSION_GRANTED) {
-                    Single.error(SecurityException("needs fine location"))
+                    val exc = SecurityException("needs fine location")
+                    FirebaseCrashlytics.getInstance().recordException(exc)
+                    Single.error(exc)
                 } else {
-                    mManager.requestGroupInfo(channel, groupListener)
+                    try {
+                        mManager.requestGroupInfo(channel, groupListener)
+                    } catch (exc: Exception) {
+                        LOG.e("failed to requestGroupInfo: $exc")
+                        FirebaseCrashlytics.getInstance().recordException(exc)
+                        throw exc
+                    }
                     subject
                 }
 
@@ -276,7 +286,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         override fun onFailure(reason: Int) {
                             LOG.e("failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(reason))
                             if (connectRetry.getAndSet(connectRetry.get() - 1) > 0) {
-                                mManager.connect(channel, config, this)
+                                try {
+                                    mManager.connect(channel, config, this)
+                                } catch (exc: Exception) {
+                                    LOG.e("wifi p2p failed to retry ${connectRetry.get()}: $exc")
+                                    FirebaseCrashlytics.getInstance().recordException(exc)
+                                    subject.onError(exc)
+                                }
                             } else {
                                 subject.onError(IllegalStateException("failed to connect to group: " + reasonCodeToString(reason)))
                             }
@@ -293,6 +309,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
                     return@defer subject
                 } catch (e: SecurityException) {
+                    LOG.e("wifi p2p threw SecurityException $e")
+                    FirebaseCrashlytics.getInstance().recordException(e)
                     return@defer Completable.error(e)
                 }
             }
