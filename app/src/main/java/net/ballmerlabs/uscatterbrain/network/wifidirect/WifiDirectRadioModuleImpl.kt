@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.wifi.p2p.*
 import android.os.Looper
 import androidx.core.app.ActivityCompat
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.subjects.CompletableSubject
@@ -282,7 +283,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                     }
 
-                    mManager.connect(channel, config, connectListener)
+                    try {
+                        mManager.connect(channel, config, connectListener)
+                    } catch (exc: Exception) {
+                        LOG.e("wifi p2p failed to connect: ${exc.message}")
+                        FirebaseCrashlytics.getInstance().recordException(exc)
+                        exc.printStackTrace()
+                        throw exc
+                    }
                     return@defer subject
                 } catch (e: SecurityException) {
                     return@defer Completable.error(e)
