@@ -1,12 +1,9 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
-import android.Manifest
 import android.content.Context
 import android.content.IntentFilter
-import android.content.pm.PackageManager
+import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.*
-import androidx.core.app.ActivityCompat
-import com.google.firebase.crashlytics.FirebaseCrashlytics
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.subjects.CompletableSubject
@@ -16,6 +13,7 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
@@ -32,6 +30,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
+import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
@@ -56,7 +55,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
         private val channel: WifiP2pManager.Channel,
         private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
-        private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper()
+        private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
+        private val infoComponentProvider: Provider<WifiDirectInfoSubcomponent.Builder>
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
     private val groupOperationInProgress = AtomicReference(false)
@@ -224,10 +224,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         mManager.requestConnectionInfo(channel, infoListener)
                     } else {
                         if (!groupConnectInProgress.getAndSet(true)) {
-                            val fakeConfig = FakeWifiP2pConfig(
-                                passphrase = passphrase,
-                                networkName = name
-                            )
+                            val builder = infoComponentProvider.get()
+                            val fakeConfig = builder.fakeWifiP2pConfig(WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
+                                    passphrase = passphrase,
+                                    networkName = name
+                            )).build()!!.fakeWifiP2pConfig()
 
                             retryDelay(initiateConnection(fakeConfig.asConfig()), 20, 1)
                                 .andThen(awaitConnection(timeout))

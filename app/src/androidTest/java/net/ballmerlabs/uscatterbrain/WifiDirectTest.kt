@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.content.Context
+import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Parcel
@@ -23,6 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import javax.inject.Provider
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 @SmallTest
@@ -58,15 +60,6 @@ class WifiDirectTest {
                 database,
                 scheduler,
                 prefs
-        )
-        radioModule = WifiDirectRadioModuleImpl(
-                manager,
-                ctx,
-                datastore,
-                prefs,
-                scheduler,
-                channel,
-                broadcastReceiver
         )
         radioModule.registerReceiver()
     }
@@ -107,9 +100,10 @@ class WifiDirectTest {
     fun testHack() {
         val pass = "fmefthisisahorriblepassphrase"
         val name = "DIRECT-fmoo"
-        val fakeConfig = FakeWifiP2pConfig(
+        val fakeConfig = FakeWifiP2pConfigImpl(
                 passphrase = pass,
-                networkName = name
+                networkName = name,
+                wpsInfo = WpsInfo()
         )
 
         val parcel = Parcel.obtain()

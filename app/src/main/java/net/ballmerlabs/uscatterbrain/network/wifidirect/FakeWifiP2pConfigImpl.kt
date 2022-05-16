@@ -4,6 +4,14 @@ import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import android.os.Parcel
 import android.os.Parcelable
+import net.ballmerlabs.uscatterbrain.WifiDirectInfoScope
+import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
+import javax.inject.Inject
+import javax.inject.Named
+
+fun getWpsInfo(): WpsInfo {
+    return WpsInfo()
+}
 
 /**
  * Incredibly hacky kludge to allow creating a wifi direct group with a custom
@@ -15,22 +23,22 @@ import android.os.Parcelable
  * @property passphrase desired passphrase
  * @property deviceAddress address of remote device to connect to
  * @property networkName name of wifidirect network to connect to
- * @property netId internal use only, leave this default
- * @property groupOwnerBand 2.4 or 5ghz
- * @property groupownerIntent how likely are we to be a group owner
  * @property wpsInfo internal use
  *
  */
-class FakeWifiP2pConfig(
-        val passphrase: String? = "",
-        val deviceAddress: String? = "02:00:00:00:00:00",
-        val networkName: String? = "",
-        val netId: Int = NETWORK_ID_PERSISTENT,
-        val groupOwnerBand: Int = GROUP_OWNER_BAND_AUTO,
-        val groupownerIntent: Int = GROUP_OWNER_INTENT_AUTO,
-        val wpsInfo: WpsInfo? = WpsInfo(),
+@WifiDirectInfoScope
+class FakeWifiP2pConfigImpl @Inject constructor(
+        @Named(WifiDirectInfoSubcomponent.PASSPHRASE) val passphrase: String? = "",
+        @Named(WifiDirectInfoSubcomponent.MAC_ADDRESS) val deviceAddress: String? = "02:00:00:00:00:00",
+        @Named(WifiDirectInfoSubcomponent.NETWORK_NAME) val networkName: String? = "",
+        val wpsInfo: WpsInfo?,
 ) : Parcelable {
 
+
+
+    var netId: Int = NETWORK_ID_PERSISTENT
+    var groupOwnerBand: Int = GROUP_OWNER_BAND_AUTO
+    var groupownerIntent: Int = GROUP_OWNER_INTENT_AUTO
     /**
      * Converts into vanilla WifiP2pConfig by parceling/unparceling
      * @return WifiP2pConfig
@@ -57,8 +65,8 @@ class FakeWifiP2pConfig(
         return 0
     }
 
-    companion object CREATOR : Parcelable.Creator<FakeWifiP2pConfig> {
-        override fun createFromParcel(parcel: Parcel): FakeWifiP2pConfig {
+    companion object CREATOR : Parcelable.Creator<FakeWifiP2pConfigImpl> {
+        override fun createFromParcel(parcel: Parcel): FakeWifiP2pConfigImpl {
             val deviceAddress = parcel.readString()
             val wpsInfo = parcel.readParcelable<WpsInfo>(WpsInfo::class.java.classLoader)
             val groupownerIntent = parcel.readInt()
@@ -66,18 +74,19 @@ class FakeWifiP2pConfig(
             val networkName = parcel.readString()
             val passphrase = parcel.readString()
             val groupOwnerBand = parcel.readInt()
-            return FakeWifiP2pConfig(
+            val res = FakeWifiP2pConfigImpl(
                     deviceAddress = deviceAddress,
                     wpsInfo = wpsInfo,
-                    groupownerIntent = groupownerIntent,
-                    netId = netId,
                     networkName = networkName,
                     passphrase = passphrase,
-                    groupOwnerBand = groupOwnerBand
             )
+            res.groupownerIntent = groupownerIntent
+            res.netId = netId
+            res.groupOwnerBand = groupOwnerBand
+            return res
         }
 
-        override fun newArray(size: Int): Array<FakeWifiP2pConfig?> {
+        override fun newArray(size: Int): Array<FakeWifiP2pConfigImpl?> {
             return arrayOfNulls(size)
         }
 

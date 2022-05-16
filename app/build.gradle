@@ -132,7 +132,11 @@ dependencies {
     implementation 'net.java.dev.jna:jna:5.8.0@aar'
 
     implementation "com.google.dagger:dagger:$rootProject.ext.daggerVersion"
+    testImplementation "com.google.dagger:dagger:$rootProject.ext.daggerVersion"
+
     kapt "com.google.dagger:dagger-compiler:$rootProject.ext.daggerVersion"
+    kaptTest "com.google.dagger:dagger-compiler:$rootProject.ext.daggerVersion"
+
 
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
 

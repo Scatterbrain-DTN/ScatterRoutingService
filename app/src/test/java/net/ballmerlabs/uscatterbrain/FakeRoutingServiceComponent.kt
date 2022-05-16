@@ -11,26 +11,27 @@ import com.polidea.rxandroidble2.RxBleClient
 import dagger.*
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.RoutingServiceModule
 import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiverImpl
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapperImpl
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import java.net.InetAddress
 import javax.inject.Named
 import javax.inject.Singleton
 
 @Singleton
-@Component(modules = [RoutingServiceModule::class])
-interface RoutingServiceComponent {
+@Component(modules = [FakeRoutingServiceComponent.FakeRoutingServiceModule::class])
+interface FakeRoutingServiceComponent {
     object NamedSchedulers {
         const val DATABASE = "executor_database"
         const val BLE_CLIENT = "scheduler-ble-client"
@@ -42,11 +43,11 @@ interface RoutingServiceComponent {
     interface Builder {
         @BindsInstance
         fun applicationContext(context: Context): Builder?
-        fun build(): RoutingServiceComponent?
+        fun build(): FakeRoutingServiceComponent?
     }
 
-    @Module(subcomponents = [WifiDirectInfoSubcomponent::class])
-    abstract class RoutingServiceModule {
+    @Module(subcomponents = [FakeWifiDirectInfoSubcomponent::class])
+    abstract class FakeRoutingServiceModule {
         @Binds
         @Singleton
         abstract fun bindsRoutingServiceBackend(impl: RoutingServiceBackendImpl): RoutingServiceBackend
@@ -94,6 +95,15 @@ interface RoutingServiceComponent {
                         .build()
             }
 
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesWifiDirectSubcomponent(builder: FakeWifiDirectInfoSubcomponent.Builder): WifiDirectInfoSubcomponent.Builder {
+                return builder
+            }
+
+
             @Provides
             @JvmStatic
             @Singleton
@@ -104,8 +114,33 @@ interface RoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            fun providesWifiP2pManager(ctx: Context?): WifiP2pManager {
-                return ctx!!.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
+            fun providesMockWifiDirectBroadcastReceiver(): MockWifiDirectBroadcastReceiver {
+                return MockWifiDirectBroadcastReceiver(mock())
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesWifiP2pManager(ctx: Context?, broadcastReceiver: MockWifiDirectBroadcastReceiver): WifiP2pManager {
+                return  mock<WifiP2pManager> {
+                    on { connect(any(), any(), any()) } doAnswer { ans ->
+                        val callback = ans.arguments[2] as WifiP2pManager.ActionListener
+                        callback.onSuccess()
+                    }
+                    on { requestGroupInfo(any(), any()) } doAnswer { ans ->
+                        val callback = ans.arguments[1] as WifiP2pManager.GroupInfoListener
+                        callback.onGroupInfoAvailable(null)
+                        broadcastReceiver.connectionInfoRelay.accept(mock {
+                            on { isGroupOwner() } doReturn false
+                            on { groupFormed() } doReturn true
+                            on { groupOwnerAddress() } doReturn InetAddress.getLocalHost()
+                        })
+                    }
+                    on { requestConnectionInfo(any(), any()) } doAnswer { ans ->
+                        val callback = ans.arguments[1] as WifiP2pManager.ConnectionInfoListener
+                        callback.onConnectionInfoAvailable(mock{})
+                    }
+                }
             }
 
             @Provides
@@ -156,7 +191,7 @@ interface RoutingServiceComponent {
             @Provides
             @JvmStatic
             fun providesSharedPreferences(context: Context?): SharedPreferences {
-                return context!!.getSharedPreferences(SHARED_PREFS, Context.MODE_PRIVATE)
+                return mock()
             }
 
             @Provides
@@ -165,10 +200,11 @@ interface RoutingServiceComponent {
                 return context!!.getSystemService(Context.POWER_SERVICE) as PowerManager
             }
         }
-        
+
     }
 
     fun scatterRoutingService(): RoutingServiceBackend?
+    fun wifiDirectModule(): WifiDirectRadioModule?
     fun inject(provider: DatastoreImportProviderImpl?)
 
     companion object {

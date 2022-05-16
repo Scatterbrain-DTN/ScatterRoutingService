@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pManager
 import io.reactivex.schedulers.TestScheduler
+import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.wifidirect.MockWifiDirectBroadcastReceiver
@@ -42,13 +43,8 @@ class WifiDirectTest {
     @Mock
     private lateinit var datastore: ScatterbrainDatastore
 
-    private val preferences: RouterPreferences = MockRouterPreferences()
-
     @Mock
     private lateinit var channel: WifiP2pManager.Channel
-
-    private val broadcastReceiver = MockWifiDirectBroadcastReceiver(mock())
-
 
     @Test
     fun connectGroupTest() {
@@ -59,37 +55,10 @@ class WifiDirectTest {
             on { networkName } doReturn name
         }
 
-        val wifiP2pManager = mock<WifiP2pManager> {
-            on { connect(any(), any(), any()) } doAnswer { ans ->
-                val callback = ans.arguments[2] as WifiP2pManager.ActionListener
-                callback.onSuccess()
-            }
-            on { requestGroupInfo(any(), any()) } doAnswer { ans ->
-                val callback = ans.arguments[1] as WifiP2pManager.GroupInfoListener
-                callback.onGroupInfoAvailable(group)
-                broadcastReceiver.connectionInfoRelay.accept(mock {
-                    on { isGroupOwner() } doReturn false
-                    on { groupFormed() } doReturn true
-                    on { groupOwnerAddress() } doReturn InetAddress.getLocalHost()
-                })
-            }
-            on { requestConnectionInfo(any(), any()) } doAnswer { ans ->
-                val callback = ans.arguments[1] as WifiP2pManager.ConnectionInfoListener
-                callback.onConnectionInfoAvailable(mock{
-                    on { groupOwnerAddress } doReturn InetAddress.getLocalHost()
-                })
-            }
-        }
-
-        val module = WifiDirectRadioModuleImpl(
-                wifiP2pManager,
-                context,
-                datastore,
-                preferences,
-                scheduler,
-                channel,
-                broadcastReceiver
-        )
+        val module = DaggerFakeRoutingServiceComponent.builder()
+                .applicationContext(context)
+                ?.build()!!
+                .wifiDirectModule()!!
 
         val info = module.connectToGroup(name, pass, 0)
                 .timeout(10, TimeUnit.SECONDS)
