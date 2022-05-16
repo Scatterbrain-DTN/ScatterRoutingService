@@ -8,11 +8,13 @@ import android.content.pm.PackageManager
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pInfo
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver.P2pState
 import android.net.wifi.p2p.WifiP2pManager
 import android.net.wifi.p2p.WifiP2pManager.*
 import androidx.core.app.ActivityCompat
 import io.reactivex.Observable
 import io.reactivex.Scheduler
+import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.util.scatterLog
@@ -34,10 +36,6 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
 ) : BroadcastReceiver(), WifiDirectBroadcastReceiver {
     
     private val LOG by scatterLog()
-    
-    enum class P2pState {
-        STATE_DISABLED, STATE_ENABLED
-    }
 
     private val thisDeviceChangedSubject = BehaviorSubject.create<WifiP2pDevice>().toSerialized()
     private val connectionSubject = BehaviorSubject.create<WifiP2pInfo>().toSerialized()
@@ -104,8 +102,10 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
         return thisDeviceChangedSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
     }
 
-    override fun observeConnectionInfo(): Observable<WifiP2pInfo> {
-        return connectionSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
+    override fun observeConnectionInfo(): Observable<WifiDirectInfo> {
+        return connectionSubject.
+                map { i -> wifiDirectInfo(i) }
+                .delay(0, TimeUnit.SECONDS, operationScheduler)
     }
 
     override fun observePeers(): Observable<WifiP2pDeviceList> {

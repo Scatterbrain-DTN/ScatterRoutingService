@@ -45,11 +45,11 @@ android {
 
     testOptions {
         unitTests.all {
+            includeAndroidResources = true
             jacoco {
                 includeNoLocationClasses = true
             }
         }
-        unitTests.returnDefaultValues = true
     }
 
     packagingOptions {
@@ -71,10 +71,6 @@ android {
 
     useLibrary 'android.test.base'
     useLibrary 'android.test.mock'
-}
-
-androidGroovy {
-    skipJavaC = true
 }
 
 protobuf {
@@ -131,14 +127,6 @@ dependencies {
     androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.2.0'
     androidTestImplementation "androidx.room:room-testing:2.4.2"
 
-    //robolectric and spock
-    testImplementation  'org.codehaus.groovy:groovy:2.4.7:grooid'
-    testImplementation 'com.github.hkhc:electricspock:0.9'
-    testImplementation 'org.codehaus.groovy:groovy-all:2.5.13'
-    testImplementation 'org.codehaus.groovy:groovy:3.0.7'
-    testImplementation 'org.spockframework:spock-core:1.2-groovy-2.5'
-    testImplementation 'junit:junit:4.13.2'
-
     //lazysodium cryptographic library
     implementation "com.goterl:lazysodium-android:5.0.2@aar"
     implementation 'net.java.dev.jna:jna:5.8.0@aar'
@@ -147,6 +135,7 @@ dependencies {
     kapt "com.google.dagger:dagger-compiler:$rootProject.ext.daggerVersion"
 
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
+
     implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
 
     implementation "androidx.room:room-rxjava2:2.4.2"
@@ -156,7 +145,19 @@ dependencies {
     androidTestImplementation 'androidx.test:core:1.4.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'com.google.firebase:firebase-crashlytics:18.2.10'
+    androidTestImplementation 'com.google.firebase:firebase-crashlytics:18.2.10'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.2'
+    // Required -- JUnit 4 framework
+    testImplementation "junit:junit:4.13.2"
+    // Optional -- Robolectric environment
+    testImplementation "androidx.test:core:1.4.0"
+    testImplementation 'org.robolectric:robolectric:4.8'
+    // Optional -- Mockito framework
+    testImplementation "org.mockito:mockito-core:4.0.0"
+    // Optional -- mockito-kotlin
+    testImplementation "org.mockito.kotlin:mockito-kotlin:4.0.0"
+    // Optional -- Mockk framework
+    testImplementation "io.mockk:mockk:1.9.1"
 }
 repositories {
     mavenCentral()

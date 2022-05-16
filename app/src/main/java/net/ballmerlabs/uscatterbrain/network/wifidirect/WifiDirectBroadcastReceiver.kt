@@ -10,11 +10,16 @@ import io.reactivex.Observable
  * dagger2 interface for WifiDirectBroadcastReceiver
  */
 interface WifiDirectBroadcastReceiver {
+
+    enum class P2pState {
+        STATE_DISABLED, STATE_ENABLED
+    }
+
     /**
      * observe wifi p2p state
      * @return Observable emitting P2pState objects
      */
-    fun observeP2pState(): Observable<WifiDirectBroadcastReceiverImpl.P2pState>
+    fun observeP2pState(): Observable<P2pState>
 
     /**
      * @return Observable emitting WifiP2pDevice
@@ -24,7 +29,7 @@ interface WifiDirectBroadcastReceiver {
     /**
      * @return Observable emitting WifiP2pInfo
      */
-    fun observeConnectionInfo(): Observable<WifiP2pInfo>
+    fun observeConnectionInfo(): Observable<WifiDirectInfo>
 
     /**
      * Observe connected devices

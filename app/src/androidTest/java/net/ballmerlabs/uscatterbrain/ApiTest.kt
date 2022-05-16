@@ -17,6 +17,7 @@ import kotlin.random.Random
 @RunWith(AndroidJUnit4ClassRunner::class)
 @SmallTest
 class ApiTest: TestBase() {
+
     fun syncSendMessage(message: ScatterMessage) {
         regularBinder.sendMessage(message)
     }

@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import androidx.test.core.app.ApplicationProvider
@@ -28,6 +29,7 @@ abstract class TestBase {
     @ExperimentalCoroutinesApi
     @Before
     open fun init() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
         val bindIntet = Intent(
                 ApplicationProvider.getApplicationContext(),
                 ScatterRoutingService::class.java

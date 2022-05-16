@@ -18,6 +18,7 @@ import net.ballmerlabs.uscatterbrain.R;
 import net.ballmerlabs.uscatterbrain.ScatterRoutingService;
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore;
 import net.ballmerlabs.uscatterbrain.util.Logger;
+import net.ballmerlabs.uscatterbrain.util.LoggerImpl;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -48,7 +49,7 @@ import javax.inject.Singleton;
 @Singleton
 public class DatastoreImportProviderImpl extends DocumentsProvider
         implements DatastoreImportProvider {
-    private static final Logger LOG = new Logger(DatastoreImportProviderImpl.class);
+    private static final Logger LOG = new LoggerImpl(DatastoreImportProviderImpl.class);
     private static final String USER_ROOT_ID = "/userroot/";
     private static final String CACHE_ROOT_ID = "/cacheroot/";
     private static final String[] DEFAULT_ROOT = new String[] {

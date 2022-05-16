@@ -1,6 +1,9 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
+import com.google.firebase.FirebaseApp
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.Hash
@@ -8,6 +11,7 @@ import com.goterl.lazysodium.interfaces.Sign
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.network.*
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayInputStream
@@ -18,6 +22,11 @@ import java.util.*
 class ProtocolTests {
     private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
 
+    @Before
+    fun init() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        FirebaseApp.initializeApp(ctx)
+    }
 
     private inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> testSerialize(
             parser: ScatterSerializable.Companion.Parser<V,T>,

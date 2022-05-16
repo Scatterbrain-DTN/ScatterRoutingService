@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.wifi.p2p.*
-import android.os.Looper
 import androidx.core.app.ActivityCompat
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import io.reactivex.*
@@ -22,6 +21,8 @@ import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
+import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -54,15 +55,19 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         private val preferences: RouterPreferences,
         @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
         private val channel: WifiP2pManager.Channel,
-        private val mBroadcastReceiver: WifiDirectBroadcastReceiver
+        private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
+        private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper()
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
     private val groupOperationInProgress = AtomicReference(false)
     private val groupConnectInProgress = AtomicReference(false)
     private val groupRemoveInProgress = AtomicReference(false)
-    private val serverSocket = retryDelay(Single.fromCallable {
-        ServerSocket(SCATTERBRAIN_PORT)
-    }.cache(), 1)
+    private val serverSocket = retryDelay(
+            Single.fromCallable {
+                ServerSocket(SCATTERBRAIN_PORT)
+            }.cache(),
+            1
+    ).doOnError { err -> firebaseWrapper.recordException(err) }
 
         /*
          * we need to unregister and register the receiver when
@@ -74,7 +79,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             try {
                 mContext.unregisterReceiver(mBroadcastReceiver.asReceiver())
             } catch (illegalArgumentException: IllegalArgumentException) {
-                FirebaseCrashlytics.getInstance().recordException(illegalArgumentException)
+                //firebaseWrapper.recordException(illegalArgumentException)
                 LOG.w("attempted to unregister nonexistent receiver, ignore.")
             }
         }
@@ -97,40 +102,29 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
         private fun createGroupSingle(): Completable {
             return Completable.defer {
-                val groupRetry = AtomicReference(20)
                 val subject = CompletableSubject.create()
-                if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    Completable.error(SecurityException("invalid permissions"))
-                } else {
+               try {
                     val listener = object : WifiP2pManager.ActionListener {
                         override fun onSuccess() {
                             LOG.v("successfully created group!")
-                            if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                                subject.onError(SecurityException("invalid permission"))
-                            } else {
                                 subject.onComplete()
-                            }
                         }
 
                         override fun onFailure(reason: Int) {
                             LOG.w("failed to create group: ${reasonCodeToString(reason)}")
-                            if (groupRetry.getAndSet(groupRetry.get() - 1) > 0 &&
-                                ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                            ) {
-                                mManager.createGroup(channel, this)
-                            } else {
-                                subject.onError(IllegalStateException("failed to create group ${reasonCodeToString(reason)}"))
-                            }
+                            subject.onError(IllegalStateException("failed to create group ${reasonCodeToString(reason)}"))
                         }
                     }
                     mBroadcastReceiver.observeConnectionInfo()
                         .doOnSubscribe { if (!groupOperationInProgress.getAndSet(true)) mManager.createGroup(channel, listener) }
                         .doOnError { err -> LOG.e("createGroup error: $err") }
-                        .takeUntil { wifiP2pInfo -> (wifiP2pInfo.groupFormed && wifiP2pInfo.isGroupOwner) }
+                        .takeUntil { wifiP2pInfo -> (wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner()) }
                         .ignoreElements()
                         .doOnComplete { LOG.v("createGroup return success") }
                         .doFinally { groupOperationInProgress.set(false) }
                         .andThen(subject)
+                } catch (exc: SecurityException) {
+                    Completable.error(exc)
                 }
             }
 
@@ -147,15 +141,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         subject.onSuccess(groupInfo)
                     }
                 }
-                if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    val error = SecurityException("invalid permission")
-                    FirebaseCrashlytics.getInstance().recordException(error)
-                    subject.onError(error)
-                } else {
+                try {
                     mManager.requestGroupInfo(channel, listener)
+                } catch (exc: SecurityException) {
+                    firebaseWrapper.recordException(exc)
+                    subject.onError(exc)
                 }
                 subject
-            }.doOnError { err -> FirebaseCrashlytics.getInstance().recordException(err) }
+            }.doOnError { err -> firebaseWrapper.recordException(err) }
         }
 
         /**
@@ -163,10 +156,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
          */
         override fun createGroup(): Single<WifiDirectBootstrapRequest> {
             return Single.defer {
-                if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    Single.error(SecurityException("invalid permission"))
-                } else {
-                    requestGroupInfo()
+                requestGroupInfo()
                         .switchIfEmpty(createGroupSingle().andThen(requestGroupInfo()))
                         .map { groupInfo ->
                             WifiDirectBootstrapRequest.create(
@@ -176,8 +166,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                         }
                         .toSingle()
-                }
-            }.doOnError { err -> FirebaseCrashlytics.getInstance().recordException(err) }
+            }.doOnError { err -> firebaseWrapper.recordException(err) }
         }
 
         override fun removeGroup(): Completable {
@@ -203,7 +192,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             }
                             .andThen(mBroadcastReceiver.observeConnectionInfo()
                                     .doOnError { err -> LOG.e("removeGroup error: $err") }
-                                    .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed }
+                                    .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed() }
                                     .ignoreElements()
                                     .doOnComplete { LOG.v("removeGroup return success") }
                                     .doFinally { groupRemoveInProgress.set(false) }
@@ -213,7 +202,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
 
             return retryDelay(c, 10, 1)
-                    .doOnError { err -> FirebaseCrashlytics.getInstance().recordException(err) }
+                    .doOnError { err -> firebaseWrapper.recordException(err) }
         }
 
         private fun getTcpSocket(address: InetAddress): Single<Socket> {
@@ -221,12 +210,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .subscribeOn(operationsScheduler)
         }
 
-        override fun connectToGroup(name: String, passphrase: String, timeout: Int): Single<WifiP2pInfo> {
+        override fun connectToGroup(name: String, passphrase: String, timeout: Int): Single<WifiDirectInfo> {
             return Single.defer {
-                val subject = SingleSubject.create<WifiP2pInfo>()
+                val subject = SingleSubject.create<WifiDirectInfo>()
 
                 val infoListener = WifiP2pManager.ConnectionInfoListener { info ->
-                    subject.onSuccess(info)
+                    subject.onSuccess(wifiDirectInfo(info))
                 }
 
                 val groupListener = WifiP2pManager.GroupInfoListener { group ->
@@ -249,23 +238,21 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                     }
                 }
-                if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION)
-                    != PackageManager.PERMISSION_GRANTED) {
-                    val exc = SecurityException("needs fine location")
-                    FirebaseCrashlytics.getInstance().recordException(exc)
-                    Single.error(exc)
-                } else {
-                    try {
-                        mManager.requestGroupInfo(channel, groupListener)
-                    } catch (exc: Exception) {
-                        LOG.e("failed to requestGroupInfo: $exc")
-                        FirebaseCrashlytics.getInstance().recordException(exc)
-                        throw exc
-                    }
-                    subject
+                try {
+                    mManager.requestGroupInfo(channel, groupListener)
+                } catch (exc: Exception) {
+                    LOG.e("failed to requestGroupInfo: $exc")
+                    firebaseWrapper.recordException(exc)
+                    exc.printStackTrace()
+                    subject.onError(exc)
+                } catch (exc: SecurityException) {
+                    LOG.e("needs fine location permission")
+                    firebaseWrapper.recordException(exc)
+                    subject.onError(exc)
                 }
+                subject
 
-            }.doOnError { err -> FirebaseCrashlytics.getInstance().recordException(err) }
+            }.doOnError { err -> firebaseWrapper.recordException(err) }
         }
 
         /*
@@ -273,9 +260,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
          */
         private fun initiateConnection(config: WifiP2pConfig): Completable {
             return Completable.defer {
-                LOG.e(" mylooper " + (Looper.myLooper() == Looper.getMainLooper()))
                 val subject = CompletableSubject.create()
-                val connectRetry = AtomicReference(10)
                 try {
 
                     val connectListener = object : WifiP2pManager.ActionListener {
@@ -286,32 +271,22 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                         override fun onFailure(reason: Int) {
                             LOG.e("failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(reason))
-                            if (connectRetry.getAndSet(connectRetry.get() - 1) > 0) {
-                                try {
-                                    mManager.connect(channel, config, this)
-                                } catch (exc: Exception) {
-                                    LOG.e("wifi p2p failed to retry ${connectRetry.get()}: $exc")
-                                    FirebaseCrashlytics.getInstance().recordException(exc)
-                                    subject.onError(exc)
-                                }
-                            } else {
-                                subject.onError(IllegalStateException("failed to connect to group: " + reasonCodeToString(reason)))
-                            }
+                            subject.onError(IllegalStateException("failed to connect to group: " + reasonCodeToString(reason)))
                         }
                     }
 
                     try {
                         mManager.connect(channel, config, connectListener)
+                        subject
                     } catch (exc: Exception) {
                         LOG.e("wifi p2p failed to connect: ${exc.message}")
-                        FirebaseCrashlytics.getInstance().recordException(exc)
+                        firebaseWrapper.recordException(exc)
                         exc.printStackTrace()
-                        throw exc
+                        Completable.error(exc)
                     }
-                    return@defer subject
                 } catch (e: SecurityException) {
                     LOG.e("wifi p2p threw SecurityException $e")
-                    FirebaseCrashlytics.getInstance().recordException(e)
+                    firebaseWrapper.recordException(e)
                     return@defer Completable.error(e)
                 }
             }
@@ -408,13 +383,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
          * wait for the BroadcastReceiver to say we are connected to a
          * group
          */
-        private fun awaitConnection(timeout: Int): Single<WifiP2pInfo> {
+        private fun awaitConnection(timeout: Int): Single<WifiDirectInfo> {
             return mBroadcastReceiver.observeConnectionInfo()
-                .takeUntil { info -> info.groupFormed && !info.isGroupOwner }
+                .takeUntil { info -> info.groupFormed() && !info.isGroupOwner() }
                 .lastOrError()
                 .timeout(timeout.toLong(), TimeUnit.SECONDS, operationsScheduler)
-                .doOnSuccess { info: WifiP2pInfo -> LOG.v("connect to group returned: " + info.groupOwnerAddress) }
-                .doOnError { err: Throwable -> LOG.e("connect to group failed: $err") }
+                .doOnSuccess { info -> LOG.v("connect to group returned: " + info.groupOwnerAddress()) }
+                .doOnError { err -> LOG.e("connect to group failed: $err") }
                 .doFinally { groupConnectInProgress.set(false) }
         }
 
@@ -493,7 +468,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         120
                     ), 10, 1)
                         .flatMap { info ->
-                            getTcpSocket(info.groupOwnerAddress)
+                            getTcpSocket(info.groupOwnerAddress()!!)
                                 .flatMap { socket ->
                                     routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
                                         .ignoreElements()

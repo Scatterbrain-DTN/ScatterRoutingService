@@ -27,7 +27,7 @@ interface WifiDirectRadioModule {
      * @param timeout emits error from single if no connection is established within this many seconds
      * @return single emitting WifiP2pInfo if connection is successful, called onError if failed or timed out
      */
-    fun connectToGroup(name: String, passphrase: String, timeout: Int): Single<WifiP2pInfo>
+    fun connectToGroup(name: String, passphrase: String, timeout: Int): Single<WifiDirectInfo>
 
     /**
      * performs an automatic handshake with a peer specified by a WifiDirectBootstrapRequest object

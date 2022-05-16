@@ -23,6 +23,8 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
+import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.FirebaseWrapperImpl
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -76,6 +78,10 @@ interface RoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun provideWifiDirectBroadcastReceiver(impl: WifiDirectBroadcastReceiverImpl): WifiDirectBroadcastReceiver
+
+        @Binds
+        @Singleton
+        abstract fun bindsFirebaseWrapper(impl: FirebaseWrapperImpl): FirebaseWrapper
 
         @Module
         companion object {

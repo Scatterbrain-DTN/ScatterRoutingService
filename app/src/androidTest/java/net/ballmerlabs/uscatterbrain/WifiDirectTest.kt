@@ -9,6 +9,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
+import com.google.firebase.FirebaseApp
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.Companion.SHARED_PREFS
 import net.ballmerlabs.uscatterbrain.db.Datastore
@@ -38,6 +39,7 @@ class WifiDirectTest {
     @Before
     fun init() {
         ctx = ApplicationProvider.getApplicationContext()
+        FirebaseApp.initializeApp(ctx)
         val manager = ctx.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         val channel = manager.initialize(ctx, ctx.mainLooper, null)
         broadcastReceiver = WifiDirectBroadcastReceiverImpl(
