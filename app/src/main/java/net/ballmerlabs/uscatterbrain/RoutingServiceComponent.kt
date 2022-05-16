@@ -166,6 +166,7 @@ interface RoutingServiceComponent {
     }
 
     fun scatterRoutingService(): RoutingServiceBackend?
+    fun wifiDirectRadioModule(): WifiDirectRadioModule
     fun inject(provider: DatastoreImportProviderImpl?)
 
     companion object {

@@ -60,6 +60,9 @@ class WifiDirectTest {
                 scheduler,
                 prefs
         )
+        radioModule = DaggerRoutingServiceComponent.builder()
+                .applicationContext(ctx)
+                ?.build()!!.wifiDirectRadioModule()
         radioModule.registerReceiver()
     }
 

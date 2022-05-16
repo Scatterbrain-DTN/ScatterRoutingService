@@ -123,7 +123,7 @@ interface FakeRoutingServiceComponent {
             @JvmStatic
             @Singleton
             fun providesWifiP2pManager(ctx: Context?, broadcastReceiver: MockWifiDirectBroadcastReceiver): WifiP2pManager {
-                return  mock<WifiP2pManager> {
+                return  mock {
                     on { connect(any(), any(), any()) } doAnswer { ans ->
                         val callback = ans.arguments[2] as WifiP2pManager.ActionListener
                         callback.onSuccess()
