@@ -17,10 +17,7 @@ import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiverImpl
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper

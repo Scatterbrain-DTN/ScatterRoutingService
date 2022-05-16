@@ -9,6 +9,7 @@ import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.GROUP_OWNER_BAND_AUTO
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.GROUP_OWNER_INTENT_AUTO
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.NETWORK_ID_PERSISTENT
+import org.mockito.kotlin.mock
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -30,7 +31,7 @@ fun getWpsInfo(): WpsInfo {
  *
  */
 @WifiDirectInfoScope
-class FakeWifiP2pConfigImpl @Inject constructor(
+class MockFakeWifiP2pConfigImpl @Inject constructor(
         @Named(WifiDirectInfoSubcomponent.PASSPHRASE) val passphrase: String? = "",
         @Named(WifiDirectInfoSubcomponent.MAC_ADDRESS) val deviceAddress: String? = "02:00:00:00:00:00",
         @Named(WifiDirectInfoSubcomponent.NETWORK_NAME) val networkName: String? = "",
@@ -47,11 +48,7 @@ class FakeWifiP2pConfigImpl @Inject constructor(
      * @return WifiP2pConfig
      */
     override fun asConfig(): WifiP2pConfig {
-        val parcel = Parcel.obtain()
-        parcel.writeString(WifiP2pConfig::class.java.name)
-        this.writeToParcel(parcel, 0)
-        parcel.setDataPosition(0)
-        return parcel.readParcelable(WifiP2pConfig::class.java.classLoader)!!
+        return mock {  }
     }
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {

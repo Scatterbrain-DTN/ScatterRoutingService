@@ -2,16 +2,15 @@
 
 package net.ballmerlabs.uscatterbrain
 import android.net.wifi.WpsInfo
-import dagger.BindsInstance
-import dagger.Module
-import dagger.Provides
-import dagger.Subcomponent
+import dagger.*
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent.Companion.MAC_ADDRESS
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent.Companion.NETWORK_NAME
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent.Companion.PASSPHRASE
-import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfigImpl
+import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
+import net.ballmerlabs.uscatterbrain.network.wifidirect.MockFakeWifiP2pConfigImpl
 import org.mockito.kotlin.mock
 import javax.inject.Named
+import javax.inject.Singleton
 
 
 @Subcomponent(modules = [FakeWifiDirectInfoSubcomponent.FakeWifiDirectDaggerModule::class])
@@ -28,6 +27,10 @@ interface FakeWifiDirectInfoSubcomponent: WifiDirectInfoSubcomponent {
 
     @Module
     abstract class FakeWifiDirectDaggerModule {
+
+        @Binds
+        @WifiDirectInfoScope
+        abstract fun bindsFakeConfig(config: MockFakeWifiP2pConfigImpl): FakeWifiP2pConfig
 
         @Module
         companion object {
@@ -64,7 +67,7 @@ interface FakeWifiDirectInfoSubcomponent: WifiDirectInfoSubcomponent {
     }
 
 
-    override fun fakeWifiP2pConfig(): FakeWifiP2pConfigImpl
+    override fun fakeWifiP2pConfig(): FakeWifiP2pConfig
 
 
 }

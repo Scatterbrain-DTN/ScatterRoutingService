@@ -1,10 +1,8 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.net.wifi.WpsInfo
-import dagger.BindsInstance
-import dagger.Module
-import dagger.Provides
-import dagger.Subcomponent
+import dagger.*
+import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfigImpl
 import javax.inject.Named
 
@@ -35,6 +33,10 @@ interface WifiDirectInfoSubcomponent {
 
     @Module
     abstract class WifiDirectDaggerModule {
+
+        @Binds
+        @WifiDirectInfoScope
+        abstract fun bindsFakeConfig(config: FakeWifiP2pConfigImpl): FakeWifiP2pConfig
 
         @Module
         companion object {
@@ -71,7 +73,7 @@ interface WifiDirectInfoSubcomponent {
     }
 
 
-    fun fakeWifiP2pConfig(): FakeWifiP2pConfigImpl
+    fun fakeWifiP2pConfig(): FakeWifiP2pConfig
 
 
 }
