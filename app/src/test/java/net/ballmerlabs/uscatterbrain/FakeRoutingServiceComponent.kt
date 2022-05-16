@@ -137,10 +137,6 @@ interface FakeRoutingServiceComponent {
                             on { groupOwnerAddress() } doReturn InetAddress.getLocalHost()
                         })
                     }
-                    on { requestConnectionInfo(any(), any()) } doAnswer { ans ->
-                        val callback = ans.arguments[1] as WifiP2pManager.ConnectionInfoListener
-                        callback.onConnectionInfoAvailable(mock{})
-                    }
                 }
             }
 

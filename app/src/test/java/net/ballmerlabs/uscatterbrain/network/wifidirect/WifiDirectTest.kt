@@ -48,19 +48,12 @@ class WifiDirectTest {
 
     @Test
     fun connectGroupTest() {
-
-        val group = mock<WifiP2pGroup> {
-            on { isGroupOwner } doReturn false
-            on { passphrase } doReturn pass
-            on { networkName } doReturn name
-        }
-
         val module = DaggerFakeRoutingServiceComponent.builder()
                 .applicationContext(context)
                 ?.build()!!
                 .wifiDirectModule()!!
 
-        val info = module.connectToGroup(name, pass, 0)
+        val info = module.connectToGroup(name, pass, 10)
                 .timeout(10, TimeUnit.SECONDS)
                 .blockingGet()
 
