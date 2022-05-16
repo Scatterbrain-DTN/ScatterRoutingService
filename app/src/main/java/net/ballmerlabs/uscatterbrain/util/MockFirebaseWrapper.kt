@@ -1,6 +1,10 @@
 package net.ballmerlabs.uscatterbrain.util
 
-class MockFirebaseWrapper: FirebaseWrapper {
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class MockFirebaseWrapper @Inject constructor(): FirebaseWrapper {
     override fun recordException(exception: Throwable) {
         //donothing
     }

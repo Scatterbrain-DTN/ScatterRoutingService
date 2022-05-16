@@ -21,6 +21,7 @@ import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapperImpl
+import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
@@ -58,7 +59,7 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun bindDatastore(impl: ScatterbrainDatastoreImpl): ScatterbrainDatastore
+        abstract fun bindDatastore(impl: MockScatterbrainDatastore): ScatterbrainDatastore
 
         @Binds
         @Singleton
@@ -78,11 +79,11 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun provideWifiDirectBroadcastReceiver(impl: WifiDirectBroadcastReceiverImpl): WifiDirectBroadcastReceiver
+        abstract fun provideWifiDirectBroadcastReceiver(impl: MockWifiDirectBroadcastReceiver): WifiDirectBroadcastReceiver
 
         @Binds
         @Singleton
-        abstract fun bindsFirebaseWrapper(impl: FirebaseWrapperImpl): FirebaseWrapper
+        abstract fun bindsFirebaseWrapper(impl: MockFirebaseWrapper): FirebaseWrapper
 
         @Module
         companion object {
@@ -108,7 +109,7 @@ interface FakeRoutingServiceComponent {
             @JvmStatic
             @Singleton
             fun providesChannel(ctx: Context?, wifiP2pManager: WifiP2pManager?): WifiP2pManager.Channel {
-                return wifiP2pManager!!.initialize(ctx, ctx!!.mainLooper, null)
+                return mock {  }
             }
 
             @Provides

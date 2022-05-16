@@ -10,6 +10,7 @@ import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent.Companion.MAC_AD
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent.Companion.NETWORK_NAME
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent.Companion.PASSPHRASE
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfigImpl
+import org.mockito.kotlin.mock
 import javax.inject.Named
 
 
@@ -34,7 +35,7 @@ interface FakeWifiDirectInfoSubcomponent: WifiDirectInfoSubcomponent {
             @JvmStatic
             @WifiDirectInfoScope
             fun providesWpsInfo(): WpsInfo {
-                return WpsInfo()
+                return mock {  }
             }
 
             @Provides
