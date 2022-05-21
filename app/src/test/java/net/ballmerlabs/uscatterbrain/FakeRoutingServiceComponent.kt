@@ -29,6 +29,7 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import java.net.InetAddress
 import javax.inject.Named
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
@@ -188,6 +189,7 @@ interface FakeRoutingServiceComponent {
 
     fun scatterRoutingService(): RoutingServiceBackend?
     fun wifiDirectModule(): WifiDirectRadioModule?
+    fun bootstrapSubcomponent(): Provider<BootstrapRequestSubcomponent.Builder>
     fun inject(provider: DatastoreImportProviderImpl?)
 
     companion object {
