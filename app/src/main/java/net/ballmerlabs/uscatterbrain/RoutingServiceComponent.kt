@@ -84,6 +84,10 @@ interface RoutingServiceComponent {
         @Singleton
         abstract fun bindsServerSocketManager(impl: ServerSocketManagerImpl): ServerSocketManager
 
+        @Binds
+        @Singleton
+        abstract fun bindsSocketProvider(impl: SocketProviderImpl): SocketProvider
+
         @Module
         companion object {
             @Provides

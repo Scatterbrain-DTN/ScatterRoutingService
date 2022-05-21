@@ -206,6 +206,26 @@ class WifiDirectTest {
     }
 
     @Test
+    fun bootstrapSeme() {
+        wifiP2pManager = mockWifiP2p()
+        context = mock {
+            on { getString(any()) } doReturn "blockdatacap"
+        }
+        preferences.putValue("blockdatacap", 1)
+        buildModule(packets = initEmptyHandshake())
+        val req = bootstrapRequestComponentBuilder
+                .wifiDirectArgs(BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                        role = BluetoothLEModule.ConnectionRole.ROLE_SEME,
+                        passphrase = pass,
+                        name = name
+                ))
+                .build()!!
+                .wifiBootstrapRequest()
+        val res = module.bootstrapFromUpgrade(req).blockingGet()
+        assert(res.success)
+    }
+
+    @Test
     fun connectGroupTestSweep() {
         for (connectDelay in LongProgression.fromClosedRange(0, 1000, 500)) {
             for (groupInfoDelay in LongProgression.fromClosedRange(0, 1000, 500)) {

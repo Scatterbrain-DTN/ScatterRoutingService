@@ -2,9 +2,10 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.Context
 import android.content.IntentFilter
-import android.net.wifi.p2p.*
+import android.net.wifi.p2p.WifiP2pConfig
+import android.net.wifi.p2p.WifiP2pGroup
+import android.net.wifi.p2p.WifiP2pManager
 import io.reactivex.*
-import io.reactivex.Observable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import io.reactivex.subjects.SingleSubject
@@ -20,10 +21,7 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.net.InetAddress
-import java.net.ServerSocket
 import java.net.Socket
-import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -56,7 +54,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
         private val infoComponentProvider: Provider<WifiDirectInfoSubcomponent.Builder>,
         private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
-        private val serverSocketManager: ServerSocketManager
+        private val serverSocketManager: ServerSocketManager,
+        private val socketProvider: SocketProvider
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
     private val groupOperationInProgress = AtomicReference(false)
@@ -204,11 +203,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
             return retryDelay(c, 10, 1)
                     .doOnError { err -> firebaseWrapper.recordException(err) }
-        }
-
-        private fun getTcpSocket(address: InetAddress): Single<Socket> {
-            return Single.fromCallable { Socket(address, SCATTERBRAIN_PORT) }
-                .subscribeOn(operationsScheduler)
         }
 
         override fun connectToGroup(name: String, passphrase: String, timeout: Int): Single<WifiDirectInfo> {
@@ -470,7 +464,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         120
                     ), 10, 1)
                         .flatMap { info ->
-                            getTcpSocket(info.groupOwnerAddress()!!)
+                            socketProvider.getSocket(info.groupOwnerAddress()!!, SCATTERBRAIN_PORT)
                                 .flatMap { socket ->
                                     routingMetadataSeme(socket, Flowable.just(RoutingMetadataPacket.newBuilder().setEmpty().build()))
                                         .ignoreElements()

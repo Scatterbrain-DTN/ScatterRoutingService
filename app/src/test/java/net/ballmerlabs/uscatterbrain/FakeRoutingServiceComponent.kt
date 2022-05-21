@@ -108,6 +108,10 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
+        abstract fun bindSocketProvider(impl: MockSocketProvider): SocketProvider
+
+        @Binds
+        @Singleton
         abstract fun bindsFirebaseWrapper(impl: MockFirebaseWrapper): FirebaseWrapper
 
         @Module
