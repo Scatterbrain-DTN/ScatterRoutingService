@@ -10,10 +10,7 @@ import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.uscatterbrain.R
-import net.ballmerlabs.uscatterbrain.RouterPreferences
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
+import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
@@ -56,7 +53,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         private val channel: WifiP2pManager.Channel,
         private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
         private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
-        private val infoComponentProvider: Provider<WifiDirectInfoSubcomponent.Builder>
+        private val infoComponentProvider: Provider<WifiDirectInfoSubcomponent.Builder>,
+        private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
     private val groupOperationInProgress = AtomicReference(false)
@@ -132,6 +130,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
 
         private fun requestGroupInfo(): Maybe<WifiP2pGroup> {
+            LOG.v("requestGroupInfo")
             return Maybe.defer {
                 val subject = MaybeSubject.create<WifiP2pGroup>()
                 val listener = WifiP2pManager.GroupInfoListener { groupInfo ->
@@ -148,22 +147,27 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     subject.onError(exc)
                 }
                 subject
-            }.doOnError { err -> firebaseWrapper.recordException(err) }
+            }
+                    .doOnSuccess { LOG.v("got groupinfo") }
+                    .doOnComplete { LOG.v("requestGroupInfo completed") }
+                    .doOnError { err -> firebaseWrapper.recordException(err) }
         }
 
         /**
          * create a wifi direct group with this device as the owner
          */
         override fun createGroup(): Single<WifiDirectBootstrapRequest> {
+            LOG.v("createGroup")
             return Single.defer {
                 requestGroupInfo()
                         .switchIfEmpty(createGroupSingle().andThen(requestGroupInfo()))
                         .map { groupInfo ->
-                            WifiDirectBootstrapRequest.create(
-                                groupInfo.passphrase,
-                                groupInfo.networkName,
-                                ConnectionRole.ROLE_UKE
-                            )
+                            bootstrapRequestProvider.get()
+                                    .wifiDirectArgs(BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                                            passphrase = groupInfo.passphrase,
+                                            name = groupInfo.networkName,
+                                            role = ConnectionRole.ROLE_UKE
+                                    )).build()!!.wifiBootstrapRequest()
                         }
                         .toSingle()
             }.doOnError { err -> firebaseWrapper.recordException(err) }

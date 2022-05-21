@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.BluetoothLeAdvertiser
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.wifi.p2p.WifiP2pManager
@@ -43,11 +44,18 @@ interface FakeRoutingServiceComponent {
     @Component.Builder
     interface Builder {
         @BindsInstance
-        fun applicationContext(context: Context): Builder?
+        fun applicationContext(context: Context): Builder
+
+        @BindsInstance
+        fun wifiP2pManager(wifiP2pManager: WifiP2pManager): Builder
+
+        @BindsInstance
+        fun wifiDirectBroadcastReceiver(wifiDirectBroadcastReceiver: MockWifiDirectBroadcastReceiver): Builder
+
         fun build(): FakeRoutingServiceComponent?
     }
 
-    @Module(subcomponents = [FakeWifiDirectInfoSubcomponent::class])
+    @Module(subcomponents = [FakeWifiDirectInfoSubcomponent::class, FakeBootstrapRequestSubcomponent::class])
     abstract class FakeRoutingServiceModule {
         @Binds
         @Singleton
@@ -96,6 +104,12 @@ interface FakeRoutingServiceComponent {
                         .build()
             }
 
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesBootstrapRequestbuilder(builder: FakeBootstrapRequestSubcomponent.Builder): BootstrapRequestSubcomponent.Builder {
+                return builder
+            }
 
             @Provides
             @JvmStatic
@@ -110,34 +124,6 @@ interface FakeRoutingServiceComponent {
             @Singleton
             fun providesChannel(ctx: Context?, wifiP2pManager: WifiP2pManager?): WifiP2pManager.Channel {
                 return mock {  }
-            }
-
-            @Provides
-            @JvmStatic
-            @Singleton
-            fun providesMockWifiDirectBroadcastReceiver(): MockWifiDirectBroadcastReceiver {
-                return MockWifiDirectBroadcastReceiver(mock())
-            }
-
-            @Provides
-            @JvmStatic
-            @Singleton
-            fun providesWifiP2pManager(ctx: Context?, broadcastReceiver: MockWifiDirectBroadcastReceiver): WifiP2pManager {
-                return  mock {
-                    on { connect(any(), any(), any()) } doAnswer { ans ->
-                        val callback = ans.arguments[2] as WifiP2pManager.ActionListener
-                        callback.onSuccess()
-                    }
-                    on { requestGroupInfo(any(), any()) } doAnswer { ans ->
-                        val callback = ans.arguments[1] as WifiP2pManager.GroupInfoListener
-                        callback.onGroupInfoAvailable(null)
-                        broadcastReceiver.connectionInfoRelay.accept(mock {
-                            on { isGroupOwner() } doReturn false
-                            on { groupFormed() } doReturn true
-                            on { groupOwnerAddress() } doReturn InetAddress.getLocalHost()
-                        })
-                    }
-                }
             }
 
             @Provides

@@ -42,7 +42,7 @@ interface RoutingServiceComponent {
         fun build(): RoutingServiceComponent?
     }
 
-    @Module(subcomponents = [WifiDirectInfoSubcomponent::class])
+    @Module(subcomponents = [WifiDirectInfoSubcomponent::class, BootstrapRequestSubcomponent::class])
     abstract class RoutingServiceModule {
         @Binds
         @Singleton

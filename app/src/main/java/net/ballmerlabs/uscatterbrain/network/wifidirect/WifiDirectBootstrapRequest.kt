@@ -1,10 +1,15 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
+import android.os.Bundle
 import android.os.Parcel
+import net.ballmerlabs.uscatterbrain.BootstrapRequestScope
+import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
+import javax.inject.Inject
+import javax.inject.Named
 
 
 /**
@@ -14,7 +19,8 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
  * @property role role (uke/seme) of the connection session
  *
  */
-open class WifiDirectBootstrapRequest : BootstrapRequest {
+@BootstrapRequestScope
+open class WifiDirectBootstrapRequest  : BootstrapRequest {
     val name: String
     val passphrase: String
     val role: ConnectionRole
@@ -42,7 +48,14 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
                 .build()!!
     }
 
-    private constructor(passphrase: String, name: String, role: ConnectionRole) : super() {
+    @Inject
+    protected constructor(
+            @Named(BootstrapRequestSubcomponent.PASSPHRASE) passphrase: String,
+            @Named(BootstrapRequestSubcomponent.NAME) name: String,
+            role: ConnectionRole,
+            extras: Bundle
+    ) : super() {
+        this.extras = extras
         this.passphrase = passphrase
         this.name = name
         this.role = role
@@ -58,22 +71,11 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
 
         /**
          * creates a WifiDirectBootstrapRequest
-         * @param passphrase passphrase of network
-         * @param name name of network
-         * @param role connection role (uke/seme) of network to connect to
-         * @return WifiDirectBootstrapRequest
-         */
-        fun create(passphrase: String, name: String, role: ConnectionRole): WifiDirectBootstrapRequest {
-            return WifiDirectBootstrapRequest(passphrase, name, role)
-        }
-
-        /**
-         * creates a WifiDirectBootstrapRequest
          * @param packet Scatterbrain upgrade packet
          * @param role connection role (uke/seme) of the network to connect to
          * @return WifiDirectBootstrapRequest
          */
-        fun create(packet: UpgradePacket, role: ConnectionRole): WifiDirectBootstrapRequest {
+        fun create(packet: UpgradePacket, role: ConnectionRole, builder: BootstrapRequestSubcomponent.Builder): WifiDirectBootstrapRequest {
             check(packet.provides == AdvertisePacket.Provides.WIFIP2P) {
                 "WifiDirectBootstrapRequest called with invalid provides: ${packet.provides}"
             }
@@ -82,7 +84,11 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
             val passphrase = packet.metadata[KEY_PASSPHRASE]
                     ?: throw IllegalArgumentException("passphrase was null")
 
-            return WifiDirectBootstrapRequest(passphrase, name, role)
+            return builder.wifiDirectArgs(BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                    name = name,
+                    passphrase = passphrase,
+                    role = role
+            )).build()!!.wifiBootstrapRequest()
         }
     }
 }

@@ -28,10 +28,7 @@ import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
-import net.ballmerlabs.uscatterbrain.BuildConfig
-import net.ballmerlabs.uscatterbrain.R
-import net.ballmerlabs.uscatterbrain.RouterPreferences
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
@@ -48,6 +45,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
+import javax.inject.Provider
 import javax.inject.Singleton
 
 data class OptionalBootstrap<T>(
@@ -115,6 +113,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         private val wifiDirectRadioModule: WifiDirectRadioModule,
         private val datastore: ScatterbrainDatastore,
         private val preferences: RouterPreferences,
+        private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
     private val serverStarted = AtomicReference(false)
@@ -686,7 +685,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             .doOnError { err -> LOG.e("error while receiving upgrade packet: $err") }
                                             .map { upgradePacket ->
                                                 if (upgradePacket.provides == AdvertisePacket.Provides.WIFIP2P) {
-                                                    val request = WifiDirectBootstrapRequest.create(upgradePacket, ConnectionRole.ROLE_SEME)
+                                                    val request = WifiDirectBootstrapRequest.create(upgradePacket, ConnectionRole.ROLE_SEME, bootstrapRequestProvider.get())
                                                     TransactionResult(
                                                             TransactionResult.STAGE_SUSPEND,
                                                             session.device,

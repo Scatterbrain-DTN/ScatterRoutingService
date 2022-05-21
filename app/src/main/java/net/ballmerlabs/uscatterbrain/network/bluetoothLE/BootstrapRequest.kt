@@ -3,7 +3,9 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.os.Bundle
 import android.os.Parcel
 import android.os.Parcelable
+import net.ballmerlabs.uscatterbrain.BootstrapRequestScope
 import java.io.Serializable
+import javax.inject.Inject
 
 /**
  * Simple parcelable key-value blob used to convey information to
@@ -15,11 +17,19 @@ import java.io.Serializable
  *
  * @constructor create an empty BootstrapRequest
  */
-open class BootstrapRequest : Parcelable {
-    private val extras = Bundle()
+@BootstrapRequestScope
+open class BootstrapRequest  : Parcelable {
+    protected var extras: Bundle
 
-    protected constructor()
+    protected constructor(): this(Bundle())
+
+    @Inject
+    protected constructor(extras: Bundle){
+        this.extras =extras
+    }
+
     protected constructor(`in`: Parcel) {
+        extras = Bundle()
         extras.readFromParcel(`in`)
     }
 
