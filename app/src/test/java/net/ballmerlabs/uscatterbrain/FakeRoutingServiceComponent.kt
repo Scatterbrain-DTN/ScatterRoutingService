@@ -23,10 +23,13 @@ import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapperImpl
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.InetAddress
 import javax.inject.Named
 import javax.inject.Provider
@@ -49,6 +52,15 @@ interface FakeRoutingServiceComponent {
 
         @BindsInstance
         fun wifiP2pManager(wifiP2pManager: WifiP2pManager): Builder
+
+        @BindsInstance
+        fun packetInputStream(inputStream: InputStream): Builder
+
+        @BindsInstance
+        fun mockPreferences(routerPreferences: MockRouterPreferences): Builder
+
+        @BindsInstance
+        fun packetOutputStream(outputStream: OutputStream): Builder
 
         @BindsInstance
         fun wifiDirectBroadcastReceiver(wifiDirectBroadcastReceiver: MockWifiDirectBroadcastReceiver): Builder
@@ -76,7 +88,7 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun bindRouterPreferences(impl: RouterPreferencesImpl): RouterPreferences
+        abstract fun bindRouterPreferences(impl: MockRouterPreferences): RouterPreferences
 
         @Binds
         @Singleton

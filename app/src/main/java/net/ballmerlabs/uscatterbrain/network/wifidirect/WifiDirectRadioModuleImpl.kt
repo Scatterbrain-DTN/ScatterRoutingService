@@ -451,7 +451,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                             preferences.getInt(
                                                                 mContext.getString(R.string.pref_blockdatacap),
                                                                 100
-                                                            ),
+                                                            )!!,
                                                             declareHashesPacket
                                                         ).toFlowable(BackpressureStrategy.BUFFER),
                                                         socket
@@ -477,7 +477,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         .andThen(
                                             identityPacketSeme(
                                                 socket,
-                                                datastore.getTopRandomIdentities(preferences.getInt(mContext.getString(R.string.pref_identitycap), 200))
+                                                datastore.getTopRandomIdentities(preferences.getInt(mContext.getString(R.string.pref_identitycap), 200)!!)
                                             )
                                         )
                                         .reduce(ArrayList()) { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->

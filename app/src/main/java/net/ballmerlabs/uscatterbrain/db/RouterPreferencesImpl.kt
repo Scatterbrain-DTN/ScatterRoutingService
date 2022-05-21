@@ -14,11 +14,11 @@ import javax.inject.Singleton
 class RouterPreferencesImpl @Inject constructor(
         private val preferences: SharedPreferences
 ) : RouterPreferences {
-    override fun getBoolean(key: String?, def: Boolean): Boolean {
+    override fun getBoolean(key: String?, def: Boolean?): Boolean {
         return java.lang.Boolean.parseBoolean(preferences.getString(key, def.toString()))
     }
 
-    override fun getFloat(key: String?, def: Float): Float {
+    override fun getFloat(key: String?, def: Float?): Float {
         return preferences.getString(key, def.toString())!!.toFloat()
     }
 
@@ -33,11 +33,11 @@ class RouterPreferencesImpl @Inject constructor(
     override val all: Map<String?, *>?
         get() = preferences.all
 
-    override fun getLong(key: String?, def: Long): Long {
+    override fun getLong(key: String?, def: Long?): Long {
         return preferences.getString(key, def.toString())!!.toLong()
     }
 
-    override fun getInt(key: String?, def: Int): Int {
+    override fun getInt(key: String?, def: Int?): Int {
         return preferences.getString(key, def.toString())!!.toInt()
     }
 

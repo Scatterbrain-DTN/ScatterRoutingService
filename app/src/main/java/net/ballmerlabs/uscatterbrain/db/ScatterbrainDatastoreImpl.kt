@@ -181,7 +181,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     private fun getMax(): Long {
-        return preferences.getInt(ctx.getString(R.string.pref_sizecap), 4096).toLong() * 1024 * 1024
+        return preferences.getInt(ctx.getString(R.string.pref_sizecap), 4096)!!.toLong() * 1024 * 1024
     }
 
     /**
@@ -636,7 +636,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override val declareHashesPacket: Single<DeclareHashesPacket>
         get() = mDatastore.scatterMessageDao().getTopHashes(
-                preferences.getInt(ctx.getString(R.string.pref_declarehashescap), 512)
+                preferences.getInt(ctx.getString(R.string.pref_declarehashescap), 512)!!
         )
                 .subscribeOn(databaseScheduler)
                 .doOnSuccess { p -> LOG.v("retrieved declareHashesPacket from datastore: " + p.size) }

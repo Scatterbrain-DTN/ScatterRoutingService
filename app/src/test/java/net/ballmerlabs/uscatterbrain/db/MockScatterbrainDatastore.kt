@@ -172,7 +172,7 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
     }
 
     override val declareHashesPacket: Single<DeclareHashesPacket>
-        get() = Single.error(IllegalStateException("no packet for u, cry noises"))
+        get() = Single.just(DeclareHashesPacket.newBuilder().setHashesByte(listOf()).build())
 
     override fun getACLs(identity: UUID): Single<MutableList<ACL>> {
         return Single.just(mutableListOf())

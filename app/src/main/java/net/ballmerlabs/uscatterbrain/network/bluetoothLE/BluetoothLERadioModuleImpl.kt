@@ -468,7 +468,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private fun selectProvides(): AdvertisePacket.Provides {
-        return if (preferences.getBoolean(mContext.getString(R.string.pref_incognito), false)) AdvertisePacket.Provides.BLE else AdvertisePacket.Provides.WIFIP2P
+        return if (preferences.getBoolean(mContext.getString(R.string.pref_incognito), false)!!) AdvertisePacket.Provides.BLE else AdvertisePacket.Provides.WIFIP2P
     }
 
     /*
@@ -717,7 +717,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             TransactionResult.STAGE_IDENTITY,
                             { serverConn ->
                                 datastore.getTopRandomIdentities(
-                                        preferences.getInt(mContext.getString(R.string.pref_identitycap), 32)
+                                        preferences.getInt(mContext.getString(R.string.pref_identitycap), 32)!!
                                 )
                                         .concatMapCompletable { packet -> serverConn.serverNotify(packet) }
                                         .toSingleDefault(OptionalBootstrap.empty())
@@ -777,7 +777,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 session.declareHashes
                                         .flatMapCompletable { declareHashesPacket ->
                                             datastore.getTopRandomMessages(
-                                                    preferences.getInt(mContext.getString(R.string.pref_blockdatacap), 30),
+                                                    preferences.getInt(mContext.getString(R.string.pref_blockdatacap), 30)!!,
                                                     declareHashesPacket
                                             )
                                                     .concatMapCompletable { message ->

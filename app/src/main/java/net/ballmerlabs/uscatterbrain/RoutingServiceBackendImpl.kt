@@ -266,7 +266,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                         prefs.getLong(
                                 context.getString(R.string.pref_transactiontimeout),
                                 RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
-                        ),
+                        )!!,
                         TimeUnit.SECONDS
                 )
                 .doFinally {

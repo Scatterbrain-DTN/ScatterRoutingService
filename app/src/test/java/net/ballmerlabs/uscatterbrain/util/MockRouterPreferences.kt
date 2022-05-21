@@ -9,24 +9,24 @@ class MockRouterPreferences: RouterPreferences {
         data[key] = value
     }
 
-    override fun getBoolean(key: String?, def: Boolean): Boolean {
-        return data[key] as Boolean
+    override fun getBoolean(key: String?, def: Boolean?): Boolean? {
+        return data[key] as? Boolean?: def
     }
 
-    override fun getFloat(key: String?, def: Float): Float {
-        return data[key] as Float
+    override fun getFloat(key: String?, def: Float?): Float? {
+        return data[key] as? Float?: def
     }
 
-    override fun getLong(key: String?, def: Long): Long {
-        return data[key] as Long
+    override fun getLong(key: String?, def: Long?): Long? {
+        return data[key] as? Long?: def
     }
 
-    override fun getInt(key: String?, def: Int): Int {
-        return data[key] as Int
+    override fun getInt(key: String?, def: Int?): Int? {
+        return data[key] as? Int?
     }
 
     override fun getString(key: String?, def: String?): String? {
-        return data[key] as String?
+        return data[key] as? String?
     }
 
     // avoid "unchecked cast" warning

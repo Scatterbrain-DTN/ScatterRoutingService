@@ -9,7 +9,12 @@ import io.reactivex.schedulers.Schedulers
 import io.reactivex.schedulers.TestScheduler
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
+import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
+import net.ballmerlabs.uscatterbrain.network.IdentityPacket
+import net.ballmerlabs.uscatterbrain.network.RoutingMetadataPacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
+import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
 import net.ballmerlabs.uscatterbrain.util.logger
 import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
 import org.junit.After
@@ -24,6 +29,10 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
@@ -41,6 +50,8 @@ class WifiDirectTest {
 
     @Before
     fun init() {
+        packetOutputStream = ByteArrayOutputStream()
+        preferences = MockRouterPreferences()
         MockitoAnnotations.openMocks(this)
         compositeDisposable = CompositeDisposable()
     }
@@ -53,6 +64,10 @@ class WifiDirectTest {
 
     @Mock
     private lateinit var context: Context
+
+    private lateinit var preferences: MockRouterPreferences
+
+    private lateinit var packetOutputStream: ByteArrayOutputStream
 
     private var broadcastReceiver = MockWifiDirectBroadcastReceiver(mock())
 
@@ -67,11 +82,14 @@ class WifiDirectTest {
 
     private val delayScheduler = Schedulers.io()
 
-    private fun buildModule() {
+    private fun buildModule(packets: InputStream = ByteArrayInputStream(byteArrayOf())) {
         broadcastReceiver = MockWifiDirectBroadcastReceiver(mock())
         val component = DaggerFakeRoutingServiceComponent.builder()
                 .applicationContext(context)
                 .wifiP2pManager(wifiP2pManager)
+                .packetInputStream(packets)
+                .mockPreferences(preferences)
+                .packetOutputStream(packetOutputStream)
                 .wifiDirectBroadcastReceiver(broadcastReceiver)
                 .build()!!
         module = component.wifiDirectModule()!!
@@ -150,12 +168,31 @@ class WifiDirectTest {
         assert(info.groupOwnerAddress() != null)
     }
 
-    /*
+
+    private fun initEmptyHandshake(): InputStream {
+        val os = ByteArrayOutputStream()
+
+        val routingMetadataPacket = RoutingMetadataPacket.newBuilder().setEmpty().build()
+        val identityPacket = IdentityPacket.newBuilder().setEnd().build()!!
+        val declareHashesPacket = DeclareHashesPacket.newBuilder()
+                .setHashesByte(listOf())
+                .build()
+        val blockdata = BlockHeaderPacket.newBuilder().setEndOfStream(true).build()
+        routingMetadataPacket.writeToStream(os, delayScheduler).blockingAwait()
+        identityPacket.writeToStream(os, delayScheduler).blockingAwait()
+        declareHashesPacket.writeToStream(os, delayScheduler).blockingAwait()
+        blockdata.writeToStream(os, delayScheduler).blockingAwait()
+        return ByteArrayInputStream(os.toByteArray())
+    }
 
     @Test
     fun bootstrapUke() {
         wifiP2pManager = mockWifiP2p()
-        buildModule()
+        context = mock {
+            on { getString(any()) } doReturn "blockdatacap"
+        }
+        preferences.putValue("blockdatacap", 1)
+        buildModule(packets = initEmptyHandshake())
         val req = bootstrapRequestComponentBuilder
                 .wifiDirectArgs(BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
                         role = BluetoothLEModule.ConnectionRole.ROLE_UKE,
@@ -167,7 +204,6 @@ class WifiDirectTest {
         val res = module.bootstrapFromUpgrade(req).blockingGet()
         assert(res.success)
     }
-     */
 
     @Test
     fun connectGroupTestSweep() {
