@@ -92,6 +92,10 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
+        abstract fun bindsServerSocketManager(impl: MockServerSocketManager): ServerSocketManager
+
+        @Binds
+        @Singleton
         abstract fun bindsFirebaseWrapper(impl: MockFirebaseWrapper): FirebaseWrapper
 
         @Module

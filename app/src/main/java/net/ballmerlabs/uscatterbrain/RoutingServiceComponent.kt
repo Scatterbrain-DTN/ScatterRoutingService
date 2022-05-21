@@ -80,6 +80,10 @@ interface RoutingServiceComponent {
         @Singleton
         abstract fun bindsFirebaseWrapper(impl: FirebaseWrapperImpl): FirebaseWrapper
 
+        @Binds
+        @Singleton
+        abstract fun bindsServerSocketManager(impl: ServerSocketManagerImpl): ServerSocketManager
+
         @Module
         companion object {
             @Provides

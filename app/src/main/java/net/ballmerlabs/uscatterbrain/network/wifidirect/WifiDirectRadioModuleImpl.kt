@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.Context
 import android.content.IntentFilter
-import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.*
 import io.reactivex.*
 import io.reactivex.Observable
@@ -15,9 +14,11 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
+import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager.Companion.SCATTERBRAIN_PORT
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -54,18 +55,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
         private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
         private val infoComponentProvider: Provider<WifiDirectInfoSubcomponent.Builder>,
-        private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>
+        private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
+        private val serverSocketManager: ServerSocketManager
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
     private val groupOperationInProgress = AtomicReference(false)
     private val groupConnectInProgress = AtomicReference(false)
     private val groupRemoveInProgress = AtomicReference(false)
-    private val serverSocket = retryDelay(
-            Single.fromCallable {
-                ServerSocket(SCATTERBRAIN_PORT)
-            }.cache(),
-            1
-    ).doOnError { err -> firebaseWrapper.recordException(err) }
+
 
         /*
          * we need to unregister and register the receiver when
@@ -413,7 +410,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             return when {
                 upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                         == ConnectionRole.ROLE_UKE -> {
-                    getServerSocket()
+                    serverSocketManager.getServerSocket()
                         .subscribeOn(operationsScheduler)
                         .doOnError { err -> LOG.e("failed to get server socket: $err") }
                         .flatMap { socket ->
@@ -523,45 +520,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
          * to google engineers. We can use these helper functions to retry these operations
          */
 
-
-    private fun <T> retryDelay(observable: Observable<T>, count: Int, seconds: Int): Observable<T> {
-        return observable
-            .doOnError { err -> LOG.e("retryDelay caught exception: $err")}
-                .retryWhen { errors: Observable<Throwable> ->
-                    errors
-                        .zipWith(Observable.range(1, count)) { _: Throwable, i: Int -> i }
-                            .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
-                }
-        }
-
-    private fun retryDelay(completable: Completable, count: Int, seconds: Int): Completable {
-        return completable
-            .doOnError { err -> LOG.e("retryDelay caught exception: $err")}
-            .retryWhen { errors: Flowable<Throwable> ->
-                errors
-                    .zipWith(Flowable.range(1, count)) { _: Throwable, i: Int -> i }
-                        .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
-            }
-    }
-
-    private fun <T> retryDelay(single: Single<T>, count: Int, seconds: Int): Single<T> {
-        return single
-            .doOnError { err -> LOG.e("retryDelay caught exception: $err")}
-            .retryWhen { errors ->
-                errors
-                    .zipWith(Flowable.range(1, count)) { _, i: Int -> i }
-                        .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
-            }
-    }
-
-    private fun <T> retryDelay(single: Single<T>, seconds: Int): Single<T> {
-        return single
-            .doOnError { err -> LOG.e("retryDelay caught exception: $err")}
-            .retryWhen { errors ->
-                errors.concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
-            }
-    }
-
         //transfer blockdata packets as SEME
         private fun writeBlockDataSeme(
             socket: Socket,
@@ -649,15 +607,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
         }
 
-        private fun getServerSocket(): Single<Socket> {
-            return serverSocket.flatMap { socket ->
-                SingleServerSocket(socket)
-                    .subscribeOn(operationsScheduler)
-                    .map { conn -> conn.socket }
-                    .doOnSuccess { LOG.v("accepted server socket") }
-            }
-        }
-
         /*
          * read blockdata packets as SEME and stream into datastore. Even if a transfer is interrupted we should still have
          * the files/metadata from packets we received
@@ -702,7 +651,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         }
 
         companion object {
-        private const val SCATTERBRAIN_PORT = 7575
         fun reasonCodeToString(reason: Int): String {
             return when (reason) {
                 WifiP2pManager.BUSY -> {
