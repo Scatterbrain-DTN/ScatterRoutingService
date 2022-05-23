@@ -13,9 +13,7 @@ android {
     defaultConfig {
         minSdkVersion 27
         targetSdkVersion 32
-        compileSdkVersion 31
-        versionCode 1
-        versionName "1.0"
+        compileSdkVersion 32
         multiDexEnabled true
         javaCompileOptions {
             annotationProcessorOptions {
