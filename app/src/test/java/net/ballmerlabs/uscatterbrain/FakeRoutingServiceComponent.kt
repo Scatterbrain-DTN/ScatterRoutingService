@@ -40,13 +40,6 @@ import javax.inject.Singleton
 @Singleton
 @Component(modules = [FakeRoutingServiceComponent.FakeRoutingServiceModule::class])
 interface FakeRoutingServiceComponent {
-    object NamedSchedulers {
-        const val DATABASE = "executor_database"
-        const val BLE_CLIENT = "scheduler-ble-client"
-        const val BLE_SERVER = "scheduler-ble-server"
-        const val OPERATIONS = "wifi-direct-operations"
-    }
-
     @Component.Builder
     interface Builder {
         @BindsInstance
@@ -70,7 +63,11 @@ interface FakeRoutingServiceComponent {
         fun build(): FakeRoutingServiceComponent?
     }
 
-    @Module(subcomponents = [FakeWifiDirectInfoSubcomponent::class, FakeBootstrapRequestSubcomponent::class])
+    @Module(subcomponents = [
+        FakeWifiDirectInfoSubcomponent::class,
+        FakeBootstrapRequestSubcomponent::class,
+        GattServerConnectionSubcomponent::class
+    ])
     abstract class FakeRoutingServiceModule {
         @Binds
         @Singleton
@@ -156,7 +153,7 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            @Named(NamedSchedulers.DATABASE)
+            @Named(RoutingServiceComponent.NamedSchedulers.DATABASE)
             fun provideDatabaseScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
             }
@@ -164,7 +161,7 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            @Named(NamedSchedulers.OPERATIONS)
+            @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
             }
@@ -179,7 +176,7 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            @Named(NamedSchedulers.BLE_CLIENT)
+            @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT)
             fun provideBleClientScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
             }
@@ -187,7 +184,15 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            @Named(NamedSchedulers.BLE_SERVER)
+            @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS)
+            fun providesBleCallbacksScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER)
             fun provideBleServerScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
             }
