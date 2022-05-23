@@ -32,6 +32,7 @@ import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
@@ -113,7 +114,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         private val wifiDirectRadioModule: WifiDirectRadioModule,
         private val datastore: ScatterbrainDatastore,
         private val preferences: RouterPreferences,
-        private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>
+        private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
+        private val newServer: GattServer
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
     private val serverStarted = AtomicReference(false)

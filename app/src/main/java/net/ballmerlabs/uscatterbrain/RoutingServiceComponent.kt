@@ -17,6 +17,8 @@ import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
@@ -31,6 +33,7 @@ interface RoutingServiceComponent {
     object NamedSchedulers {
         const val DATABASE = "executor_database"
         const val BLE_CLIENT = "scheduler-ble-client"
+        const val BLE_CALLBACKS = "ble-callbacks"
         const val BLE_SERVER = "scheduler-ble-server"
         const val OPERATIONS = "wifi-direct-operations"
     }
@@ -42,7 +45,11 @@ interface RoutingServiceComponent {
         fun build(): RoutingServiceComponent?
     }
 
-    @Module(subcomponents = [WifiDirectInfoSubcomponent::class, BootstrapRequestSubcomponent::class])
+    @Module(subcomponents = [
+        WifiDirectInfoSubcomponent::class,
+        BootstrapRequestSubcomponent::class,
+        GattServerConnectionSubcomponent::class
+    ])
     abstract class RoutingServiceModule {
         @Binds
         @Singleton
@@ -87,6 +94,10 @@ interface RoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindsSocketProvider(impl: SocketProviderImpl): SocketProvider
+
+        @Binds
+        @Singleton
+        abstract fun bindGattServer(impl: GattServerImpl): GattServer
 
         @Module
         companion object {
@@ -141,6 +152,14 @@ interface RoutingServiceComponent {
             @Singleton
             @Named(NamedSchedulers.BLE_CLIENT)
             fun provideBleClientScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(NamedSchedulers.BLE_CALLBACKS)
+            fun providesBleCallbacksScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
             }
 

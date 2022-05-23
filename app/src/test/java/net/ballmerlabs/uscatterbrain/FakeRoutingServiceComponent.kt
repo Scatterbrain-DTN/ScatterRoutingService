@@ -17,6 +17,8 @@ import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
@@ -113,6 +115,10 @@ interface FakeRoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindsFirebaseWrapper(impl: MockFirebaseWrapper): FirebaseWrapper
+
+        @Binds
+        @Singleton
+        abstract fun bindGattServer(impl: GattServerImpl): GattServer
 
         @Module
         companion object {
