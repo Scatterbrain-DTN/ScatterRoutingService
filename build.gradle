@@ -2,7 +2,7 @@
 buildscript {
     ext.kotlin_version = '1.5.10'
     ext.kotlinVersion = kotlin_version
-    ext.hilt_version = '2.35'
+    ext.hilt_version = '2.40'
 
 
     ext.rxJavaVersion = '2.2.17'
@@ -14,11 +14,14 @@ buildscript {
         }
         google()
         mavenCentral()
+        gradlePluginPortal()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:4.2.2'
         classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.12'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.5.30"
+        classpath "com.google.dagger:hilt-android-gradle-plugin:$hilt_version"
+        classpath 'com.google.gms:google-services:4.3.10'  // Google Services plugin
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
 
@@ -28,10 +31,10 @@ buildscript {
 allprojects {
     repositories {
         google()
+        maven { url "https://jitpack.io" }
         flatDir {
             dirs 'src/main/libs'
         }
-        maven { url 'https://jitpack.io' }
         mavenCentral()
     }
 }
