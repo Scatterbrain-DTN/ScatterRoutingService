@@ -12,7 +12,8 @@ class ServerStateImpl @Inject constructor(): ServerState {
     private val notificationState = ConcurrentHashMap<UUID, NotificationStatus>()
     private val characteristicMap = ConcurrentHashMap<UUID, BluetoothGattCharacteristic>()
     override fun getDescriptor(characteristic: UUID, uuid: UUID): BluetoothGattDescriptor {
-        TODO("Not yet implemented")
+        val ch = characteristicMap[characteristic]!!
+        return ch.getDescriptor(uuid)
     }
 
     override fun getNotificationValue(uuid: UUID): ByteArray {

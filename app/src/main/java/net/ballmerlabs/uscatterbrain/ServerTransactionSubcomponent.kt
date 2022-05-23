@@ -15,10 +15,33 @@ import java.util.*
 @Subcomponent(modules = [ServerTransactionSubcomponent.ServerTransactionModule::class])
 interface ServerTransactionSubcomponent {
 
-    class TransactionConfig {
-        var value: ByteArray? = null
-        var requestID = 0
-        var offset = 0
+    data class TransactionConfig(
+        var value: ByteArray? = null,
+        var requestID: Int,
+        var offset: Int
+        ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as TransactionConfig
+
+            if (value != null) {
+                if (other.value == null) return false
+                if (!value.contentEquals(other.value)) return false
+            } else if (other.value != null) return false
+            if (requestID != other.requestID) return false
+            if (offset != other.offset) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = value?.contentHashCode() ?: 0
+            result = 31 * result + requestID
+            result = 31 * result + offset
+            return result
+        }
     }
 
     @Subcomponent.Builder
@@ -45,4 +68,8 @@ interface ServerTransactionSubcomponent {
         @GattServerTransactionScope
         abstract fun bindNotificationSetupTransaction(impl: NotificationSetupTransactionImpl): NotificationSetupTransaction
     }
+
+    fun serverResponseTransaction(): ServerResponseTransaction
+
+    fun notificationSetupTransaction(): NotificationSetupTransaction
 }
