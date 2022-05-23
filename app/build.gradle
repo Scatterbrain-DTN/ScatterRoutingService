@@ -8,7 +8,6 @@ plugins {
     id 'jacoco'
 }
 
-apply from: '../RxAndroidBle/dependencies.gradle'
 def protobuf_version = "3.18.0"
 
 android {
@@ -133,11 +132,11 @@ dependencies {
     implementation "com.goterl:lazysodium-android:5.0.2@aar"
     implementation 'net.java.dev.jna:jna:5.8.0@aar'
 
-    implementation "com.google.dagger:dagger:$rootProject.ext.daggerVersion"
-    testImplementation "com.google.dagger:dagger:$rootProject.ext.daggerVersion"
+    implementation "com.google.dagger:dagger:2.40.1"
+    testImplementation "com.google.dagger:dagger:2.40.1"
 
-    kapt "com.google.dagger:dagger-compiler:$rootProject.ext.daggerVersion"
-    kaptTest "com.google.dagger:dagger-compiler:$rootProject.ext.daggerVersion"
+    kapt "com.google.dagger:dagger-compiler:2.40.1"
+    kaptTest "com.google.dagger:dagger-compiler:2.40.1"
 
 
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
