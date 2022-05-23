@@ -58,9 +58,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         private val socketProvider: SocketProvider
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
-    private val groupRemoveInProgress = AtomicReference(false)
-
-
         /*
          * we need to unregister and register the receiver when
          * the service stops and starts. NOTE: since we use a foreground
@@ -180,11 +177,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
 
                 }
-                if (!groupRemoveInProgress.getAndSet(true)) {
-                    Completable.complete()
-                } else {
-                    subject
-                            .doOnSubscribe {
+
+                    subject.doOnSubscribe {
                                 mManager.removeGroup(channel, actionListener)
                             }
                             .andThen(mBroadcastReceiver.observeConnectionInfo()
@@ -192,9 +186,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed() }
                                     .ignoreElements()
                                     .doOnComplete { LOG.v("removeGroup return success") }
-                                    .doFinally { groupRemoveInProgress.set(false) }
                             )
-                }
 
             }
 
