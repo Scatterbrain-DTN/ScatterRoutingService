@@ -4,7 +4,6 @@ plugins {
     id 'kotlin-kapt'
     id 'com.google.protobuf'
     id("org.jetbrains.dokka") version "1.5.0"
-    id 'jacoco'
 }
 
 def protobuf_version = "3.18.0"
@@ -45,11 +44,10 @@ android {
         unitTests {
             includeAndroidResources = true
         }
-        unitTests.all {
-            jacoco {
-                includeNoLocationClasses = true
-            }
-        }
+    }
+
+    lintOptions {
+        abortOnError false
     }
 
     packagingOptions {
@@ -173,24 +171,4 @@ dependencies {
 }
 repositories {
     mavenCentral()
-}
-
-
-task jacocoTestReport(type: JacocoReport, dependsOn: ['createDebugCoverageReport']) {
-
-    reports {
-        xml.enabled = true
-        html.enabled = true
-    }
-
-    def fileFilter = ['**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*', '**/*Test*.*', 'android/**/*.*']
-    def debugTree = fileTree(dir: "${buildDir}/intermediates/classes/debug", excludes: fileFilter)
-    def mainSrc = "${project.projectDir}/src/main/java"
-
-    sourceDirectories.setFrom(files([mainSrc]))
-    classDirectories.setFrom(files([debugTree]))
-    executionData.setFrom(fileTree(dir: "$buildDir", includes: [
-            "jacoco/testDebugUnitTest.exec",
-            "outputs/code-coverage/connected/*coverage.ec"
-    ]))
 }
