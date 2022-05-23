@@ -8,12 +8,7 @@ import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.*
 import com.polidea.rxandroidble2.RxBleConnection.RxBleConnectionState
 import com.polidea.rxandroidble2.exceptions.BleException
-import com.polidea.rxandroidble2.exceptions.BleGattServerException
-import com.polidea.rxandroidble2.exceptions.BleGattServerOperationType
 import com.polidea.rxandroidble2.internal.RxBleLog
-import com.polidea.rxandroidble2.internal.serialization.ServerOperationQueue
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Output
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.LongWriteClosableOutput
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -21,6 +16,10 @@ import io.reactivex.functions.Function
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.GattServerConnectionScope
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Companion.CLIENT_CONFIG
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.LongWriteClosableOutput
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Output
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.GattServerOperationQueue
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.GattServerTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
@@ -35,7 +34,7 @@ class GattServerConnectionImpl @Inject constructor(
         private val config: ServerConfig,
         @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val connectionScheduler: Scheduler,
         @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS) private val callbackScheduler: Scheduler,
-        private val operationQueue: ServerOperationQueue,
+        private val operationQueue: GattServerOperationQueue,
         private val context: Context,
         private val serverState: ServerState,
         private val client: RxBleClient,
@@ -50,7 +49,7 @@ class GattServerConnectionImpl @Inject constructor(
     private val characteristicMultiIndex = MultiIndex<Int, BluetoothGattCharacteristic, GattServerConnection.LongWriteClosableOutput<ByteArray>>()
     private val descriptorMultiIndex = MultiIndex<Int, BluetoothGattDescriptor, GattServerConnection.LongWriteClosableOutput<ByteArray>>()
     
-    private val errorMapper: Function<BleException, Observable<*>> = Function { bleGattException -> Observable.error<Any>(bleGattException) }
+    private val errorMapper: Function<Throwable, Observable<*>> = Function { bleGattException -> Observable.error<Any>(bleGattException) }
 
     private val readCharacteristicOutput = Output<GattServerTransaction<UUID>>()
     private val writeCharacteristicOutput = Output<GattServerTransaction<UUID>>()
@@ -65,7 +64,7 @@ class GattServerConnectionImpl @Inject constructor(
                     || characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE == 0) {
                 RxBleLog.d("setting CLIENT_CONFIG for characteristic " + characteristic.uuid)
                 characteristic.addDescriptor(BluetoothGattDescriptor(
-                        RxBleClient.CLIENT_CONFIG,
+                        GattServerConnection.CLIENT_CONFIG,
                         BluetoothGattDescriptor.PERMISSION_WRITE or BluetoothGattDescriptor.PERMISSION_READ
                 ))
             }
@@ -152,7 +151,7 @@ class GattServerConnectionImpl @Inject constructor(
             super.onDescriptorReadRequest(device, requestId, offset, descriptor)
             RxBleLog.v("onDescriptorReadRequest: " + descriptor.uuid)
             val rxBleDevice: RxBleDevice = client.getBleDevice(device.address)
-            if (descriptor.uuid.compareTo(RxBleClient.CLIENT_CONFIG) == 0) {
+            if (descriptor.uuid.compareTo(CLIENT_CONFIG) == 0) {
                 gattServer.sendResponse(
                         device,
                         requestId,
@@ -189,7 +188,7 @@ class GattServerConnectionImpl @Inject constructor(
                 }
                 longWriteOutput.valueRelay.onNext(value) //TODO: offset
             } else {
-                if (descriptor.uuid.compareTo(RxBleClient.CLIENT_CONFIG) == 0) {
+                if (descriptor.uuid.compareTo(CLIENT_CONFIG) == 0) {
                     serverState.setNotifications(descriptor.characteristic.uuid, value)
                     gattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, ByteArray(0))
                 }
@@ -425,11 +424,8 @@ class GattServerConnectionImpl @Inject constructor(
     ): Completable {
         return Single.fromCallable(Callable {
             RxBleLog.v("setupNotifictions: " + characteristic.uuid)
-            val clientconfig = characteristic.getDescriptor(RxBleClient.CLIENT_CONFIG)
-                    ?: return@Callable Completable.error(BleGattServerException(
-                            BleGattServerOperationType.NOTIFICATION_SENT,
-                            "client config was null when setting up notifications"
-                    ))
+            val clientconfig = characteristic.getDescriptor(GattServerConnection.CLIENT_CONFIG)
+                    ?: return@Callable Completable.error(IllegalStateException("notification failed"))
             notifications
                     .takeWhile {
                         (bluetoothManager.getConnectionState(device.bluetoothDevice, BluetoothProfile.GATT_SERVER)
@@ -454,10 +450,7 @@ class GattServerConnectionImpl @Inject constructor(
                     .flatMap { integer ->
                         RxBleLog.v("notification result: $integer")
                         if (integer != BluetoothGatt.GATT_SUCCESS) {
-                            Flowable.error(BleGattServerException(
-                                    BleGattServerOperationType.NOTIFICATION_SENT,
-                                    "notification operation did not return GATT_SUCCESS"
-                            ))
+                            Flowable.error(IllegalStateException("notification failed $integer"))
                         } else {
                             Flowable.just(integer)
                         }
@@ -474,26 +467,26 @@ class GattServerConnectionImpl @Inject constructor(
         )
     }
 
-    fun getOnMtuChanged(): Observable<Int> {
+    override fun getOnMtuChanged(): Observable<Int> {
         return withDisconnectionHandling(getChangedMtuOutput())
                 .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
-    fun observeDisconnect(): Observable<RxBleDevice> {
+    override fun observeDisconnect(): Observable<RxBleDevice> {
         return connectionStatePublishRelay
                 .filter { pair -> pair.second == RxBleConnectionState.DISCONNECTED }
                 .map { pair -> pair.first }
                 .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
-    fun observeConnect(): Observable<RxBleDevice> {
+    override fun observeConnect(): Observable<RxBleDevice> {
         return connectionStatePublishRelay
                 .filter { pair -> pair.second == RxBleConnectionState.CONNECTED }
                 .map { pair -> pair.first }
                 .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
-    fun getOnCharacteristicReadRequest(characteristic: UUID): Observable<ServerResponseTransaction> {
+    override fun getOnCharacteristicReadRequest(characteristic: UUID): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(getReadCharacteristicOutput())
                 .filter { uuidGattServerTransaction -> uuidGattServerTransaction.first.compareTo(characteristic) == 0 }
                 .map { uuidGattServerTransaction -> uuidGattServerTransaction.second }
@@ -501,14 +494,14 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
 
-    fun getOnCharacteristicWriteRequest(characteristic: UUID): Observable<ServerResponseTransaction> {
+    override fun getOnCharacteristicWriteRequest(characteristic: UUID): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(getWriteCharacteristicOutput())
                 .filter { uuidGattServerTransaction -> uuidGattServerTransaction.first.compareTo(characteristic) == 0 }
                 .map { uuidGattServerTransaction -> uuidGattServerTransaction.second }
                 .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
-    fun getOnDescriptorReadRequest(
+    override fun getOnDescriptorReadRequest(
             characteristic: UUID,
             descriptor: UUID
     ): Observable<ServerResponseTransaction> {
@@ -522,15 +515,15 @@ class GattServerConnectionImpl @Inject constructor(
                 .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
-    fun getOnDescriptorWriteRequest(
-            characteristicuuid: UUID,
-            descriptoruuid: UUID
+    override fun getOnDescriptorWriteRequest(
+            characteristic: UUID,
+            descriptor: UUID
     ): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(getWriteDescriptorOutput())
                 .filter { transaction ->
-                    (transaction.first.uuid.compareTo(descriptoruuid) == 0
+                    (transaction.first.uuid.compareTo(descriptor) == 0
                             && transaction.first.characteristic.uuid
-                            .compareTo(characteristicuuid) == 0)
+                            .compareTo(characteristic) == 0)
                 }
                 .map { transaction -> transaction.second }
                 .delay(0, TimeUnit.SECONDS, callbackScheduler)
@@ -540,7 +533,7 @@ class GattServerConnectionImpl @Inject constructor(
         return notificationPublishRelay.valueRelay
     }
 
-    fun disconnect(device: RxBleDevice): Completable {
+    override fun disconnect(device: RxBleDevice): Completable {
         return operationQueue.queue<Void>(operationsProvider.provideDisconnectOperation(device)).ignoreElements()
     }
 

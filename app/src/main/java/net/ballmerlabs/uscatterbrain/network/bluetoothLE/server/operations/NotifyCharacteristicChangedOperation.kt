@@ -7,8 +7,6 @@ import android.os.DeadObjectException
 import com.polidea.rxandroidble2.RxBleConnection.RxBleConnectionState
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.exceptions.BleException
-import com.polidea.rxandroidble2.exceptions.BleGattServerException
-import com.polidea.rxandroidble2.exceptions.BleGattServerOperationType
 import com.polidea.rxandroidble2.internal.QueueOperation
 import com.polidea.rxandroidble2.internal.RxBleLog
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
@@ -18,6 +16,7 @@ import io.reactivex.Completable
 import io.reactivex.ObservableEmitter
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
+import java.lang.IllegalStateException
 
 class NotifyCharacteristicChangedOperation(
         private val server: BluetoothGattServer,
@@ -46,10 +45,7 @@ class NotifyCharacteristicChangedOperation(
             characteristic.value = value
             try {
                 if (!server.notifyCharacteristicChanged(device.bluetoothDevice, characteristic, isIndication)) {
-                    emitterWrapper.onError(BleGattServerException(
-                            BleGattServerOperationType.CONNECTION_STATE,
-                            "NotifyCharacteristicChangedOperation failed"
-                    ))
+                    emitterWrapper.onError(IllegalStateException("notify failed"))
                 }
             } catch (exc: SecurityException) {
                 emitterWrapper.onError(exc)
@@ -70,11 +66,8 @@ class NotifyCharacteristicChangedOperation(
                 .firstOrError()
     }
 
-    override fun provideException(deadObjectException: DeadObjectException?): BleException? {
-        return BleGattServerException(
-                BleGattServerOperationType.NOTIFICATION_SENT,
-                "notification failed"
-        )
+    override fun provideException(deadObjectException: DeadObjectException?): BleException {
+        return BleException()
     }
 
 }

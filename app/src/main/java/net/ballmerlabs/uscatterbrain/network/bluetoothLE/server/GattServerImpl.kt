@@ -10,9 +10,11 @@ import javax.inject.Singleton
 class GattServerImpl @Inject constructor(
         private val connectionBuilder: Provider<GattServerConnectionSubcomponent.Builder>
 ): GattServer {
-    override fun openServer(): Single<GattServerConnection> {
+    override fun openServer(config: ServerConfig): Single<GattServerConnection> {
         return Single.fromCallable {
-            connectionBuilder.get().build()!!.connection()
+            connectionBuilder.get()
+                    .serverConfig(config)
+                    .build()!!.connection()
         }
     }
 }

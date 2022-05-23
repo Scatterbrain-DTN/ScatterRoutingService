@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.bluetooth.BluetoothGatt
 import com.google.protobuf.MessageLite
 import com.jakewharton.rxrelay2.PublishRelay
-import com.polidea.rxandroidble2.RxBleServerConnection
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -11,6 +10,7 @@ import io.reactivex.disposables.Disposable
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference
  * @property connection raw connection object being wrapped by this class
  */
 class CachedLEServerConnection(
-        val connection: RxBleServerConnection,
+        val connection: GattServerConnection,
         private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
         private  val scheduler: Scheduler
         ) : Disposable {

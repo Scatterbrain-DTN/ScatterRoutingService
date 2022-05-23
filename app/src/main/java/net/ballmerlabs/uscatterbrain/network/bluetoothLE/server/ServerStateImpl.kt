@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
-import com.polidea.rxandroidble2.RxBleClient.NotificationStatus
 import net.ballmerlabs.uscatterbrain.GattServerConnectionScope
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap

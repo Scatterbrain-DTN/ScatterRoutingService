@@ -14,7 +14,6 @@ import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.RxBleDevice
-import com.polidea.rxandroidble2.ServerConfig
 import com.polidea.rxandroidble2.Timeout
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanResult
@@ -33,6 +32,7 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
@@ -1261,7 +1261,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             return
         }
 
-        val config = ServerConfig.newInstance(Timeout(5, TimeUnit.SECONDS))
+        val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
                 .addService(mService)
 
         /*
@@ -1279,7 +1279,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          */
         val d = startAdvertise()
             .andThen(
-            mClient.openServer(config)
+            newServer.openServer(config)
                 .doOnSubscribe { LOG.v("gatt server subscribed") }
                 .doOnError { LOG.e("failed to open server") }
                 .flatMapObservable { connectionRaw ->

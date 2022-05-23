@@ -4,8 +4,6 @@ import android.bluetooth.BluetoothGattServer
 import android.os.DeadObjectException
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.exceptions.BleException
-import com.polidea.rxandroidble2.exceptions.BleGattServerException
-import com.polidea.rxandroidble2.exceptions.BleGattServerOperationType
 import com.polidea.rxandroidble2.internal.QueueOperation
 import com.polidea.rxandroidble2.internal.serialization.QueueReleaseInterface
 import com.polidea.rxandroidble2.internal.util.QueueReleasingEmitterWrapper
@@ -34,6 +32,6 @@ class ServerReplyOperation(
     }
 
     override fun provideException(deadObjectException: DeadObjectException): BleException {
-        return BleGattServerException(BleGattServerOperationType.REPLY, "ServerReplyOperation failed")
+        return BleException()
     }
 }

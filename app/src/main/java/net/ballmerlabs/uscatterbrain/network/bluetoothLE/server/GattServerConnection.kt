@@ -6,7 +6,6 @@ import android.bluetooth.BluetoothGattServer
 import android.util.Pair
 import com.polidea.rxandroidble2.RxBleConnection.RxBleConnectionState
 import com.polidea.rxandroidble2.RxBleDevice
-import com.polidea.rxandroidble2.exceptions.BleGattServerException
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
@@ -15,6 +14,7 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.GattServerTransaction
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction
 import java.util.*
 
 interface GattServerConnection: Disposable {
@@ -83,9 +83,25 @@ interface GattServerConnection: Disposable {
 
     fun setupIndication(ch: UUID, indications: Flowable<ByteArray>, device: RxBleDevice): Completable
 
+    fun getOnMtuChanged(): Observable<Int>
+
+    fun getOnCharacteristicReadRequest(characteristic: UUID): Observable<ServerResponseTransaction>
+
+    fun getOnDescriptorWriteRequest(characteristic: UUID, descriptor: UUID): Observable<ServerResponseTransaction>
+
+    fun getOnCharacteristicWriteRequest(characteristic: UUID): Observable<ServerResponseTransaction>
+
+    fun getOnDescriptorReadRequest(characteristic: UUID, descriptor: UUID): Observable<ServerResponseTransaction>
+
+    fun disconnect(device: RxBleDevice): Completable
+
+    fun observeDisconnect(): Observable<RxBleDevice>
+
+    fun observeConnect(): Observable<RxBleDevice>
+
     open class Output<T> {
         open val valueRelay: PublishSubject<T> = PublishSubject.create()
-        val errorRelay: PublishSubject<BleGattServerException> = PublishSubject.create()
+        val errorRelay: PublishSubject<Throwable> = PublishSubject.create()
         fun hasObservers(): Boolean {
             return valueRelay.hasObservers() || errorRelay.hasObservers()
         }
@@ -99,5 +115,9 @@ interface GattServerConnection: Disposable {
             valueRelay.onComplete()
         }
 
+    }
+
+    companion object {
+        val CLIENT_CONFIG = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
 }

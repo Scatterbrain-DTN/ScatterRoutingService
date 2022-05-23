@@ -111,7 +111,7 @@ dependencies {
     implementation project(':scatterbrainSDK')
     androidTestImplementation project(':scatterbrainSDK')
     implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.1'
-    implementation project(':rxandroidble')
+    implementation "com.polidea.rxandroidble2:rxandroidble:1.13.1"
     kapt "androidx.room:room-compiler:2.4.2" // For Kotlin use kapt instead of annotationProcessor
     implementation "androidx.lifecycle:lifecycle-service:$lifecycle_version"
     // The following Espresso dependency can be either "implementation"

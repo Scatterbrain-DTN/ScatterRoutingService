@@ -2,17 +2,17 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions
 
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.exceptions.BleException
-import com.polidea.rxandroidble2.internal.serialization.ServerOperationQueue
 import io.reactivex.Completable
 import net.ballmerlabs.uscatterbrain.GattServerTransactionScope
 import net.ballmerlabs.uscatterbrain.ServerTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnectionOperationsProvider
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.GattServerOperationQueue
 import javax.inject.Inject
 
 @GattServerTransactionScope
 class ServerResponseTransactionImpl @Inject constructor(
-        private val operationQueue: ServerOperationQueue,
-        val device: RxBleDevice,
+        private val operationQueue: GattServerOperationQueue,
+        override val remoteDevice: RxBleDevice,
         private val config: ServerTransactionSubcomponent.TransactionConfig,
         private val operationsProvider: GattServerConnectionOperationsProvider
 ): ServerResponseTransaction {
@@ -26,7 +26,7 @@ class ServerResponseTransactionImpl @Inject constructor(
 
     override fun sendReply(value: ByteArray?, status: Int): Completable {
         return operationQueue.queue(operationsProvider.provideReplyOperation(
-                device,
+                remoteDevice,
                 config.requestID,
                 status,
                 config.offset,

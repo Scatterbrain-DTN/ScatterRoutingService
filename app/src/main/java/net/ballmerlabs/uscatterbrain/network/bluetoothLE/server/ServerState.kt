@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
-import com.polidea.rxandroidble2.RxBleClient.NotificationStatus
 import java.util.*
 
 enum class NotificationStatus {

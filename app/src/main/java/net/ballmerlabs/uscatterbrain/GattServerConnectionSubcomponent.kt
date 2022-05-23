@@ -1,14 +1,13 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.bluetooth.BluetoothGattServer
-import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothManager
 import android.content.Context
-import com.polidea.rxandroidble2.ServerConnectionScope
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
-import com.polidea.rxandroidble2.internal.serialization.ServerOperationQueue
 import dagger.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.*
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.GattServerOperationQueue
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.ServerOperationQueueImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactoryImpl
 
@@ -29,7 +28,7 @@ interface GattServerConnectionSubcomponent {
     abstract class GattServerConnectionModule {
         @Binds
         @GattServerConnectionScope
-        abstract fun bindServerOperationQueue(impl: ServerOperationQueueImpl): ServerOperationQueue
+        abstract fun bindServerOperationQueue(impl: ServerOperationQueueImpl): GattServerOperationQueue
 
         @Binds
         @GattServerConnectionScope
