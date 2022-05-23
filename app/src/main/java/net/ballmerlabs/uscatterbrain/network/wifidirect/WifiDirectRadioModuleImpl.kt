@@ -58,8 +58,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         private val socketProvider: SocketProvider
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
-    private val groupOperationInProgress = AtomicReference(false)
-    private val groupConnectInProgress = AtomicReference(false)
     private val groupRemoveInProgress = AtomicReference(false)
 
 
@@ -110,12 +108,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                     }
                     mBroadcastReceiver.observeConnectionInfo()
-                        .doOnSubscribe { if (!groupOperationInProgress.getAndSet(true)) mManager.createGroup(channel, listener) }
+                        .doOnSubscribe { mManager.createGroup(channel, listener) }
                         .doOnError { err -> LOG.e("createGroup error: $err") }
                         .takeUntil { wifiP2pInfo -> (wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner()) }
                         .ignoreElements()
                         .doOnComplete { LOG.v("createGroup return success") }
-                        .doFinally { groupOperationInProgress.set(false) }
                         .andThen(subject)
                 } catch (exc: SecurityException) {
                     Completable.error(exc)
@@ -218,20 +215,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         group.networkName.equals(name)) {
                         mManager.requestConnectionInfo(channel, infoListener)
                     } else {
-                        if (!groupConnectInProgress.getAndSet(true)) {
-                            val builder = infoComponentProvider.get()
-                            val fakeConfig = builder.fakeWifiP2pConfig(WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
-                                    passphrase = passphrase,
-                                    networkName = name
-                            )).build()!!.fakeWifiP2pConfig()
+                        val builder = infoComponentProvider.get()
+                        val fakeConfig = builder.fakeWifiP2pConfig(WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
+                                passphrase = passphrase,
+                                networkName = name
+                        )).build()!!.fakeWifiP2pConfig()
 
-                            retryDelay(initiateConnection(fakeConfig.asConfig()), 20, 1)
+                        retryDelay(initiateConnection(fakeConfig.asConfig()), 20, 1)
                                 .andThen(awaitConnection(timeout))
                                 .subscribe(subject)
-                        } else {
-                            awaitConnection(timeout)
-                                .subscribe(subject)
-                        }
                     }
                 }
                 try {
@@ -386,7 +378,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .timeout(timeout.toLong(), TimeUnit.SECONDS, operationsScheduler)
                 .doOnSuccess { info -> LOG.v("connect to group returned: " + info.groupOwnerAddress()) }
                 .doOnError { err -> LOG.e("connect to group failed: $err") }
-                .doFinally { groupConnectInProgress.set(false) }
         }
 
         /**
