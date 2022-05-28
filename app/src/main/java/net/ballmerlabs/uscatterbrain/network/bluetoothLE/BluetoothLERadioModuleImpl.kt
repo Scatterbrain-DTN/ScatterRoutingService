@@ -1277,11 +1277,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          * As a result, gatt client connections are seemingly thrown away and unhandled. THIS IS FAKE NEWS
          * they are handled here.
          */
-        val d = startAdvertise()
-            .andThen(
-            newServer.openServer(config)
+        val d = newServer.openServer(config)
                 .doOnSubscribe { LOG.v("gatt server subscribed") }
                 .doOnError { LOG.e("failed to open server") }
+                .flatMap { server -> startAdvertise().toSingleDefault(server) }
                 .flatMapObservable { connectionRaw ->
                     LOG.v("gatt server initialized")
                     serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, operationsScheduler))
@@ -1332,7 +1331,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .doOnComplete { LOG.e("gatt server completed. This shouldn't happen") }
                 .retry()
                 .repeat()
-            ).subscribe(transactionCompleteRelay)
+                .subscribe(transactionCompleteRelay)
         mGattDisposable.add(d)
     }
 

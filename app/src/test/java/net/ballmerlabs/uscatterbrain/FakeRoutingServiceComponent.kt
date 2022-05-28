@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.BluetoothLeAdvertiser
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.wifi.p2p.WifiP2pManager
@@ -12,7 +11,10 @@ import com.polidea.rxandroidble2.RxBleClient
 import dagger.*
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
-import net.ballmerlabs.uscatterbrain.db.*
+import net.ballmerlabs.uscatterbrain.db.DATABASE_NAME
+import net.ballmerlabs.uscatterbrain.db.Datastore
+import net.ballmerlabs.uscatterbrain.db.MockScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
@@ -23,16 +25,11 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
-import net.ballmerlabs.uscatterbrain.util.FirebaseWrapperImpl
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
-import org.mockito.kotlin.any
-import org.mockito.kotlin.doAnswer
-import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import java.io.InputStream
 import java.io.OutputStream
-import java.net.InetAddress
 import javax.inject.Named
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -60,13 +57,16 @@ interface FakeRoutingServiceComponent {
         @BindsInstance
         fun wifiDirectBroadcastReceiver(wifiDirectBroadcastReceiver: MockWifiDirectBroadcastReceiver): Builder
 
+        @BindsInstance
+        fun rxBleClient(client: RxBleClient): Builder
+
         fun build(): FakeRoutingServiceComponent?
     }
 
     @Module(subcomponents = [
         FakeWifiDirectInfoSubcomponent::class,
         FakeBootstrapRequestSubcomponent::class,
-        GattServerConnectionSubcomponent::class
+        FakeGattServerConnectionSubcomponent::class
     ])
     abstract class FakeRoutingServiceModule {
         @Binds
@@ -142,6 +142,12 @@ interface FakeRoutingServiceComponent {
                 return builder
             }
 
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesGattServerBuilder(builder: FakeGattServerConnectionSubcomponent.Builder): GattServerConnectionSubcomponent.Builder {
+                return builder
+            }
 
             @Provides
             @JvmStatic
@@ -164,13 +170,6 @@ interface FakeRoutingServiceComponent {
             @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
-            }
-
-            @Provides
-            @JvmStatic
-            @Singleton
-            fun provideRxBleClient(ctx: Context?): RxBleClient {
-                return RxBleClient.create(ctx!!)
             }
 
             @Provides
@@ -218,8 +217,10 @@ interface FakeRoutingServiceComponent {
 
     }
 
-    fun scatterRoutingService(): RoutingServiceBackend?
-    fun wifiDirectModule(): WifiDirectRadioModule?
+    fun scatterRoutingService(): RoutingServiceBackend
+    fun wifiDirectModule(): WifiDirectRadioModule
+    fun gattServer(): GattServer
+    fun gattConnectionBuilder(): FakeGattServerConnectionSubcomponent.Builder
     fun bootstrapSubcomponent(): Provider<BootstrapRequestSubcomponent.Builder>
     fun inject(provider: DatastoreImportProviderImpl?)
 

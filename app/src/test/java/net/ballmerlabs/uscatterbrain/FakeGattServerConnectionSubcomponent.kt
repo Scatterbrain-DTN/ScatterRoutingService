@@ -2,8 +2,6 @@ package net.ballmerlabs.uscatterbrain
 
 import android.bluetooth.BluetoothGattServer
 import android.bluetooth.BluetoothManager
-import android.content.Context
-import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import dagger.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.GattServerOperationQueue
@@ -11,18 +9,22 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.Serve
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactoryImpl
 
-@Subcomponent(modules = [GattServerConnectionSubcomponent.GattServerConnectionModule::class])
+@Subcomponent(modules = [FakeGattServerConnectionSubcomponent.GattServerConnectionModule::class])
 @GattServerConnectionScope
-interface GattServerConnectionSubcomponent {
+interface FakeGattServerConnectionSubcomponent: GattServerConnectionSubcomponent {
 
     @Subcomponent.Builder
-    interface Builder {
+    interface Builder: GattServerConnectionSubcomponent.Builder {
         @BindsInstance
-        fun timeoutConfiguration(timeoutConfiguration: TimeoutConfiguration): Builder
-        fun build(): GattServerConnectionSubcomponent
+        fun bluetoothManager(manager: BluetoothManager): Builder
+
+        @BindsInstance
+        fun gattServer(bluetoothGattServer: BluetoothGattServer): Builder
+
+        override fun build(): GattServerConnectionSubcomponent
     }
 
-    @Module(subcomponents = [ServerTransactionSubcomponent::class])
+    @Module(subcomponents = [FakeServerTransactionSubcomponent::class])
     abstract class GattServerConnectionModule {
         @Binds
         @GattServerConnectionScope
@@ -48,23 +50,11 @@ interface GattServerConnectionSubcomponent {
             @Provides
             @JvmStatic
             @GattServerConnectionScope
-            @Throws(SecurityException::class)
-            fun providesGattServer(
-                    bluetoothManager: BluetoothManager,
-                    context: Context,
-                    gattServerCallback: GattServerConnection
-            ): BluetoothGattServer {
-                return bluetoothManager.openGattServer(context, gattServerCallback.gattServerCallback)
-            }
-
-            @Provides
-            @JvmStatic
-            @GattServerConnectionScope
-            fun providesBluetoothManager(context: Context): BluetoothManager {
-                return context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+            fun providesTransactionBuilder(builder: FakeServerTransactionSubcomponent.Builder): ServerTransactionSubcomponent.Builder {
+                return builder
             }
         }
     }
 
-    fun connection(): GattServerConnection
+    override fun connection(): GattServerConnection
 }

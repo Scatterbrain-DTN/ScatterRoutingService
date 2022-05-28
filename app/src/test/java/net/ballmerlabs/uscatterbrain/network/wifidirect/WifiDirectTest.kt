@@ -36,7 +36,6 @@ import java.io.OutputStream
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
-private val scheduler = TestScheduler()
 const val pass = "fmefthisisahorriblepassphrase"
 const val name = "DIRECT-fmoo"
 
@@ -88,11 +87,12 @@ class WifiDirectTest {
                 .applicationContext(context)
                 .wifiP2pManager(wifiP2pManager)
                 .packetInputStream(packets)
+                .rxBleClient(mock {  })
                 .mockPreferences(preferences)
                 .packetOutputStream(packetOutputStream)
                 .wifiDirectBroadcastReceiver(broadcastReceiver)
                 .build()!!
-        module = component.wifiDirectModule()!!
+        module = component.wifiDirectModule()
         bootstrapRequestComponentBuilder = component.bootstrapSubcomponent().get()
 
     }

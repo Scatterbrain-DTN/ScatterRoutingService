@@ -19,9 +19,17 @@ class GattServerImpl @Inject constructor(
     override fun openServer(config: ServerConfig): Single<GattServerConnection> {
         return Single.fromCallable {
             connectionBuilder.get()
-                    .timeoutConfiguration(TimeoutConfiguration(10, TimeUnit.SECONDS, timeoutScheduler))
-                    .serverConfig(config)
-                    .build()!!.connection()
+                    .timeoutConfiguration(
+                            TimeoutConfiguration(
+                                    10,
+                                    TimeUnit.SECONDS,
+                                    timeoutScheduler
+                            )
+                    )
+                    .build()
+                    .connection()
+
         }
+                .flatMap { conn -> conn.initializeServer(config).toSingleDefault(conn) }
     }
 }

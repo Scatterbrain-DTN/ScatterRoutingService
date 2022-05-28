@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
-import android.bluetooth.BluetoothGattServer
+import android.bluetooth.BluetoothGattServerCallback
 import android.util.Pair
 import com.polidea.rxandroidble2.RxBleConnection.RxBleConnectionState
 import com.polidea.rxandroidble2.RxBleDevice
@@ -18,7 +18,9 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.Ser
 import java.util.*
 
 interface GattServerConnection: Disposable {
-    val server: BluetoothGattServer
+
+    val gattServerCallback: BluetoothGattServerCallback
+
     fun getReadCharacteristicOutput(): Output<GattServerTransaction<UUID>>
 
     fun getWriteCharacteristicOutput(): Output<GattServerTransaction<UUID>>
@@ -46,6 +48,7 @@ interface GattServerConnection: Disposable {
     
     fun getOnConnectionStateChange(): Observable<Pair<RxBleDevice, RxBleConnectionState>>
 
+    fun initializeServer(config: ServerConfig): Completable
 
     fun prepareDescriptorTransaction(
             descriptor: BluetoothGattDescriptor,
