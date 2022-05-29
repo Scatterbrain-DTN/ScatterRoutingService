@@ -1,3 +1,5 @@
+[![Build Status](https://app.travis-ci.com/Scatterbrain-DTN/RoutingServiceFrontend.svg?branch=develop)](https://app.travis-ci.com/Scatterbrain-DTN/RoutingServiceFrontend)
+
 # ScatterRoutingService
 
 ScatterRoutingService is a reference implementation of a Scatterbrain router for
