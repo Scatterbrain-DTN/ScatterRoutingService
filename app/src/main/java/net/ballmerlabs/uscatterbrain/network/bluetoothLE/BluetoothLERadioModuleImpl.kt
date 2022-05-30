@@ -15,6 +15,7 @@ import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.Timeout
+import com.polidea.rxandroidble2.exceptions.BleScanException
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanResult
 import com.polidea.rxandroidble2.scan.ScanSettings
@@ -410,7 +411,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                                         }
                             } else {
-                                Completable.error(IllegalStateException("failed to set advertising data randomizeLuid"))
+                                startAdvertise(luid = luid)
                             }
                         }
             }
@@ -945,6 +946,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             ScanFilter.Builder()
                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
                 .build())
+                .retryWhen { e ->
+                    e.flatMap { err ->
+                        if(err is BleScanException) {
+                            val delay = err.retryDateSuggestion!!.time - Date().time
+                            discoverContinuous().delay(delay, TimeUnit.SECONDS)
+                        } else {
+                            Observable.error(err)
+                        }
+                    }
+                }
     }
 
     private fun awaitBluetoothEnabled(): Completable {
@@ -1000,7 +1011,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return awaitBluetoothEnabled()
             .andThen(discover)
             .repeat()
-            .retry()
     }
 
 
