@@ -40,6 +40,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 @RunWith(RobolectricTestRunner::class)
 class GattServerTest {
@@ -319,7 +320,7 @@ class GattServerTest {
         assert(res.requestID == id)
     }
 
-    private fun testNotify(isIndication: Boolean) {
+    private fun testNotify(isIndication: Boolean, length: Long = 1) {
         val char = UUID.fromString("5C7E5EB0-540B-4675-9137-DC5235AA9786")
         val characteristic = getCharacteristic(char, notify = true)
         val config = getServerConfig(characteristic)
@@ -353,7 +354,7 @@ class GattServerTest {
 
         connection.setupNotifications(
                 characteristic,
-                Flowable.just(byteArrayOf(1)),
+                Flowable.just(Random.nextBytes(10)).repeat(length),
                 isIndication,
                 device
         ).doOnSubscribe {
@@ -377,5 +378,15 @@ class GattServerTest {
     @Test
     fun indications() {
         testNotify(true)
+    }
+
+    @Test
+    fun testLongNotify() {
+        testNotify(false, length = 200)
+    }
+
+    @Test
+    fun testLongIndicate() {
+        testNotify(true, length = 200)
     }
 }
