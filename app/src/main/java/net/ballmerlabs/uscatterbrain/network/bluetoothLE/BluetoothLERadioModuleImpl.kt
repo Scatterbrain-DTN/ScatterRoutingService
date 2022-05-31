@@ -852,6 +852,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     override fun clearPeers() {
         activeLuids.clear()
+        connectionCache.clear()
     }
 
     private fun getAdvertisedLuid(scanResult: ScanResult): UUID? {

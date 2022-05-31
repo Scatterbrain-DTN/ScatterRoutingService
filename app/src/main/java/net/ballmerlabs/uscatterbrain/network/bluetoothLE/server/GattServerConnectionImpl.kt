@@ -615,12 +615,10 @@ class GattServerConnectionImpl @Inject constructor(
     override fun dispose() {
         Log.e("gatt server disposed")
         try {
-            gattServer.get().close()
+            gattServer.get()?.close()
         } catch (exc: SecurityException) {
             firebaseWrapper.recordException(exc)
         }
-        connectionScheduler.shutdown()
-        callbackScheduler.shutdown()
         compositeDisposable.dispose()
     }
 
