@@ -9,6 +9,7 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
+import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -25,6 +26,7 @@ import javax.inject.Singleton
 class ScatterbrainSchedulerImpl @Inject constructor(
         private val bluetoothLEModule: BluetoothLEModule,
         private val context: Context,
+        private val firebaseWrapper: FirebaseWrapper,
         powerManager: PowerManager
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
@@ -108,6 +110,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         val lock = discoveryLock.getAndSet(false)
 
         if(lock) {
+            bluetoothLEModule.clearPeers()
             bluetoothLEModule.stopAdvertise()
                     .subscribe()
             bluetoothLEModule.stopServer()
@@ -123,7 +126,13 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     init {
         val d = this.bluetoothLEModule.observeCompletedTransactions()
+                .retry()
+                .repeat()
                 .subscribe({ transactionStats -> broadcastTransactionResult(transactionStats) }
-                ) { LOG.e("fatal error, transaction relay somehow called onError") }
+                ) { e ->
+                    LOG.e("fatal error, transaction relay somehow called onError $e")
+                    e.printStackTrace()
+                    firebaseWrapper.recordException(e)
+                }
     }
 }

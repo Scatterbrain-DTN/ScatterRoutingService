@@ -851,6 +851,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     override fun clearPeers() {
+        connectionCache.values.forEach { c ->
+            c.dispose()
+        }
         activeLuids.clear()
         connectionCache.clear()
     }
@@ -1270,7 +1273,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun startServer(): Completable {
         val started = serverStarted.getAndSet(true)
         if (started) {
-            return Completable.complete()
+            return startAdvertise()
         }
 
         val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
@@ -1372,11 +1375,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * stop our server and stop advertising
      */
     override fun stopServer() {
-        gattServerDisposable.getAndUpdate { d ->
-            d?.dispose()
-            null
-        }
-        serverStarted.set(false)
+        //do nothing until I fix gatt server breakededing
     }
 
     /**
