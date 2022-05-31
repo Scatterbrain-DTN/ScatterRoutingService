@@ -869,7 +869,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private fun updateConnected(luid: UUID): Boolean {
-        return activeLuids.putIfAbsent(luid, true) == null
+        activeLuids.putIfAbsent(luid, true)
+        return true
     }
 
     private fun updateDisconnected(luid: UUID) {

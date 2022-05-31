@@ -671,7 +671,6 @@ class ScatterRoutingService : LifecycleService() {
         try {
             mBackend.wifiDirect.registerReceiver()
             mBackend.radioModule.clearPeers()
-            mBackend.scheduler.start()
         } catch (e: Exception) {
             e.printStackTrace()
             FirebaseCrashlytics.getInstance().recordException(e)
