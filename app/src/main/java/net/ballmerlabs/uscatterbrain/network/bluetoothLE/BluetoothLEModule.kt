@@ -26,7 +26,7 @@ interface BluetoothLEModule {
      * Starts GATT server accept loop.
      *
      */
-    fun startServer()
+    fun startServer(): Completable
 
     /**
      * Stops the gatt server accept loop
@@ -75,6 +75,12 @@ interface BluetoothLEModule {
      * @returns Observable emitting handshake results
      */
     fun refreshPeers(): Observable<HandshakeResult>
+
+    /**
+     * Clears the list of nearby peers, nearby devices currently in range will
+     * be reconnected to if possible
+     */
+    fun clearPeers()
 
     /**
      * role is a generalized concept of "initiator" vs "acceptor"

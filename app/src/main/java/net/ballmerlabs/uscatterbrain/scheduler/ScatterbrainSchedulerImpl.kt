@@ -26,21 +26,21 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         private val bluetoothLEModule: BluetoothLEModule,
         private val context: Context,
         powerManager: PowerManager
-        ) : ScatterbrainScheduler {
+) : ScatterbrainScheduler {
     private val LOG by scatterLog()
     private val discoveryLock = AtomicReference(false)
     override val isDiscovering: Boolean
         get() = discoveryLock.get()
     private var isAdvertising = false
     private val wakeLock = powerManager.newWakeLock(
-        PowerManager.PARTIAL_WAKE_LOCK,
-        context.getString(
-            R.string.wakelock_tag
-        ))
+            PowerManager.PARTIAL_WAKE_LOCK,
+            context.getString(
+                    R.string.wakelock_tag
+            ))
     private val globalDisposable = AtomicReference<Disposable?>()
     private fun broadcastTransactionResult(transactionStats: HandshakeResult) {
         val intent = Intent(ScatterbrainApi.BROADCAST_EVENT)
-        
+
         intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, transactionStats)
         context.sendBroadcast(intent, ScatterbrainApi.PERMISSION_ACCESS)
     }
@@ -67,36 +67,36 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             return
         }
         isAdvertising = true
-        bluetoothLEModule.startServer()
         val compositeDisposable = CompositeDisposable()
         val d2 = bluetoothLEModule.observeTransactionStatus()
-            .subscribe(
-                { res ->
-                    if(res) {
-                        LOG.v("transaction started, acquiring wakelock")
-                        acquireWakelock()
-                    }
-                    else {
-                        LOG.v("transaction completed, releasing wakelock")
-                        releaseWakeLock()
-                    }
-                },
-                { err ->
-                    LOG.e("error in observeTransactionStatus: wakelocks broked")
-                    err.printStackTrace()
-                }
-            )
-        val d = bluetoothLEModule.startAdvertise()
-            .andThen(bluetoothLEModule.discoverForever()
-                .doOnDispose { discoveryLock.set(false) })
                 .subscribe(
-                    { res ->
-                        LOG.v("finished transaction: ${res.success}")
-                    },
-                    { err ->
-                    LOG.e("error in transaction: $err")
-                    err.printStackTrace()
-                })
+                        { res ->
+                            if (res) {
+                                LOG.v("transaction started, acquiring wakelock")
+                                acquireWakelock()
+                            } else {
+                                LOG.v("transaction completed, releasing wakelock")
+                                releaseWakeLock()
+                            }
+                        },
+                        { err ->
+                            LOG.e("error in observeTransactionStatus: wakelocks broked")
+                            err.printStackTrace()
+                        }
+                )
+        val d = bluetoothLEModule.startServer()
+                .andThen(
+                        bluetoothLEModule.discoverForever()
+                )
+                .doFinally { discoveryLock.set(false) }
+                .subscribe(
+                        { res ->
+                            LOG.v("finished transaction: ${res.success}")
+                        },
+                        { err ->
+                            LOG.e("error in transaction: $err")
+                            err.printStackTrace()
+                        })
         compositeDisposable.add(d)
         compositeDisposable.add(d2)
         val disp = globalDisposable.getAndSet(compositeDisposable)
@@ -105,15 +105,16 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     @Synchronized
     override fun stop(): Boolean {
-        if (!isAdvertising) {
-            return false
+        val lock = discoveryLock.getAndSet(false)
+
+        if(lock) {
+            bluetoothLEModule.stopAdvertise()
+                    .subscribe()
+            bluetoothLEModule.stopServer()
+            bluetoothLEModule.stopDiscover()
+            val disp = globalDisposable.getAndSet(null)
+            disp?.dispose()
         }
-        isAdvertising = false
-        bluetoothLEModule.stopAdvertise()
-            .subscribe()
-        bluetoothLEModule.stopServer()
-        val disp = globalDisposable.getAndSet(null)
-        disp?.dispose()
         return true
     }
 

@@ -10,6 +10,7 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.ParcelUuid
+import android.preference.PreferenceManager
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -207,7 +208,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(UnauthorizedException::class)
         override fun startPassive() {
             checkAdminPermission()
-            mBackend.radioModule.startServer()
+            mBackend.scheduler.start()
         }
 
         /**
@@ -216,7 +217,7 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(UnauthorizedException::class)
         override fun stopPassive() {
             checkAdminPermission()
-            mBackend.radioModule.stopServer()
+            mBackend.scheduler.stop()
         }
 
         /**
@@ -669,6 +670,8 @@ class ScatterRoutingService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
         try {
             mBackend.wifiDirect.registerReceiver()
+            mBackend.radioModule.clearPeers()
+            mBackend.scheduler.start()
         } catch (e: Exception) {
             e.printStackTrace()
             FirebaseCrashlytics.getInstance().recordException(e)
@@ -688,8 +691,8 @@ class ScatterRoutingService : LifecycleService() {
     /* make sure to trigger disposal of any rxjava chains before shutting down */
     override fun onDestroy() {
         super.onDestroy()
-        mBackend.radioModule.stopDiscover()
-        mBackend.radioModule.stopAdvertise()
+        mBackend.scheduler.stop()
+        mBackend.radioModule.clearPeers()
         mBackend.wifiDirect.unregisterReceiver()
     }
 

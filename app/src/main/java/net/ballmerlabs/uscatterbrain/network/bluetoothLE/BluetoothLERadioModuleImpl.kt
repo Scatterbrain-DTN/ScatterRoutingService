@@ -24,6 +24,7 @@ import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -238,18 +239,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         refreshInProgresss.accept(false)
         isAdvertising.onNext(Pair(OptionalBootstrap.empty(), AdvertisingSetCallback.ADVERTISE_SUCCESS))
         LOG.e("init")
-        val disp = mClient.observeStateChanges()
-            .flatMapCompletable { s ->
-                if (s == RxBleClient.State.READY) {
-                    startAdvertise()
-                } else {
-                    stopAdvertise()
-                }
-            }
-            .doOnComplete { LOG.e("adapter state change observable completed") }
-            .doOnError { err -> LOG.e("adapter state change error $err") }
-            .subscribe()
-        mGattDisposable.add(disp)
         observeTransactionComplete()
     }
 
@@ -865,6 +854,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
     }
 
+    override fun clearPeers() {
+        activeLuids.clear()
+    }
+
     private fun getAdvertisedLuid(scanResult: ScanResult): UUID? {
         return if (scanResult.scanRecord.serviceUuids.size == 2) {
             val serviceIndex = scanResult.scanRecord.serviceUuids.indexOf(ParcelUuid(SERVICE_UUID))
@@ -947,7 +940,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
                 .build())
                 .retryWhen { e ->
-                    e.flatMap { err ->
+                    e.concatMap { err ->
                         if(err is BleScanException) {
                             val delay = err.retryDateSuggestion!!.time - Date().time
                             LOG.e("undocumented scan throttling. Waiting $delay seconds")
@@ -1006,7 +999,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
             }
             .doOnComplete { LOG.e("discoverForever completed, retry") }
-            .doOnError { err -> LOG.e("discoverForever error: $err") }
+            .doOnError { err ->
+                LOG.e("discoverForever error: $err")
+                clearPeers()
+            }
             .doOnSubscribe { LOG.e("subscribed discoverForever") }
 
         return awaitBluetoothEnabled()
@@ -1267,14 +1263,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * this function NEEDS to be called for the device to be connectable
      * @return false on failure
      */
-    override fun startServer() {
+    override fun startServer(): Completable {
         val started = serverStarted.getAndSet(true)
         if (started) {
-            return
+            return Completable.complete()
         }
 
         val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
                 .addService(mService)
+
+        val startSubject = CompletableSubject.create()
 
         /*
          * NOTE: HIGHLY IMPORTANT: ACHTUNG!!
@@ -1291,8 +1289,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          */
         val d = newServer.openServer(config)
                 .doOnSubscribe { LOG.v("gatt server subscribed") }
-                .doOnError { LOG.e("failed to open server") }
-                .flatMap { server -> startAdvertise().toSingleDefault(server) }
+                .doOnError { e ->
+                    LOG.e("failed to open server")
+                    startSubject.onError(e)
+                }
+                .flatMap { server ->
+                    startAdvertise().toSingleDefault(server)
+                            .doOnSuccess { startSubject.onComplete() }
+                }
                 .flatMapObservable { connectionRaw ->
                     LOG.v("gatt server initialized")
                     serverSubject.onSuccess(CachedLEServerConnection(connectionRaw, channels, operationsScheduler))
@@ -1345,6 +1349,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .repeat()
                 .subscribe(transactionCompleteRelay)
         mGattDisposable.add(d)
+        return startSubject
     }
 
     /**
