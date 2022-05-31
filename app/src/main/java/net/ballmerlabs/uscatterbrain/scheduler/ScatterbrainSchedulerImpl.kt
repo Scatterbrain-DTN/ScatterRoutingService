@@ -74,6 +74,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     override fun start() {
         val discovering = discoveryLock.getAndSet(true)
         if (discovering) {
+            broadcastRouterState(RouterState.DISCOVERING)
             return
         }
         isAdvertising = true
