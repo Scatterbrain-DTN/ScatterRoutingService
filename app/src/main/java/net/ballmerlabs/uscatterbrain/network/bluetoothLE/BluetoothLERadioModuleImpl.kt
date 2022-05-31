@@ -950,6 +950,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     e.flatMap { err ->
                         if(err is BleScanException) {
                             val delay = err.retryDateSuggestion!!.time - Date().time
+                            LOG.e("undocumented scan throttling. Waiting $delay seconds")
                             discoverContinuous().delay(delay, TimeUnit.SECONDS)
                         } else {
                             Observable.error(err)
@@ -1009,8 +1010,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doOnSubscribe { LOG.e("subscribed discoverForever") }
 
         return awaitBluetoothEnabled()
-            .andThen(discover)
-            .repeat()
+                .andThen(discover)
+                .repeat()
+                .retry()
     }
 
 
@@ -1177,8 +1179,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     }
                                         }.flatMap { result -> result }
                                             .subscribeOn(operationsScheduler)
-                                            .flatMap { v ->
-                                                when {
+                                                        .flatMap { v ->
+                                                            when {
                                                     v.first.isError() -> Single.error(v.first.err)
                                                     v.second.err -> Single.error(
                                                         IllegalStateException("gatt client error")

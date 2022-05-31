@@ -645,16 +645,18 @@ class ScatterRoutingService : LifecycleService() {
      */
     override fun onCreate() {
         super.onCreate()
-        val c = DaggerRoutingServiceComponent.builder()
-                .applicationContext(this)
-                ?.build()!!
-        component.accept(c)
-        mBackend = c.scatterRoutingService()!!
         val channel = NotificationChannel(
                 NOTIFICATION_CHANNEL_FOREGROUND,
                 "fmef",
                 NotificationManager.IMPORTANCE_DEFAULT
         )
+        if(!this::mBackend.isInitialized) {
+            val c = DaggerRoutingServiceComponent.builder()
+                    .applicationContext(this)
+                    ?.build()!!
+            component.accept(c)
+            mBackend = c.scatterRoutingService()!!
+        }
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
     }
@@ -680,14 +682,14 @@ class ScatterRoutingService : LifecycleService() {
                 .setTicker("fmef am tire")
                 .build()
         startForeground(1, notification)
-        return Service.START_NOT_STICKY
+        return Service.START_STICKY
     }
 
     /* make sure to trigger disposal of any rxjava chains before shutting down */
     override fun onDestroy() {
         super.onDestroy()
         mBackend.radioModule.stopDiscover()
-        mBackend.scheduler.stop()
+        mBackend.radioModule.stopAdvertise()
         mBackend.wifiDirect.unregisterReceiver()
     }
 
