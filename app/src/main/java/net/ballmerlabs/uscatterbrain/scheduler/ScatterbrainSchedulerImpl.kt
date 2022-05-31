@@ -54,7 +54,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     */
     private fun acquireWakelock() {
         if (!wakeLock.isHeld)
-            wakeLock.acquire((10 * 60 * 1000).toLong())
+            wakeLock.acquire((30 * 1000).toLong())
     }
 
     private fun releaseWakeLock() {
@@ -77,8 +77,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                                 LOG.v("transaction started, acquiring wakelock")
                                 acquireWakelock()
                             } else {
-                                LOG.v("transaction completed, releasing wakelock")
-                                releaseWakeLock()
+                                LOG.v("transaction completed, NOT releasing, should time out naturally")
                             }
                         },
                         { err ->
