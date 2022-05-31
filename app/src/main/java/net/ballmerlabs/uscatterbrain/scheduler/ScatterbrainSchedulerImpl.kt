@@ -2,10 +2,12 @@ package net.ballmerlabs.uscatterbrain.scheduler
 
 import android.content.Context
 import android.content.Intent
+import android.os.Parcelable
 import android.os.PowerManager
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.RouterState
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
@@ -44,6 +46,12 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         val intent = Intent(ScatterbrainApi.BROADCAST_EVENT)
 
         intent.putExtra(ScatterbrainApi.EXTRA_TRANSACTION_RESULT, transactionStats)
+        context.sendBroadcast(intent, ScatterbrainApi.PERMISSION_ACCESS)
+    }
+
+    private fun broadcastRouterState(routerState: RouterState) {
+        val intent = Intent(ScatterbrainApi.STATE_EVENT)
+        intent.putExtra(ScatterbrainApi.EXTRA_ROUTER_STATE, routerState as Parcelable)
         context.sendBroadcast(intent, ScatterbrainApi.PERMISSION_ACCESS)
     }
 
@@ -88,13 +96,16 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         val d = bluetoothLEModule.startServer()
                 .andThen(
                         bluetoothLEModule.discoverForever()
+                                .doOnSubscribe { broadcastRouterState(RouterState.DISCOVERING) }
                 )
+                .doOnComplete { broadcastRouterState(RouterState.OFFLINE) }
                 .doFinally { discoveryLock.set(false) }
                 .subscribe(
                         { res ->
                             LOG.v("finished transaction: ${res.success}")
                         },
                         { err ->
+                            broadcastRouterState(RouterState.ERROR)
                             LOG.e("error in transaction: $err")
                             err.printStackTrace()
                         })
