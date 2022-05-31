@@ -115,7 +115,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             val disp = globalDisposable.getAndSet(null)
             disp?.dispose()
         }
-        return true
+        return lock
     }
 
     override val isPassive: Boolean

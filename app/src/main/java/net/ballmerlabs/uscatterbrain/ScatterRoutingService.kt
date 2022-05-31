@@ -691,6 +691,7 @@ class ScatterRoutingService : LifecycleService() {
     /* make sure to trigger disposal of any rxjava chains before shutting down */
     override fun onDestroy() {
         super.onDestroy()
+        LOG.e("onDestroy called")
         mBackend.scheduler.stop()
         mBackend.radioModule.clearPeers()
         mBackend.wifiDirect.unregisterReceiver()

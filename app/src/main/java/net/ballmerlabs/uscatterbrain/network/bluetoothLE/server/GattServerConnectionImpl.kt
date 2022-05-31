@@ -613,6 +613,7 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun dispose() {
+        Log.e("gatt server disposed")
         try {
             gattServer.get().close()
         } catch (exc: SecurityException) {

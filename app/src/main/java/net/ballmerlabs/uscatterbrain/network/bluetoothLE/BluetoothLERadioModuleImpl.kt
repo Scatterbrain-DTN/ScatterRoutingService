@@ -225,7 +225,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    private val mGattDisposable = CompositeDisposable()
+    private val gattServerDisposable = AtomicReference(CompositeDisposable())
 
 
     init {
@@ -269,7 +269,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         ) { err ->
             LOG.e("error in transactionCompleteRelay $err")
         }
-        mGattDisposable.add(d)
+        gattServerDisposable.get()?.add(d)
     }
 
     private val powerSave: String?
@@ -520,7 +520,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             LOG.e("luid hash verify failed: $err")
                                             err.printStackTrace()
                                         }
-                                        .onErrorReturnItem(TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.remoteHashed))
                             })
 
                     /*
@@ -642,9 +641,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         }
                                         .doOnError { err -> LOG.e("error while receiving packet: $err") }
                                         .doOnSuccess { result -> LOG.v("client handshake received election result ${result.nextStage}") }
-                                        .onErrorReturn {
-                                            TransactionResult(TransactionResult.STAGE_SUSPEND, session.device, session.luidStage.remoteHashed)
-                                        }
                             })
 
                     /*
@@ -974,14 +970,19 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .flatMapSingle { res ->
                 val isold = randomizeLuidIfOld()
                 val luidrandomized = if(isold) "randomized!" else "not randomized!"
-                LOG.v("raw scan result ${res.bleDevice.macAddress}, luid: $luidrandomized")
+                LOG.v("raw scan result ${res.bleDevice.macAddress}, luid: $luidrandomized ${activeLuids.size}")
+                val k = activeLuids.keys().asSequence().fold("") { s, v ->
+                    val n  = "$s, $v"
+                    n
+                }
+                LOG.v("activeLuids: $k")
                 setAdvertisingLuid(getHashUuid(myLuid.get())!!)
                     .andThen(removeWifiDirectGroup(isold).onErrorComplete())
                     .toSingleDefault(res)
             }
             .filter { res ->
                 val advertisingLuid = getAdvertisedLuid(res)
-                advertisingLuid != null && (!activeLuids.containsKey(advertisingLuid) && !connectionCache.containsKey(advertisingLuid))
+                advertisingLuid != null && !activeLuids.containsKey(advertisingLuid)
             }
             .concatMapSingle { scanResult ->
                 LOG.v("received scan result ${scanResult.bleDevice.macAddress}")
@@ -1137,6 +1138,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                 "error in gatt server transaction for ${device.macAddress}, stage: $stage, $err"
                                                         )
                                                         err.printStackTrace()
+                                                        clearPeers()
                                                     }
                                                     .doOnSuccess {
                                                         LOG.v(
@@ -1161,6 +1163,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                                                 "error in gatt client transaction for ${device.macAddress}, stage: $stage, $err"
                                                                         )
                                                                         err.printStackTrace()
+                                                                        clearPeers()
                                                                     }
                                                                     .onErrorReturn {
                                                                         TransactionResult(
@@ -1232,6 +1235,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         )
                                         err.printStackTrace()
                                         session.stage = TransactionResult.STAGE_TERMINATE
+                                        clearPeers()
                                     }
                                     .onErrorReturnItem(
                                         HandshakeResult(
@@ -1247,7 +1251,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         // as they may be tainted
                                         //clientConnection.dispose()
                                         session.unlock()
-                                        updateDisconnected(luid)
                                     }
 
                             }
@@ -1311,11 +1314,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                                 .andThen(establishConnectionCached(trans.remoteDevice, luid))
                                 .flatMapMaybe { connection -> handleConnection(connection, trans.remoteDevice, luid) }
-                                .doOnError { err -> LOG.e("error in handleConnection $err") }
+                                .doOnError { err ->
+                                    LOG.e("error in handleConnection $err")
+                                    clearPeers()
+                                }
                                 .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
 
                         }
-                        .doOnError { e -> LOG.e("failed to read hello characteristic: $e") }
+                        .doOnError { e ->
+                            LOG.e("failed to read hello characteristic: $e")
+                            clearPeers()
+                        }
                         .doOnNext { t -> LOG.v("transactionResult ${t.success}") }
                         .retry()
                         .repeat()
@@ -1329,7 +1338,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             LOG.v("hello characteristic read, replying with luid $luid}")
                             trans.sendReply(uuid2bytes(luid), BluetoothGatt.GATT_SUCCESS)
                         }
-                        .doOnError { err -> LOG.e("error in hello characteristic read: $err") }
+                        .doOnError { err ->
+                            clearPeers()
+                            LOG.e("error in hello characteristic read: $err")
+                        }
                         .retry()
                         .repeat()
 
@@ -1342,13 +1354,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
                 .doOnError { err ->
                     LOG.e("gatt server shut down with error: $err")
+                    clearPeers()
                     err.printStackTrace()
                 }
                 .doOnComplete { LOG.e("gatt server completed. This shouldn't happen") }
                 .retry()
                 .repeat()
                 .subscribe(transactionCompleteRelay)
-        mGattDisposable.add(d)
+        val disp = CompositeDisposable()
+        disp.add(d)
+        gattServerDisposable.getAndSet(disp)?.dispose()
         return startSubject
     }
 
@@ -1356,11 +1371,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * stop our server and stop advertising
      */
     override fun stopServer() {
-        if (!serverStarted.get()) {
-            return
+        gattServerDisposable.getAndUpdate { d ->
+            d?.dispose()
+            null
         }
-        stopAdvertise()
-            .subscribe()
         serverStarted.set(false)
     }
 
