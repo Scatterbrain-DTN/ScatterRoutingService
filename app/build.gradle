@@ -3,12 +3,30 @@ plugins {
     id 'kotlin-android'
     id 'kotlin-kapt'
     id 'com.google.protobuf'
+    id 'com.dicedmelon.gradle.jacoco-android'
     id("org.jetbrains.dokka") version "1.5.0"
 }
 
-apply from: "../scatterbrainSDK/gradle/jacoco.gradle"
-
 def protobuf_version = "3.18.0"
+
+jacoco {
+    toolVersion = "0.8.4"
+}
+
+tasks.withType(Test) {
+    jacoco.includeNoLocationClasses = true
+    jacoco.excludes = ['jdk.internal.*']
+}
+
+configurations.all {
+    resolutionStrategy {
+        eachDependency {
+            if ("org.jacoco" == requested.group) {
+                useVersion("0.8.7")
+            }
+        }
+    }
+}
 
 android {
     buildToolsVersion "30.0.3"
@@ -48,6 +66,7 @@ android {
 
     lintOptions {
         abortOnError false
+        disable "JvmStaticProvidesInObjectDetector", "FieldSiteTargetOnQualifierAnnotation", "ModuleCompanionObjects", "ModuleCompanionObjectsNotInModuleParent"
     }
 
     packagingOptions {

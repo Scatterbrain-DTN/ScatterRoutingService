@@ -20,7 +20,7 @@ buildscript {
         classpath 'com.android.tools.build:gradle:4.2.2'
         classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.12'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.5.30"
-        classpath "org.jacoco:org.jacoco.core:0.8.7"
+        classpath 'com.dicedmelon.gradle:jacoco-android:0.1.5'
         classpath "com.google.dagger:hilt-android-gradle-plugin:$hilt_version"
         classpath 'com.google.gms:google-services:4.3.10'  // Google Services plugin
         // NOTE: Do not place your application dependencies here; they belong
@@ -30,7 +30,6 @@ buildscript {
 }
 
 allprojects {
-    apply plugin: 'jacoco'
     repositories {
         google()
         maven { url "https://jitpack.io" }
