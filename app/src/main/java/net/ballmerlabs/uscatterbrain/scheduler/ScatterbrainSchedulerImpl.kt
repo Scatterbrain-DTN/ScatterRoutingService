@@ -99,6 +99,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                         bluetoothLEModule.discoverForever()
                                 .doOnSubscribe { broadcastRouterState(RouterState.DISCOVERING) }
                 )
+                .doOnDispose { broadcastRouterState(RouterState.OFFLINE) }
                 .doOnComplete { broadcastRouterState(RouterState.OFFLINE) }
                 .doFinally { discoveryLock.set(false) }
                 .subscribe(
@@ -122,8 +123,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
         if(lock) {
             bluetoothLEModule.clearPeers()
-            bluetoothLEModule.stopAdvertise()
-                    .subscribe()
             bluetoothLEModule.stopServer()
             bluetoothLEModule.stopDiscover()
             val disp = globalDisposable.getAndSet(null)
