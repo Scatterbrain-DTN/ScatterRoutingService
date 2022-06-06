@@ -1,5 +1,5 @@
 [![Build Status](https://app.travis-ci.com/Scatterbrain-DTN/ScatterRoutingService.svg?branch=develop)](https://app.travis-ci.com/Scatterbrain-DTN/ScatterRoutingService)
-[![codecov](https://codecov.io/gh/Scatterbrain-DTN/ScatterRoutingService/branch/main/graph/badge.svg?token=6WPSRZUGTK)](https://codecov.io/gh/Scatterbrain-DTN/ScatterRoutingService)
+[![codecov](https://codecov.io/gh/Scatterbrain-DTN/ScatterRoutingService/branch/develop/graph/badge.svg?token=6WPSRZUGTK)](https://codecov.io/gh/Scatterbrain-DTN/ScatterRoutingService)
 
 # ScatterRoutingService
 
