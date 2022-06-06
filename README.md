@@ -1,4 +1,4 @@
-[![Build Status](https://app.travis-ci.com/Scatterbrain-DTN/RoutingServiceFrontend.svg?branch=develop)](https://app.travis-ci.com/Scatterbrain-DTN/RoutingServiceFrontend)
+[![Build Status](https://app.travis-ci.com/Scatterbrain-DTN/ScatterRoutingService.svg?branch=develop)](https://app.travis-ci.com/Scatterbrain-DTN/ScatterRoutingService)
 
 # ScatterRoutingService
 
