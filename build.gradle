@@ -32,6 +32,7 @@ buildscript {
 allprojects {
     repositories {
         google()
+        gradlePluginPortal()
         maven { url "https://jitpack.io" }
         flatDir {
             dirs 'src/main/libs'
@@ -39,6 +40,8 @@ allprojects {
         mavenCentral()
     }
 }
+
+
 
 task clean(type: Delete) {
     delete rootProject.buildDir
