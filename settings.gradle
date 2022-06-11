@@ -1,15 +1,5 @@
-include ':mockrxandroidble'
-include ':rxandroidble'
-include ':sample-kotlin'
-include ':dagger-compiler-shadow'
-include ':sample'
-include ':dagger-library-shadow'
+
 include ':scatterbrainSDK'
 include ':app'
 project(':scatterbrainSDK').projectDir = new File('scatterbrainSDK/scatterbrainSDK')
-project(':dagger-library-shadow').projectDir = new File(rootDir, 'RxAndroidBle/dagger-library-shadow/')
-project(':sample').projectDir = new File(rootDir, 'RxAndroidBle/sample/')
-project(':dagger-compiler-shadow').projectDir = new File(rootDir, 'RxAndroidBle/dagger-compiler-shadow/')
-project(':sample-kotlin').projectDir = new File(rootDir, 'RxAndroidBle/sample-kotlin/')
-project(':rxandroidble').projectDir = new File(rootDir, 'RxAndroidBle/rxandroidble/')
-project(':mockrxandroidble').projectDir = new File(rootDir, 'RxAndroidBle/mockrxandroidble/')
+

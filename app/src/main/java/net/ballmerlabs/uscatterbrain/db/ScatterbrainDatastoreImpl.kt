@@ -118,6 +118,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val userDirectoryObserver: FileObserver
     private val cachedPackages = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val disposable = CompositeDisposable()
+
     override fun insertMessages(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable {
         return Completable.fromAction {
             mDatastore.scatterMessageDao().insertMessage(message)
@@ -787,7 +788,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private fun getApiMessage(entities: Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Single<ArrayList<ScatterMessage>> {
         return entities
                 .map { message -> message2message(message) }
-                .reduce(java.util.ArrayList<ScatterMessage>()) { list, m ->
+                .reduce(ArrayList<ScatterMessage>()) { list, m ->
                     list.add(m)
                     list
                 }

@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.Manifest
 import android.content.Context
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
@@ -10,6 +11,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
+import androidx.test.rule.GrantPermissionRule
 import com.google.firebase.FirebaseApp
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.Companion.SHARED_PREFS
@@ -20,6 +22,7 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastoreImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.TimeUnit
@@ -28,6 +31,14 @@ import java.util.concurrent.TimeoutException
 @RunWith(AndroidJUnit4ClassRunner::class)
 @SmallTest
 class WifiDirectTest {
+
+
+    @get:Rule
+    val wifiDirectGrantRule: GrantPermissionRule = GrantPermissionRule.grant(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+    )
 
     private lateinit var radioModule: WifiDirectRadioModule
     private lateinit var datastore: ScatterbrainDatastore
