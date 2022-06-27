@@ -40,7 +40,7 @@ pipeline {
 
 								recursiveCheckout()
 								withGradle {
-									sh './gradlew build --stacktrace'
+									sh label: 'gradle build', script: './gradlew build --stacktrace'
 								}
 								stash includes: 'app/build/**/*', name: 'build'
 								stash includes: 'scatterbrainSDK/scatterbrainSDK/build/**/*', name: 'sdkbuild'
@@ -58,9 +58,9 @@ pipeline {
 						unstash name: 'build'
 						unstash name: 'sdkbuild'
 						withGradle {
-							sh "$ANDROID_HOME/cmdline-tools/tools/bin/sdkmanager \"system-images;android-${TARGET_VERSION};google_apis;x86_64\" --sdk_root=$ANDROID_HOME"
-							sh "echo no | $ANDROID_HOME/cmdline-tools/tools/bin/avdmanager create avd --force -n $AVD_NAME -k \"system-images;android-${TARGET_VERSION};google_apis;x86_64\""
-							sh """
+							sh label: 'Downloadd system image', script: "$ANDROID_HOME/cmdline-tools/tools/bin/sdkmanager \"system-images;android-${TARGET_VERSION};google_apis;x86_64\" --sdk_root=$ANDROID_HOME"
+							sh label: 'Create AVD', script: "echo no | $ANDROID_HOME/cmdline-tools/tools/bin/avdmanager create avd --force -n $AVD_NAME -k \"system-images;android-${TARGET_VERSION};google_apis;x86_64\""
+							sh label: 'Start emulator and run tests', script: """
 							$ANDROID_HOME/emulator/emulator -memory 2048 -avd $AVD_NAME -skin 768x1280 -no-boot-anim -no-audio -no-window -no-snapshot -no-snapshot-load -no-snapstorage -no-cache -verbose > ${EMULATOR_PID}.stdout &
 							$ANDROID_HOME/platform-tools/adb wait-for-device shell 'while [[ -z \$(getprop sys.boot_completed) ]]; do sleep 1; done;'
 							./gradlew jacocoTestReport --stacktrace
@@ -86,7 +86,6 @@ pipeline {
 				}
 				failure {
 					setBuildStatus("Sad cry noises", "FAILURE")
-
 				}
 		}
 }
