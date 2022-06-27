@@ -20,6 +20,7 @@ pipeline {
 			ANDROID_SDK_ROOT = "$ANDROID_HOME"
 			TARGET_VERSION = 31
 			EMULATOR_PID = "/build/$BUILD_ID-emu.pid"
+			AVD_NAME = "${EXECUTOR_NUMBER}-avd"
 		}
     stages {
         stage('Build') {
@@ -46,9 +47,9 @@ pipeline {
 						unstash name: 'sdkbuild'
 						withGradle {
 							sh "$ANDROID_HOME/cmdline-tools/tools/bin/sdkmanager \"system-images;android-${TARGET_VERSION};google_apis;x86_64\" --sdk_root=$ANDROID_HOME"
-							sh "echo no | $ANDROID_HOME/cmdline-tools/tools/bin/avdmanager create avd --force -n testavd -k \"system-images;android-${TARGET_VERSION};google_apis;x86_64\""
+							sh "echo no | $ANDROID_HOME/cmdline-tools/tools/bin/avdmanager create avd --force -n $AVD_NAME -k \"system-images;android-${TARGET_VERSION};google_apis;x86_64\""
 							sh """
-							$ANDROID_HOME/emulator/emulator -memory 2048 -avd testavd  -skin 768x1280 -no-boot-anim -no-audio -no-window -no-snapshot -no-snapshot-load -no-snapstorage -no-cache -verbose > ${EMULATOR_PID}.stdout &
+							$ANDROID_HOME/emulator/emulator -memory 2048 -avd $AVD_NAME -skin 768x1280 -no-boot-anim -no-audio -no-window -no-snapshot -no-snapshot-load -no-snapstorage -no-cache -verbose > ${EMULATOR_PID}.stdout &
 							$ANDROID_HOME/platform-tools/adb wait-for-device shell 'while [[ -z \$(getprop sys.boot_completed) ]]; do sleep 1; done;'
 							./gradlew jacocoTestReport --stacktrace
 							"""
