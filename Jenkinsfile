@@ -12,6 +12,16 @@ def recursiveCheckout() {
 						 userRemoteConfigs: [[url: 'https://github.com/Scatterbrain-DTN/ScatterRoutingService.git']]])
 }
 
+void setBuildStatus(String message, String state) {
+  step([
+      $class: "GitHubCommitStatusSetter",
+      reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/Scatterbrain-DTN/ScatterRoutingService"],
+      contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status"],
+      errorHandlers: [[$class: "ChangingBuildStatusErrorHandler", result: "UNSTABLE"]],
+      statusResultSource: [ $class: "ConditionalStatusResultSource", results: [[$class: "AnyBuildResult", message: message, state: state]] ]
+  ]);
+}
+
 pipeline {
     agent { label 'build' }
 		environment {
@@ -26,6 +36,8 @@ pipeline {
         stage('Build') {
             steps {
                 echo 'Building..'
+								setBuildStatus("Build started", "PENDING")
+
 								recursiveCheckout()
 								withGradle {
 									sh './gradlew build --stacktrace'
@@ -68,4 +80,13 @@ pipeline {
             }
         }
     }
+		post {
+				success {
+					setBuildStatus("Happy noises", "SUCCESS")
+				}
+				failure {
+					setBuildStatus("Sad cry noises", "FAILURE")
+
+				}
+		}
 }
