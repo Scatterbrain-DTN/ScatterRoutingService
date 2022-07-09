@@ -758,7 +758,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     private fun message2message(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): ScatterMessage {
-        return if (message.message.body == null) {
+        val body = message.message.body
+        return if (body == null) {
             val f = File(message.message.filePath)
             val r: File = if (f.exists()) {
                 f
@@ -775,7 +776,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .build()
         } else {
             ApiMessageBuilder.newInstance(
-                    message.message.body!!,
+                    body,
                     message.message.uuid,
                     message.fromFingerprint.firstOrNull()
             )
@@ -912,7 +913,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         val buf = message.shm!!.mapReadOnly()
                         val body = ByteArray(buf.remaining())
                         buf.get(body)
-                        message.shm!!.close()
+                        message.shm?.close()
                         hashData(body, blocksize)
                                 .flatMapCompletable { hashes ->
                                     val hm = HashlessScatterMessage(

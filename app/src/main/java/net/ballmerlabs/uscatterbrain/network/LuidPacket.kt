@@ -13,7 +13,7 @@ fun getHashUuid(uuid: UUID?): UUID? {
     return if(uuid == null)
         null
     else
-        BluetoothLERadioModuleImpl.bytes2uuid(LuidPacket.calculateHashFromUUID(uuid))!!
+        BluetoothLERadioModuleImpl.bytes2uuid(LuidPacket.calculateHashFromUUID(uuid))
 }
 
 /**

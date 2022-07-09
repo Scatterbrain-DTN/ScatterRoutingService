@@ -83,22 +83,26 @@ class CachedLEConnection(
                         .firstOrError()
                         .flatMapCompletable { c ->
                             val subject = channelNotifs[uuid]
-                            c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                                .doOnNext { LOG.v("preemptively enabled indications for $uuid") }
-                                .doOnComplete { LOG.e("indications completed. This is bad") }
-                                .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
-                                .flatMapCompletable { obs ->
-                                    obs
-                                        .doOnNext { b -> LOG.v("read ${b.size} bytes for channel $uuid") }
-                                        .doOnError { e -> LOG.e("error in notication obs $e") }
-                                        .subscribe(subject!!)
-                                    Completable.complete()
-                                }
+                            if (subject != null) {
+                                c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                                        .doOnNext { LOG.v("preemptively enabled indications for $uuid") }
+                                        .doOnComplete { LOG.e("indications completed. This is bad") }
+                                        .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
+                                        .flatMapCompletable { obs ->
+                                            obs
+                                                    .doOnNext { b -> LOG.v("read ${b.size} bytes for channel $uuid") }
+                                                    .doOnError { e -> LOG.e("error in notication obs $e") }
+                                                    .subscribe(subject)
+                                            Completable.complete()
+                                        }
+                            } else {
+                                Completable.error(IllegalStateException("channel $uuid does not exist"))
+                            }
 
                         }
 
                 }
-            .doOnError { e -> LOG.e("failed to preemtively enable indications $e") }
+                .doOnError { e -> LOG.e("failed to preemtively enable indications $e") }
                 .onErrorComplete() //We can swallow errors here since indications are enabled already if failed
                 .doOnComplete { LOG.v("all notifications enabled")}
     }

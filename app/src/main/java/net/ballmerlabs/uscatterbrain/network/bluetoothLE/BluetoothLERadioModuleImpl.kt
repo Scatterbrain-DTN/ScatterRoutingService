@@ -392,7 +392,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 awaitAdvertiseDataUpdate()
                                         .doOnSubscribe {
                                             if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
-                                                v.first.item!!.setScanResponseData(AdvertiseData.Builder()
+                                                v.first.item?.setScanResponseData(AdvertiseData.Builder()
                                                         .setIncludeDeviceName(false)
                                                         .setIncludeTxPowerLevel(false)
                                                         .addServiceUuid(ParcelUuid(luid))
@@ -431,7 +431,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             if (v.first.isPresent) {
                                 awaitAdvertiseDataUpdate()
                                         .doOnSubscribe {
-                                            v.first.item!!.setScanResponseData(AdvertiseData.Builder()
+                                            v.first.item?.setScanResponseData(AdvertiseData.Builder()
                                                     .setIncludeDeviceName(false)
                                                     .setIncludeTxPowerLevel(false)
                                                     .build())
@@ -657,9 +657,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     LOG.e("upgrade role UKE")
                                     wifiDirectRadioModule.createGroup()
                                             .flatMap { bootstrap ->
-                                                val upgradePacket = bootstrap.toUpgrade(session.upgradeStage!!.sessionID)
-                                                serverConn.serverNotify(upgradePacket)
-                                                        .toSingleDefault(OptionalBootstrap.of(bootstrap))
+                                                val upgradeStage = session.upgradeStage
+                                                if (upgradeStage != null) {
+                                                    val upgradePacket = bootstrap.toUpgrade(upgradeStage.sessionID)
+                                                    serverConn.serverNotify(upgradePacket)
+                                                            .toSingleDefault(OptionalBootstrap.of(bootstrap))
+                                                } else {
+                                                    Single.error(IllegalStateException("upgrade stage not set wile bootstrapping ${session.remoteLuid}"))
+                                                }
                                             }
                                 } else {
                                     Single.just(OptionalBootstrap.empty())
@@ -880,27 +885,32 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         activeLuids.remove(luid)
     }
 
-    private fun processScanResult(scanResult: ScanResult): Single<HandshakeResult> {
+    private fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult> {
         LOG.d("scan result: " + scanResult.bleDevice.macAddress)
-        return Single.defer {
-            val remoteUuid = getAdvertisedLuid(scanResult)!!
-            establishConnectionCached(scanResult.bleDevice, remoteUuid)
-                    .flatMap { cached ->
-                        cached.connection
-                                .concatMapMaybe { raw ->
-                                    LOG.v("attempting to read hello characteristic")
-                                    raw.readCharacteristic(UUID_HELLO)
-                                            .flatMapMaybe { luid ->
-                                                val luidUuid = bytes2uuid(luid)!!
-                                                LOG.v("read remote luid from GATT $luidUuid")
-                                                initiateOutgoingConnection(
-                                                        cached,
-                                                        luidUuid
-                                                )
-                                            }
-                                }
-                                .firstOrError()
-                    }
+        return Maybe.defer {
+            val remoteUuid = getAdvertisedLuid(scanResult)
+            if (remoteUuid != null) {
+                establishConnectionCached(scanResult.bleDevice, remoteUuid)
+                        .flatMapMaybe { cached ->
+                            cached.connection
+                                    .concatMapMaybe { raw ->
+                                        LOG.v("attempting to read hello characteristic")
+                                        raw.readCharacteristic(UUID_HELLO)
+                                                .flatMapMaybe { luid ->
+                                                    val luidUuid = bytes2uuid(luid)!!
+                                                    LOG.v("read remote luid from GATT $luidUuid")
+                                                    initiateOutgoingConnection(
+                                                            cached,
+                                                            luidUuid
+                                                    )
+                                                }
+                                    }
+                                    .firstOrError()
+                                    .toMaybe()
+                        }
+            } else {
+                Maybe.empty()
+            }
         }
     }
 
@@ -988,12 +998,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         n
                     }
                     LOG.v("activeLuids: $k")
-                    setAdvertisingLuid(getHashUuid(myLuid.get())!!)
+                    val currentLuid = getHashUuid(myLuid.get())?:UUID.randomUUID()
+                    setAdvertisingLuid(currentLuid)
                             .andThen(removeWifiDirectGroup(isold).onErrorComplete())
                             .toSingleDefault(res)
                 }
                 .filter { res -> shouldConnect(res)}
-                .concatMapSingle { scanResult ->
+                .concatMapMaybe { scanResult ->
                     LOG.v("received scan result ${scanResult.bleDevice.macAddress}")
                     processScanResult(scanResult)
                             .doOnSuccess {
@@ -1102,7 +1113,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
                 }
 
-        return setAdvertisingLuid(getHashUuid(myLuid.get())!!)
+        return setAdvertisingLuid(getHashUuid(myLuid.get())?:UUID.randomUUID())
                 .andThen(connectSingle)
     }
 

@@ -50,33 +50,25 @@ class InputStreamFlowableSubscriber(capacity: Int) : InputStreamCallback(capacit
 
     @Throws(IOException::class)
     override fun read(b: ByteArray): Int {
-        if (subscription != null) {
-            subscription!!.request(max(blocksize, b.size).toLong())
-        }
+        subscription?.request(max(blocksize, b.size).toLong())
         return super.read(b)
     }
 
     @Throws(IOException::class)
     override fun read(b: ByteArray, off: Int, len: Int): Int {
-        if (subscription != null) {
-            subscription!!.request(max(blocksize, min(b.size, len)).toLong())
-        }
+        subscription?.request(max(blocksize, min(b.size, len)).toLong())
         return super.read(b, off, len)
     }
 
     @Throws(IOException::class)
     override fun read(): Int {
-        if (subscription != null) {
-            subscription!!.request(1)
-        }
+        subscription?.request(1)
         return super.read()
     }
 
     @Throws(IOException::class)
     override fun skip(n: Long): Long {
-        if (subscription != null) {
-            subscription!!.request(max(blocksize.toLong(), n))
-        }
+        subscription?.request(max(blocksize.toLong(), n))
         return super.skip(n)
     }
 

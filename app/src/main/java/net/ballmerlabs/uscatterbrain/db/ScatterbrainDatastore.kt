@@ -113,10 +113,11 @@ fun sumBytes(message: Verifiable): ByteString {
  * @return the boolean
  */
 fun verifyed25519(pubkey: ByteArray, message: Verifiable): Boolean {
+    if (message.signature == null) return false
     if (pubkey.size != Sign.PUBLICKEYBYTES) return false
     val messagebytes = sumBytes(message)
     return LibsodiumInterface.sodium.crypto_sign_verify_detached(
-            message.signature!!,
+            message.signature,
             messagebytes.toByteArray(),
             messagebytes.size().toLong(),
             pubkey) == 0

@@ -10,8 +10,6 @@ import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
 import java.util.*
-import kotlin.collections.ArrayList
-import kotlin.collections.HashSet
 
 /**
  * the voting stage handles the logic for the leader election algorithm which determines
@@ -135,12 +133,12 @@ class VotingStage : LeDeviceSession.Stage {
             Completable.error(IllegalStateException("size conflict"))
         } else Observable.zip(
                 Observable.fromIterable(hashedPackets),
-                Observable.fromIterable(unhashedPackets)) { obj: ElectLeaderPacket?, packet -> obj!!.verifyHash(packet) }
-                .flatMap { bool: Boolean? ->
-                    if (!bool!!) {
-                        return@flatMap Observable.error<Boolean>(java.lang.IllegalStateException("failed to verify hash"))
+                Observable.fromIterable(unhashedPackets)) { obj, packet -> obj.verifyHash(packet) }
+                .flatMap { bool ->
+                    if (!bool) {
+                        Observable.error(java.lang.IllegalStateException("failed to verify hash"))
                     } else {
-                        return@flatMap Observable.just(true)
+                        Observable.just(true)
                     }
                 }
                 .ignoreElements()

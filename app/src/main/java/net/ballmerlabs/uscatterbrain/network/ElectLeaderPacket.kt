@@ -86,7 +86,7 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             val hashbytes = ByteArray(GenericHash.BYTES)
             var bytes = ByteString.EMPTY
             bytes.concat(ByteString.copyFrom(salt))
-            bytes = bytes.concat(ByteString.copyFrom(uuidToBytes(tiebreaker)))
+            bytes = bytes.concat(ByteString.copyFrom(uuidToBytes(tiebreaker!!)))
             val buffer = ByteBuffer.allocate(Integer.SIZE)
             buffer.putInt(provides!!.`val`)
             bytes.concat(ByteString.copyFrom(buffer.array()))
@@ -118,7 +118,6 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
 
         fun build(): ElectLeaderPacket {
             require((!(provides == null || tiebreaker == null)) || hashVal != null) { "both tiebreaker and provides must be set" }
-            val builder = ElectLeader.newBuilder()
             return if (enableHashing) {
                 ElectLeaderPacket(ElectLeader.newBuilder().setValHash(hashFromBuilder()).build())
             } else {
@@ -138,9 +137,9 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
     }
 
     companion object {
-        fun uuidToBytes(uuid: UUID?): ByteArray {
+        fun uuidToBytes(uuid: UUID): ByteArray {
             val uuidBuffer = ByteBuffer.allocate(16)
-            uuidBuffer.putLong(uuid!!.mostSignificantBits)
+            uuidBuffer.putLong(uuid.mostSignificantBits)
             uuidBuffer.putLong(uuid.leastSignificantBits)
             return uuidBuffer.array()
         }

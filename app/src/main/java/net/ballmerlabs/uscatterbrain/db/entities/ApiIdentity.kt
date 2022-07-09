@@ -124,6 +124,8 @@ open class ApiIdentity protected constructor(val builder: Builder) {
             require(!(sig == null && signPair == null)) { "sig should be set" }
             require(!(sig != null && signPair != null)) { "cannot sign and set sig simultaneously" }
             if (signPair != null) {
+                require(signPair?.publickey != null) { "public key must be non-null" }
+                require(signPair?.secretkey != null) { "secret key must be non-null" }
                 mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = signPair!!.publickey
                 pubkey = signPair!!.publickey
                 privkey = signPair!!.secretkey

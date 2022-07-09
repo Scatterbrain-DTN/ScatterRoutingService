@@ -15,8 +15,8 @@ class LuidStage(val selfUnhashed: UUID, val remoteHashed: UUID) : LeDeviceSessio
             .setLuid(selfUnhashed)
             .build()
 
-    fun setPacket(packet: LuidPacket?) {
-        if (packet!!.isHashed) {
+    fun setPacket(packet: LuidPacket) {
+        if (packet.isHashed) {
             throw IllegalStateException("packet should not be hashed")
         } else {
             remoteUnhashed = packet

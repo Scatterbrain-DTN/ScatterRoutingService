@@ -46,8 +46,8 @@ class RoutingMetadataPacket(packet: RoutingMetadata):
             var empty: Boolean = false,
             var uuid: UUID? = null
     ) {
-        fun addMetadata(map: Map<UUID, ByteArray>?) = apply {
-            this.map.putAll(map!!)
+        fun addMetadata(map: Map<UUID, ByteArray>) = apply {
+            this.map.putAll(map)
         }
 
         fun setEmpty() = apply {
