@@ -51,7 +51,27 @@ class ProtocolTests {
         onComplete(streamPacket)
     }
 
+    @Test
+    fun ackPacketWorks() {
+        val ack = AckPacket.newBuilder(true)
+            .build()
 
+        testSerialize(AckPacket.parser(), ack) { parsed ->
+            assert(parsed.success)
+        }
+        val status = -100
+        val message = "fmef"
+        val ack2 = AckPacket.newBuilder(false)
+            .setStatus(status)
+            .setMessage(message)
+            .build()
+
+        testSerialize(AckPacket.parser(), ack2) { parsed ->
+            assert(!parsed.success)
+            assert(parsed.message == message)
+            assert(parsed.status == status)
+        }
+    }
 
     @Test
     fun advertisePacketWorks() {

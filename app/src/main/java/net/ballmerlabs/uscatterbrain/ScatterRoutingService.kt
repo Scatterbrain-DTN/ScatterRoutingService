@@ -652,6 +652,7 @@ class ScatterRoutingService : LifecycleService() {
                 NotificationManager.IMPORTANCE_DEFAULT
         )
         if(!this::mBackend.isInitialized) {
+            LOG.e("init!!")
             val c = DaggerRoutingServiceComponent.builder()
                     .applicationContext(this)
                     ?.build()!!

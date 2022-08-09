@@ -8,6 +8,14 @@ message UUID {
     uint64 upper = 2;
 }
 
+message Ack {
+    bool success = 1;
+    int32 status = 2;
+    oneof message {
+        string text = 3;
+    }
+}
+
 // used to advertise the presence of a scatterbrain device
 // and to request the exchange of identities and blockdata
 message Advertise {
@@ -68,20 +76,6 @@ message ElectLeader {
         bytes val_hash = 2;
     }
 }
-
-message Ack {
-    enum Status {
-        OK = 0;
-        ERR = 1;
-        FILE_EXISTS = 2;
-    }
-    Status status = 1;
-    oneof message {
-        bool message_null = 2;
-        string message_val = 3;
-    }
-}
-
 
 // used to request switching to a different physical transport
 message Upgrade {

@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit
  * if the bootstrap request is present, Scatterbrain will attempt to handle data transfer on
  * a new transport
  */
-typealias ServerTransaction = (connection: CachedLEServerConnection) -> Single<OptionalBootstrap<BootstrapRequest>>
+typealias ServerTransaction = (connection: CachedLEServerConnection) -> Single<TransactionResult<BootstrapRequest>>
 typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionResult<BootstrapRequest>>
 
 /**

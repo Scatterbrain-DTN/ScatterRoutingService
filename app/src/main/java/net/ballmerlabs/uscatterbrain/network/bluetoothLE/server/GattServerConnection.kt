@@ -32,6 +32,7 @@ interface GattServerConnection: Disposable {
     fun getNotificationPublishRelay(): Output<Int>
 
     fun getChangedMtuOutput(): Output<Int>
+
     fun openLongWriteCharacteristicOutput(requestid: Int, characteristic: BluetoothGattCharacteristic): Output<ByteArray>
 
     fun openLongWriteDescriptorOutput(requestid: Int, descriptor: BluetoothGattDescriptor): Output<ByteArray>

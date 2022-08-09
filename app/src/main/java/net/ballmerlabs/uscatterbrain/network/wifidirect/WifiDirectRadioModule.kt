@@ -58,7 +58,15 @@ interface WifiDirectRadioModule {
      * Removes an existing wifi direct group if it exists
      * @return Completable
      */
-    fun removeGroup(): Completable
+    fun removeGroup(retries: Int = 10, delay: Int = 5): Completable
+
+    /**
+     * Ugly hack to determine if SoftAp or similar is hogging the wireless
+     * adapter and blocking wifi direct
+     *
+     * @return Single emitting boolean, true if usable
+     */
+    fun wifiDirectIsUsable(): Single<Boolean>
 
     /**
      * Wrapper class combining BlockHeaderPacket, SequencePackets, and

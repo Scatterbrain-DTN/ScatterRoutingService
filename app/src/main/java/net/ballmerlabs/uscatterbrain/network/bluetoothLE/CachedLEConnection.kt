@@ -10,6 +10,8 @@ import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.ReplaySubject
+import io.reactivex.subjects.UnicastSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.util.scatterLog
@@ -36,6 +38,7 @@ class CachedLEConnection(
     private val timeout: Long = 20
 
     val connection = BehaviorSubject.create<RxBleConnection>()
+    private val buffer = InputStreamObserver(4096)
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
     private val channelNotifs = ConcurrentHashMap<UUID, InputStreamObserver>()
 
@@ -71,7 +74,7 @@ class CachedLEConnection(
     }
 
     /**
-     * to avoid data races when writing to the ClientConfig descriptor, 
+     * to avoid data races when writing to the ClientConfig descriptor,
      * enable indications for all channel characteristics
      * as soon as we have the RxBleConnection.
      * @return Completable
@@ -241,6 +244,18 @@ class CachedLEConnection(
             ScatterSerializable.parseWrapperFromCRC(LuidPacket.parser(), input, scheduler)
                 .doOnSubscribe { LOG.v("called readLuid") }
                 .timeout(timeout, TimeUnit.SECONDS, scheduler)
+        }
+    }
+
+    /**
+     * reads a single ack packet
+     * @return single emititng ack packet
+     */
+    fun readAck(): Single<AckPacket> {
+        return cachedNotification().flatMap { input ->
+            ScatterSerializable.parseWrapperFromCRC(AckPacket.parser(), input, scheduler)
+                    .doOnSubscribe { LOG.v("called readAck") }
+                    .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
 

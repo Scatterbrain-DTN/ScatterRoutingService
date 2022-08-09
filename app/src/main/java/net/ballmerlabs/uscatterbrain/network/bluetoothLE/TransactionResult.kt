@@ -1,24 +1,66 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.bluetooth.BluetoothDevice
-import java.util.*
+import io.reactivex.Single
 
 /**
  * transactionresult is a combination optional and data class holding the result of a GATT
  * transaction. It is used to set the next stage in the FSM and optionally to bootstrap
  */
-class TransactionResult<T> constructor(
-        val nextStage: String,
-        val device: BluetoothDevice,
-        val luid: UUID,
-        val result: T? = null,
-        val err: Boolean = false
+data class TransactionResult<T>(
+        val item: T? = null,
+        val err: Throwable? = null,
+        val stage: String? = null
 ) {
-    fun hasResult(): Boolean {
-        return result != null
+    val isPresent: Boolean
+        get() = item != null
+
+    val isError: Boolean
+    get() = err != null
+
+    fun merge(newres: TransactionResult<T>): Single<TransactionResult<T>> {
+        return Single.defer {
+            when {
+                newres.err != null -> Single.error(newres.err)
+                err != null -> Single.error(err)
+                newres.stage == null && stage == null -> Single.error(IllegalStateException("no stage"))
+                newres.item != null && item != null -> Single.error(IllegalStateException("conflicting items"))
+                newres.stage != null && stage != null -> Single.error(IllegalStateException("conflicting stages"))
+                else -> {
+                    val newitem = item?:newres.item
+                    val newstage = stage?:newres.stage
+                    val err = err?:newres.err
+                    val result = TransactionResult(
+                        item = newitem,
+                        err = err,
+                        stage = newstage
+                    )
+                    Single.just(result)
+                }
+            }
+        }
     }
 
     companion object {
+        fun <T> of(v: T): TransactionResult<T> {
+            return TransactionResult(v)
+        }
+
+        fun <T> of(v: T, stage: String): TransactionResult<T> {
+            return TransactionResult(v, stage = stage)
+        }
+
+        fun <T> of(stage: String): TransactionResult<T> {
+            return TransactionResult(item = null, stage = stage)
+        }
+
+        fun <T> empty(): TransactionResult<T> {
+            return TransactionResult(null)
+        }
+
+        fun <T> err(throwable: Throwable): TransactionResult<T> {
+            return TransactionResult(item = null, err = throwable, stage = STAGE_TERMINATE)
+        }
+
         const val STAGE_SUSPEND = "suspend"
         const val STAGE_TERMINATE = "exit"
         const val STAGE_START = "start"
@@ -30,6 +72,6 @@ class TransactionResult<T> constructor(
         const val STAGE_BLOCKDATA = "blockdata"
         const val STAGE_DECLARE_HASHES = "declarehashes"
         const val STAGE_IDENTITY = "identity"
+        
     }
-
 }

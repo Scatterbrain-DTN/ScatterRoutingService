@@ -130,7 +130,7 @@ class VotingStage : LeDeviceSession.Stage {
      */
     fun verifyPackets(): Completable {
         return if (hashedPackets.size != unhashedPackets.size) {
-            Completable.error(IllegalStateException("size conflict"))
+            Completable.error(IllegalStateException("size conflict hashed: ${hashedPackets.size} unhashed: ${unhashedPackets.size}"))
         } else Observable.zip(
                 Observable.fromIterable(hashedPackets),
                 Observable.fromIterable(unhashedPackets)) { obj, packet -> obj.verifyHash(packet) }

@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.PowerManager
 import androidx.room.Room
@@ -138,6 +139,13 @@ interface RoutingServiceComponent {
             @Named(NamedSchedulers.OPERATIONS)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesWifiManager(context: Context): WifiManager {
+                return context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
             }
 
             @Provides

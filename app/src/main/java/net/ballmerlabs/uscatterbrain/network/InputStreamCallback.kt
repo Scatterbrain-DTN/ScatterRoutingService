@@ -17,15 +17,17 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
     protected var throwable: Throwable? = null
     protected var closed = false
     protected var disposable: Disposable? = null
-    private val buf: CircularBuffer = CircularBuffer(ByteBuffer.allocate(BUF_CAPACITY + 1))
-    private val readLock = Semaphore(1, true)
+    private val buf = CircularBuffer(ByteBuffer.allocate(BUF_CAPACITY + 1))
+    private val blockingEmptyLock = Semaphore(1, true)
     private var complete = false
     protected fun acceptBytes(buf: ByteArray) {
         if (buf.size >= this.buf.remaining()) {
+            blockingEmptyLock.release()
             throw BufferOverflowException()
         }
         this.buf.put(buf, 0, buf.size)
-        readLock.release()
+        blockingEmptyLock.release()
+
     }
 
     fun size(): Int {
@@ -33,15 +35,12 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
     }
 
     private operator fun get(result: ByteArray, offset: Int, len: Int): Int {
-        if (throwable != null) {
-            throwable!!.printStackTrace()
-        }
         if (closed) {
             throw IOException("closed")
         }
         return try {
             while (buf.size() < len && !complete) {
-                readLock.acquire()
+                blockingEmptyLock.acquire()
             }
             val l = len.coerceAtMost(buf.size())
             buf[result, offset, l]
@@ -65,6 +64,7 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
         if (n >= Int.MAX_VALUE || n <= Int.MIN_VALUE) {
             throw IOException("index out of range")
         }
+
         return buf.skip(n)
     }
 
@@ -74,8 +74,7 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
 
     override fun close() {
         closed = true
-        readLock.release()
-
+        blockingEmptyLock.release()
         disposable?.dispose()
     }
 
@@ -99,13 +98,14 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
         }
         return try {
             while (buf.size() == 0 && !complete) {
-                readLock.acquire()
+                blockingEmptyLock.acquire()
             }
-            if (complete) {
+            val r = if (complete) {
                 -1
             } else {
                 buf.get().toInt()
             }
+            r
         } catch (ignored: InterruptedException) {
             -1
         }

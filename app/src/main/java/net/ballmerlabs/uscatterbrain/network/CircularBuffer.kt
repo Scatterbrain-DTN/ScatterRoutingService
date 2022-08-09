@@ -2,6 +2,8 @@ package net.ballmerlabs.uscatterbrain.network
 
 import java.nio.BufferOverflowException
 import java.nio.ByteBuffer
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 private fun floorDiv(x: Int, y: Int): Int {
     var r = x / y
@@ -22,19 +24,25 @@ private fun floorMod(x: Int, y: Int): Int {
  * temporarily storing streams of bytes
  */
 class CircularBuffer(private val writeBuffer: ByteBuffer) {
+    private val lock = ReentrantLock()
     private val readBuffer: ByteBuffer = writeBuffer.duplicate()
     fun size(): Int {
-        return floorMod(writeBuffer.position() - readBuffer.position(), writeBuffer.capacity())
+        return lock.withLock {
+            floorMod(writeBuffer.position() - readBuffer.position(), writeBuffer.capacity())
+        }
     }
 
     fun get(): Byte {
-        if (readBuffer.remaining() == 0) {
-            readBuffer.position(0)
+        return lock.withLock {
+            if (readBuffer.remaining() == 0) {
+                readBuffer.position(0)
+            }
+            readBuffer.get()
         }
-        return readBuffer.get()
     }
 
     operator fun get(buf: ByteArray, offset: Int, length: Int) {
+        lock.withLock {
         if (length > size()) {
             throw BufferOverflowException()
         }
@@ -46,9 +54,12 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
             readBuffer.position(0)
             readBuffer[buf, offset + read, l]
         }
+        }
+
     }
 
     fun put(buf: ByteArray, offset: Int, len: Int) {
+        lock.withLock {
         var l = buf.size.coerceAtMost(len)
         if (l > remaining()) {
             throw BufferOverflowException()
@@ -60,17 +71,20 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
             writeBuffer.position(0)
             writeBuffer.put(buf, offset + write, l)
         }
+        }
     }
 
     fun remaining(): Int {
-        return writeBuffer.capacity() - size()
+        return lock.withLock {  writeBuffer.capacity() - size() }
     }
 
     fun skip(n: Long): Long {
-        val skip = remaining().toLong().coerceAtMost(n).toInt()
-        val p = readBuffer.position()
-        readBuffer.position(readBuffer.position() + skip)
-        return (readBuffer.position() - p).toLong()
+        return lock.withLock {
+            val skip = remaining().toLong().coerceAtMost(n).toInt()
+            val p = readBuffer.position()
+            readBuffer.position(readBuffer.position() + skip)
+             (readBuffer.position() - p).toLong()
+        }
     }
 
 }
