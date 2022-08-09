@@ -4,6 +4,7 @@ import com.goterl.lazysodium.interfaces.GenericHash
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
@@ -18,6 +19,7 @@ import java.util.*
  */
 class VotingStage : LeDeviceSession.Stage {
     private val LOG by scatterLog()
+    val serverPackets = CompletableSubject.create()
     private val hashedPackets = ArrayList<ElectLeaderPacket>()
     private val unhashedPackets = ArrayList<ElectLeaderPacket>()
     private var tiebreaker = UUID.randomUUID()
@@ -129,11 +131,13 @@ class VotingStage : LeDeviceSession.Stage {
      * @return completable
      */
     fun verifyPackets(): Completable {
-        return if (hashedPackets.size != unhashedPackets.size) {
-            Completable.error(IllegalStateException("size conflict hashed: ${hashedPackets.size} unhashed: ${unhashedPackets.size}"))
-        } else Observable.zip(
+        return Completable.defer {
+            if (hashedPackets.size != unhashedPackets.size) {
+                Completable.error(IllegalStateException("size conflict hashed: ${hashedPackets.size} unhashed: ${unhashedPackets.size}"))
+            } else Observable.zip(
                 Observable.fromIterable(hashedPackets),
-                Observable.fromIterable(unhashedPackets)) { obj, packet -> obj.verifyHash(packet) }
+                Observable.fromIterable(unhashedPackets)
+            ) { obj, packet -> obj.verifyHash(packet) }
                 .flatMap { bool ->
                     if (!bool) {
                         Observable.error(java.lang.IllegalStateException("failed to verify hash"))
@@ -142,6 +146,7 @@ class VotingStage : LeDeviceSession.Stage {
                     }
                 }
                 .ignoreElements()
+        }
     }
 
     /**

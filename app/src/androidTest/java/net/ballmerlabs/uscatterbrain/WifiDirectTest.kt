@@ -94,17 +94,39 @@ class WifiDirectTest {
         }
     }
 
+    @Test
+    @Throws(TimeoutException::class)
+    fun multipleRemoveGroup() {
+        for (x in 1..5) {
+            radioModule.removeGroup(retries = 4, delay = 1).blockingAwait()
+        }
+    }
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun wifiDirectIsUsable() {
+        for (x in 0..10) {
+            assert(radioModule.wifiDirectIsUsable().timeout(60, TimeUnit.SECONDS).blockingGet())
+        }
+    }
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun wifiDirectIsUsableAfterCreate() {
+        val res = radioModule.createGroup().blockingGet()
+        assert(radioModule.wifiDirectIsUsable().timeout(20, TimeUnit.SECONDS).blockingGet())
+    }
 
     @Test
     @Throws(TimeoutException::class)
     fun createAndRemoveGroup() {
         for (x in 0..20) {
+            radioModule.removeGroup()
+                .timeout(10, TimeUnit.SECONDS)
+                .blockingAwait()
             assert(radioModule.createGroup()
                     .timeout(10, TimeUnit.SECONDS)
                     .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
-            radioModule.removeGroup()
-                    .timeout(10, TimeUnit.SECONDS)
-                    .blockingAwait()
         }
     }
 

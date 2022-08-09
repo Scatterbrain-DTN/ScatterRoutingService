@@ -485,10 +485,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private fun selectProvides(): Single<AdvertisePacket.Provides> {
-        return Single.just(AdvertisePacket.Provides.WIFIP2P)
-       /* return wifiDirectRadioModule.wifiDirectIsUsable()
+      //  return Single.just(AdvertisePacket.Provides.WIFIP2P)
+       return wifiDirectRadioModule.wifiDirectIsUsable()
             .doOnSuccess { p -> LOG.e("selectProvides $p") }
-            .map { p -> if (p) AdvertisePacket.Provides.WIFIP2P else AdvertisePacket.Provides.BLE } */
+            .map { p -> if (p) AdvertisePacket.Provides.WIFIP2P else AdvertisePacket.Provides.BLE }
     }
 
     /*
@@ -586,9 +586,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         selectProvides().flatMap { provides ->
                             LOG.v("gatt server election hashed stage")
                             val packet = session.votingStage.getSelf(true, provides)
-                            if (BuildConfig.DEBUG && !packet.isHashed) {
-                                error("Assertion failed")
-                            }
                             session.votingStage.addPacket(packet)
                             serverConn.serverNotify(packet)
                                 .toSingleDefault(TransactionResult.empty())
@@ -617,13 +614,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         Single.just(session.luidStage.selfUnhashedPacket)
                             .flatMap { luidPacket ->
                                 selectProvides().flatMapCompletable { provides ->
-                                    if (BuildConfig.DEBUG && luidPacket.isHashed) {
-                                        error("Assertion failed")
-                                    }
+                                    LOG.v("server sending unhashed provides $provides")
                                     val packet = session.votingStage.getSelf(false, provides)
                                     packet.tagLuid(luidPacket.luidVal)
                                     session.votingStage.addPacket(packet)
                                     serverConn.serverNotify(packet)
+                                        .doFinally {
+                                            session.votingStage.serverPackets.onComplete()
+                                        }
                                 }
                                     .doOnError { err -> LOG.e("election server error $err") }
                                     .toSingleDefault(TransactionResult.empty())
@@ -633,10 +631,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("gatt client election stage")
                         conn.readElectLeader()
                             .flatMapCompletable { electLeaderPacket ->
-                                LOG.v("gatt client recieved elect leader packet")
+                                LOG.v("gatt client received elect leader packet")
                                 electLeaderPacket.tagLuid(session.luidMap[session.device.address])
                                 session.votingStage.addPacket(electLeaderPacket)
-                                session.votingStage.verifyPackets()
+                                session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
                             }
                             .andThen(session.votingStage.determineUpgrade())
                             .map { provides ->
@@ -686,6 +684,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         if (session.role == ConnectionRole.ROLE_UKE) {
                             LOG.e("upgrade role UKE")
                             wifiDirectRadioModule.createGroup()
+                                .timeout(10, TimeUnit.SECONDS)
                                 .flatMap { bootstrap ->
                                     val upgradeStage = session.upgradeStage
                                     if (upgradeStage != null) {

@@ -156,9 +156,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     override fun createGroup(): Single<WifiDirectBootstrapRequest> {
         LOG.v("createGroup")
-        return Single.defer {
-            requestGroupInfo()
-                .switchIfEmpty(createGroupSingle().andThen(requestGroupInfo()))
+        val ret = Single.defer {
+                createGroupSingle()
+                .andThen(requestGroupInfo().toSingle())
                 .map { groupInfo ->
                     bootstrapRequestProvider.get()
                         .wifiDirectArgs(
@@ -169,45 +169,23 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                         ).build()!!.wifiBootstrapRequest()
                 }
-                .toSingle()
         }.doOnError { err -> firebaseWrapper.recordException(err) }
+
+        return removeGroup(retries = 9, delay = 1)
+            .andThen(retryDelay(ret, 5, 1))
     }
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
-       // return Single.just(true)
-        val ret = Single.defer {
-            val subject = SingleSubject.create<Boolean>()
-            val listener = object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    subject.onSuccess(true)
-                }
-
-                override fun onFailure(result: Int) {
-                    when (result) {
-                        WifiP2pManager.BUSY -> subject.onSuccess(false)
-                        WifiP2pManager.ERROR -> subject.onError(IllegalStateException("failed $result"))
-                        WifiP2pManager.P2P_UNSUPPORTED -> subject.onSuccess(false)
-                        else -> subject.onSuccess(false)
-                    }
-                }
+        return createGroup()
+            .ignoreElement()
+            .andThen(removeGroup(retries = 9, delay = 1))
+            .doOnError { err ->
+                LOG.e("cry $err")
+                err.printStackTrace()
             }
-
-            try {
-                mManager.createGroup(channel, listener)
-            } catch (s: SecurityException) {
-                LOG.e("invalid permission")
-            }
-
-            subject
-                .flatMap { v ->
-                    if(v)
-                        Single.just(v)
-                    else
-                        Single.error(IllegalStateException("busy or unsupported"))
-                }
-        }
-
-        return retryDelay(ret, 5, 1)
+            .timeout(5, TimeUnit.SECONDS)
+            .toSingleDefault(true)
+            .onErrorReturnItem(false)
             .flatMap { v ->
                 if (v) {
                     removeGroup(retries = 9, delay = 1).toSingleDefault(v)
@@ -245,8 +223,19 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
         }
 
-        return retryDelay(c, 10, 5)
-            .doOnError { err -> firebaseWrapper.recordException(err) }
+
+
+        return requestGroupInfo()
+            .isEmpty
+            .flatMapCompletable { empty ->
+                if (!empty)
+                    retryDelay(c, 10, 5)
+                        .doOnError { err -> firebaseWrapper.recordException(err) }
+                else
+                    Completable.complete()
+
+            }
+
     }
 
     override fun connectToGroup(
@@ -592,7 +581,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     }
                             }
                     }
+                    .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
                     .doOnSubscribe { LOG.v("subscribed to writeBlockData") }
+
             }
             else -> {
                 Single.error(IllegalStateException("invalid role"))
