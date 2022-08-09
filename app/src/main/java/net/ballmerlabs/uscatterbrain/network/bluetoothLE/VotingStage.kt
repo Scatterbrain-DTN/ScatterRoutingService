@@ -108,18 +108,15 @@ class VotingStage : LeDeviceSession.Stage {
     }
 
     private fun countVotes(): Single<AdvertisePacket.Provides> {
-        return Single.fromCallable {
-            val providesBuckets: MutableMap<AdvertisePacket.Provides, Int> = EnumMap(AdvertisePacket.Provides::class.java)
-            for (packet in unhashedPackets) {
-                providesBuckets[packet.provides] = 0
-                providesBuckets[packet.provides] = providesBuckets[packet.provides]!! + 1
+        return Observable.fromIterable(unhashedPackets)
+            .map { p -> p.provides }
+            .reduce(AdvertisePacket.Provides.WIFIP2P) { _, n ->
+                if (n == AdvertisePacket.Provides.BLE) {
+                    AdvertisePacket.Provides.BLE
+                } else {
+                    n
+                }
             }
-            if (HashSet(providesBuckets.values).size != providesBuckets.values.size) {
-                return@fromCallable tieBreak()
-            }
-
-            providesBuckets.maxByOrNull { v: Map.Entry<AdvertisePacket.Provides, Int> -> v.value }!!.key
-        }
     }
 
     fun determineUpgrade(): Single<AdvertisePacket.Provides> {

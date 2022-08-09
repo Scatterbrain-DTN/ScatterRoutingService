@@ -1292,6 +1292,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 session.stage = TransactionResult.STAGE_TERMINATE
                 updateDisconnected(luid)
             }
+            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 transactionInProgressRelay.accept(false)
