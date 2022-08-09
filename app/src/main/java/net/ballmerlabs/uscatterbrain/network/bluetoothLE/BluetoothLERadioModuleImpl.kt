@@ -993,17 +993,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
                 .build()
         )
-            .retryWhen { e ->
-                e.concatMap { err ->
-                    if (err is BleScanException) {
-                        val delay = err.retryDateSuggestion!!.time - Date().time
-                        LOG.e("undocumented scan throttling. Waiting $delay seconds")
-                        discoverContinuous().delay(delay, TimeUnit.SECONDS)
-                    } else {
-                        Observable.error(err)
-                    }
-                }
-            }
     }
 
     private fun awaitBluetoothEnabled(): Completable {
@@ -1077,7 +1066,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return awaitBluetoothEnabled()
             .andThen(discover)
             .repeat()
-            .retry()
+            .retryWhen { e ->
+                e.concatMap { err ->
+                    if (err is BleScanException) {
+                        val delay = err.retryDateSuggestion!!.time - Date().time
+                        LOG.e("undocumented scan throttling. Waiting $delay seconds")
+                        discoverContinuous().delay(delay, TimeUnit.SECONDS)
+                    } else {
+                        Observable.error(err)
+                    }
+                }
+            }
     }
 
 
