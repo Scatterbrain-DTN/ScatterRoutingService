@@ -768,7 +768,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { serverConn ->
                         LOG.v("gatt server declareHashes stage")
                         datastore.declareHashesPacket
-                            .flatMapCompletable { packet -> serverConn.serverNotify(packet) }
+                            .flatMapCompletable { packet ->
+                                LOG.e("declaredhashes packet ${packet.bytes.size}")
+                                serverConn.serverNotify(packet)
+                            }
                             .toSingleDefault(TransactionResult.empty())
                     },
                     { conn ->
@@ -1011,17 +1014,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return advertisingLuid != null && !activeLuids.containsKey(advertisingLuid)
     }
 
-    private fun shouldConnect(res: UUID): Boolean {
-        return !activeLuids.containsKey(res)
-    }
-
     /**
      * start device discovery forever, dispose to cancel.
      * @return observable of HandshakeResult containing transaction stats
      */
     override fun discoverForever(): Observable<HandshakeResult> {
-        discoveryPersistent.set(true)
         val discover = discoverContinuous()
+            .doOnSubscribe { discoveryPersistent.set(true) }
             .flatMapSingle { res ->
                 if (shouldConnect(res)) {
                     transactionInProgressRelay.accept(true)
@@ -1060,22 +1059,25 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("discoverForever error: $err")
                 clearPeers()
             }
-            .doOnSubscribe { LOG.e("subscribed discoverForever") }
-
-        return awaitBluetoothEnabled()
-            .andThen(discover)
-            .repeat()
             .retryWhen { e ->
                 e.concatMap { err ->
                     if (err is BleScanException) {
                         val delay = err.retryDateSuggestion!!.time - Date().time
                         LOG.e("undocumented scan throttling. Waiting $delay seconds")
-                        discoverContinuous().delay(delay, TimeUnit.SECONDS)
+                        discoverForever().delay(delay, TimeUnit.SECONDS)
                     } else {
                         Observable.error(err)
                     }
                 }
             }
+            .doFinally { discoveryPersistent.set(false) }
+            .doOnSubscribe { LOG.e("subscribed discoverForever") }
+
+        return awaitBluetoothEnabled()
+            .andThen(discover)
+            .repeat()
+            .retry()
+
     }
 
 
@@ -1312,7 +1314,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .onErrorComplete()
                 .subscribeOn(serverScheduler)
         val await = awaitAck(clientConnection)
-            .subscribeOn(serverScheduler)
+            .subscribeOn(clientScheduler)
 
         return Completable.mergeArray(
             send,
