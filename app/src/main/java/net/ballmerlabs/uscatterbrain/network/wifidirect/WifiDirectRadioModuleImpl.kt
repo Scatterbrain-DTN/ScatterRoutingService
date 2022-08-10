@@ -128,8 +128,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
 
     private fun requestGroupInfo(): Maybe<WifiP2pGroup> {
-        LOG.v("requestGroupInfo")
         return Maybe.defer {
+            LOG.v("requestGroupInfo")
             val subject = MaybeSubject.create<WifiP2pGroup>()
             val listener = WifiP2pManager.GroupInfoListener { groupInfo ->
                 if (groupInfo == null) {
@@ -155,11 +155,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      * create a wifi direct group with this device as the owner
      */
     override fun createGroup(): Single<WifiDirectBootstrapRequest> {
-        LOG.v("createGroup")
         val ret = Single.defer {
-                createGroupSingle()
+            LOG.v("createGroup")
+
+            createGroupSingle()
                 .andThen(requestGroupInfo().toSingle())
                 .map { groupInfo ->
+                    LOG.v("got groupInfo")
                     bootstrapRequestProvider.get()
                         .wifiDirectArgs(
                             BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
@@ -169,7 +171,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                         ).build()!!.wifiBootstrapRequest()
                 }
-        }.doOnError { err -> firebaseWrapper.recordException(err) }
+        }.doOnError { err ->
+            LOG.e("$err")
+            firebaseWrapper.recordException(err)
+        }
 
         return removeGroup(retries = 9, delay = 1)
             .andThen(retryDelay(ret, 5, 1))

@@ -6,7 +6,6 @@ import android.net.wifi.p2p.WifiP2pManager
 import io.reactivex.Completable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
-import io.reactivex.schedulers.TestScheduler
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
@@ -32,7 +31,6 @@ import org.robolectric.RobolectricTestRunner
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import java.io.OutputStream
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
@@ -84,38 +82,38 @@ class WifiDirectTest {
     private fun buildModule(packets: InputStream = ByteArrayInputStream(byteArrayOf())) {
         broadcastReceiver = MockWifiDirectBroadcastReceiver(mock())
         val component = DaggerFakeRoutingServiceComponent.builder()
-                .applicationContext(context)
-                .wifiP2pManager(wifiP2pManager)
-                .packetInputStream(packets)
-                .rxBleClient(mock {  })
-                .mockPreferences(preferences)
-                .packetOutputStream(packetOutputStream)
-                .wifiDirectBroadcastReceiver(broadcastReceiver)
-                .build()!!
+            .applicationContext(context)
+            .wifiP2pManager(wifiP2pManager)
+            .packetInputStream(packets)
+            .rxBleClient(mock { })
+            .mockPreferences(preferences)
+            .packetOutputStream(packetOutputStream)
+            .wifiDirectBroadcastReceiver(broadcastReceiver)
+            .build()!!
         module = component.wifiDirectModule()
         bootstrapRequestComponentBuilder = component.bootstrapSubcomponent().get()
 
     }
 
     private fun handleRequestGroupInfo(
-            callback: WifiP2pManager.GroupInfoListener,
-            info: WifiDirectInfo,
-            group: WifiP2pGroup? = null,
-            groupInfoDelay: Long = 10,
-            broadcastDelay: Long = 10,
+        callback: WifiP2pManager.GroupInfoListener,
+        info: WifiDirectInfo,
+        group: WifiP2pGroup? = null,
+        groupInfoDelay: Long = 10,
+        broadcastDelay: Long = 10,
 
-    ) {
+        ) {
         val disp = Completable.fromAction {
             callback.onGroupInfoAvailable(group)
         }
+            .subscribeOn(delayScheduler)
+            .delay(groupInfoDelay, TimeUnit.MILLISECONDS)
+            .andThen(Completable.fromAction {
+                broadcastReceiver.connectionInfoRelay.accept(info)
+            }
                 .subscribeOn(delayScheduler)
-                .delay(groupInfoDelay, TimeUnit.MILLISECONDS)
-                .andThen(Completable.fromAction {
-                    broadcastReceiver.connectionInfoRelay.accept(info)
-                }
-                        .subscribeOn(delayScheduler)
-                        .delay(broadcastDelay, TimeUnit.MILLISECONDS))
-                .subscribe()
+                .delay(broadcastDelay, TimeUnit.MILLISECONDS))
+            .subscribe()
         compositeDisposable.add(disp)
         Unit
     }
@@ -125,19 +123,19 @@ class WifiDirectTest {
         val disp = Completable.fromAction {
             callback.onSuccess()
         }
-                .subscribeOn(delayScheduler)
-                .delay(connectDelay, TimeUnit.MILLISECONDS)
-                .subscribe()
+            .subscribeOn(delayScheduler)
+            .delay(connectDelay, TimeUnit.MILLISECONDS)
+            .subscribe()
 
         compositeDisposable.add(disp)
     }
 
     private fun mockWifiP2p(
-            connectDelay: Long = 10,
-            groupInfoDelay: Long = 10,
-            broadcastDelay: Long = 10,
-            groupInfo: WifiP2pGroup? = null,
-            wifiDirectInfo: WifiDirectInfo = DEFAULT_INFO
+        connectDelay: Long = 10,
+        groupInfoDelay: Long = 10,
+        broadcastDelay: Long = 10,
+        groupInfo: WifiP2pGroup? = null,
+        wifiDirectInfo: WifiDirectInfo = DEFAULT_INFO
     ): WifiP2pManager {
         return mock {
             on { connect(any(), any(), any()) } doAnswer { ans ->
@@ -146,7 +144,30 @@ class WifiDirectTest {
             }
             on { requestGroupInfo(any(), any()) } doAnswer { ans ->
                 val callback = ans.arguments[1] as WifiP2pManager.GroupInfoListener
-                handleRequestGroupInfo(callback, wifiDirectInfo, groupInfo, groupInfoDelay, broadcastDelay)
+                handleRequestGroupInfo(
+                    callback,
+                    wifiDirectInfo,
+                    groupInfo,
+                    groupInfoDelay,
+                    broadcastDelay
+                )
+            }
+
+            on { createGroup(any(), any()) } doAnswer { ans ->
+                val callback = ans.arguments[1] as WifiP2pManager.ActionListener
+                callback.onSuccess()
+                broadcastReceiver.connectionInfoRelay.accept(mock {
+                    on { groupFormed() } doReturn true
+                    on { isGroupOwner() } doReturn true
+                })
+            }
+
+            on { removeGroup(any(), any()) } doAnswer { ans ->
+                val callback = ans.arguments[1] as WifiP2pManager.ActionListener
+                callback.onSuccess()
+                broadcastReceiver.connectionInfoRelay.accept(mock {
+                    on { groupFormed() } doReturn false
+                })
             }
         }
     }
@@ -162,8 +183,8 @@ class WifiDirectTest {
         wifiP2pManager = mockWifiP2p()
         buildModule()
         val info = module.connectToGroup(name, pass, 10)
-                .timeout(10, TimeUnit.SECONDS)
-                .blockingGet()
+            .timeout(10, TimeUnit.SECONDS)
+            .blockingGet()
 
         assert(info.groupOwnerAddress() != null)
     }
@@ -175,8 +196,8 @@ class WifiDirectTest {
         val routingMetadataPacket = RoutingMetadataPacket.newBuilder().setEmpty().build()
         val identityPacket = IdentityPacket.newBuilder().setEnd().build()!!
         val declareHashesPacket = DeclareHashesPacket.newBuilder()
-                .setHashesByte(listOf())
-                .build()
+            .setHashesByte(listOf())
+            .build()
         val blockdata = BlockHeaderPacket.newBuilder().setEndOfStream(true).build()
         routingMetadataPacket.writeToStream(os, delayScheduler).blockingAwait()
         identityPacket.writeToStream(os, delayScheduler).blockingAwait()
@@ -194,13 +215,15 @@ class WifiDirectTest {
         preferences.putValue("blockdatacap", 1)
         buildModule(packets = initEmptyHandshake())
         val req = bootstrapRequestComponentBuilder
-                .wifiDirectArgs(BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                        role = BluetoothLEModule.ConnectionRole.ROLE_UKE,
-                        passphrase = pass,
-                        name = name
-                ))
-                .build()!!
-                .wifiBootstrapRequest()
+            .wifiDirectArgs(
+                BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                    role = BluetoothLEModule.ConnectionRole.ROLE_UKE,
+                    passphrase = pass,
+                    name = name
+                )
+            )
+            .build()!!
+            .wifiBootstrapRequest()
         val res = module.bootstrapFromUpgrade(req).blockingGet()
         assert(res.success)
     }
@@ -214,13 +237,15 @@ class WifiDirectTest {
         preferences.putValue("blockdatacap", 1)
         buildModule(packets = initEmptyHandshake())
         val req = bootstrapRequestComponentBuilder
-                .wifiDirectArgs(BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                        role = BluetoothLEModule.ConnectionRole.ROLE_SEME,
-                        passphrase = pass,
-                        name = name
-                ))
-                .build()!!
-                .wifiBootstrapRequest()
+            .wifiDirectArgs(
+                BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                    role = BluetoothLEModule.ConnectionRole.ROLE_SEME,
+                    passphrase = pass,
+                    name = name
+                )
+            )
+            .build()!!
+            .wifiBootstrapRequest()
         val res = module.bootstrapFromUpgrade(req).blockingGet()
         assert(res.success)
     }
@@ -232,9 +257,13 @@ class WifiDirectTest {
                 for (broadcastDelay in LongProgression.fromClosedRange(0, 1000, 500)) {
                     wifiP2pManager = mockWifiP2p(connectDelay, groupInfoDelay, broadcastDelay)
                     buildModule()
-                    val info = module.connectToGroup(name, pass, ((connectDelay + groupInfoDelay + broadcastDelay) / 1000).toInt() + 5)
-                            .timeout(10, TimeUnit.SECONDS)
-                            .blockingGet()
+                    val info = module.connectToGroup(
+                        name,
+                        pass,
+                        ((connectDelay + groupInfoDelay + broadcastDelay) / 1000).toInt() + 5
+                    )
+                        .timeout(10, TimeUnit.SECONDS)
+                        .blockingGet()
 
                     assert(info.groupOwnerAddress() != null)
                 }
@@ -244,7 +273,7 @@ class WifiDirectTest {
 
     @Test
     fun createGroup() {
-        val groupInfo =  mock<WifiP2pGroup> {
+        val groupInfo = mock<WifiP2pGroup> {
             on { passphrase } doReturn pass
             on { networkName } doReturn name
         }
@@ -263,12 +292,12 @@ class WifiDirectTest {
                 val callback = ans.arguments[1] as WifiP2pManager.ActionListener
                 callback.onSuccess()
             }
-            on { requestGroupInfo(any(), any()) }  doAnswer { ans ->
+            on { requestGroupInfo(any(), any()) } doAnswer { ans ->
                 val callback = ans.arguments[1] as WifiP2pManager.GroupInfoListener
                 handleRequestGroupInfo(
-                        callback,
-                        p2pInfo,
-                        group = null,
+                    callback,
+                    p2pInfo,
+                    group = null,
                 )
             } doAnswer { ans ->
                 val callback = ans.arguments[1] as WifiP2pManager.GroupInfoListener
@@ -277,22 +306,24 @@ class WifiDirectTest {
         }
         buildModule()
         val bootstrap = module.createGroup()
-                .timeout(10, TimeUnit.SECONDS)
-                .blockingGet()
+            .timeout(10, TimeUnit.SECONDS)
+            .blockingGet()
         assert(bootstrap.name == name)
         assert(bootstrap.passphrase == pass)
     }
 
     @Test
     fun createGroupAlreadyExists() {
-        wifiP2pManager = mockWifiP2p(groupInfo = mock {
-            on { passphrase } doReturn pass
-            on { networkName } doReturn name
-        })
+        wifiP2pManager = mockWifiP2p(
+            groupInfo = mock {
+                on { passphrase } doReturn pass
+                on { networkName } doReturn name
+            }
+        )
         buildModule()
         val bootstrap = module.createGroup()
-                .timeout(10, TimeUnit.SECONDS)
-                .blockingGet()
+            .timeout(10, TimeUnit.SECONDS)
+            .blockingGet()
         assert(bootstrap.name == name)
         assert(bootstrap.passphrase == pass)
     }
