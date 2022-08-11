@@ -140,7 +140,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
         override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
             super.onScanResponseDataSet(advertisingSet, status)
-            LOG.v("set advertising data")
             advertisingDataUpdated.onNext(status)
         }
     }
@@ -420,7 +419,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
             }
         }
-            .doOnComplete { LOG.v("successfully set luid $luid") }
     }
 
     private fun awaitAdvertiseDataUpdate(): Completable {
@@ -1025,22 +1023,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 if (shouldConnect(res)) {
                     transactionInProgressRelay.accept(true)
                 }
-                val isold = randomizeLuidIfOld()
-                val luidrandomized = if (isold) "randomized!" else "not randomized!"
-                LOG.v("raw scan result ${res.bleDevice.macAddress}, luid: $luidrandomized ${activeLuids.size}")
-                val k = activeLuids.keys().asSequence().fold("") { s, v ->
-                    val n = "$s, $v"
-                    n
-                }
-                LOG.v("activeLuids: $k")
                 val currentLuid = getHashUuid(myLuid.get()) ?: UUID.randomUUID()
                 setAdvertisingLuid(currentLuid)
-                    .andThen(removeWifiDirectGroup(isold).onErrorComplete())
+                    .andThen(removeWifiDirectGroup(randomizeLuidIfOld()).onErrorComplete())
                     .toSingleDefault(res)
             }
             .filter { res -> shouldConnect(res) }
             .concatMapMaybe { scanResult ->
-                LOG.v("received scan result ${scanResult.bleDevice.macAddress}")
                 processScanResult(scanResult)
                     .doOnSuccess {
                         LOG.e(
@@ -1059,27 +1048,35 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("discoverForever error: $err")
                 clearPeers()
             }
-            .retryWhen { e ->
-                e.concatMap { err ->
-                    if (err is BleScanException) {
-                        val delay = err.retryDateSuggestion!!.time - Date().time
-                        LOG.e("undocumented scan throttling. Waiting $delay seconds")
-                        discoverForever().delay(delay, TimeUnit.SECONDS)
-                    } else {
-                        Observable.error(err)
-                    }
-                }
-            }
+            .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
             .doFinally { discoveryPersistent.set(false) }
             .doOnSubscribe { LOG.e("subscribed discoverForever") }
 
         return awaitBluetoothEnabled()
             .andThen(discover)
             .repeat()
-            .retry()
+            .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
 
     }
 
+    // Droids are weird and sometimes throttle repeated LE discoveries.
+    // if throttled, wait the suggested amount, and in any case don't resubscribe too quickly
+    private fun <T> handleUndocumentedScanThrottling(
+        e: Observable<Throwable>,
+        defaultDelay: Long = 10
+    ): Observable<T> {
+        return e.concatMap { err ->
+            if (err is BleScanException) {
+                val delay = err.retryDateSuggestion!!.time - Date().time
+                LOG.e("undocumented scan throttling. Waiting $delay seconds")
+                Completable.complete().delay(delay, TimeUnit.SECONDS)
+                    .andThen(Observable.error(err))
+            } else {
+                Completable.complete().delay(defaultDelay, TimeUnit.SECONDS)
+                    .andThen(Observable.error(err))
+            }
+        }
+    }
 
     override fun observeTransactionStatus(): Observable<Boolean> {
         return transactionInProgressRelay.delay(0, TimeUnit.SECONDS, operationsScheduler)
@@ -1268,7 +1265,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doOnNext { transactionResult ->
                 if (session.stage == TransactionResult.STAGE_SUSPEND) {
                     LOG.v("session $luid suspending, no bootstrap")
-                    session.unlock()
                 } else {
                     val stage = transactionResult.stage ?: TransactionResult.STAGE_TERMINATE
                     session.stage = stage
@@ -1279,10 +1275,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .flatMapMaybe { result ->
                 if (result.item != null) {
                     LOG.e("boostrapping wifip2p")
-                    bootstrapWifiP2p(result.item).toMaybe()
+                    bootstrapWifiP2p(result.item)
+                        .doFinally { session.unlock() }
+                        .toMaybe()
                 } else {
                     LOG.e("skipping bootstrap")
                     //TODO: record bluetooth LE handshakes
+                    session.unlock()
                     Maybe.empty()
                 }
             }
@@ -1298,7 +1297,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 transactionInProgressRelay.accept(false)
-                session.unlock()
             }
     }
 
@@ -1377,6 +1375,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .flatMapMaybe { trans ->
                         LOG.e("hello from ${trans.remoteDevice.macAddress}")
                         val luid = bytes2uuid(trans.value)!!
+                        connectionRaw.setOnDisconnect(trans.remoteDevice) {
+                            LOG.e("server onDisconnect $luid")
+                            val conn = connectionCache.remove(luid)
+                            conn?.dispose()
+                            if (connectionCache.isEmpty()) {
+                                removeLuid().blockingAwait()
+                            }
+                        }
                         LOG.e("server handling luid $luid")
                         LOG.e("transaction NOT locked, continuing")
                         if (updateConnected(luid)) {

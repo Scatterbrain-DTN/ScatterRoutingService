@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothDevice
 import android.util.Pair
+import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
@@ -38,26 +39,27 @@ typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionRe
  * @property remoteLuid local identifier of remote device
  */
 class LeDeviceSession(
-        val device: BluetoothDevice, 
-        luid: UUID,
-        val client: CachedLEConnection,
-        val server: CachedLEServerConnection,
-        val remoteLuid: UUID
+    val device: BluetoothDevice,
+    luid: UUID,
+    val client: CachedLEConnection,
+    val server: CachedLEServerConnection,
+    val remoteLuid: UUID
 ) {
     private val LOG by scatterLog()
     val luidStage: LuidStage = LuidStage(luid, remoteLuid) //exchange hashed and unhashed luids
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities
     val votingStage: VotingStage = VotingStage() //determine if an upgrade takes place
     var upgradeStage: UpgradeStage? = null //possibly upgrade to new transport
-    private val transactionMap = ConcurrentHashMap<String, Pair<ClientTransaction, ServerTransaction>>()
+    private val transactionMap =
+        ConcurrentHashMap<String, Pair<ClientTransaction, ServerTransaction>>()
     private val stageChanges = BehaviorSubject.create<String>()
-    var locked = false
+    var locked = BehaviorSubject.create<Boolean>()
     val luidMap = ConcurrentHashMap<String, UUID>()
     var stage: String = TransactionResult.STAGE_START
-    set(value) {
-        stageChanges.onNext(value)
-        field = value
-    }
+        set(value) {
+            stageChanges.onNext(value)
+            field = value
+        }
     var role = ConnectionRole.ROLE_UKE
     private var declareHashesPacket: DeclareHashesPacket? = DeclareHashesPacket.newBuilder().build()
 
@@ -68,25 +70,20 @@ class LeDeviceSession(
      * @param clientTransaction function for behavior of GATT client
      */
     fun addStage(
-            name: String,
-            serverTransaction: ServerTransaction,
-            clientTransaction: ClientTransaction
+        name: String,
+        serverTransaction: ServerTransaction,
+        clientTransaction: ClientTransaction
     ) {
         transactionMap[name] = Pair(clientTransaction, serverTransaction)
     }
 
     /**
-     * lock this session if a transaction is in progress
-     */
-    fun lock() = apply {
-        locked = true
-    }
-
-    /**
      * unlock this session if a transaction is complete
      */
-    fun unlock() = apply {
-        locked = false
+    fun unlock() {
+        if (locked.value!!) {
+            locked.onNext(false)
+        }
     }
 
     /**
@@ -95,7 +92,7 @@ class LeDeviceSession(
      */
     fun singleServer(): Single<ServerTransaction> {
         return Single.fromCallable { transactionMap[stage]!!.second }
-                .doOnError { err: Throwable -> LOG.e("failed to get single server for stage $stage: $err") }
+            .doOnError { err: Throwable -> LOG.e("failed to get single server for stage $stage: $err") }
     }
 
     /**
@@ -104,7 +101,7 @@ class LeDeviceSession(
      */
     fun singleClient(): Single<ClientTransaction> {
         return Single.fromCallable { transactionMap[stage]!!.first }
-                .doOnError { err: Throwable -> LOG.e("failed to get single client for stage $stage: $err") }
+            .doOnError { err: Throwable -> LOG.e("failed to get single client for stage $stage: $err") }
     }
 
     /**
@@ -113,9 +110,13 @@ class LeDeviceSession(
      */
     fun observeStage(): Observable<String> {
         return stageChanges
-                .takeWhile { s -> s.compareTo(TransactionResult.STAGE_TERMINATE) != 0 }
-                .filter {s -> s.compareTo(TransactionResult.STAGE_SUSPEND) != 0 }
-                .delay(0, TimeUnit.SECONDS)
+            .takeWhile { s -> s.compareTo(TransactionResult.STAGE_TERMINATE) != 0 }
+            .filter { s -> s.compareTo(TransactionResult.STAGE_SUSPEND) != 0 }
+            .zipWith(locked.filter { v -> !v }) { v, _ ->
+                locked.onNext(true)
+                v
+            }
+            .delay(0, TimeUnit.SECONDS)
     }
 
     /**
@@ -137,11 +138,15 @@ class LeDeviceSession(
     val declareHashes: Single<DeclareHashesPacket?>
         get() = Single.just(declareHashesPacket)
 
-    
+
     interface Stage {
         fun reset()
     }
-    
+
+    init {
+        locked.onNext(false)
+    }
+
     companion object {
         const val INITIAL_STAGE = TransactionResult.STAGE_LUID
     }

@@ -103,6 +103,10 @@ interface GattServerConnection: Disposable {
 
     fun observeConnect(): Observable<RxBleDevice>
 
+    fun setOnDisconnect(func: (device: RxBleDevice) -> Unit)
+
+    fun setOnDisconnect(device: RxBleDevice, func: () -> Unit)
+
     open class Output<T> {
         open val valueRelay: PublishSubject<T> = PublishSubject.create()
         val errorRelay: PublishSubject<Throwable> = PublishSubject.create()

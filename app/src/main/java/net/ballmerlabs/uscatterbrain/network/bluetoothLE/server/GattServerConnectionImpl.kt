@@ -44,7 +44,10 @@ class GattServerConnectionImpl @Inject constructor(
 ) : GattServerConnection {
     private val Log by scatterLog()
     private val compositeDisposable = CompositeDisposable()
-    
+
+    private var onDisconnect: (device: RxBleDevice) -> Unit = {}
+
+    private val deviceOnDisconnect = mutableMapOf<RxBleDevice, () -> Unit>()
 
     private val characteristicMultiIndex = MultiIndex<Int, BluetoothGattCharacteristic, LongWriteClosableOutput<ByteArray>>()
     private val descriptorMultiIndex = MultiIndex<Int, BluetoothGattDescriptor, LongWriteClosableOutput<ByteArray>>()
@@ -84,9 +87,15 @@ class GattServerConnectionImpl @Inject constructor(
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             super.onConnectionStateChange(device, status, newState)
             Log.d("gatt server onConnectionStateChange: " + device.address + " " + status + " " + newState)
+            val rxdevice = client.getBleDevice(device.address)
             connectionStatePublishRelay.accept(Pair(
-                    client.getBleDevice(device.address), mapConnectionStateToRxBleConnectionStatus(newState)
+                    rxdevice, mapConnectionStateToRxBleConnectionStatus(newState)
             ))
+            if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+                onDisconnect(rxdevice)
+                deviceOnDisconnect[rxdevice]?.invoke()
+                deviceOnDisconnect.remove(rxdevice)
+            }
         }
 
         override fun onServiceAdded(status: Int, service: BluetoothGattService) {
@@ -564,6 +573,14 @@ class GattServerConnectionImpl @Inject constructor(
 
     override fun disconnect(device: RxBleDevice): Completable {
         return operationQueue.queue<Void>(operationsProvider.provideDisconnectOperation(device)).ignoreElements()
+    }
+
+    override fun setOnDisconnect(func: (device: RxBleDevice) -> Unit) {
+        onDisconnect = func
+    }
+
+    override fun setOnDisconnect(device: RxBleDevice, func: () -> Unit) {
+        deviceOnDisconnect[device] = func
     }
 
     override fun prepareDescriptorTransaction(
