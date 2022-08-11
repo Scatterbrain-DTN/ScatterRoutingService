@@ -348,7 +348,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun declareHashesSeme(socket: Socket): Single<DeclareHashesPacket> {
         LOG.v("declareHashesSeme")
         return datastore.declareHashesPacket
-            .flatMapObservable { declareHashesPacket: DeclareHashesPacket ->
+            .flatMapObservable { declareHashesPacket ->
                 ScatterSerializable.parseWrapperFromCRC(
                     DeclareHashesPacket.parser(),
                     socket.getInputStream(),

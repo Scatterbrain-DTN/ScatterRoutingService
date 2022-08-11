@@ -6,6 +6,7 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import java.util.*
 
 interface BluetoothLEModule {
+
     /**
      * Stats LE advertise on scatterbrain UUID
      * This should run offloaded on the adapter until stopAdvertise is called
@@ -97,6 +98,7 @@ interface BluetoothLEModule {
     }
 
     companion object {
+        const val GATT_SIZE = 10
         const val TIMEOUT = 20
     }
 }

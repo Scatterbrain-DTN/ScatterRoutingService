@@ -8,6 +8,7 @@ import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
@@ -127,7 +128,7 @@ class CachedLEServerConnection(
                                         .andThen(
                                             connection.setupIndication(
                                                 characteristic.uuid,
-                                                packet.first.writeToStream(20, scheduler),
+                                                packet.first.writeToStream(GATT_SIZE, scheduler),
                                                 trans.remoteDevice
                                             )
                                                 .timeout(20, TimeUnit.SECONDS)

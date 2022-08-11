@@ -31,16 +31,24 @@ class ProtocolTests {
     private inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> testSerialize(
             parser: ScatterSerializable.Companion.Parser<V,T>,
             input: T,
-            blocksize: Int = 2,
+            blocksize: Int = 20,
             onComplete: (packet: T) -> Unit
     ) {
         onComplete(input)
-        val packet = ScatterSerializable.parseWrapperFromCRC(
+        val buf = InputStreamFlowableSubscriber(blocksize*1024)
+        for (x in 1..blocksize) {
+            val obs = input.writeToStream(x, scheduler)
+            obs.subscribe(buf)
+        }
+
+        for (x in 1..blocksize) {
+            val packet = ScatterSerializable.parseWrapperFromCRC(
                 parser,
-                input.writeToStream(blocksize, scheduler),
+                buf,
                 scheduler
-        ).blockingGet()
-        onComplete(packet)
+            ).blockingGet()
+            onComplete(packet)
+        }
         val stream = ByteArrayOutputStream()
         input.writeToStream(stream, scheduler).blockingAwait()
         val streamPacket = ScatterSerializable.parseWrapperFromCRC(
