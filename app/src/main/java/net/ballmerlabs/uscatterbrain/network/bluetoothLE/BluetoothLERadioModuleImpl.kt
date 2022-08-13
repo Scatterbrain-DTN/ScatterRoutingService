@@ -1134,7 +1134,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e(
                     "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
-                val newconnection = CachedLEConnection(channels, operationsScheduler, device)
+                val newconnection = CachedLEConnection(channels, clientScheduler, device)
                 val connection = connectionCache.putIfAbsent(luid, newconnection)
                 if (connection != null) {
                     LOG.e("cache HIT")
@@ -1366,7 +1366,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     CachedLEServerConnection(
                         connectionRaw,
                         channels,
-                        operationsScheduler
+                        serverScheduler
                     )
                 )
                 //TODO:

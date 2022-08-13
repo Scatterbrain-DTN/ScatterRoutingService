@@ -7,6 +7,8 @@ import java.nio.BufferOverflowException
 import java.nio.BufferUnderflowException
 import java.nio.ByteBuffer
 import java.util.concurrent.Semaphore
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * This is a somewhat hacky brige between RxJava2 streams and a classic
@@ -19,32 +21,39 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
     protected var disposable: Disposable? = null
     private val buf = CircularBuffer(ByteBuffer.allocate(BUF_CAPACITY + 1))
     private val blockingEmptyLock = Semaphore(1, true)
-    private var complete = false
-    protected fun acceptBytes(buf: ByteArray) {
-        if (buf.size >= this.buf.remaining()) {
-            blockingEmptyLock.release()
-            throw BufferOverflowException()
-        }
-        this.buf.put(buf, 0, buf.size)
-        blockingEmptyLock.release()
+    private val lock = ReentrantLock()
 
+
+    protected fun acceptBytes(buf: ByteArray) {
+        lock.withLock {
+            if (buf.size >= this.buf.remaining()) {
+                blockingEmptyLock.release()
+                throw BufferOverflowException()
+            }
+            this.buf.put(buf, 0, buf.size)
+            blockingEmptyLock.release()
+        }
     }
+
 
     fun size(): Int {
         return buf.size()
     }
 
     private operator fun get(result: ByteArray, offset: Int, len: Int): Int {
-        if (closed) {
-            throw IOException("closed")
-        }
         return try {
-            while (buf.size() < len && !complete) {
+            while (buf.size() < len) {
                 blockingEmptyLock.acquire()
             }
-            val l = len.coerceAtMost(buf.size())
-            buf[result, offset, l]
-            l
+            lock.withLock {
+                if (closed) {
+                    throw IOException("closed")
+                }
+                val l = len.coerceAtMost(buf.size())
+
+                buf[result, offset, l]
+                l
+            }
         } catch (ignored: BufferUnderflowException) {
             throw IOException("underflow")
         } catch (ignored: InterruptedException) {
@@ -60,6 +69,7 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
         return get(b, off, len)
     }
 
+
     override fun skip(n: Long): Long {
         if (n >= Int.MAX_VALUE || n <= Int.MIN_VALUE) {
             throw IOException("index out of range")
@@ -68,9 +78,11 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
         return buf.skip(n)
     }
 
+
     override fun available(): Int {
         return buf.remaining()
     }
+
 
     override fun close() {
         closed = true
@@ -78,34 +90,22 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
         disposable?.dispose()
     }
 
-    @Synchronized
-    override fun mark(readlimit: Int) {
-        super.mark(readlimit)
-    }
-
-    @Synchronized
-    override fun reset() {
-        super.reset()
-    }
-
     override fun markSupported(): Boolean {
         return false
     }
+
 
     override fun read(): Int {
         if (closed) {
             throw IOException("closed")
         }
         return try {
-            while (buf.size() == 0 && !complete) {
+            while (buf.size() == 0) {
                 blockingEmptyLock.acquire()
             }
-            val r = if (complete) {
-                -1
-            } else {
+            lock.withLock {
                 buf.get().toInt()
             }
-            r
         } catch (ignored: InterruptedException) {
             -1
         }

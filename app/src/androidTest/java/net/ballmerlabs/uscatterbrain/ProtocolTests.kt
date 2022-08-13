@@ -21,6 +21,7 @@ import java.util.*
 @RunWith(AndroidJUnit4ClassRunner::class)
 class ProtocolTests {
     private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
+    private val writeScheduler = RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
 
     @Before
     fun init() {
@@ -37,7 +38,7 @@ class ProtocolTests {
         onComplete(input)
         val buf = InputStreamFlowableSubscriber(blocksize*1024)
         for (x in 1..blocksize) {
-            val obs = input.writeToStream(x, scheduler)
+            val obs = input.writeToStream(x, writeScheduler)
             obs.subscribe(buf)
         }
 

@@ -140,11 +140,8 @@ abstract class ScatterSerializable<T : MessageLite>(
      * @return Flowable emitting byte arrays with serialized message
      */
     fun writeToStream(fragsize: Int, scheduler: Scheduler): Flowable<ByteArray> {
-        return Flowable.defer {
-            Bytes.from(ByteArrayInputStream(bytes), fragsize)
+        return Bytes.from(ByteArrayInputStream(bytes), fragsize)
                     .subscribeOn(scheduler)
-        }
-                .subscribeOn(scheduler)
     }
 
     /**

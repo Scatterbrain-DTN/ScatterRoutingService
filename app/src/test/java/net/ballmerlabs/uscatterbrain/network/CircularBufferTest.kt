@@ -1,8 +1,15 @@
 package net.ballmerlabs.uscatterbrain.network
 
+import com.github.davidmoten.rx2.Bytes
+import com.google.android.gms.common.util.Hex
+import com.google.android.gms.common.util.HexDumpUtils
+import io.reactivex.Flowable
+import io.reactivex.schedulers.Schedulers
+import org.bouncycastle.util.encoders.HexEncoder
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.ByteArrayInputStream
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -44,6 +51,39 @@ class CircularBufferTest {
             assert(written.get())
         } catch (timeout: TimeoutException) {
             assert(true)
+        }
+    }
+
+    @Test
+    fun emptyRead() {
+
+    }
+
+    @Test
+    fun reproduceWeirdIssueThing() {
+        val iter = 20
+        val a = mutableListOf<ByteArray>()
+        for (x in 5..iter) {
+            a.add(Random.nextBytes(x))
+        }
+
+        val buf = InputStreamFlowableSubscriber(iter*4096)
+        for (x in a) {
+            val obs = Bytes.from(ByteArrayInputStream(x), 2)
+                    .subscribeOn(Schedulers.single())
+            obs.subscribe(buf)
+        }
+
+        for (x in a) {
+            print("${x.size} ")
+            println()
+            val bytes = ByteArray(x.size)
+            val compare = ByteArray(x.size)
+            buf.read(bytes)
+            println(Hex.bytesToStringLowercase(x))
+            println(Hex.bytesToStringLowercase(bytes))
+            assert(bytes.contentEquals(x))
+            assert(!bytes.contentEquals(compare))
         }
     }
 
