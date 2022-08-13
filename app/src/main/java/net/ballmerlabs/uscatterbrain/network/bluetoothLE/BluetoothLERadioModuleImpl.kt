@@ -1366,7 +1366,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     CachedLEServerConnection(
                         connectionRaw,
                         channels,
-                        serverScheduler
+                        scheduler = serverScheduler,
+                        ioScheduler = operationsScheduler
                     )
                 )
                 //TODO:

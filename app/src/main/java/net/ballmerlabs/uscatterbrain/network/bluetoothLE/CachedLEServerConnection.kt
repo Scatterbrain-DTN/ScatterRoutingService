@@ -26,7 +26,8 @@ import java.util.concurrent.atomic.AtomicReference
 class CachedLEServerConnection(
     val connection: GattServerConnection,
     private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
-    private val scheduler: Scheduler
+    private val scheduler: Scheduler,
+    private val ioScheduler: Scheduler
 ) : Disposable {
     val luid: UUID? = null
     private val LOG by scatterLog()
@@ -112,7 +113,7 @@ class CachedLEServerConnection(
             connection.getOnCharacteristicReadRequest(
                 BluetoothLERadioModuleImpl.UUID_SEMAPHOR
             )
-                .subscribeOn(scheduler)
+                .subscribeOn(ioScheduler)
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER)) { req, packet ->
                     LOG.v("received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet: ${packet.first.type}")
@@ -120,7 +121,7 @@ class CachedLEServerConnection(
                         .flatMapCompletable { characteristic ->
                             LOG.v("LOCKED characteristic ${characteristic.uuid} packet: ${packet.first.type}")
                             connection.getOnCharacteristicReadRequest(characteristic.uuid)
-                                .subscribeOn(scheduler)
+                                .subscribeOn(ioScheduler)
                                 .firstOrError()
                                 .flatMapCompletable { trans ->
                                     LOG.v("characteristic ${characteristic.uuid} start indications packet: ${packet.first.type}")
@@ -143,7 +144,7 @@ class CachedLEServerConnection(
                                         BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
                                         BluetoothGatt.GATT_SUCCESS
                                     )
-                                        .subscribeOn(scheduler)
+                                        .subscribeOn(ioScheduler)
                                         .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
                                         .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
                                         .onErrorComplete()
@@ -166,7 +167,7 @@ class CachedLEServerConnection(
                         .onErrorComplete()
                 }
                 .flatMapCompletable { obs -> obs }
-                .subscribeOn(scheduler)
+                .subscribeOn(ioScheduler)
                 .repeat()
                 .retry()
                 .subscribe(
