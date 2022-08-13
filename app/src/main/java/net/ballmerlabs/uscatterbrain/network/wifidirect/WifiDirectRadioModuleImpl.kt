@@ -48,6 +48,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val datastore: ScatterbrainDatastore,
     private val preferences: RouterPreferences,
     @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
     private val channel: WifiP2pManager.Channel,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
@@ -358,7 +359,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     .mergeWith(
                         declareHashesPacket.writeToStream(
                             socket.getOutputStream(),
-                            operationsScheduler
+                            clientScheduler
                         )
                     )
                     .subscribeOn(operationsScheduler)
@@ -396,7 +397,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         end
                     } //TODO: timeout here
                     .mergeWith(packets.concatMapCompletable { p ->
-                        p.writeToStream(sock.getOutputStream(), operationsScheduler)
+                        p.writeToStream(sock.getOutputStream(), clientScheduler)
                     })
                     .subscribeOn(operationsScheduler)
             }
@@ -432,7 +433,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         end
                     }
                     .mergeWith(packets.concatMapCompletable { p ->
-                        p.writeToStream(sock.getOutputStream(), operationsScheduler)
+                        p.writeToStream(sock.getOutputStream(), clientScheduler)
                             .doOnComplete { LOG.v("wrote single identity packet") }
                     })
                     .subscribeOn(operationsScheduler)
@@ -609,7 +610,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return stream.concatMapCompletable { blockDataStream ->
             blockDataStream.headerPacket.writeToStream(
                 socket.getOutputStream(),
-                operationsScheduler
+                clientScheduler
             )
                 .doOnComplete { LOG.v("wrote headerpacket to client socket") }
                 .andThen(
@@ -618,7 +619,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         .concatMapCompletable { sequencePacket ->
                             sequencePacket.writeToStream(
                                 socket.getOutputStream(),
-                                operationsScheduler
+                                clientScheduler
                             )
                         }
                         .doOnComplete { LOG.v("wrote sequence packets to client socket") }
@@ -637,7 +638,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .concatMapCompletable { blockDataStream ->
                 blockDataStream.headerPacket.writeToStream(
                     socket.getOutputStream(),
-                    operationsScheduler
+                    clientScheduler
                 )
                     .doOnComplete { LOG.v("server wrote header packet") }
                     .andThen(
@@ -646,7 +647,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .concatMapCompletable { blockSequencePacket ->
                                 blockSequencePacket.writeToStream(
                                     socket.getOutputStream(),
-                                    operationsScheduler
+                                    clientScheduler
                                 )
                             }
                             .doOnComplete { LOG.v("server wrote sequence packets") }
