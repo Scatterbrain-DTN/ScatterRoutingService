@@ -144,7 +144,6 @@ class CachedLEServerConnection(
                                         BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
                                         BluetoothGatt.GATT_SUCCESS
                                     )
-                                        .subscribeOn(ioScheduler)
                                         .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
                                         .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
                                         .onErrorComplete()
@@ -167,7 +166,6 @@ class CachedLEServerConnection(
                         .onErrorComplete()
                 }
                 .flatMapCompletable { obs -> obs }
-                .subscribeOn(ioScheduler)
                 .repeat()
                 .retry()
                 .subscribe(

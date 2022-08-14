@@ -35,6 +35,7 @@ import net.ballmerlabs.uscatterbrain.network.AckPacket
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
@@ -52,6 +53,7 @@ import javax.inject.Named
 import javax.inject.Provider
 import javax.inject.Singleton
 
+// deca
 data class Optional<T>(
     val item: T? = null
 ) {
@@ -117,6 +119,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val isAdvertising = BehaviorSubject.create<Pair<Optional<AdvertisingSet>, Int>>()
     private val advertisingLock = AtomicReference(false)
     private val advertisingDataUpdated = PublishSubject.create<Int>()
+
+    // map advertising state to rxjava2
     private val advertiseSetCallback = object : AdvertisingSetCallback() {
         override fun onAdvertisingSetStarted(
             advertisingSet: AdvertisingSet?,
@@ -154,7 +158,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val discoveryPersistent = AtomicReference(false)
 
-    private val serverSubject = SingleSubject.create<CachedLEServerConnection>()
+    private val serverSubject = BehaviorSubject.create<CachedLEServerConnection>()
 
     private val discoveryDispoable = AtomicReference<Disposable>()
 
@@ -235,12 +239,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         observeTransactionComplete()
     }
 
-    /*
-         * shortcut to generate a characteristic with the required permissions
-         * and properties and add it to our service.
-         * We need PROPERTY_INDICATE to send large protobuf blobs and
-         * READ and WRITE for timing / locking
-         */
+    /**
+     * shortcut to generate a characteristic with the required permissions
+     * and properties and add it to our service.
+     * We need PROPERTY_INDICATE to send large protobuf blobs and
+     * READ and WRITE for timing / locking
+     */
     private fun makeCharacteristic(uuid: UUID): BluetoothGattCharacteristic {
         val characteristic = BluetoothGattCharacteristic(
             uuid,
@@ -482,14 +486,18 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
+    /**
+     * Select the bootstrap protocol we should vote for in leader election
+     * Currently, this just tests if wifi direct is broken and falls back
+     * to BLE if it is.
+     */
     private fun selectProvides(): Single<AdvertisePacket.Provides> {
-      //  return Single.just(AdvertisePacket.Provides.WIFIP2P)
        return wifiDirectRadioModule.wifiDirectIsUsable()
             .doOnSuccess { p -> LOG.e("selectProvides $p") }
             .map { p -> if (p) AdvertisePacket.Provides.WIFIP2P else AdvertisePacket.Provides.BLE }
     }
 
-    /*
+    /**
      * initialize the finite state machine. This is VERY important and dictates the
      * bluetooth LE transport's behavior for the entire protocol.
      * the LeDeviceSession object holds the stages and stage transition LOGic, and is
@@ -1134,7 +1142,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e(
                     "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
-                val newconnection = CachedLEConnection(channels, clientScheduler, device)
+                val newconnection = CachedLEConnection(channels, operationsScheduler, device)
                 val connection = connectionCache.putIfAbsent(luid, newconnection)
                 if (connection != null) {
                     LOG.e("cache HIT")
@@ -1194,6 +1202,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return Maybe.defer {
             if (!transactionLock.getAndSet(true)) {
                 serverSubject
+                    .firstOrError()
                     .flatMapMaybe { connection ->
                         LOG.v("successfully connected to $luid")
                         val s = LeDeviceSession(
@@ -1247,11 +1256,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                 ) { client, server ->
                     val serverResult = server(serverConnection)
-                        .subscribeOn(serverScheduler)
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
                     val clientResult = client(clientConnection)
-                        .subscribeOn(clientScheduler)
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
                     Single.zip(serverResult, clientResult) { s, c -> s.merge(c) }
@@ -1310,14 +1317,75 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val send =
             sendAck(serverConnection, !transactionResult.isError, transactionResult.err)
                 .onErrorComplete()
-                .subscribeOn(serverScheduler)
         val await = awaitAck(clientConnection)
-            .subscribeOn(clientScheduler)
 
         return Completable.mergeArray(
             send,
             await
         ).toSingleDefault(transactionResult)
+    }
+
+    private fun helloRead(serverConnection: GattServerConnection): Completable {
+        return serverConnection.getOnCharacteristicReadRequest(UUID_HELLO)
+            .subscribeOn(operationsScheduler)
+            .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
+            .flatMapCompletable { trans ->
+                val luid = getHashUuid(myLuid.get())
+                LOG.v("hello characteristic read, replying with luid $luid")
+                trans.sendReply(uuid2bytes(luid), BluetoothGatt.GATT_SUCCESS)
+            }
+            .doOnError { err ->
+                clearPeers()
+                LOG.e("error in hello characteristic read: $err")
+            }.onErrorComplete()
+    }
+
+    private fun helloWrite(serverConnection: GattServerConnection): Observable<HandshakeResult> {
+        return serverConnection.getOnCharacteristicWriteRequest(UUID_HELLO)
+            .subscribeOn(operationsScheduler)
+            .flatMapMaybe { trans ->
+                LOG.e("hello from ${trans.remoteDevice.macAddress}")
+                val luid = bytes2uuid(trans.value)!!
+                serverConnection.setOnDisconnect(trans.remoteDevice) {
+                    LOG.e("server onDisconnect $luid")
+                    val conn = connectionCache.remove(luid)
+                    conn?.dispose()
+                    if (connectionCache.isEmpty()) {
+                        removeLuid().blockingAwait()
+                    }
+                }
+                LOG.e("server handling luid $luid")
+                LOG.e("transaction NOT locked, continuing")
+                if (updateConnected(luid)) {
+                    transactionInProgressRelay.accept(true)
+                }
+                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                    .andThen(establishConnectionCached(trans.remoteDevice, luid))
+                    .flatMapMaybe { connection ->
+                        handleConnection(
+                            connection,
+                            trans.remoteDevice,
+                            luid
+                        )
+                    }
+                    .doOnError { err ->
+                        LOG.e("error in handleConnection $err")
+                        updateDisconnected(luid)
+                    }
+                    .onErrorReturnItem(
+                        HandshakeResult(
+                            0,
+                            0,
+                            HandshakeResult.TransactionStatus.STATUS_FAIL
+                        )
+                    )
+
+            }
+            .doOnError { e ->
+                LOG.e("failed to read hello characteristic: $e")
+                clearPeers()
+            }
+            .doOnNext { t -> LOG.v("transactionResult ${t.success}") }
     }
 
     /**
@@ -1362,7 +1430,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }
             .flatMapObservable { connectionRaw ->
                 LOG.v("gatt server initialized")
-                serverSubject.onSuccess(
+                serverSubject.onNext(
                     CachedLEServerConnection(
                         connectionRaw,
                         channels,
@@ -1370,72 +1438,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         ioScheduler = operationsScheduler
                     )
                 )
-                //TODO:
-                val write = connectionRaw.getOnCharacteristicWriteRequest(UUID_HELLO)
-                    .subscribeOn(operationsScheduler)
-                    .flatMapMaybe { trans ->
-                        LOG.e("hello from ${trans.remoteDevice.macAddress}")
-                        val luid = bytes2uuid(trans.value)!!
-                        connectionRaw.setOnDisconnect(trans.remoteDevice) {
-                            LOG.e("server onDisconnect $luid")
-                            val conn = connectionCache.remove(luid)
-                            conn?.dispose()
-                            if (connectionCache.isEmpty()) {
-                                removeLuid().blockingAwait()
-                            }
-                        }
-                        LOG.e("server handling luid $luid")
-                        LOG.e("transaction NOT locked, continuing")
-                        if (updateConnected(luid)) {
-                            transactionInProgressRelay.accept(true)
-                        }
-                        trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                            .andThen(establishConnectionCached(trans.remoteDevice, luid))
-                            .flatMapMaybe { connection ->
-                                handleConnection(
-                                    connection,
-                                    trans.remoteDevice,
-                                    luid
-                                )
-                            }
-                            .doOnError { err ->
-                                LOG.e("error in handleConnection $err")
-                                updateDisconnected(luid)
-                            }
-                            .onErrorReturnItem(
-                                HandshakeResult(
-                                    0,
-                                    0,
-                                    HandshakeResult.TransactionStatus.STATUS_FAIL
-                                )
-                            )
 
-                    }
-                    .doOnError { e ->
-                        LOG.e("failed to read hello characteristic: $e")
-                        clearPeers()
-                    }
-                    .doOnNext { t -> LOG.v("transactionResult ${t.success}") }
-                    .retry()
-                    .repeat()
-
-
-                val read = connectionRaw.getOnCharacteristicReadRequest(UUID_HELLO)
-                    .subscribeOn(operationsScheduler)
-                    .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
-                    .flatMapCompletable { trans ->
-                        val luid = getHashUuid(myLuid.get())
-                        LOG.v("hello characteristic read, replying with luid $luid")
-                        trans.sendReply(uuid2bytes(luid), BluetoothGatt.GATT_SUCCESS)
-                    }
-                    .doOnError { err ->
-                        clearPeers()
-                        LOG.e("error in hello characteristic read: $err")
-                    }
-                    .retry()
-                    .repeat()
+                val write = helloWrite(connectionRaw)
+                val read = helloRead(connectionRaw)
 
                 write.mergeWith(read)
+                    .retry(10)
             }
             .doOnDispose {
                 LOG.e("gatt server disposed")

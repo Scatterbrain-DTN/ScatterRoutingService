@@ -106,6 +106,7 @@ class LeDeviceSession(
 
     /**
      * Observe stage changes.
+     * The next state will only be handled if unlock() is called by the state machine
      * @return observable emitting name of each stage and calling oncomplete on STAGE_EXIT
      */
     fun observeStage(): Observable<String> {
