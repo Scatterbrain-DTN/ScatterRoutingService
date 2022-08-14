@@ -417,27 +417,29 @@ class GattServerConnectionImpl @Inject constructor(
             characteristic: BluetoothGattCharacteristic,
             isIndication: Boolean
     ): Completable {
-        return Single.fromCallable(Callable {
-            if (isIndication) {
-                if (serverState.getIndications(characteristic.uuid)) {
-                    Log.v("immediate start indication")
-                    return@Callable Completable.complete()
-                }
+        return Single.fromCallable {
+            if (isIndication && serverState.getIndications(characteristic.uuid)) {
+                Log.v("immediate start indication")
+                Completable.complete()
+            } else if (serverState.getNotifications(characteristic.uuid)) {
+                Log.v("immediate start notification")
+                Completable.complete()
             } else {
-                if (serverState.getNotifications(characteristic.uuid)) {
-                    Log.v("immediate start notification")
-                    return@Callable Completable.complete()
-                }
-            }
-            withDisconnectionHandling(getWriteDescriptorOutput())
+                withDisconnectionHandling(getWriteDescriptorOutput())
                     .filter { transaction ->
                         (transaction.first.uuid.compareTo(clientconfig.uuid) == 0
                                 && transaction.first.characteristic.uuid
-                                .compareTo(clientconfig.characteristic.uuid) == 0)
+                            .compareTo(clientconfig.characteristic.uuid) == 0)
                     }
-                    .takeWhile { trans -> Arrays.equals(trans.second.value, BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE) }
+                    .takeWhile { trans ->
+                        Arrays.equals(
+                            trans.second.value,
+                            BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+                        )
+                    }
                     .ignoreElements()
-        }).flatMapCompletable { completable -> completable }
+            }
+        }.flatMapCompletable { completable -> completable }
     }
 
     override fun setupNotifications(ch: UUID, notifications: Flowable<ByteArray>, device: RxBleDevice): Completable {
@@ -453,17 +455,17 @@ class GattServerConnectionImpl @Inject constructor(
             isIndication: Boolean,
             device: RxBleDevice
     ): Completable {
-        return Single.fromCallable(Callable {
+        return Completable.defer(Callable {
             Log.v("setupNotifictions: " + characteristic.uuid)
             val clientconfig = characteristic.getDescriptor(CLIENT_CONFIG)
                     ?: return@Callable Completable.error(IllegalStateException("notification failed"))
             notifications
-                    .subscribeOn(connectionScheduler)
                     .delay<ByteArray> {
                         setupNotificationsDelay(clientconfig, characteristic, isIndication)
                                 .timeout(5, TimeUnit.SECONDS)
                                 .toFlowable()
                     }
+                    .onBackpressureBuffer()
                     .concatMap { bytes ->
                         Log.v("processing bytes length: " + bytes.size)
                         try {
@@ -485,7 +487,7 @@ class GattServerConnectionImpl @Inject constructor(
                             Flowable.error(exc)
                         }
                     }
-                    .flatMap { integer ->
+                    .concatMap { integer ->
                         Log.v("notification result: $integer")
                         if (integer != BluetoothGatt.GATT_SUCCESS) {
                             Flowable.error(IllegalStateException("notification failed $integer"))
@@ -495,7 +497,7 @@ class GattServerConnectionImpl @Inject constructor(
                     }
                     .ignoreElements()
                     .doOnComplete { Log.v("notifications completed!") }
-        }).flatMapCompletable { completable -> completable }
+        })
     }
 
     private fun <T> withDisconnectionHandling(output: Output<T>): Observable<T> {

@@ -123,6 +123,7 @@ class CachedLEServerConnection(
                             connection.getOnCharacteristicReadRequest(characteristic.uuid)
                                 .subscribeOn(ioScheduler)
                                 .firstOrError()
+                                .observeOn(scheduler)
                                 .flatMapCompletable { trans ->
                                     LOG.v("characteristic ${characteristic.uuid} start indications packet: ${packet.first.type}")
                                     trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
@@ -132,6 +133,7 @@ class CachedLEServerConnection(
                                                 packet.first.writeToStream(GATT_SIZE, scheduler),
                                                 trans.remoteDevice
                                             )
+                                                .subscribeOn(scheduler)
                                                 .timeout(20, TimeUnit.SECONDS)
                                                 .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
                                                 .doOnComplete {
