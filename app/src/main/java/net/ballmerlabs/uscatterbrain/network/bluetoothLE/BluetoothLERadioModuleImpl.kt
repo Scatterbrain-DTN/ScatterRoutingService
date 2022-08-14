@@ -26,10 +26,12 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.PublishSubject
-import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
-import net.ballmerlabs.uscatterbrain.*
+import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
+import net.ballmerlabs.uscatterbrain.R
+import net.ballmerlabs.uscatterbrain.RouterPreferences
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.AckPacket
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
@@ -41,6 +43,7 @@ import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
+import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
 import java.nio.ByteBuffer
@@ -325,56 +328,61 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val advertise = isAdvertising
             .firstOrError()
             .flatMapCompletable { v ->
-                if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
-                    Completable.complete()
-                else
-                    Completable.defer {
-                        LOG.v("Starting LE advertise")
-                        val settings = AdvertisingSetParameters.Builder()
-                            .setConnectable(true)
-                            .setScannable(true)
-                            .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                            .setLegacyMode(true)
-                            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
-                            .build()
-                        val serviceData = AdvertiseData.Builder()
+                val res = Completable.fromAction {
+                    LOG.v("Starting LE advertise")
+                    val settings = AdvertisingSetParameters.Builder()
+                        .setConnectable(true)
+                        .setScannable(true)
+                        .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                        .setLegacyMode(true)
+                        .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                        .build()
+                    val serviceData = AdvertiseData.Builder()
+                        .setIncludeDeviceName(false)
+                        .setIncludeTxPowerLevel(false)
+                        .addServiceUuid(ParcelUuid(SERVICE_UUID))
+                        .build()
+
+                    val responsedata = if (luid != null) {
+                        AdvertiseData.Builder()
                             .setIncludeDeviceName(false)
                             .setIncludeTxPowerLevel(false)
-                            .addServiceUuid(ParcelUuid(SERVICE_UUID))
+                            .addServiceData(ParcelUuid(luid), byteArrayOf(5))
                             .build()
-
-                        val responsedata = if (luid != null) {
-                            AdvertiseData.Builder()
-                                .setIncludeDeviceName(false)
-                                .setIncludeTxPowerLevel(false)
-                                .addServiceData(ParcelUuid(luid), byteArrayOf(5))
-                                .build()
-                        } else {
-                            AdvertiseData.Builder()
-                                .setIncludeDeviceName(false)
-                                .setIncludeTxPowerLevel(false)
-                                .build()
-                        }
-                        if (!advertisingLock.getAndSet(true)) {
-                            if (ActivityCompat.checkSelfPermission(
-                                    mContext,
-                                    Manifest.permission.BLUETOOTH_ADVERTISE
-                                ) != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                throw PermissionsNotAcceptedException()
-                            } else {
-                                mAdvertiser.startAdvertisingSet(
-                                    settings,
-                                    serviceData,
-                                    responsedata,
-                                    null,
-                                    null,
-                                    advertiseSetCallback
-                                )
-                            }
-                        }
-                        mapAdvertiseComplete(true)
+                    } else {
+                        AdvertiseData.Builder()
+                            .setIncludeDeviceName(false)
+                            .setIncludeTxPowerLevel(false)
+                            .build()
                     }
+                    if (!advertisingLock.getAndSet(true)) {
+                        if (ActivityCompat.checkSelfPermission(
+                                mContext,
+                                Manifest.permission.BLUETOOTH_ADVERTISE
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            throw PermissionsNotAcceptedException()
+                        } else {
+                            mAdvertiser.startAdvertisingSet(
+                                settings,
+                                serviceData,
+                                responsedata,
+                                null,
+                                null,
+                                advertiseSetCallback
+                            )
+                        }
+                    }
+                    mapAdvertiseComplete(true)
+                }
+
+                if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS)) {
+                    Completable.complete()
+                } else if (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) {
+                    stopAdvertise().andThen(res)
+                } else {
+                    res
+                }
             }.doOnError { err ->
                 LOG.e("error in startAdvertise $err")
                 err.printStackTrace()
@@ -383,7 +391,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 advertisingLock.set(false)
             }
 
-        return awaitBluetoothEnabled().andThen(advertise)
+        return awaitBluetoothEnabled().andThen(retryDelay(advertise, 10, 1))
     }
 
     private fun setAdvertisingLuid(luid: UUID): Completable {
@@ -491,7 +499,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * to BLE if it is.
      */
     private fun selectProvides(): Single<AdvertisePacket.Provides> {
-       return wifiDirectRadioModule.wifiDirectIsUsable()
+        return wifiDirectRadioModule.wifiDirectIsUsable()
             .doOnSuccess { p -> LOG.e("selectProvides $p") }
             .map { p -> if (p) AdvertisePacket.Provides.WIFIP2P else AdvertisePacket.Provides.BLE }
     }
@@ -851,7 +859,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 )
                             }
                             .map { res ->
-                              //  transactionCompleteRelay.accept(res)
+                                //  transactionCompleteRelay.accept(res)
                                 TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                             }
                     })
@@ -1424,7 +1432,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          * As a result, gatt client connections are seemingly thrown away and unhandled. THIS IS FAKE NEWS
          * they are handled here.
          */
-        val d = newServer.openServer(config)
+        val d = retryDelay(newServer.openServer(config), 10, 5)
             .doOnSubscribe { LOG.v("gatt server subscribed") }
             .doOnError { e ->
                 LOG.e("failed to open server")
