@@ -159,7 +159,9 @@ class CachedLEServerConnection(
                                 .doFinally {
                                     LOG.v("releasing locked characteristic ${characteristic.uuid}")
                                     characteristic.release()
-                                    cookieCompleteRelay.accept(packet.second)
+                                    if (cookieCompleteRelay.hasObservers()) {
+                                        cookieCompleteRelay.accept(packet.second)
+                                    }
                                 }
                         }
                         .doOnError { err ->

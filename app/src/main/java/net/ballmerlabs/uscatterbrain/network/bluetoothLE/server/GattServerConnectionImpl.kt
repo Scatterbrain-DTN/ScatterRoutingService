@@ -251,7 +251,7 @@ class GattServerConnectionImpl @Inject constructor(
 
         override fun onNotificationSent(device: BluetoothDevice, status: Int) {
             super.onNotificationSent(device, status)
-            if (getNotificationPublishRelay().hasObservers()) {
+            if (getNotificationPublishRelay().valueRelay.hasObservers()) {
                 Log.v("onNotificationSent: " + device.address + " " + status)
                 getNotificationPublishRelay().valueRelay.onNext(
                         status
@@ -261,7 +261,7 @@ class GattServerConnectionImpl @Inject constructor(
 
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
             super.onMtuChanged(device, mtu)
-            if (getChangedMtuOutput().hasObservers()) {
+            if (getChangedMtuOutput().valueRelay.hasObservers()) {
                 getChangedMtuOutput().valueRelay.onNext(mtu)
             }
         }

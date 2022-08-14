@@ -103,7 +103,6 @@ data class Optional<T>(
 class BluetoothLERadioModuleImpl @Inject constructor(
     private val mContext: Context,
     private val mAdvertiser: BluetoothLeAdvertiser,
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
     private val mClient: RxBleClient,
@@ -823,15 +822,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { conn ->
                         conn.readBlockHeader()
                             .toFlowable()
-                            .flatMap { blockHeaderPacket ->
-                                Flowable.range(0, blockHeaderPacket.hashList.size)
-                                    .map {
-                                        BlockDataStream(
-                                            blockHeaderPacket,
-                                            conn.readBlockSequence()
-                                                .repeat(blockHeaderPacket.hashList.size.toLong())
-                                        )
-                                    }
+                            .takeWhile { h -> !h.isEndOfStream }
+                            .map { blockHeaderPacket ->
+                                LOG.v("header ${blockHeaderPacket.hashList.size}")
+                                BlockDataStream(
+                                    blockHeaderPacket,
+                                    conn.readBlockSequence()
+                                        .repeat(blockHeaderPacket.hashList.size.toLong())
+                                )
                             }
                             .takeUntil { stream ->
                                 val end = stream.headerPacket.isEndOfStream
@@ -844,7 +842,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0)
                             }
                             .reduce { a, b -> a + b }
-                            .toSingle()
+                            .toSingle(0)
                             .map { i ->
                                 HandshakeResult(
                                     0,
@@ -853,8 +851,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 )
                             }
                             .map { res ->
-                                transactionCompleteRelay.accept(res)
-                                TransactionResult.of(TransactionResult.STAGE_SUSPEND)
+                              //  transactionCompleteRelay.accept(res)
+                                TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                             }
                     })
 
@@ -959,6 +957,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             }
                             .firstOrError()
                             .toMaybe()
+
                     }
             } else {
                 Maybe.empty()
@@ -1292,6 +1291,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Maybe.empty()
                 }
             }
+            .defaultIfEmpty(
+                HandshakeResult(
+                    0,
+                    0,
+                    HandshakeResult.TransactionStatus.STATUS_SUCCESS
+                )
+            )
             .lastOrError()
             .toMaybe()
             .doOnError { err ->
