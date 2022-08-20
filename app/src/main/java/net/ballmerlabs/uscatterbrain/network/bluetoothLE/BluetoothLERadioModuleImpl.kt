@@ -278,9 +278,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun parseScanMode(): Int {
         return when (powerSave) {
             mContext.getString(R.string.powersave_active) -> {
+                LOG.e("scan mode lower power")
                 ScanSettings.SCAN_MODE_LOW_POWER
             }
             mContext.getString(R.string.powersave_opportunistic) -> {
+                LOG.e("scan mode opertunistic")
                 ScanSettings.SCAN_MODE_OPPORTUNISTIC
             }
             else -> {
@@ -996,7 +998,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             ScanSettings.Builder()
                 .setScanMode(parseScanMode())
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                .setShouldCheckLocationServicesState(true)
+                .setShouldCheckLocationServicesState(false)
+                .setLegacy(false)
                 .build(),
             ScanFilter.Builder()
                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
@@ -1149,7 +1152,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     LOG.e("cache HIT")
                     connection
                 } else {
-                    val rawConnection = retryDelay(device.establishConnection(false), 10, 1)
+                    val rawConnection = device.establishConnection(false)
                         .doOnNext {
                             LOG.e("established cached connection to ${device.macAddress}")
                         }
