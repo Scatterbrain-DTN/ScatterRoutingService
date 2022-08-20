@@ -22,17 +22,18 @@ class UuidTypeConverter {
  * declaration of room database
  */
 @Database(
-        entities = [
-            HashlessScatterMessage::class,
-            KeylessIdentity::class,
-            Hashes::class,
-            Keys::class,
-            ClientApp::class,
-            IdentityId::class
-                   ],
-        version = 12,
-        exportSchema = true,
-        autoMigrations = []
+    entities = [
+        HashlessScatterMessage::class,
+        KeylessIdentity::class,
+        Hashes::class,
+        Keys::class,
+        ClientApp::class,
+        IdentityId::class,
+        GlobalHash::class
+    ],
+    version = 16,
+    exportSchema = true,
+    autoMigrations = []
 )
 @TypeConverters(UuidTypeConverter::class)
 abstract class Datastore : RoomDatabase() {
@@ -44,9 +45,9 @@ abstract class Datastore : RoomDatabase() {
         columnName = "from"
     )
     @RenameColumn(
-            tableName = "messages",
-            fromColumnName = "to",
-            toColumnName = "recipient_fingerprint"
+        tableName = "messages",
+        fromColumnName = "to",
+        toColumnName = "recipient_fingerprint"
     )
-    class MigrationSpec9: AutoMigrationSpec
+    class MigrationSpec9 : AutoMigrationSpec
 }

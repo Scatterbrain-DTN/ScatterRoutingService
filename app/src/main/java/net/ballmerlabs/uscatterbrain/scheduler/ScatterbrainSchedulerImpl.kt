@@ -96,7 +96,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 )
         val d = bluetoothLEModule.startServer()
                 .andThen(
-                        bluetoothLEModule.discoverForever()
+                        bluetoothLEModule.startAdvertise().andThen(bluetoothLEModule.discoverForever())
                                 .doOnSubscribe { broadcastRouterState(RouterState.DISCOVERING) }
                 )
                 .doOnDispose { broadcastRouterState(RouterState.OFFLINE) }
@@ -107,7 +107,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                             LOG.v("finished transaction: ${res.success}")
                         },
                         { err ->
-                            broadcastRouterState(RouterState.ERROR)
+                           // broadcastRouterState(RouterState.ERROR)
                             LOG.e("error in transaction: $err")
                             err.printStackTrace()
                         })

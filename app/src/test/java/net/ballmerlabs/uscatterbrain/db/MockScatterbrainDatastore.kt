@@ -5,10 +5,7 @@ import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.Identity
-import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
-import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
-import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
-import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage
+import net.ballmerlabs.uscatterbrain.db.entities.*
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
@@ -131,10 +128,6 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
         return Flowable.error(IllegalStateException("no body for u, cry noises"))
     }
 
-    override fun getFilePath(packet: BlockHeaderPacket): File {
-        return File("/dev/null")
-    }
-
     override val cacheDir: File
         get() = File("/dev/null")
     override val userDir: File
@@ -202,7 +195,7 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
         TODO("Not yet implemented")
     }
 
-    override fun deleteMessage(message: HashlessScatterMessage): Completable {
+    override fun deleteMessage(message: GlobalHash): Completable {
         TODO("Not yet implemented")
     }
 

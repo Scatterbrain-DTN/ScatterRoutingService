@@ -149,7 +149,9 @@ class DatastoreTest {
         datastore.trimDatastore("com.blerf", 0).blockingAwait()
         assert(datastore.getApiMessages("fmef").blockingGet().size == 10)
         datastore.trimDatastore("com.fmef", 0).blockingAwait()
-        assert(datastore.getApiMessages("fmef").blockingGet().size == 0)
+        val res = datastore.getApiMessages("fmef").blockingGet().size
+        println(res)
+        assert(res == 0)
     }
 
 }

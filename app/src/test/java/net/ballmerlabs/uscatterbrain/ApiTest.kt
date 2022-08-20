@@ -13,6 +13,7 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.mockito.MockitoAnnotations
 import org.robolectric.RobolectricTestRunner
+import java.lang.Exception
 import java.util.concurrent.TimeoutException
 @RunWith(RobolectricTestRunner::class)
 class ApiTest {
@@ -31,8 +32,19 @@ class ApiTest {
     @Throws(TimeoutException::class)
     fun preventSimpleDirectoryTraversalAttack() {
         val filename = "../fmef"
-        assert(sanitizeFilename(filename) != filename)
-        assert(!sanitizeFilename(filename).contains(".."))
+        try {
+            assert(sanitizeFilename(filename) != filename)
+            assert(false)
+        } catch (exc: Exception) {
+            assert(true)
+        }
+
+        try {
+            assert(!sanitizeFilename(filename).contains(".."))
+            assert(false)
+        } catch (exc: Exception) {
+            assert(true)
+        }
     }
 
     @Test

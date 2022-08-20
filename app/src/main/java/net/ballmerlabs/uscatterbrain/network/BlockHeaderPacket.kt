@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.network
 
 import com.google.protobuf.ByteString
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
-import net.ballmerlabs.uscatterbrain.db.getDefaultFileName
 import net.ballmerlabs.uscatterbrain.db.isValidFilename
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import java.util.*
@@ -92,14 +91,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
     override val userFilename: String
     get() = packet.filename
 
-    val autogenFilename: String
-        get() {
-            if (isEndOfStream) {
-                return ""
-            }
-
-            return getDefaultFileName(this) + "." + extension
-        }
+    val autogenFilename: String = UUID.randomUUID().toString()
 
     override val type: PacketType
         get() = PacketType.TYPE_BLOCKHEADER

@@ -676,14 +676,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         ScatterSerializable.parseWrapperFromCRC(
                             BlockSequencePacket.parser(),
                             socket.getInputStream(),
-                            operationsScheduler
+                            operationsScheduler,
                         )
                             .repeat()
                             .takeUntil { p -> p.isEnd }
                             .doOnNext { packet ->
                                 LOG.v("uke reading sequence packet: " + packet.data.size)
                             }
-                            .doOnComplete { LOG.v("server read sequence packets") }
+                            .doOnComplete { LOG.v("server read sequence packets") },
+                        datastore.cacheDir
                     )
                     datastore.insertMessage(m).andThen(m.await()).toSingleDefault(1)
                 }
@@ -727,7 +728,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .doOnNext { packet ->
                                 LOG.v("seme reading sequence packet: " + packet.data.size)
                             }
-                            .doOnComplete { LOG.v("seme complete read sequence packets") }
+                            .doOnComplete { LOG.v("seme complete read sequence packets") },
+                        datastore.cacheDir
                     )
                     datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler)
                         .toSingleDefault(1)

@@ -56,7 +56,6 @@ import javax.inject.Named
 import javax.inject.Provider
 import javax.inject.Singleton
 
-// deca
 data class Optional<T>(
     val item: T? = null
 ) {
@@ -391,7 +390,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 advertisingLock.set(false)
             }
 
-        return awaitBluetoothEnabled().andThen(retryDelay(advertise, 10, 1))
+        return awaitBluetoothEnabled().andThen(advertise)
     }
 
     private fun setAdvertisingLuid(luid: UUID): Completable {
@@ -836,7 +835,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 BlockDataStream(
                                     blockHeaderPacket,
                                     conn.readBlockSequence()
-                                        .repeat(blockHeaderPacket.hashList.size.toLong())
+                                        .repeat(blockHeaderPacket.hashList.size.toLong()),
+                                    datastore.cacheDir
                                 )
                             }
                             .takeUntil { stream ->
@@ -948,24 +948,18 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         cached.connection
                             .concatMapMaybe { raw ->
                                 LOG.v("attempting to read hello characteristic")
-                                if (shouldConnect(scanResult)) {
-                                    raw.readCharacteristic(UUID_HELLO)
-                                        .flatMapMaybe { luid ->
-                                            val luidUuid = bytes2uuid(luid)!!
-                                            updateConnected(luidUuid)
-                                            LOG.v("read remote luid from GATT $luidUuid")
-                                            initiateOutgoingConnection(
-                                                cached,
-                                                luidUuid
-                                            )
-                                        }
-                                } else {
-                                    Maybe.empty()
-                                }
+                                raw.readCharacteristic(UUID_HELLO)
+                                    .flatMapMaybe { luid ->
+                                        val luidUuid = bytes2uuid(luid)!!
+                                        LOG.v("read remote luid from GATT $luidUuid")
+                                        initiateOutgoingConnection(
+                                            cached,
+                                            luidUuid
+                                        )
+                                    }
                             }
                             .firstOrError()
                             .toMaybe()
-
                     }
             } else {
                 Maybe.empty()
@@ -1149,12 +1143,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e(
                     "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
-                val newconnection = CachedLEConnection(channels, operationsScheduler, device)
-                val connection = connectionCache.putIfAbsent(luid, newconnection)
+                val connection = connectionCache[luid]
                 if (connection != null) {
                     LOG.e("cache HIT")
                     connection
                 } else {
+                    val newconnection = CachedLEConnection(channels, operationsScheduler, device)
                     val rawConnection = device.establishConnection(false)
                         .doOnNext {
                             LOG.e("established cached connection to ${device.macAddress}")
@@ -1170,6 +1164,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                     }
                     newconnection.subscribeConnection(rawConnection)
+                    connectionCache.putIfAbsent(luid, newconnection)
                     newconnection
                 }
             }
@@ -1254,71 +1249,77 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID,
         device: RxBleDevice
     ): Maybe<HandshakeResult> {
-        return session.observeStage()
-            .doOnNext { stage -> LOG.v("handling stage: $stage") }
-            .concatMapSingle {
-                Single.zip(
-                    session.singleClient(),
-                    session.singleServer()
+           return session.observeStage()
+                .doOnNext { stage -> LOG.v("handling stage: $stage") }
+                .concatMapSingle {
+                    Single.zip(
+                        session.singleClient(),
+                        session.singleServer()
 
-                ) { client, server ->
-                    val serverResult = server(serverConnection)
-                        .onErrorReturn { err -> TransactionResult.err(err) }
+                    ) { client, server ->
+                        val serverResult = server(serverConnection)
+                            .onErrorReturn { err -> TransactionResult.err(err) }
 
-                    val clientResult = client(clientConnection)
-                        .onErrorReturn { err -> TransactionResult.err(err) }
+                        val clientResult = client(clientConnection)
+                            .onErrorReturn { err -> TransactionResult.err(err) }
 
-                    Single.zip(serverResult, clientResult) { s, c -> s.merge(c) }
+                        Single.zip(serverResult, clientResult) { s, c -> s.merge(c) }
+                    }
                 }
-            }
-            .concatMapSingle { s -> s }.concatMapSingle { s -> s }
-            .concatMapSingle { res ->
-                ackBarrier(serverConnection, clientConnection, res)
-            }
-            .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
-            .doOnNext { transactionResult ->
-                if (session.stage == TransactionResult.STAGE_SUSPEND) {
-                    LOG.v("session $luid suspending, no bootstrap")
-                } else {
-                    val stage = transactionResult.stage ?: TransactionResult.STAGE_TERMINATE
-                    session.stage = stage
+                .concatMapSingle { s -> s }.concatMapSingle { s -> s }
+                .concatMapSingle { res ->
+                    ackBarrier(serverConnection, clientConnection, res)
+                }
+                .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
+                .doOnNext { transactionResult ->
+                    if (session.stage == TransactionResult.STAGE_SUSPEND) {
+                        LOG.v("session $luid suspending, no bootstrap")
+                    } else {
+                        val stage = transactionResult.stage ?: TransactionResult.STAGE_TERMINATE
+                        session.stage = stage
 
+                    }
                 }
-            }
-            .takeUntil { result -> result.stage == TransactionResult.STAGE_TERMINATE }
-            .flatMapMaybe { result ->
-                if (result.item != null) {
-                    LOG.e("boostrapping wifip2p")
-                    bootstrapWifiP2p(result.item)
-                        .doFinally { session.unlock() }
-                        .toMaybe()
-                } else {
-                    LOG.e("skipping bootstrap")
-                    //TODO: record bluetooth LE handshakes
-                    session.unlock()
-                    Maybe.empty()
+                .takeUntil { result -> result.stage == TransactionResult.STAGE_TERMINATE }
+                .flatMapMaybe { result ->
+                    if (result.item != null) {
+                        LOG.e("boostrapping wifip2p")
+                        bootstrapWifiP2p(result.item)
+                            .doFinally { session.unlock() }
+                            .toMaybe()
+                    } else {
+                        LOG.e("skipping bootstrap")
+                        //TODO: record bluetooth LE handshakes
+                        session.unlock()
+                        Maybe.empty()
+                    }
                 }
-            }
-            .defaultIfEmpty(
-                HandshakeResult(
-                    0,
-                    0,
-                    HandshakeResult.TransactionStatus.STATUS_SUCCESS
+                .defaultIfEmpty(
+                    HandshakeResult(
+                        0,
+                        0,
+                        HandshakeResult.TransactionStatus.STATUS_SUCCESS
+                    )
                 )
-            )
-            .lastOrError()
-            .toMaybe()
-            .doOnError { err ->
-                LOG.e("session ${session.remoteLuid} ended with error $err")
-                err.printStackTrace()
-                session.stage = TransactionResult.STAGE_TERMINATE
-                updateDisconnected(luid)
-            }
-            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-            .doFinally {
-                LOG.e("TERMINATION: session $device terminated")
-                transactionInProgressRelay.accept(false)
-            }
+                .lastOrError()
+                .toMaybe()
+                .doOnError { err ->
+                    LOG.e("session ${session.remoteLuid} ended with error $err")
+                    err.printStackTrace()
+                    session.stage = TransactionResult.STAGE_TERMINATE
+                    updateDisconnected(luid)
+                }
+                .onErrorReturnItem(
+                    HandshakeResult(
+                        0,
+                        0,
+                        HandshakeResult.TransactionStatus.STATUS_FAIL
+                    )
+                )
+                .doFinally {
+                    LOG.e("TERMINATION: session $device terminated")
+                    transactionInProgressRelay.accept(false)
+                }
     }
 
     // wait until remote peer sends us an ack, mapping errors to rxjava2 errors
@@ -1370,9 +1371,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
                 LOG.e("server handling luid $luid")
                 LOG.e("transaction NOT locked, continuing")
-                if (updateConnected(luid)) {
-                    transactionInProgressRelay.accept(true)
-                }
                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                     .andThen(establishConnectionCached(trans.remoteDevice, luid))
                     .flatMapMaybe { connection ->
@@ -1411,7 +1409,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun startServer(): Completable {
         val started = serverStarted.getAndSet(true)
         if (started) {
-            return startAdvertise()
+            return Completable.complete()
         }
 
         val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
@@ -1432,15 +1430,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          * As a result, gatt client connections are seemingly thrown away and unhandled. THIS IS FAKE NEWS
          * they are handled here.
          */
-        val d = retryDelay(newServer.openServer(config), 10, 5)
+        val d = newServer.openServer(config)
+            .doOnSuccess { startSubject.onComplete() }
             .doOnSubscribe { LOG.v("gatt server subscribed") }
             .doOnError { e ->
                 LOG.e("failed to open server")
                 startSubject.onError(e)
-            }
-            .flatMap { server ->
-                startAdvertise().toSingleDefault(server)
-                    .doOnSuccess { startSubject.onComplete() }
             }
             .flatMapObservable { connectionRaw ->
                 LOG.v("gatt server initialized")

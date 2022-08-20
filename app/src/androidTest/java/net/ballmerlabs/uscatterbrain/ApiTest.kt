@@ -10,6 +10,7 @@ import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import net.ballmerlabs.uscatterbrain.network.IdentityPacket
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.lang.Exception
 import java.util.*
 import java.util.concurrent.TimeoutException
 import kotlin.random.Random
@@ -36,7 +37,7 @@ class ApiTest: TestBase() {
     @Test
     @Throws(TimeoutException::class)
     fun sendMessage() {
-        val message = ScatterMessage.Builder.newInstance(byteArrayOf(1))
+        val message = ScatterMessage.Builder.newInstance(byteArrayOf(8))
                 .setApplication("testing")
                 .build()
         runBlocking { binder.sendMessage(message) }
@@ -45,7 +46,7 @@ class ApiTest: TestBase() {
     @Test
     @Throws(TimeoutException::class)
     fun sendMessageSync() {
-        val message = ScatterMessage.Builder.newInstance(byteArrayOf(1))
+        val message = ScatterMessage.Builder.newInstance(byteArrayOf(2))
                 .setApplication("testing")
                 .build()
 
@@ -70,7 +71,7 @@ class ApiTest: TestBase() {
     fun sendMessagesSync() {
         val list = ArrayList<ScatterMessage>()
         for (x in 0..1000) {
-            val message = ScatterMessage.Builder.newInstance(Random(0).nextBytes(128))
+            val message = ScatterMessage.Builder.newInstance(Random(1).nextBytes(1280))
                     .setApplication("testing")
                     .build()
             list.add(message)
@@ -119,8 +120,19 @@ class ApiTest: TestBase() {
     @Throws(TimeoutException::class)
     fun preventSimpleDirectoryTraversalAttack() {
         val filename = "../fmef"
-        assert(sanitizeFilename(filename) != filename)
-        assert(!sanitizeFilename(filename).contains(".."))
+        try {
+            assert(sanitizeFilename(filename) != filename)
+            assert(false)
+        } catch (exc: Exception) {
+            assert(true)
+        }
+
+        try {
+            assert(!sanitizeFilename(filename).contains(".."))
+            assert(false)
+        } catch (exc: Exception) {
+            assert(true)
+        }
     }
 
     @Test
