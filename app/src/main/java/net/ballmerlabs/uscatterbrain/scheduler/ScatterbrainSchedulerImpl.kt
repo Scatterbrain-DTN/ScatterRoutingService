@@ -96,7 +96,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 )
         val d = bluetoothLEModule.startServer()
                 .andThen(
-                        bluetoothLEModule.startAdvertise().andThen(bluetoothLEModule.discoverForever())
+                        bluetoothLEModule.discoverForever()
                                 .doOnSubscribe { broadcastRouterState(RouterState.DISCOVERING) }
                 )
                 .doOnDispose { broadcastRouterState(RouterState.OFFLINE) }

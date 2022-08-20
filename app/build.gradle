@@ -107,8 +107,8 @@ dependencies {
     implementation project(':scatterbrainSDK')
     androidTestImplementation project(':scatterbrainSDK')
     implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.1'
-    implementation "com.polidea.rxandroidble2:rxandroidble:1.13.1"
-    testImplementation "com.polidea.rxandroidble2:mockclient:1.13.1"
+    implementation "com.polidea.rxandroidble2:rxandroidble:1.16.0"
+    testImplementation "com.polidea.rxandroidble2:mockclient:1.16.0"
 
     kapt "androidx.room:room-compiler:2.4.3" // For Kotlin use kapt instead of annotationProcessor
     implementation "androidx.lifecycle:lifecycle-service:$lifecycle_version"
@@ -148,14 +148,14 @@ dependencies {
 
     implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
 
-    implementation "androidx.room:room-rxjava2:2.4.2"
+    implementation "androidx.room:room-rxjava2:2.4.3"
 
     implementation "com.github.davidmoten:rxjava2-extras:0.1.38"
     testImplementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
 
     testImplementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
 
-    testImplementation "androidx.room:room-rxjava2:2.4.2"
+    testImplementation "androidx.room:room-rxjava2:2.4.3"
 
     testImplementation "com.github.davidmoten:rxjava2-extras:0.1.38"
 

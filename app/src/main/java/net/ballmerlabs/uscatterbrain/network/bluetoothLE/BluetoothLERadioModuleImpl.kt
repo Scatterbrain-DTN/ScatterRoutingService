@@ -1431,7 +1431,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          * they are handled here.
          */
         val d = newServer.openServer(config)
-            .doOnSuccess { startSubject.onComplete() }
             .doOnSubscribe { LOG.v("gatt server subscribed") }
             .doOnError { e ->
                 LOG.e("failed to open server")
@@ -1452,6 +1451,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 val read = helloRead(connectionRaw)
 
                 write.mergeWith(read)
+                    .subscribeOn(operationsScheduler)
+                    .doOnSubscribe { startAdvertise().subscribe(startSubject) }
                     .retry(10)
             }
             .doOnDispose {
