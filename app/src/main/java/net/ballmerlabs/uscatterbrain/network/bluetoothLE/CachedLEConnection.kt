@@ -38,6 +38,7 @@ class CachedLEConnection(
     private val timeout: Long = 20
 
     val connection = BehaviorSubject.create<RxBleConnection>()
+    private val buffer = InputStreamObserver(4096)
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
     private val channelNotifs = ConcurrentHashMap<UUID, InputStreamObserver>()
 
@@ -83,8 +84,6 @@ class CachedLEConnection(
                 .flatMapCompletable{ uuid ->
                     connection
                         .firstOrError()
-                        .doOnSuccess { c -> LOG.e("got connection $c") }
-                        .doOnError { err ->  LOG.e("connection error $err") }
                         .flatMapCompletable { c ->
                             val subject = channelNotifs[uuid]
                             if (subject != null) {

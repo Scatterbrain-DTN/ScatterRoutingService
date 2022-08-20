@@ -3,8 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattServer
-import android.bluetooth.BluetoothStatusCodes
-import android.os.Build
 import android.os.DeadObjectException
 import com.polidea.rxandroidble2.RxBleConnection.RxBleConnectionState
 import com.polidea.rxandroidble2.RxBleDevice
@@ -25,7 +23,7 @@ class NotifyCharacteristicChangedOperation(
                 private val characteristic: BluetoothGattCharacteristic,
                 private val timeoutConfiguration: TimeoutConfiguration,
                 private val connection: GattServerConnection,
-                private val value: ByteArray,
+                private val value: ByteArray?,
                 private var isIndication: Boolean,
                 private val device: RxBleDevice,
 ): QueueOperation<Int>() {
@@ -46,13 +44,7 @@ class NotifyCharacteristicChangedOperation(
                     .subscribe(emitterWrapper)
             characteristic.value = value
             try {
-                if (if (Build.VERSION.SDK_INT >= 33) {
-                        server.notifyCharacteristicChanged(device.bluetoothDevice, characteristic, isIndication, value) != BluetoothStatusCodes.SUCCESS
-                    } else {
-                        characteristic.value = value
-                        server.notifyCharacteristicChanged(device.bluetoothDevice, characteristic, isIndication)
-                    }
-                ) {
+                if (!server.notifyCharacteristicChanged(device.bluetoothDevice, characteristic, isIndication)) {
                     emitterWrapper.onError(IllegalStateException("notify failed"))
                 }
             } catch (exc: SecurityException) {

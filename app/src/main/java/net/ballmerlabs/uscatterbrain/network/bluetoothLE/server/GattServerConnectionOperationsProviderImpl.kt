@@ -46,7 +46,7 @@ class GattServerConnectionOperationsProviderImpl @Inject constructor(
         )
     }
 
-    override fun provideNotifyOperation(characteristic: BluetoothGattCharacteristic, value: ByteArray, isIndication: Boolean, device: RxBleDevice): NotifyCharacteristicChangedOperation {
+    override fun provideNotifyOperation(characteristic: BluetoothGattCharacteristic, value: ByteArray?, isIndication: Boolean, device: RxBleDevice): NotifyCharacteristicChangedOperation {
         return NotifyCharacteristicChangedOperation(
                 server = server.get(),
                 characteristic = characteristic,

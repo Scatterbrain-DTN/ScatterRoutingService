@@ -19,7 +19,7 @@ interface GattServerConnectionOperationsProvider {
 
     fun provideNotifyOperation(
             characteristic: BluetoothGattCharacteristic,
-            value: ByteArray,
+            value: ByteArray?,
             isIndication: Boolean,
             device: RxBleDevice
     ): NotifyCharacteristicChangedOperation

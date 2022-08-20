@@ -26,12 +26,10 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.PublishSubject
+import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
-import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
-import net.ballmerlabs.uscatterbrain.R
-import net.ballmerlabs.uscatterbrain.RouterPreferences
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.AckPacket
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
@@ -56,6 +54,7 @@ import javax.inject.Named
 import javax.inject.Provider
 import javax.inject.Singleton
 
+// deca
 data class Optional<T>(
     val item: T? = null
 ) {
@@ -327,61 +326,56 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val advertise = isAdvertising
             .firstOrError()
             .flatMapCompletable { v ->
-                val res = Completable.fromAction {
-                    LOG.v("Starting LE advertise")
-                    val settings = AdvertisingSetParameters.Builder()
-                        .setConnectable(true)
-                        .setScannable(true)
-                        .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                        .setLegacyMode(true)
-                        .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
-                        .build()
-                    val serviceData = AdvertiseData.Builder()
-                        .setIncludeDeviceName(false)
-                        .setIncludeTxPowerLevel(false)
-                        .addServiceUuid(ParcelUuid(SERVICE_UUID))
-                        .build()
-
-                    val responsedata = if (luid != null) {
-                        AdvertiseData.Builder()
-                            .setIncludeDeviceName(false)
-                            .setIncludeTxPowerLevel(false)
-                            .addServiceData(ParcelUuid(luid), byteArrayOf(5))
-                            .build()
-                    } else {
-                        AdvertiseData.Builder()
-                            .setIncludeDeviceName(false)
-                            .setIncludeTxPowerLevel(false)
-                            .build()
-                    }
-                    if (!advertisingLock.getAndSet(true)) {
-                        if (ActivityCompat.checkSelfPermission(
-                                mContext,
-                                Manifest.permission.BLUETOOTH_ADVERTISE
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            throw PermissionsNotAcceptedException()
-                        } else {
-                            mAdvertiser.startAdvertisingSet(
-                                settings,
-                                serviceData,
-                                responsedata,
-                                null,
-                                null,
-                                advertiseSetCallback
-                            )
-                        }
-                    }
-                    mapAdvertiseComplete(true)
-                }
-
-                if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS)) {
+                if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
                     Completable.complete()
-                } else if (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) {
-                    stopAdvertise().andThen(res)
-                } else {
-                    res
-                }
+                else
+                    Completable.defer {
+                        LOG.v("Starting LE advertise")
+                        val settings = AdvertisingSetParameters.Builder()
+                            .setConnectable(true)
+                            .setScannable(true)
+                            .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                            .setLegacyMode(true)
+                            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                            .build()
+                        val serviceData = AdvertiseData.Builder()
+                            .setIncludeDeviceName(false)
+                            .setIncludeTxPowerLevel(false)
+                            .addServiceUuid(ParcelUuid(SERVICE_UUID))
+                            .build()
+
+                        val responsedata = if (luid != null) {
+                            AdvertiseData.Builder()
+                                .setIncludeDeviceName(false)
+                                .setIncludeTxPowerLevel(false)
+                                .addServiceData(ParcelUuid(luid), byteArrayOf(5))
+                                .build()
+                        } else {
+                            AdvertiseData.Builder()
+                                .setIncludeDeviceName(false)
+                                .setIncludeTxPowerLevel(false)
+                                .build()
+                        }
+                        if (!advertisingLock.getAndSet(true)) {
+                            if (ActivityCompat.checkSelfPermission(
+                                    mContext,
+                                    Manifest.permission.BLUETOOTH_ADVERTISE
+                                ) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                throw PermissionsNotAcceptedException()
+                            } else {
+                                mAdvertiser.startAdvertisingSet(
+                                    settings,
+                                    serviceData,
+                                    responsedata,
+                                    null,
+                                    null,
+                                    advertiseSetCallback
+                                )
+                            }
+                        }
+                        mapAdvertiseComplete(true)
+                    }
             }.doOnError { err ->
                 LOG.e("error in startAdvertise $err")
                 err.printStackTrace()
@@ -498,7 +492,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * to BLE if it is.
      */
     private fun selectProvides(): Single<AdvertisePacket.Provides> {
-        return wifiDirectRadioModule.wifiDirectIsUsable()
+       return wifiDirectRadioModule.wifiDirectIsUsable()
             .doOnSuccess { p -> LOG.e("selectProvides $p") }
             .map { p -> if (p) AdvertisePacket.Provides.WIFIP2P else AdvertisePacket.Provides.BLE }
     }
@@ -859,7 +853,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 )
                             }
                             .map { res ->
-                                //  transactionCompleteRelay.accept(res)
+                              //  transactionCompleteRelay.accept(res)
                                 TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                             }
                     })
@@ -948,18 +942,24 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         cached.connection
                             .concatMapMaybe { raw ->
                                 LOG.v("attempting to read hello characteristic")
-                                raw.readCharacteristic(UUID_HELLO)
-                                    .flatMapMaybe { luid ->
-                                        val luidUuid = bytes2uuid(luid)!!
-                                        LOG.v("read remote luid from GATT $luidUuid")
-                                        initiateOutgoingConnection(
-                                            cached,
-                                            luidUuid
-                                        )
-                                    }
+                                if (shouldConnect(scanResult)) {
+                                    raw.readCharacteristic(UUID_HELLO)
+                                        .flatMapMaybe { luid ->
+                                            val luidUuid = bytes2uuid(luid)!!
+                                            updateConnected(luidUuid)
+                                            LOG.v("read remote luid from GATT $luidUuid")
+                                            initiateOutgoingConnection(
+                                                cached,
+                                                luidUuid
+                                            )
+                                        }
+                                } else {
+                                    Maybe.empty()
+                                }
                             }
                             .firstOrError()
                             .toMaybe()
+
                     }
             } else {
                 Maybe.empty()
@@ -1143,13 +1143,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e(
                     "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
-                val connection = connectionCache[luid]
+                val newconnection = CachedLEConnection(channels, operationsScheduler, device)
+                val connection = connectionCache.putIfAbsent(luid, newconnection)
                 if (connection != null) {
                     LOG.e("cache HIT")
                     connection
                 } else {
-                    val newconnection = CachedLEConnection(channels, operationsScheduler, device)
-                    val rawConnection = device.establishConnection(false)
+                    val rawConnection = retryDelay(device.establishConnection(false), 10, 1)
                         .doOnNext {
                             LOG.e("established cached connection to ${device.macAddress}")
                         }
@@ -1164,7 +1164,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                     }
                     newconnection.subscribeConnection(rawConnection)
-                    connectionCache.putIfAbsent(luid, newconnection)
                     newconnection
                 }
             }
@@ -1249,77 +1248,71 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID,
         device: RxBleDevice
     ): Maybe<HandshakeResult> {
-           return session.observeStage()
-                .doOnNext { stage -> LOG.v("handling stage: $stage") }
-                .concatMapSingle {
-                    Single.zip(
-                        session.singleClient(),
-                        session.singleServer()
+        return session.observeStage()
+            .doOnNext { stage -> LOG.v("handling stage: $stage") }
+            .concatMapSingle {
+                Single.zip(
+                    session.singleClient(),
+                    session.singleServer()
 
-                    ) { client, server ->
-                        val serverResult = server(serverConnection)
-                            .onErrorReturn { err -> TransactionResult.err(err) }
+                ) { client, server ->
+                    val serverResult = server(serverConnection)
+                        .onErrorReturn { err -> TransactionResult.err(err) }
 
-                        val clientResult = client(clientConnection)
-                            .onErrorReturn { err -> TransactionResult.err(err) }
+                    val clientResult = client(clientConnection)
+                        .onErrorReturn { err -> TransactionResult.err(err) }
 
-                        Single.zip(serverResult, clientResult) { s, c -> s.merge(c) }
-                    }
+                    Single.zip(serverResult, clientResult) { s, c -> s.merge(c) }
                 }
-                .concatMapSingle { s -> s }.concatMapSingle { s -> s }
-                .concatMapSingle { res ->
-                    ackBarrier(serverConnection, clientConnection, res)
-                }
-                .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
-                .doOnNext { transactionResult ->
-                    if (session.stage == TransactionResult.STAGE_SUSPEND) {
-                        LOG.v("session $luid suspending, no bootstrap")
-                    } else {
-                        val stage = transactionResult.stage ?: TransactionResult.STAGE_TERMINATE
-                        session.stage = stage
+            }
+            .concatMapSingle { s -> s }.concatMapSingle { s -> s }
+            .concatMapSingle { res ->
+                ackBarrier(serverConnection, clientConnection, res)
+            }
+            .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
+            .doOnNext { transactionResult ->
+                if (session.stage == TransactionResult.STAGE_SUSPEND) {
+                    LOG.v("session $luid suspending, no bootstrap")
+                } else {
+                    val stage = transactionResult.stage ?: TransactionResult.STAGE_TERMINATE
+                    session.stage = stage
 
-                    }
                 }
-                .takeUntil { result -> result.stage == TransactionResult.STAGE_TERMINATE }
-                .flatMapMaybe { result ->
-                    if (result.item != null) {
-                        LOG.e("boostrapping wifip2p")
-                        bootstrapWifiP2p(result.item)
-                            .doFinally { session.unlock() }
-                            .toMaybe()
-                    } else {
-                        LOG.e("skipping bootstrap")
-                        //TODO: record bluetooth LE handshakes
-                        session.unlock()
-                        Maybe.empty()
-                    }
+            }
+            .takeUntil { result -> result.stage == TransactionResult.STAGE_TERMINATE }
+            .flatMapMaybe { result ->
+                if (result.item != null) {
+                    LOG.e("boostrapping wifip2p")
+                    bootstrapWifiP2p(result.item)
+                        .doFinally { session.unlock() }
+                        .toMaybe()
+                } else {
+                    LOG.e("skipping bootstrap")
+                    //TODO: record bluetooth LE handshakes
+                    session.unlock()
+                    Maybe.empty()
                 }
-                .defaultIfEmpty(
-                    HandshakeResult(
-                        0,
-                        0,
-                        HandshakeResult.TransactionStatus.STATUS_SUCCESS
-                    )
+            }
+            .defaultIfEmpty(
+                HandshakeResult(
+                    0,
+                    0,
+                    HandshakeResult.TransactionStatus.STATUS_SUCCESS
                 )
-                .lastOrError()
-                .toMaybe()
-                .doOnError { err ->
-                    LOG.e("session ${session.remoteLuid} ended with error $err")
-                    err.printStackTrace()
-                    session.stage = TransactionResult.STAGE_TERMINATE
-                    updateDisconnected(luid)
-                }
-                .onErrorReturnItem(
-                    HandshakeResult(
-                        0,
-                        0,
-                        HandshakeResult.TransactionStatus.STATUS_FAIL
-                    )
-                )
-                .doFinally {
-                    LOG.e("TERMINATION: session $device terminated")
-                    transactionInProgressRelay.accept(false)
-                }
+            )
+            .lastOrError()
+            .toMaybe()
+            .doOnError { err ->
+                LOG.e("session ${session.remoteLuid} ended with error $err")
+                err.printStackTrace()
+                session.stage = TransactionResult.STAGE_TERMINATE
+                updateDisconnected(luid)
+            }
+            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+            .doFinally {
+                LOG.e("TERMINATION: session $device terminated")
+                transactionInProgressRelay.accept(false)
+            }
     }
 
     // wait until remote peer sends us an ack, mapping errors to rxjava2 errors
@@ -1371,6 +1364,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
                 LOG.e("server handling luid $luid")
                 LOG.e("transaction NOT locked, continuing")
+                if (updateConnected(luid)) {
+                    transactionInProgressRelay.accept(true)
+                }
                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                     .andThen(establishConnectionCached(trans.remoteDevice, luid))
                     .flatMapMaybe { connection ->
@@ -1409,7 +1405,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun startServer(): Completable {
         val started = serverStarted.getAndSet(true)
         if (started) {
-            return Completable.complete()
+            return startAdvertise()
         }
 
         val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
@@ -1436,6 +1432,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("failed to open server")
                 startSubject.onError(e)
             }
+            .flatMap { server ->
+                startAdvertise().toSingleDefault(server)
+                    .doOnSuccess { startSubject.onComplete() }
+            }
             .flatMapObservable { connectionRaw ->
                 LOG.v("gatt server initialized")
                 serverSubject.onNext(
@@ -1451,8 +1451,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 val read = helloRead(connectionRaw)
 
                 write.mergeWith(read)
-                    .subscribeOn(operationsScheduler)
-                    .doOnSubscribe { startAdvertise().subscribe(startSubject) }
                     .retry(10)
             }
             .doOnDispose {
