@@ -44,15 +44,12 @@ android {
             includeAndroidResources = true
         }
     }
-
-    lintOptions {
-        abortOnError false
-        disable "JvmStaticProvidesInObjectDetector", "FieldSiteTargetOnQualifierAnnotation", "ModuleCompanionObjects", "ModuleCompanionObjectsNotInModuleParent"
-    }
-
     packagingOptions {
-        pickFirst 'META-INF/com.google.dagger_dagger.version'
+        resources {
+            pickFirsts += ['META-INF/com.google.dagger_dagger.version']
+        }
     }
+
 
     buildFeatures {
         viewBinding true
@@ -69,6 +66,10 @@ android {
 
     useLibrary 'android.test.base'
     useLibrary 'android.test.mock'
+    lint {
+        abortOnError false
+        disable 'JvmStaticProvidesInObjectDetector', 'FieldSiteTargetOnQualifierAnnotation', 'ModuleCompanionObjects', 'ModuleCompanionObjectsNotInModuleParent'
+    }
 }
 
 protobuf {
