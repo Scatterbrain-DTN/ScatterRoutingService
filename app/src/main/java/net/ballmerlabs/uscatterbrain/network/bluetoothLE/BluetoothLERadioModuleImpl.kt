@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.Manifest
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
@@ -334,8 +335,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("Starting LE advertise")
                         val settings = AdvertisingSetParameters.Builder()
                             .setConnectable(true)
-                            .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                            .setInterval(AdvertisingSetParameters.INTERVAL_MEDIUM)
                             .setLegacyMode(false)
+                            .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
+                            .setSecondaryPhy(BluetoothDevice.PHY_LE_2M)
                             .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                             .build()
 
@@ -1032,7 +1035,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .andThen(removeWifiDirectGroup(randomizeLuidIfOld()).onErrorComplete())
                     .toSingleDefault(res)
             }
-            .doOnNext { res -> LOG.v("scan result $res") }
             .filter { res -> shouldConnect(res) }
             .concatMapMaybe { scanResult ->
                 processScanResult(scanResult)
