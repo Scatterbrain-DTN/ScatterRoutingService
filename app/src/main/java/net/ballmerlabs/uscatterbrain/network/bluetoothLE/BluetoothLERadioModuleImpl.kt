@@ -118,7 +118,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val isAdvertising = BehaviorSubject.create<Pair<Optional<AdvertisingSet>, Int>>()
     private val advertisingLock = AtomicReference(false)
-    private val advertisingDataUpdated = PublishSubject.create<Int>()
 
     // map advertising state to rxjava2
     private val advertiseSetCallback = object : AdvertisingSetCallback() {
@@ -144,7 +143,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
         override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
             super.onScanResponseDataSet(advertisingSet, status)
-            advertisingDataUpdated.onNext(status)
         }
     }
 
@@ -301,6 +299,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Completable.complete()
                 }
             }
+            .timeout(10, TimeUnit.SECONDS)
 
     }
 
@@ -335,27 +334,23 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("Starting LE advertise")
                         val settings = AdvertisingSetParameters.Builder()
                             .setConnectable(true)
-                            .setScannable(true)
                             .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                            .setLegacyMode(true)
+                            .setLegacyMode(false)
                             .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                             .build()
-                        val serviceData = AdvertiseData.Builder()
-                            .setIncludeDeviceName(false)
-                            .setIncludeTxPowerLevel(false)
-                            .addServiceUuid(ParcelUuid(SERVICE_UUID))
-                            .build()
 
-                        val responsedata = if (luid != null) {
+                        val serviceData = if (luid != null) {
                             AdvertiseData.Builder()
                                 .setIncludeDeviceName(false)
                                 .setIncludeTxPowerLevel(false)
+                                .addServiceUuid(ParcelUuid(SERVICE_UUID))
                                 .addServiceData(ParcelUuid(luid), byteArrayOf(5))
                                 .build()
                         } else {
                             AdvertiseData.Builder()
                                 .setIncludeDeviceName(false)
                                 .setIncludeTxPowerLevel(false)
+                                .addServiceUuid(ParcelUuid(SERVICE_UUID))
                                 .build()
                         }
                         if (!advertisingLock.getAndSet(true)) {
@@ -369,7 +364,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 mAdvertiser.startAdvertisingSet(
                                     settings,
                                     serviceData,
-                                    responsedata,
+                                    null,
                                     null,
                                     null,
                                     advertiseSetCallback
@@ -402,40 +397,29 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .firstOrError()
                     .flatMapCompletable { v ->
                         if (v.first.isPresent) {
-                            awaitAdvertiseDataUpdate()
-                                .doOnSubscribe {
-                                    if (ActivityCompat.checkSelfPermission(
-                                            mContext,
-                                            Manifest.permission.BLUETOOTH_ADVERTISE
-                                        ) == PackageManager.PERMISSION_GRANTED
-                                    ) {
-                                        v.first.item?.setScanResponseData(
-                                            AdvertiseData.Builder()
-                                                .setIncludeDeviceName(false)
-                                                .setIncludeTxPowerLevel(false)
-                                                .addServiceData(ParcelUuid(luid), byteArrayOf(5))
-                                                .build()
-                                        )
-                                    }
-
-                                }
+                            if (ActivityCompat.checkSelfPermission(
+                                    mContext,
+                                    Manifest.permission.BLUETOOTH_ADVERTISE
+                                ) == PackageManager.PERMISSION_GRANTED
+                            ) {
+                                v.first.item!!.setAdvertisingData(
+                                    AdvertiseData.Builder()
+                                        .setIncludeDeviceName(false)
+                                        .setIncludeTxPowerLevel(false)
+                                        .addServiceUuid(ParcelUuid(SERVICE_UUID))
+                                        .addServiceData(ParcelUuid(luid), byteArrayOf(5))
+                                        .build()
+                                )
+                                Completable.complete()
+                            } else {
+                                Completable.error(SecurityException("need advertise permission"))
+                            }
                         } else {
                             startAdvertise(luid = luid)
                         }
                     }
             }
         }
-    }
-
-    private fun awaitAdvertiseDataUpdate(): Completable {
-        return advertisingDataUpdated
-            .firstOrError()
-            .flatMapCompletable { status ->
-                if (status == AdvertisingSetCallback.ADVERTISE_SUCCESS)
-                    Completable.complete()
-                else
-                    Completable.error(IllegalStateException("failed to set advertising data"))
-            }
     }
 
     private fun removeLuid(): Completable {
@@ -451,15 +435,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .firstOrError()
                     .flatMapCompletable { v ->
                         if (v.first.isPresent) {
-                            awaitAdvertiseDataUpdate()
-                                .doOnSubscribe {
-                                    v.first.item?.setScanResponseData(
+
+                                    v.first.item?.setAdvertisingData(
                                         AdvertiseData.Builder()
                                             .setIncludeDeviceName(false)
                                             .setIncludeTxPowerLevel(false)
+                                            .addServiceUuid(ParcelUuid(SERVICE_UUID))
                                             .build()
                                     )
-                                }
+                            Completable.complete()
                         } else {
                             Completable.error(IllegalStateException("failed to set advertising data removeLuid"))
                         }
@@ -484,7 +468,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             } else {
                 throw PermissionsNotAcceptedException()
             }
-            mapAdvertiseComplete(false)
         }
     }
 
