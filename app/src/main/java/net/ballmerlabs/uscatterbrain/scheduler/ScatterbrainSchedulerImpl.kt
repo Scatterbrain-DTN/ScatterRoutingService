@@ -12,6 +12,7 @@ import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -94,7 +95,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                             err.printStackTrace()
                         }
                 )
-        val d = bluetoothLEModule.startServer()
+        val transaction = bluetoothLEModule.startServer()
                 .andThen(
                         bluetoothLEModule.discoverForever()
                                 .doOnSubscribe { broadcastRouterState(RouterState.DISCOVERING) }
@@ -102,15 +103,19 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 .doOnDispose { broadcastRouterState(RouterState.OFFLINE) }
                 .doOnComplete { broadcastRouterState(RouterState.OFFLINE) }
                 .doFinally { discoveryLock.set(false) }
-                .subscribe(
-                        { res ->
-                            LOG.v("finished transaction: ${res.success}")
-                        },
-                        { err ->
-                           // broadcastRouterState(RouterState.ERROR)
-                            LOG.e("error in transaction: $err")
-                            err.printStackTrace()
-                        })
+
+
+        val d = retryDelay(transaction, 5)
+            .repeat()
+            .subscribe(
+                { res ->
+                    LOG.v("finished transaction: ${res.success}")
+                },
+                { err ->
+                    // broadcastRouterState(RouterState.ERROR)
+                    LOG.e("error in transaction: $err")
+                    err.printStackTrace()
+                })
         compositeDisposable.add(d)
         compositeDisposable.add(d2)
         val disp = globalDisposable.getAndSet(compositeDisposable)

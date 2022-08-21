@@ -12,6 +12,14 @@ fun <T> retryDelay(observable: Observable<T>, count: Int, seconds: Int): Observa
             }
 }
 
+fun <T> retryDelay(observable: Observable<T>, seconds: Int): Observable<T> {
+    return observable
+        .retryWhen { errors: Observable<Throwable> ->
+            errors
+                .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
+}
+
 fun retryDelay(completable: Completable, count: Int, seconds: Int): Completable {
     return completable
             .retryWhen { errors: Flowable<Throwable> ->
