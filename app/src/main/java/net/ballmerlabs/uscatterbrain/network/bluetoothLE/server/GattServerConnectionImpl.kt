@@ -91,7 +91,7 @@ class GattServerConnectionImpl @Inject constructor(
             connectionStatePublishRelay.accept(Pair(
                     rxdevice, mapConnectionStateToRxBleConnectionStatus(newState)
             ))
-            if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+            if (newState == BluetoothGattServer.STATE_DISCONNECTED || newState == BluetoothGattServer.STATE_DISCONNECTING) {
                 onDisconnect(rxdevice)
                 deviceOnDisconnect[rxdevice]?.invoke()
                 deviceOnDisconnect.remove(rxdevice)
