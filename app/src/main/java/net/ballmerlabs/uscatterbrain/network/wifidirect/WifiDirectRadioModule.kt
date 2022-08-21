@@ -6,15 +6,11 @@ import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
-import net.ballmerlabs.uscatterbrain.db.entities.IdentityId
-import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage
-import net.ballmerlabs.uscatterbrain.db.getGlobalHash
-import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
+import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import java.io.File
-import java.util.*
 
 /**
  * dagger2 interface for WifiDirectRadioModule
@@ -81,7 +77,7 @@ interface WifiDirectRadioModule {
     class BlockDataStream(
         val headerPacket: BlockHeaderPacket,
         private val sequencePacketsParam: Flowable<BlockSequencePacket>,
-        val entity: ScatterMessage?,
+        val entity: DbMessage?,
     ) {
         private val sequenceCompletable = CompletableSubject.create()
         val sequencePackets: Flowable<BlockSequencePacket> = sequencePacketsParam
@@ -93,7 +89,7 @@ interface WifiDirectRadioModule {
             sequencePackets: Flowable<BlockSequencePacket>,
             filePath: File
         ) : this(
-            entity = ScatterMessage.from(headerPacket, filePath),
+            entity = DbMessage.from(headerPacket, filePath),
             headerPacket = headerPacket,
             sequencePacketsParam = sequencePackets
         )
@@ -106,7 +102,7 @@ interface WifiDirectRadioModule {
             get() = headerPacket.isFile
 
         constructor(
-            message: ScatterMessage,
+            message: DbMessage,
             packetFlowable: Flowable<BlockSequencePacket>,
             todisk: Boolean = true
         ) : this(

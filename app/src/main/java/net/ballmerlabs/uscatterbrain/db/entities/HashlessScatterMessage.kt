@@ -17,6 +17,18 @@ import com.google.protobuf.ByteString
             onUpdate = ForeignKey.CASCADE,
             deferred = true
         )
+    ],
+    indices = [
+        Index(
+            value = [
+            "application",
+            "extension",
+            "userFilename",
+            "mimeType",
+            "fileGlobalHash"
+            ],
+            unique = true
+        )
     ]
 )
 data class HashlessScatterMessage(

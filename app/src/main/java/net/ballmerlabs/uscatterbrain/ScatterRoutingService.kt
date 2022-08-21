@@ -423,6 +423,7 @@ class ScatterRoutingService : LifecycleService() {
             val handle = generateNewHandle()
             val disp = mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate))
                     .doOnDispose { callbackHandles.remove(handle) }
+                .doOnSuccess { m -> LOG.v("get messages ${m.size}") }
                     .doFinally { callbackHandles.remove(handle) }
                     .subscribe(
                             { res -> callback.onScatterMessage(res) },

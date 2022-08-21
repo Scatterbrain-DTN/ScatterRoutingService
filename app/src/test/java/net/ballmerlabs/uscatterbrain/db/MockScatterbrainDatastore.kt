@@ -19,11 +19,11 @@ import javax.inject.Singleton
 
 @Singleton
 class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
-    override fun insertMessages(message: ScatterMessage): Completable {
+    override fun insertMessages(message: DbMessage): Completable {
         return Completable.complete()
     }
 
-    override fun insertMessages(messages: List<ScatterMessage>): Completable {
+    override fun insertMessages(messages: List<DbMessage>): Completable {
         return Completable.complete()
     }
 
@@ -38,7 +38,7 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
     override val allFiles: Observable<String>
         get() = Observable.empty()
 
-    override fun getMessagesByIdentity(id: KeylessIdentity): Observable<ScatterMessage> {
+    override fun getMessagesByIdentity(id: KeylessIdentity): Observable<DbMessage> {
         return Observable.empty()
     }
 
@@ -58,7 +58,7 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
         return mapOf()
     }
 
-    override fun getMessageByPath(path: String): Single<ScatterMessage> {
+    override fun getMessageByPath(path: String): Single<DbMessage> {
         return Single.error(IllegalStateException("no messages here, cry noises"))
     }
 

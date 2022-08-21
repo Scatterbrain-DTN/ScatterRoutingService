@@ -198,7 +198,7 @@ interface ScatterbrainDatastore {
      * @param message list of room entities to insert
      * @return list of primary keys for rows inserted
      */
-    fun insertMessages(message: net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage): Completable
+    fun insertMessages(message: net.ballmerlabs.uscatterbrain.db.entities.DbMessage): Completable
 
     /**
      * either insert a blockdatastream to disk or to database only depending on
@@ -208,7 +208,7 @@ interface ScatterbrainDatastore {
      */
     fun insertMessage(stream: BlockDataStream): Completable
 
-    fun insertMessages(messages: List<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>): Completable
+    fun insertMessages(messages: List<net.ballmerlabs.uscatterbrain.db.entities.DbMessage>): Completable
 
     /**
      * gets a randomized list of messages from the datastore. Needs to be observed
@@ -234,7 +234,7 @@ interface ScatterbrainDatastore {
      * @param id room entity to search by
      * @return livedata representation of list of messages
      */
-    fun getMessagesByIdentity(id: KeylessIdentity): Observable<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>
+    fun getMessagesByIdentity(id: KeylessIdentity): Observable<net.ballmerlabs.uscatterbrain.db.entities.DbMessage>
 
     /**
      * insert identity packets from network to database
@@ -270,7 +270,7 @@ interface ScatterbrainDatastore {
      * @param path
      * @return single with scattermessage
      */
-    fun getMessageByPath(path: String): Single<net.ballmerlabs.uscatterbrain.db.entities.ScatterMessage>
+    fun getMessageByPath(path: String): Single<net.ballmerlabs.uscatterbrain.db.entities.DbMessage>
 
     /**
      * insert api identity to database

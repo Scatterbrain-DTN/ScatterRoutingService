@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.db.entities
 import androidx.room.*
 import io.reactivex.Completable
 import io.reactivex.Single
-import net.ballmerlabs.uscatterbrain.db.getGlobalHashDb
 import java.util.*
 
 /**
@@ -15,39 +14,39 @@ import java.util.*
 abstract class ScatterMessageDao {
     @get:Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash")
     @get:Transaction
-    abstract val all: Single<List<ScatterMessage>>
+    abstract val all: Single<List<DbMessage>>
 
     @get:Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash")
     @get:Transaction
-    abstract val messagesWithFiles: Single<List<ScatterMessage>>
+    abstract val messagesWithFiles: Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE messageID IN (:ids)")
-    abstract fun getByID(vararg ids: Long): Single<ScatterMessage>
+    abstract fun getByID(vararg ids: Long): Single<DbMessage>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE uuid = :uuids")
-    abstract fun getByUUID(uuids: UUID): Single<ScatterMessage>
+    abstract fun getByUUID(uuids: UUID): Single<DbMessage>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (application = :application) AND (receiveDate BETWEEN :start AND :end)")
-    abstract fun getByReceiveDate(application: String, start: Long, end: Long): Single<List<ScatterMessage>>
+    abstract fun getByReceiveDate(application: String, start: Long, end: Long): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (receiveDate BETWEEN :start AND :end)")
-    abstract fun getByReceiveDate(start: Long, end: Long): Single<List<ScatterMessage>>
+    abstract fun getByReceiveDate(start: Long, end: Long): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (receiveDate BETWEEN :start AND :end) ORDER BY shareCount DESC LIMIT :limit")
-    abstract fun getByReceiveDatePriority(start: Long, end: Long, limit: Int): Single<List<ScatterMessage>>
+    abstract fun getByReceiveDatePriority(start: Long, end: Long, limit: Int): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE packageName = :packageName ORDER BY shareCount DESC LIMIT :limit")
-    abstract fun getByReceiveDatePriority(packageName: String, limit: Int): Single<List<ScatterMessage>>
+    abstract fun getByReceiveDatePriority(packageName: String, limit: Int): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (application = :application) AND (sendDate BETWEEN :start AND :end)")
-    abstract fun getBySendDate(application: String, start: Long, end: Long): Single<List<ScatterMessage>>
+    abstract fun getBySendDate(application: String, start: Long, end: Long): Single<List<DbMessage>>
 
     @Transaction
     @Query("DELETE FROM messages WHERE receiveDate BETWEEN :start AND :end")
@@ -55,11 +54,11 @@ abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE filepath IN (:filePaths)")
-    abstract fun getByFilePath(vararg filePaths: String): Single<List<ScatterMessage>>
+    abstract fun getByFilePath(vararg filePaths: String): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash where application IN (:application)")
-    abstract fun getByApplication(application: String): Single<List<ScatterMessage>>
+    abstract fun getByApplication(application: String): Single<List<DbMessage>>
 
     @get:Query("SELECT filepath FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash")
     @get:Transaction
@@ -67,11 +66,11 @@ abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE messageID = (SELECT message FROM identityid WHERE uuid = :ids)")
-    abstract fun getByIdentity(ids: UUID): Single<List<ScatterMessage>>
+    abstract fun getByIdentity(ids: UUID): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash ORDER BY RANDOM() LIMIT :count")
-    abstract fun getTopRandom(count: Int): Single<List<ScatterMessage>>
+    abstract fun getTopRandom(count: Int): Single<List<DbMessage>>
 
 
     @Query("SELECT SUM(fileSize) FROM messages")
@@ -83,28 +82,28 @@ abstract class ScatterMessageDao {
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE globalhash NOT IN (:globalhashes)" +
             "ORDER BY RANDOM() LIMIT :count")
-    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>): Single<List<ScatterMessage>>
+    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash " +
             "WHERE fileGlobalHash NOT IN (:globalhashes)" +
             "AND fileSize < :sizeLimit ORDER BY RANDOM() LIMIT :count")
-    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>, sizeLimit: Long): Single<List<ScatterMessage>>
+    abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>, sizeLimit: Long): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT fileGlobalHash FROM messages ORDER BY RANDOM() LIMIT :count")
     abstract fun getTopHashes(count: Int): Single<List<ByteArray>>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertMessages(messages: List<HashlessScatterMessage>): Single<List<Long>>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertMessages(message: HashlessScatterMessage): Single<Long>
 
     @Insert
     abstract fun __insertHashes(h: List<Hashes>): Single<List<Long>>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertIdentityId(id: List<IdentityId>): Single<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -112,7 +111,7 @@ abstract class ScatterMessageDao {
 
     @Transaction
     @Insert
-    fun insertMessage(message: ScatterMessage): Completable {
+    fun insertMessage(message: DbMessage): Completable {
 
        return insertGlobalHash(message.file.global)
            .andThen(

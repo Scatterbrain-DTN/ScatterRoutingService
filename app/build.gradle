@@ -138,11 +138,11 @@ dependencies {
     testImplementation 'net.java.dev.jna:jna:5.11.0@aar'
     testImplementation 'net.java.dev.jna:jna-platform:5.11.0'
 
-    implementation "com.google.dagger:dagger:2.40.1"
-    testImplementation "com.google.dagger:dagger:2.40.1"
+    implementation "com.google.dagger:dagger:2.43.2"
+    testImplementation "com.google.dagger:dagger:2.43.2"
 
-    kapt "com.google.dagger:dagger-compiler:2.40.1"
-    kaptTest "com.google.dagger:dagger-compiler:2.40.1"
+    kapt "com.google.dagger:dagger-compiler:2.43.2"
+    kaptTest "com.google.dagger:dagger-compiler:2.43.2"
 
 
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"

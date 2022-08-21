@@ -14,7 +14,7 @@ import java.util.*
 /**
  * helper class representing a relation between a message and its hashes
  */
-data class ScatterMessage(
+data class DbMessage(
     @Embedded
     var message: HashlessScatterMessage,
 
@@ -65,7 +65,7 @@ data class ScatterMessage(
             headerPacket: BlockHeaderPacket,
             prefix: File,
             packageName: String = ""
-        ): ScatterMessage? {
+        ): DbMessage? {
             return if (headerPacket.isEndOfStream)
                 null
             else {
@@ -85,7 +85,7 @@ data class ScatterMessage(
                     fileGlobalHash = globalhash
                 )
 
-                ScatterMessage(
+                DbMessage(
                     hm,
                     DiskFile(
                         messageHashes = HashlessScatterMessage.hash2hashs(
@@ -127,7 +127,7 @@ data class ScatterMessage(
             prefix: File,
             packageName: String = "",
             bytes: ByteArray? = null
-        ): ScatterMessage {
+        ): DbMessage {
 
             val globalhash = getGlobalHash(hashes)
             val newFile = getPath(prefix, message, globalhash)
@@ -148,7 +148,7 @@ data class ScatterMessage(
                 fileSize = newFile.length(),
                 packageName = packageName
             )
-            val dbmessage = ScatterMessage(
+            val dbmessage = DbMessage(
                 hm,
                 DiskFile(
                     messageHashes = HashlessScatterMessage.hash2hashs(hashes, globalhash),
