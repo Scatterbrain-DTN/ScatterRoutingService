@@ -894,6 +894,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 .flatMapMaybe { v ->
                                     LOG.v("refreshing peer ${v.key}")
                                     initiateOutgoingConnection(v.value, v.key)
+                                        .onErrorComplete()
                                 }
                         }
                 } else {
@@ -920,6 +921,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private fun updateConnected(luid: UUID): Boolean {
+        LOG.e("updateConnected $luid")
         return if (activeLuids.putIfAbsent(luid, true) == null) {
             return true
         } else {
@@ -928,10 +930,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private fun updateDisconnected(luid: UUID) {
+        LOG.e("updateDisconnected $luid")
+        activeLuids.remove(luid)
         if (activeLuids.isEmpty()) {
             transactionInProgressRelay.accept(false)
         }
-        activeLuids.remove(luid)
     }
 
     private fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult> {
@@ -953,7 +956,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             initiateOutgoingConnection(
                                                 cached,
                                                 luidUuid
-                                            )
+                                            ).onErrorComplete()
                                         }
                                 } else {
                                     Maybe.empty()
@@ -964,6 +967,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                     }
             } else {
+                LOG.e("remote luid was null")
                 Maybe.empty()
             }
         }
@@ -991,6 +995,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .andThen(handleConnection(cachedConnection, cachedConnection.device, luid))
                 }
         }
+            .doOnError{ err->
+                LOG.v("error in initiateOutgoingCOnnection $err")
+
+                updateDisconnected(luid)
+            }
     }
 
     private fun discoverContinuous(): Observable<ScanResult> {
@@ -1031,7 +1040,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun discoverForever(): Observable<HandshakeResult> {
         val discover = discoverContinuous()
             .doOnSubscribe { discoveryPersistent.set(true) }
-            .flatMapSingle { res ->
+            .concatMapSingle { res ->
                 if (shouldConnect(res)) {
                     transactionInProgressRelay.accept(true)
                 }
@@ -1040,6 +1049,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .andThen(removeWifiDirectGroup(randomizeLuidIfOld()).onErrorComplete())
                     .toSingleDefault(res)
             }
+            .doOnNext { res -> LOG.v("scan result $res") }
             .filter { res -> shouldConnect(res) }
             .concatMapMaybe { scanResult ->
                 processScanResult(scanResult)
@@ -1153,6 +1163,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     connection
                 } else {
                     val rawConnection = device.establishConnection(false)
+                        .doOnError { connectionCache.remove(luid) }
                         .doOnNext {
                             LOG.e("established cached connection to ${device.macAddress}")
                         }
@@ -1308,7 +1319,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doOnError { err ->
                 LOG.e("session ${session.remoteLuid} ended with error $err")
                 err.printStackTrace()
-                session.stage = TransactionResult.STAGE_TERMINATE
                 updateDisconnected(luid)
             }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
@@ -1346,7 +1356,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 trans.sendReply(uuid2bytes(luid), BluetoothGatt.GATT_SUCCESS)
             }
             .doOnError { err ->
-                clearPeers()
                 LOG.e("error in hello characteristic read: $err")
             }.onErrorComplete()
     }
@@ -1394,7 +1403,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }
             .doOnError { e ->
                 LOG.e("failed to read hello characteristic: $e")
-                clearPeers()
             }
             .doOnNext { t -> LOG.v("transactionResult ${t.success}") }
     }
@@ -1445,7 +1453,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     CachedLEServerConnection(
                         connectionRaw,
                         channels,
-                        scheduler = serverScheduler,
+                        scheduler = operationsScheduler,
                         ioScheduler = operationsScheduler
                     )
                 )
@@ -1463,7 +1471,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }
             .doOnError { err ->
                 LOG.e("gatt server shut down with error: $err")
-                clearPeers()
                 err.printStackTrace()
             }
             .doOnComplete { LOG.e("gatt server completed. This shouldn't happen") }
