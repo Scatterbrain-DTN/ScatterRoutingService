@@ -10,7 +10,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import androidx.core.app.ActivityCompat
-import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleClient
@@ -26,11 +25,12 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
-import io.reactivex.subjects.PublishSubject
-import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
-import net.ballmerlabs.uscatterbrain.*
+import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
+import net.ballmerlabs.uscatterbrain.R
+import net.ballmerlabs.uscatterbrain.RouterPreferences
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.AckPacket
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
@@ -42,7 +42,7 @@ import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
-import net.ballmerlabs.uscatterbrain.util.retryDelay
+import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
 import java.nio.ByteBuffer
@@ -112,7 +112,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val datastore: ScatterbrainDatastore,
     private val preferences: RouterPreferences,
     private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
-    private val newServer: GattServer
+    private val newServer: GattServer,
+    private val firebase: FirebaseWrapper
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
     private val serverStarted = AtomicReference(false)
@@ -377,6 +378,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         mapAdvertiseComplete(true)
                     }
             }.doOnError { err ->
+                firebase.recordException(err)
                 LOG.e("error in startAdvertise $err")
                 err.printStackTrace()
             }.doFinally {
@@ -439,13 +441,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .flatMapCompletable { v ->
                         if (v.first.isPresent) {
 
-                                    v.first.item?.setAdvertisingData(
-                                        AdvertiseData.Builder()
-                                            .setIncludeDeviceName(false)
-                                            .setIncludeTxPowerLevel(false)
-                                            .addServiceUuid(ParcelUuid(SERVICE_UUID))
-                                            .build()
-                                    )
+                            v.first.item?.setAdvertisingData(
+                                AdvertiseData.Builder()
+                                    .setIncludeDeviceName(false)
+                                    .setIncludeTxPowerLevel(false)
+                                    .addServiceUuid(ParcelUuid(SERVICE_UUID))
+                                    .build()
+                            )
                             Completable.complete()
                         } else {
                             Completable.error(IllegalStateException("failed to set advertising data removeLuid"))
@@ -480,7 +482,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * to BLE if it is.
      */
     private fun selectProvides(): Single<AdvertisePacket.Provides> {
-       return wifiDirectRadioModule.wifiDirectIsUsable()
+        return wifiDirectRadioModule.wifiDirectIsUsable()
             .doOnSuccess { p -> LOG.e("selectProvides $p") }
             .map { p -> if (p) AdvertisePacket.Provides.WIFIP2P else AdvertisePacket.Provides.BLE }
     }
@@ -841,7 +843,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 )
                             }
                             .map { res ->
-                              //  transactionCompleteRelay.accept(res)
+                                //  transactionCompleteRelay.accept(res)
                                 TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                             }
                     })
@@ -976,14 +978,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .doOnSuccess { res ->
                             LOG.v("successfully wrote uuid len ${res.size}")
                         }
-                        .doOnError { e -> LOG.e("failed to write characteristic: $e") }
+                        .doOnError { e ->
+                            firebase.recordException(e)
+                            LOG.e("failed to write characteristic: $e")
+                        }
                         .ignoreElement()
                         .andThen(handleConnection(cachedConnection, cachedConnection.device, luid))
                 }
         }
-            .doOnError{ err->
-                LOG.v("error in initiateOutgoingCOnnection $err")
-
+            .doOnError { err ->
+                LOG.v("error in initiateOutgoingConnection $err")
+                firebase.recordException(err)
                 updateDisconnected(luid)
             }
     }
@@ -1044,6 +1049,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         )
                     }
                     .doOnError { err ->
+                        firebase.recordException(err)
                         LOG.e(
                             "transaction for ${scanResult.bleDevice.macAddress} failed: $err"
                         )
@@ -1052,6 +1058,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }
             .doOnComplete { LOG.e("discoverForever completed, retry") }
             .doOnError { err ->
+                firebase.recordException(err)
                 LOG.e("discoverForever error: $err")
                 clearPeers()
             }
@@ -1124,7 +1131,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 wifiDirectRadioModule.removeGroup()
                     .doOnError { err ->
                         LOG.e("failed to cleanup wifi direct group after termination")
-                        FirebaseCrashlytics.getInstance().recordException(err)
+                        firebase.recordException(err)
                     }
             } else {
                 Completable.complete()
@@ -1305,6 +1312,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doOnError { err ->
                 LOG.e("session ${session.remoteLuid} ended with error $err")
                 err.printStackTrace()
+                firebase.recordException(err)
                 updateDisconnected(luid)
             }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
@@ -1376,6 +1384,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
                     .doOnError { err ->
                         LOG.e("error in handleConnection $err")
+                        firebase.recordException(err)
                         updateDisconnected(luid)
                     }
                     .onErrorReturnItem(
