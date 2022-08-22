@@ -1,16 +1,21 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.util.Log
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import com.google.protobuf.ByteString
+import com.goterl.lazysodium.utils.HexMessageEncoder
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import net.ballmerlabs.uscatterbrain.network.IdentityPacket
+import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.lang.Exception
+import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.TimeoutException
 import kotlin.random.Random
@@ -19,11 +24,11 @@ import kotlin.random.Random
 @SmallTest
 class ApiTest: TestBase() {
 
-    fun syncSendMessage(message: ScatterMessage) {
+    private fun syncSendMessage(message: ScatterMessage) {
         regularBinder.sendMessage(message)
     }
 
-    fun syncSendMesssages(messages: List<ScatterMessage>) {
+    private fun syncSendMesssages(messages: List<ScatterMessage>) {
         regularBinder.sendMessages(messages)
     }
 
@@ -77,6 +82,32 @@ class ApiTest: TestBase() {
             list.add(message)
         }
         runBlocking { syncSendMesssages(list) }
+    }
+
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun transactionBufferOverflow() {
+        val size = 20
+        val application = LibsodiumInterface.base64enc(Random.nextBytes(1024))
+        val list = ArrayList<ScatterMessage>()
+        for (x in 0..size) {
+            val message = ScatterMessage.Builder.newInstance(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(x).array())
+                .setApplication(application)
+                .build()
+            list.add(message)
+        }
+
+       Log.e("debug", "pre messagesize: ${list.size}")
+
+        val messagesize = runBlocking {
+            syncSendMesssages(list)
+            val messages = binder.getScatterMessages(application).toList()
+            messages.size
+        }
+
+        Log.e("debug", "messagesize: $messagesize")
+        assert(messagesize == list.size)
     }
 
     @Test

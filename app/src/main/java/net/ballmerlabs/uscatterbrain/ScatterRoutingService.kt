@@ -10,7 +10,6 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.ParcelUuid
-import android.preference.PreferenceManager
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -34,8 +33,8 @@ class ScatterRoutingService : LifecycleService() {
     private lateinit var mBackend: RoutingServiceBackend
 
     data class Callback(
-            val packageName: String,
-            val disposable: Disposable
+        val packageName: String,
+        val disposable: Disposable
     )
 
     private val callbackHandles = ConcurrentHashMap<Int, Callback>()
@@ -44,7 +43,10 @@ class ScatterRoutingService : LifecycleService() {
     private val binder: ScatterbrainBinderApi.Stub = object : ScatterbrainBinderApi.Stub() {
         private fun checkPermission(permName: String): Boolean {
             val pm = applicationContext.packageManager
-            return PackageManager.PERMISSION_GRANTED == pm.checkPermission(permName, callingPackageName)
+            return PackageManager.PERMISSION_GRANTED == pm.checkPermission(
+                permName,
+                callingPackageName
+            )
         }
 
         // note: we have to get the package name from the Stub class because
@@ -137,7 +139,8 @@ class ScatterRoutingService : LifecycleService() {
         @Throws(UnauthorizedException::class)
         override fun getIdentityByFingerprint(fingerprint: ParcelUuid): Identity {
             checkAccessPermission()
-            return mBackend.datastore.getApiIdentityByFingerprint(fingerprint.uuid).blockingGet().identity
+            return mBackend.datastore.getApiIdentityByFingerprint(fingerprint.uuid)
+                .blockingGet().identity
         }
 
         /**
@@ -230,12 +233,12 @@ class ScatterRoutingService : LifecycleService() {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.generateIdentity(name, callingPackageName)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { res -> callback.onIdentity(listOf(res)) },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { res -> callback.onIdentity(listOf(res)) },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -246,12 +249,12 @@ class ScatterRoutingService : LifecycleService() {
             val handle = generateNewHandle()
 
             val disp = mBackend.getIdentity(fingerprint.uuid)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { res -> callback.onIdentity(listOf(res)) },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { res -> callback.onIdentity(listOf(res)) },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -265,14 +268,14 @@ class ScatterRoutingService : LifecycleService() {
             checkSuperuserPermission()
             val handle = generateNewHandle()
             val disp = mBackend.removeIdentity(identity.uuid, callingPackageName)
-                    .toSingleDefault(true)
-                    .onErrorReturnItem(false)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { res -> callback.onResult(res) },
-                            { err -> callback.onError(err.message) }
-                    )
+                .toSingleDefault(true)
+                .onErrorReturnItem(false)
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { res -> callback.onResult(res) },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -284,16 +287,20 @@ class ScatterRoutingService : LifecycleService() {
          */
         @RequiresApi(api = Build.VERSION_CODES.P)
         @Throws(UnauthorizedException::class)
-        override fun authorizeApp(identity: ParcelUuid, packagename: String, callback: UnitCallback) {
+        override fun authorizeApp(
+            identity: ParcelUuid,
+            packagename: String,
+            callback: UnitCallback
+        ) {
             checkSuperuserPermission()
             val handle = generateNewHandle()
             val disp = mBackend.authorizeApp(identity.uuid, packagename)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { callback.onComplete() },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -319,18 +326,18 @@ class ScatterRoutingService : LifecycleService() {
             checkSuperuserPermission()
             val handle = generateNewHandle()
             val disp = mBackend.datastore.getACLs(identity.uuid)
-                    .flatMapObservable { acl -> Observable.fromIterable(acl) }
-                    .map { acl -> acl.packageName }
-                    .reduce(ArrayList<String>()) { list, acl ->
-                        list.add(acl)
-                        return@reduce list
-                    }
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { s -> callback.onString(s) },
-                            { err -> callback.onError(err.message) }
-                    )
+                .flatMapObservable { acl -> Observable.fromIterable(acl) }
+                .map { acl -> acl.packageName }
+                .reduce(ArrayList<String>()) { list, acl ->
+                    list.add(acl)
+                    return@reduce list
+                }
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { s -> callback.onString(s) },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -388,9 +395,17 @@ class ScatterRoutingService : LifecycleService() {
          * @param endDate end data
          * @return list of message objects
          */
-        override fun getByApplicationDate(application: String, startDate: Long, endDate: Long): MutableList<ScatterMessage> {
+        override fun getByApplicationDate(
+            application: String,
+            startDate: Long,
+            endDate: Long
+        ): MutableList<ScatterMessage> {
             checkAccessPermission()
-            return mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate)).blockingGet()
+            return mBackend.datastore.getApiMessagesReceiveDate(
+                application,
+                Date(startDate),
+                Date(endDate)
+            ).blockingGet()
         }
 
         /**
@@ -402,12 +417,14 @@ class ScatterRoutingService : LifecycleService() {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.datastore.getApiMessages(application)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { res -> callback.onScatterMessage(res) },
-                            { err -> callback.onError(err.message) }
-                    )
+                .flatMapObservable { m -> Observable.fromIterable(m) }
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .doFinally { callback.onComplete() }
+                .subscribe(
+                    { res -> callback.onScatterMessage(res) },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -418,17 +435,27 @@ class ScatterRoutingService : LifecycleService() {
          * @param endDate end data
          * @param callback binder callback returning list of message objects
          */
-        override fun getByApplicationDateAsync(application: String, startDate: Long, endDate: Long, callback: ScatterMessageCallback) {
+        override fun getByApplicationDateAsync(
+            application: String,
+            startDate: Long,
+            endDate: Long,
+            callback: ScatterMessageCallback
+        ) {
             checkAccessPermission()
             val handle = generateNewHandle()
-            val disp = mBackend.datastore.getApiMessagesReceiveDate(application, Date(startDate), Date(endDate))
-                    .doOnDispose { callbackHandles.remove(handle) }
-                .doOnSuccess { m -> LOG.v("get messages ${m.size}") }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { res -> callback.onScatterMessage(res) },
-                            { err -> callback.onError(err.message) }
-                    )
+            val disp = mBackend.datastore.getApiMessagesReceiveDate(
+                application,
+                Date(startDate),
+                Date(endDate)
+            )
+                .flatMapObservable { m -> Observable.fromIterable(m) }
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .doFinally { callback.onComplete() }
+                .subscribe(
+                    { res -> callback.onScatterMessage(res) },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -437,12 +464,12 @@ class ScatterRoutingService : LifecycleService() {
             LOG.v("manualRefreshPeers")
             val handle = generateNewHandle()
             val disp = mBackend.radioModule.refreshPeers()
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { callback.onComplete() },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -452,16 +479,20 @@ class ScatterRoutingService : LifecycleService() {
          * @param data bytes to sign
          * @param callback binder callback returning detached ed25519 signature
          */
-        override fun signDataDetachedAsync(data: ByteArray, identity: ParcelUuid, callback: ByteArrayCallback) {
+        override fun signDataDetachedAsync(
+            data: ByteArray,
+            identity: ParcelUuid,
+            callback: ByteArrayCallback
+        ) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.signDataDetached(data, identity.uuid, callingPackageName)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { res -> callback.onData(res) },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { res -> callback.onData(res) },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -472,16 +503,21 @@ class ScatterRoutingService : LifecycleService() {
          * @param sig detached signature generated by sign()
          * @param callback binder callback returning true if valid, false if invalid
          */
-        override fun verifyDataAsync(data: ByteArray, sig: ByteArray, identity: ParcelUuid, callback: BoolCallback) {
+        override fun verifyDataAsync(
+            data: ByteArray,
+            sig: ByteArray,
+            identity: ParcelUuid,
+            callback: BoolCallback
+        ) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.verifyData(data, sig, identity.uuid)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { res -> callback.onResult(res) },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { res -> callback.onResult(res) },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -491,16 +527,19 @@ class ScatterRoutingService : LifecycleService() {
          * @param messages message to send
          * @param callback unit callback returning when complete
          */
-        override fun sendMessagesAsync(messages: MutableList<ScatterMessage>, callback: UnitCallback) {
+        override fun sendMessagesAsync(
+            messages: MutableList<ScatterMessage>,
+            callback: UnitCallback
+        ) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.sendMessages(messages, callingPackageName)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { callback.onComplete() },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -514,12 +553,12 @@ class ScatterRoutingService : LifecycleService() {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.sendMessage(message, callingPackageName)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { callback.onComplete() },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -530,16 +569,20 @@ class ScatterRoutingService : LifecycleService() {
          * @param identity identity fingerprint to sign with
          * @param callback unit callback returning when complete
          */
-        override fun sendAndSignMessageAsync(message: ScatterMessage, identity: ParcelUuid, callback: UnitCallback) {
+        override fun sendAndSignMessageAsync(
+            message: ScatterMessage,
+            identity: ParcelUuid,
+            callback: UnitCallback
+        ) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.sendAndSignMessage(message, identity.uuid, callingPackageName)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { callback.onComplete() },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -550,16 +593,20 @@ class ScatterRoutingService : LifecycleService() {
          * @param identity identity fingerprint to sign with
          * @param callback unit callback returning when complete
          */
-        override fun sendAndSignMessagesAsync(message: MutableList<ScatterMessage>, identity: ParcelUuid, callback: UnitCallback) {
+        override fun sendAndSignMessagesAsync(
+            message: MutableList<ScatterMessage>,
+            identity: ParcelUuid,
+            callback: UnitCallback
+        ) {
             checkAccessPermission()
             val handle = generateNewHandle()
             val disp = mBackend.sendAndSignMessages(message, identity.uuid, callingPackageName)
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { callback.onComplete() },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -571,7 +618,7 @@ class ScatterRoutingService : LifecycleService() {
                 val map = HashMap<String, Boolean>()
                 val advertise = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
                     ActivityCompat.checkSelfPermission(
-                            applicationContext, Manifest.permission.BLUETOOTH_ADVERTISE
+                        applicationContext, Manifest.permission.BLUETOOTH_ADVERTISE
                     ) == PackageManager.PERMISSION_GRANTED
                 else
                     true
@@ -579,28 +626,28 @@ class ScatterRoutingService : LifecycleService() {
 
                 val connect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
                     ActivityCompat.checkSelfPermission(
-                            applicationContext, Manifest.permission.BLUETOOTH_CONNECT
+                        applicationContext, Manifest.permission.BLUETOOTH_CONNECT
                     ) == PackageManager.PERMISSION_GRANTED
                 else
                     true
                 map[PermissionStatus.PERMISSION_BLUETOOTH_CONNECT] = connect
 
                 val location = ActivityCompat.checkSelfPermission(
-                        applicationContext, Manifest.permission.ACCESS_FINE_LOCATION
+                    applicationContext, Manifest.permission.ACCESS_FINE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED
                         || ActivityCompat.checkSelfPermission(
-                        applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
+                    applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED
 
                 map[PermissionStatus.PERMISSION_LOCATION] = location
                 PermissionStatus(map)
             }
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { r -> callback.onPermission(r) },
-                            { e -> callback.onError(e.toString()) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { r -> callback.onPermission(r) },
+                    { e -> callback.onError(e.toString()) }
+                )
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
@@ -611,12 +658,12 @@ class ScatterRoutingService : LifecycleService() {
             checkSuperuserPermission()
             val handle = generateNewHandle()
             val disp = mBackend.datastore.getPackages()
-                    .doOnDispose { callbackHandles.remove(handle) }
-                    .doFinally { callbackHandles.remove(handle) }
-                    .subscribe(
-                            { r -> callback.onString(r) },
-                            { err -> callback.onError(err.message) }
-                    )
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { r -> callback.onString(r) },
+                    { err -> callback.onError(err.message) }
+                )
 
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
@@ -648,15 +695,15 @@ class ScatterRoutingService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_FOREGROUND,
-                "fmef",
-                NotificationManager.IMPORTANCE_DEFAULT
+            NOTIFICATION_CHANNEL_FOREGROUND,
+            "fmef",
+            NotificationManager.IMPORTANCE_DEFAULT
         )
-        if(!this::mBackend.isInitialized) {
+        if (!this::mBackend.isInitialized) {
             LOG.e("init!!")
             val c = DaggerRoutingServiceComponent.builder()
-                    .applicationContext(this)
-                    ?.build()!!
+                .applicationContext(this)
+                ?.build()!!
             component.accept(c)
             mBackend = c.scatterRoutingService()!!
         }
@@ -680,11 +727,11 @@ class ScatterRoutingService : LifecycleService() {
             throw e
         }
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
-                .setContentTitle("ScatterRoutingService")
-                .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
-                .setSmallIcon(R.drawable.ic_launcher_background)
-                .setTicker("fmef am tire")
-                .build()
+            .setContentTitle("ScatterRoutingService")
+            .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
+            .setSmallIcon(R.drawable.ic_launcher_background)
+            .setTicker("fmef am tire")
+            .build()
         startForeground(1, notification)
         return Service.START_STICKY
     }

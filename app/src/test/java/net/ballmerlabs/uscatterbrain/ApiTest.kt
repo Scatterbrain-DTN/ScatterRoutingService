@@ -1,11 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
-import com.google.protobuf.ByteString
-import io.reactivex.disposables.CompositeDisposable
-import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
-import net.ballmerlabs.uscatterbrain.network.IdentityPacket
-import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -13,8 +8,8 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.mockito.MockitoAnnotations
 import org.robolectric.RobolectricTestRunner
-import java.lang.Exception
 import java.util.concurrent.TimeoutException
+
 @RunWith(RobolectricTestRunner::class)
 class ApiTest {
 
