@@ -235,8 +235,9 @@ class ScatterRoutingService : LifecycleService() {
             val disp = mBackend.generateIdentity(name, callingPackageName)
                 .doOnDispose { callbackHandles.remove(handle) }
                 .doFinally { callbackHandles.remove(handle) }
+                .doFinally { callback.onComplete() }
                 .subscribe(
-                    { res -> callback.onIdentity(listOf(res)) },
+                    { res -> callback.onIdentity(res) },
                     { err -> callback.onError(err.message) }
                 )
             callbackHandles[handle] = Callback(callingPackageName, disp)
@@ -251,8 +252,9 @@ class ScatterRoutingService : LifecycleService() {
             val disp = mBackend.getIdentity(fingerprint.uuid)
                 .doOnDispose { callbackHandles.remove(handle) }
                 .doFinally { callbackHandles.remove(handle) }
+                .doFinally { callback.onComplete() }
                 .subscribe(
-                    { res -> callback.onIdentity(listOf(res)) },
+                    { res -> callback.onIdentity(res) },
                     { err -> callback.onError(err.message) }
                 )
             callbackHandles[handle] = Callback(callingPackageName, disp)
