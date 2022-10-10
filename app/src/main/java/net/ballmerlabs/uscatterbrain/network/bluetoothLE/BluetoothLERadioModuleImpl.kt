@@ -336,7 +336,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("Starting LE advertise")
                         val settings = AdvertisingSetParameters.Builder()
                             .setConnectable(true)
-                            .setInterval(AdvertisingSetParameters.INTERVAL_MEDIUM)
+                            .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
                             .setLegacyMode(false)
                             .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
                             .setSecondaryPhy(BluetoothDevice.PHY_LE_2M)
@@ -842,7 +842,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     HandshakeResult.TransactionStatus.STATUS_SUCCESS
                                 )
                             }
-                            .map { res ->
+                            .map {
                                 //  transactionCompleteRelay.accept(res)
                                 TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                             }
