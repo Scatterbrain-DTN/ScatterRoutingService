@@ -20,6 +20,7 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.*
+import net.ballmerlabs.uscatterbrain.util.initDiskLogging
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -696,6 +697,7 @@ class ScatterRoutingService : LifecycleService() {
      */
     override fun onCreate() {
         super.onCreate()
+        initDiskLogging()
         val channel = NotificationChannel(
             NOTIFICATION_CHANNEL_FOREGROUND,
             "fmef",

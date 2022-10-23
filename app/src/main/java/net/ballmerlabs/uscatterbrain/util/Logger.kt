@@ -1,9 +1,16 @@
 package net.ballmerlabs.uscatterbrain.util
 
+import android.content.Context
+import android.content.ContextWrapper
+import io.reactivex.Scheduler
+import io.reactivex.plugins.RxJavaPlugins
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import java.io.File
 import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObject
-
+val loggerScheduler = lazy { RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory()) }
 var logger: (c: Class<*>) -> Logger = { c -> LoggerImpl(c) }
+var cacheFileDir: File? = null
 
 fun <T: Any> getCompanionClass(c: Class<T>): Class<*> {
     return c.enclosingClass?.takeIf { c.enclosingClass.kotlin.companionObject?.java == c } ?: c
@@ -13,9 +20,17 @@ fun <T: Any> getCompanionClass(c: KClass<T>): KClass<*> {
     return getCompanionClass(c.java).kotlin
 }
 
+fun <T: Context> T.initDiskLogging() {
+    val log by scatterLog()
+    log.v("init disk logging")
+    cacheFileDir = this.applicationContext!!.cacheDir
+}
+
 fun <T: Any> T.scatterLog(): Lazy<Logger> {
     return lazy { logger(this.javaClass) }
 }
+
+
 
 enum class LogLevel(val str: String) {
     DEBUG("DEBUG"),
@@ -27,7 +42,7 @@ enum class LogLevel(val str: String) {
 }
 
 abstract class Logger(c: Class<*>) {
-    protected val name: String = getCompanionClass(c).name
+    protected val name: String = getCompanionClass(c).name.replace("net.ballmerlabs", "")
 
     protected fun fmt(text: String, level: LogLevel): String {
         return "[${level.str}]: $text"
