@@ -7,6 +7,9 @@ import android.content.SharedPreferences
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.PowerManager
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.polidea.rxandroidble2.RxBleClient
 import dagger.*
@@ -27,6 +30,7 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapperImpl
 import javax.inject.Named
 import javax.inject.Singleton
+val Context.dataStore by preferencesDataStore(name = RouterPreferences.PREF_NAME)
 
 @Singleton
 @Component(modules = [RoutingServiceModule::class])
@@ -187,8 +191,8 @@ interface RoutingServiceComponent {
 
             @Provides
             @JvmStatic
-            fun providesSharedPreferences(context: Context?): SharedPreferences {
-                return context!!.getSharedPreferences(SHARED_PREFS, Context.MODE_PRIVATE)
+            fun providesSharedPreferences(context: Context?): DataStore<Preferences> {
+                return context!!.dataStore
             }
 
             @Provides

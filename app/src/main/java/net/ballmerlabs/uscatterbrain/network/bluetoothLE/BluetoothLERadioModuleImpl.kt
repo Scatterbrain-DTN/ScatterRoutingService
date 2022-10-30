@@ -284,7 +284,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 ScanSettings.SCAN_MODE_LOW_POWER
             }
             mContext.getString(R.string.powersave_opportunistic) -> {
-                LOG.e("scan mode opertunistic")
+                LOG.e("scan mode opportunistic")
                 ScanSettings.SCAN_MODE_OPPORTUNISTIC
             }
             else -> {
@@ -1014,7 +1014,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .setScanMode(parseScanMode())
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .setShouldCheckLocationServicesState(false)
-                .setLegacy(false)
+                .setLegacy(true)
                 .build(),
             ScanFilter.Builder()
                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
