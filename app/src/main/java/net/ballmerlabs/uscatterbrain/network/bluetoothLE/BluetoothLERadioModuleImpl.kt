@@ -1045,6 +1045,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun discoverForever(): Observable<HandshakeResult> {
         val discover = discoverContinuous()
+            .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
             .doOnSubscribe { discoveryPersistent.set(true) }
             .concatMapSingle { res ->
                 if (shouldConnect(res)) {
@@ -1058,6 +1059,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .filter { res -> shouldConnect(res) }
             .concatMapMaybe { scanResult ->
                 processScanResult(scanResult)
+                    .onErrorComplete()
                     .doOnSuccess {
                         LOG.e(
                             "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete"
@@ -1077,13 +1079,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("discoverForever error: $err")
                 clearPeers()
             }
-            .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
             .doFinally { discoveryPersistent.set(false) }
             .doOnSubscribe { LOG.e("subscribed discoverForever") }
 
         return awaitBluetoothEnabled()
             .andThen(discover)
-            .repeat()
             .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
 
     }
@@ -1402,15 +1402,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         firebase.recordException(err)
                         updateDisconnected(luid)
                     }
-                    .onErrorReturnItem(
-                        HandshakeResult(
-                            0,
-                            0,
-                            HandshakeResult.TransactionStatus.STATUS_FAIL
-                        )
-                    )
 
             }
+            .onErrorReturnItem(
+                HandshakeResult(
+                    0,
+                    0,
+                    HandshakeResult.TransactionStatus.STATUS_FAIL
+                )
+            )
             .doOnError { e ->
                 LOG.e("failed to read hello characteristic: $e")
             }
@@ -1464,7 +1464,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         connectionRaw,
                         channels,
                         scheduler = operationsScheduler,
-                        ioScheduler = operationsScheduler
+                        ioScheduler = operationsScheduler,
+                        firebaseWrapper = firebase
                     )
                 )
 
@@ -1484,8 +1485,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 err.printStackTrace()
             }
             .doOnComplete { LOG.e("gatt server completed. This shouldn't happen") }
-            .retry()
-            .repeat()
             .subscribe(transactionCompleteRelay)
         val disp = CompositeDisposable()
         disp.add(d)

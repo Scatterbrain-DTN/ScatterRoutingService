@@ -12,6 +12,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Compa
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
+import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -27,7 +28,8 @@ class CachedLEServerConnection(
     val connection: GattServerConnection,
     private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
     private val scheduler: Scheduler,
-    private val ioScheduler: Scheduler
+    private val ioScheduler: Scheduler,
+    private val firebaseWrapper: FirebaseWrapper
 ) : Disposable {
     val luid: UUID? = null
     private val LOG by scatterLog()
@@ -170,10 +172,10 @@ class CachedLEServerConnection(
                         .onErrorComplete()
                 }
                 .flatMapCompletable { obs -> obs }
-                .repeat()
-                .retry()
                 .subscribe(
-                    { LOG.e("timing characteristic write handler completed prematurely") },
+                    {
+                        LOG.e("timing characteristic write handler completed prematurely")
+                    },
                     { err -> LOG.e("timing characteristic handler error: $err") }
                 )
         disposable.add(d)

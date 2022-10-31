@@ -12,7 +12,6 @@ import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
-import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -27,10 +26,10 @@ import javax.inject.Singleton
  */
 @Singleton
 class ScatterbrainSchedulerImpl @Inject constructor(
-        private val bluetoothLEModule: BluetoothLEModule,
-        private val context: Context,
-        private val firebaseWrapper: FirebaseWrapper,
-        powerManager: PowerManager
+    private val bluetoothLEModule: BluetoothLEModule,
+    private val context: Context,
+    private val firebaseWrapper: FirebaseWrapper,
+    powerManager: PowerManager
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
     private val discoveryLock = AtomicReference(false)
@@ -38,10 +37,11 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         get() = discoveryLock.get()
     private var isAdvertising = false
     private val wakeLock = powerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
-            context.getString(
-                    R.string.wakelock_tag
-            ))
+        PowerManager.PARTIAL_WAKE_LOCK,
+        context.getString(
+            R.string.wakelock_tag
+        )
+    )
     private val globalDisposable = AtomicReference<Disposable?>()
     private fun broadcastTransactionResult(transactionStats: HandshakeResult) {
         val intent = Intent(ScatterbrainApi.BROADCAST_EVENT)
@@ -81,39 +81,34 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         isAdvertising = true
         val compositeDisposable = CompositeDisposable()
         val d2 = bluetoothLEModule.observeTransactionStatus()
-                .subscribe(
-                        { res ->
-                            if (res) {
-                                LOG.v("transaction started, acquiring wakelock")
-                                acquireWakelock()
-                            } else {
-                                LOG.v("transaction completed, NOT releasing, should time out naturally")
-                            }
-                        },
-                        { err ->
-                            LOG.e("error in observeTransactionStatus: wakelocks broked")
-                            err.printStackTrace()
-                        }
-                )
-        val transaction = bluetoothLEModule.startServer()
-                .andThen(
-                        bluetoothLEModule.discoverForever()
-                                .doOnSubscribe { broadcastRouterState(RouterState.DISCOVERING) }
-                )
-                .doOnDispose { broadcastRouterState(RouterState.OFFLINE) }
-                .doOnComplete { broadcastRouterState(RouterState.OFFLINE) }
-                .doFinally { discoveryLock.set(false) }
-
-
-        val d = retryDelay(transaction, 5)
-            .repeat()
+            .subscribe(
+                { res ->
+                    if (res) {
+                        acquireWakelock()
+                    } else {
+                        LOG.v("transaction completed, NOT releasing, should time out naturally")
+                    }
+                },
+                { err ->
+                    LOG.e("error in observeTransactionStatus: wakelocks broked")
+                    err.printStackTrace()
+                }
+            )
+        val d = bluetoothLEModule.startServer()
+            .andThen(
+                bluetoothLEModule.discoverForever()
+                    .doOnSubscribe { broadcastRouterState(RouterState.DISCOVERING) }
+            )
+            .doOnDispose { broadcastRouterState(RouterState.OFFLINE) }
+            .doOnComplete { broadcastRouterState(RouterState.OFFLINE) }
+            .doFinally { discoveryLock.set(false) }
             .subscribe(
                 { res ->
                     LOG.v("finished transaction: ${res.success}")
                 },
                 { err ->
-                    // broadcastRouterState(RouterState.ERROR)
-                    LOG.e("error in transaction: $err")
+                    firebaseWrapper.recordException(err)
+                    LOG.e("error in transaction: $err this should not happen")
                     err.printStackTrace()
                 })
         compositeDisposable.add(d)
@@ -126,7 +121,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     override fun stop(): Boolean {
         val lock = discoveryLock.getAndSet(false)
 
-        if(lock) {
+        if (lock) {
             bluetoothLEModule.clearPeers()
             bluetoothLEModule.stopServer()
             bluetoothLEModule.stopDiscover()
@@ -141,13 +136,11 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     init {
         val d = this.bluetoothLEModule.observeCompletedTransactions()
-                .retry()
-                .repeat()
-                .subscribe({ transactionStats -> broadcastTransactionResult(transactionStats) }
-                ) { e ->
-                    LOG.e("fatal error, transaction relay somehow called onError $e")
-                    e.printStackTrace()
-                    firebaseWrapper.recordException(e)
-                }
+            .subscribe({ transactionStats -> broadcastTransactionResult(transactionStats) }
+            ) { e ->
+                LOG.e("fatal error, transaction relay somehow called onError $e")
+                e.printStackTrace()
+                firebaseWrapper.recordException(e)
+            }
     }
 }

@@ -50,10 +50,6 @@ android {
         }
     }
 
-
-    buildFeatures {
-        viewBinding true
-    }
     compileOptions {
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
@@ -94,7 +90,7 @@ protobuf {
 
 dependencies {
     def lifecycle_version = "2.5.1"
-    implementation 'androidx.appcompat:appcompat:1.5.0'
+    implementation 'androidx.appcompat:appcompat:1.5.1'
     implementation "com.google.protobuf:protobuf-javalite:$protobuf_version"
     implementation "androidx.room:room-runtime:2.4.3"
     // Because RxAndroid releases are few and far between, it is recommended you also
@@ -103,7 +99,7 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha03")
 
     //reflect for logging
-    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.7.10'
+    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.7.20'
 
     implementation project(':scatterbrainSDK')
     androidTestImplementation project(':scatterbrainSDK')
@@ -140,11 +136,11 @@ dependencies {
     testImplementation 'net.java.dev.jna:jna:5.11.0@aar'
     testImplementation 'net.java.dev.jna:jna-platform:5.11.0'
 
-    implementation "com.google.dagger:dagger:2.43.2"
-    testImplementation "com.google.dagger:dagger:2.43.2"
+    implementation "com.google.dagger:dagger:2.44"
+    testImplementation "com.google.dagger:dagger:2.44"
 
-    kapt "com.google.dagger:dagger-compiler:2.43.2"
-    kaptTest "com.google.dagger:dagger-compiler:2.43.2"
+    kapt "com.google.dagger:dagger-compiler:2.44"
+    kaptTest "com.google.dagger:dagger-compiler:2.44"
 
 
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
@@ -162,7 +158,7 @@ dependencies {
 
     testImplementation "com.github.davidmoten:rxjava2-extras:0.1.38"
 
-    implementation "androidx.core:core-ktx:1.8.0"
+    implementation "androidx.core:core-ktx:1.9.0"
     androidTestImplementation 'androidx.test:core:1.4.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'com.google.firebase:firebase-crashlytics:18.3.1'
@@ -182,5 +178,8 @@ dependencies {
     kapt "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.5.0"
 }
 repositories {
+    google()
     mavenCentral()
+    gradlePluginPortal()
+    maven { url "https://jitpack.io" }
 }
