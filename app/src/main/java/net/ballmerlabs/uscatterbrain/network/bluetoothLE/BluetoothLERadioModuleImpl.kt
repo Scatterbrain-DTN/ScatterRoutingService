@@ -339,7 +339,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         val settings = AdvertisingSetParameters.Builder()
                             .setConnectable(true)
                             .setScannable(true)
-                            .setInterval(AdvertisingSetParameters.INTERVAL_MEDIUM)
+                            .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
                             .setLegacyMode(true)
                             .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                             .build()
@@ -1015,7 +1015,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .setScanMode(parseScanMode())
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .setShouldCheckLocationServicesState(false)
-                .setLegacy(false)
+                .setLegacy(true)
                 .build(),
             ScanFilter.Builder()
                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
@@ -1034,7 +1034,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun discoverForever(): Observable<HandshakeResult> {
         val discover = discoverContinuous()
-            .doOnNext { d -> LOG.v("unfiltered scan result ${d.bleDevice.macAddress}") }
             .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
             .doOnSubscribe { discoveryPersistent.set(true) }
             .concatMapSingle { res ->
@@ -1047,7 +1046,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .toSingleDefault(res)
             }
             .filter { res -> shouldConnect(res) }
-            .doOnNext { d -> LOG.v("scan result ${d.bleDevice.macAddress}") }
             .concatMapMaybe { scanResult ->
                 processScanResult(scanResult)
                     .onErrorComplete()
