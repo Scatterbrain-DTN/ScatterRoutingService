@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothGattService
 import android.bluetooth.le.*
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.sip.SipSession.State
 import android.os.ParcelUuid
 import androidx.core.app.ActivityCompat
 import com.jakewharton.rxrelay2.BehaviorRelay
@@ -338,7 +339,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         val settings = AdvertisingSetParameters.Builder()
                             .setConnectable(true)
                             .setScannable(true)
-                            .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                            .setInterval(AdvertisingSetParameters.INTERVAL_MEDIUM)
                             .setLegacyMode(true)
                             .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                             .build()
@@ -389,7 +390,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 advertisingLock.set(false)
             }
 
-        return awaitBluetoothEnabled().andThen(advertise)
+        return advertise
     }
 
     private fun setAdvertisingLuid(luid: UUID): Completable {
@@ -1014,24 +1015,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .setScanMode(parseScanMode())
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .setShouldCheckLocationServicesState(false)
-                .setLegacy(true)
+                .setLegacy(false)
                 .build(),
             ScanFilter.Builder()
                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
                 .build()
         )
-    }
-
-    private fun awaitBluetoothEnabled(): Completable {
-        return Completable.defer {
-            if (mClient.state == RxBleClient.State.READY) {
-                Completable.complete()
-            } else {
-                mClient.observeStateChanges()
-                    .takeUntil { v -> v == RxBleClient.State.READY }
-                    .ignoreElements()
-            }
-        }
     }
 
     private fun shouldConnect(res: ScanResult): Boolean {
@@ -1045,6 +1034,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     override fun discoverForever(): Observable<HandshakeResult> {
         val discover = discoverContinuous()
+            .doOnNext { d -> LOG.v("unfiltered scan result ${d.bleDevice.macAddress}") }
             .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
             .doOnSubscribe { discoveryPersistent.set(true) }
             .concatMapSingle { res ->
@@ -1057,6 +1047,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     .toSingleDefault(res)
             }
             .filter { res -> shouldConnect(res) }
+            .doOnNext { d -> LOG.v("scan result ${d.bleDevice.macAddress}") }
             .concatMapMaybe { scanResult ->
                 processScanResult(scanResult)
                     .onErrorComplete()
@@ -1073,7 +1064,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         err.printStackTrace()
                     }
             }
-            .doOnComplete { LOG.e("discoverForever completed, retry") }
+            .doOnComplete { LOG.e("discoverForever completed") }
             .doOnError { err ->
                 firebase.recordException(err)
                 LOG.e("discoverForever error: $err")
@@ -1082,10 +1073,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doFinally { discoveryPersistent.set(false) }
             .doOnSubscribe { LOG.e("subscribed discoverForever") }
 
-        return awaitBluetoothEnabled()
-            .andThen(discover)
-            .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
-
+        return discover
     }
 
     // Droids are weird and sometimes throttle repeated LE discoveries.
@@ -1095,7 +1083,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         defaultDelay: Long = 10
     ): Observable<T> {
         return e.concatMap { err ->
-            if (err is BleScanException) {
+            if (err is BleScanException && err.retryDateSuggestion != null) {
                 val delay = err.retryDateSuggestion!!.time - Date().time
                 LOG.e("undocumented scan throttling. Waiting $delay seconds")
                 Completable.complete().delay(delay, TimeUnit.SECONDS)
