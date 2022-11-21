@@ -133,8 +133,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     override fun stop(): Boolean {
         val lock = discoveryLock.getAndSet(false)
         client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
+        broadcastRouterState(RouterState.OFFLINE)
         if (lock) {
-            broadcastRouterState(RouterState.OFFLINE)
             bluetoothLEModule.clearPeers()
             bluetoothLEModule.stopServer()
             bluetoothLEModule.stopDiscover()
