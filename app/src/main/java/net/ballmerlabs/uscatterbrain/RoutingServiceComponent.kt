@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.content.SharedPreferences
@@ -21,6 +22,8 @@ import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiver
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiverImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
@@ -104,6 +107,10 @@ interface RoutingServiceComponent {
         @Singleton
         abstract fun bindGattServer(impl: GattServerImpl): GattServer
 
+        @Binds
+        @Singleton
+        abstract fun bindsScanBroadcastReceiver(impl: ScanBroadcastReceiverImpl): ScanBroadcastReceiver
+
         @Module
         companion object {
             @Provides
@@ -118,8 +125,13 @@ interface RoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            fun providesChannel(ctx: Context?, wifiP2pManager: WifiP2pManager?): WifiP2pManager.Channel {
-                return wifiP2pManager!!.initialize(ctx, ctx!!.mainLooper, null)
+            fun providesChannel(ctx: Context, wifiP2pManager: WifiP2pManager): WifiP2pManager.Channel {
+                return wifiP2pManager.initialize(ctx, ctx.mainLooper, null)
+            }
+
+            @Provides
+            fun providesBluetoothManager(ctx: Context): BluetoothManager {
+                return ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
             }
 
             @Provides
@@ -183,11 +195,6 @@ interface RoutingServiceComponent {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
             }
 
-            @Provides
-            @JvmStatic
-            fun provideLeAdvertiser(): BluetoothLeAdvertiser {
-                return BluetoothAdapter.getDefaultAdapter().bluetoothLeAdvertiser
-            }
 
             @Provides
             @JvmStatic
@@ -207,6 +214,7 @@ interface RoutingServiceComponent {
     fun scatterRoutingService(): RoutingServiceBackend?
     fun wifiDirectRadioModule(): WifiDirectRadioModule
     fun inject(provider: DatastoreImportProviderImpl?)
+    fun inject(provider: ScanBroadcastReceiverImpl)
 
     companion object {
         const val SHARED_PREFS = "scatterbrainprefs"

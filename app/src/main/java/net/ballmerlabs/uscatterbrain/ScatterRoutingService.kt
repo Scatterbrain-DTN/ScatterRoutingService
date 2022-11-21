@@ -709,6 +709,7 @@ class ScatterRoutingService : LifecycleService() {
                 .applicationContext(this)
                 ?.build()!!
             component.accept(c)
+            componentVal = c
             mBackend = c.scatterRoutingService()!!
         }
         val manager = getSystemService(NotificationManager::class.java)
@@ -751,6 +752,7 @@ class ScatterRoutingService : LifecycleService() {
 
     companion object {
         private val component = BehaviorRelay.create<RoutingServiceComponent>()
+        var componentVal: RoutingServiceComponent? = null
         private const val NOTIFICATION_CHANNEL_FOREGROUND = "foreground"
         fun getComponent(): Single<RoutingServiceComponent> {
             return component.firstOrError()

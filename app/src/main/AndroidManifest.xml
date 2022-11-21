@@ -44,6 +44,7 @@
         tools:replace="android:allowBackup"
         android:targetSdkVersion="23">
 
+        <receiver android:name=".network.bluetoothLE.ScanBroadcastReceiverImpl"/>
         <service
             android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService"
             android:foregroundServiceType="location"

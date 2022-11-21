@@ -4,10 +4,10 @@ import android.Manifest
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothManager
 import android.bluetooth.le.*
 import android.content.Context
 import android.content.pm.PackageManager
-import android.net.sip.SipSession.State
 import android.os.ParcelUuid
 import androidx.core.app.ActivityCompat
 import com.jakewharton.rxrelay2.BehaviorRelay
@@ -105,7 +105,6 @@ data class Optional<T>(
 @Singleton
 class BluetoothLERadioModuleImpl @Inject constructor(
     private val mContext: Context,
-    private val mAdvertiser: BluetoothLeAdvertiser,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
     private val mClient: RxBleClient,
@@ -114,7 +113,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val preferences: RouterPreferences,
     private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
     private val newServer: GattServer,
-    private val firebase: FirebaseWrapper
+    private val firebase: FirebaseWrapper,
+    private val manager: BluetoothManager
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
     private val serverStarted = AtomicReference(false)
@@ -307,7 +307,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     }
 
-    private fun randomizeLuidIfOld(): Boolean {
+    override fun randomizeLuidIfOld(): Boolean {
         val now = Date()
         val old = lastLuidRandomize.getAndUpdate { old ->
             if (now.compareTo(old) > LUID_RANDOMIZE_DELAY) {
@@ -369,7 +369,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             ) {
                                 throw PermissionsNotAcceptedException()
                             } else {
-                                mAdvertiser.startAdvertisingSet(
+                                manager.adapter?.bluetoothLeAdvertiser?.startAdvertisingSet(
                                     settings,
                                     serviceData,
                                     responsedata,
@@ -393,7 +393,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return advertise
     }
 
-    private fun setAdvertisingLuid(luid: UUID): Completable {
+    override fun setAdvertisingLuid(): Completable {
+        val currentLuid = getHashUuid(myLuid.get()) ?: UUID.randomUUID()
+        return setAdvertisingLuid(currentLuid)
+    }
+
+    override fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
             if (ActivityCompat.checkSelfPermission(
                     mContext,
@@ -484,7 +489,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Manifest.permission.BLUETOOTH_ADVERTISE
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                mAdvertiser.stopAdvertisingSet(advertiseSetCallback)
+                manager.adapter?.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseSetCallback)
             } else {
                 throw PermissionsNotAcceptedException()
             }
@@ -941,7 +946,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult> {
+    override fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult> {
         LOG.d("scan result: " + scanResult.bleDevice.macAddress)
         return Maybe.defer {
             val remoteUuid = getAdvertisedLuid(scanResult)
@@ -1023,7 +1028,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         )
     }
 
-    private fun shouldConnect(res: ScanResult): Boolean {
+    override fun shouldConnect(res: ScanResult): Boolean {
         val advertisingLuid = getAdvertisedLuid(res)
         return advertisingLuid != null && !activeLuids.containsKey(advertisingLuid)
     }
@@ -1040,8 +1045,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 if (shouldConnect(res)) {
                     transactionInProgressRelay.accept(true)
                 }
-                val currentLuid = getHashUuid(myLuid.get()) ?: UUID.randomUUID()
-                setAdvertisingLuid(currentLuid)
+                setAdvertisingLuid()
                     .andThen(removeWifiDirectGroup(randomizeLuidIfOld()).onErrorComplete())
                     .toSingleDefault(res)
             }
@@ -1126,7 +1130,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         d?.dispose()
     }
 
-    private fun removeWifiDirectGroup(shouldRemove: Boolean): Completable {
+    override fun removeWifiDirectGroup(shouldRemove: Boolean): Completable {
         return Completable.defer {
             if (shouldRemove) {
                 wifiDirectRadioModule.removeGroup()

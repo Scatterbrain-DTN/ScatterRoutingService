@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Parcelable
 import android.os.PowerManager
+import com.polidea.rxandroidble2.RxBleClient
+import com.polidea.rxandroidble2.scan.ScanSettings
+import com.polidea.rxandroidble2.scan.ScanSettings.SCAN_MODE_LOW_POWER
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -11,6 +14,7 @@ import net.ballmerlabs.scatterbrainsdk.RouterState
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.atomic.AtomicReference
@@ -29,9 +33,11 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val bluetoothLEModule: BluetoothLEModule,
     private val context: Context,
     private val firebaseWrapper: FirebaseWrapper,
+    private val client: RxBleClient,
     powerManager: PowerManager
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
+    private val pendingIntent = ScanBroadcastReceiver.newPendingIntent(context)
     private val discoveryLock = AtomicReference(false)
     override val isDiscovering: Boolean
         get() = discoveryLock.get()
@@ -95,16 +101,22 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 }
             )
         val d = bluetoothLEModule.startServer()
-            .andThen(
-                bluetoothLEModule.discoverForever()
-                    .doOnSubscribe { broadcastRouterState(RouterState.DISCOVERING) }
-            )
-            .doOnDispose { broadcastRouterState(RouterState.OFFLINE) }
-            .doOnComplete { broadcastRouterState(RouterState.OFFLINE) }
+            .doOnSubscribe {
+                broadcastRouterState(RouterState.DISCOVERING)
+                client.backgroundScanner.scanBleDeviceInBackground(
+                    pendingIntent,
+                    ScanSettings.Builder()
+                        .setScanMode(SCAN_MODE_LOW_POWER)
+                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                        .setShouldCheckLocationServicesState(false)
+                        .setLegacy(true)
+                        .build()
+                )
+            }
             .doFinally { discoveryLock.set(false) }
             .subscribe(
-                { res ->
-                    LOG.v("finished transaction: ${res.success}")
+                {
+                    LOG.v("finished transaction")
                 },
                 { err ->
                     firebaseWrapper.recordException(err)
@@ -120,8 +132,9 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     @Synchronized
     override fun stop(): Boolean {
         val lock = discoveryLock.getAndSet(false)
-
+        client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
         if (lock) {
+            broadcastRouterState(RouterState.OFFLINE)
             bluetoothLEModule.clearPeers()
             bluetoothLEModule.stopServer()
             bluetoothLEModule.stopDiscover()

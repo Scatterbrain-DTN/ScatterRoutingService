@@ -1,6 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import java.util.*
@@ -83,6 +85,41 @@ interface BluetoothLEModule {
      */
     fun clearPeers()
 
+
+    /**
+     * Changes the luid value sent in the scan response data
+     * @param scanResult
+     * @return completable
+     */
+    fun setAdvertisingLuid(scanResult: UUID): Completable
+
+
+    /**
+     * Changes the luid value set in the scan response data to the current luid
+     * @return completable
+     */
+    fun setAdvertisingLuid(): Completable
+
+    /**
+     * Removes the current wifi direct group if it exists
+     * @param shouldRemove do nothing if false (what?)
+     * @return completable
+     */
+    fun removeWifiDirectGroup(shouldRemove: Boolean): Completable
+
+    /**
+     * Return true if the scanresult contains a connectable device
+     * @param result ScanResult
+     * @return true if we should connect
+     */
+    fun shouldConnect(res: ScanResult): Boolean
+
+    /**
+     * If the current luid has been around for LUID_RANDOMIZE_DELAY, randomize it
+     * @return true if luid was randomized
+     */
+    fun randomizeLuidIfOld(): Boolean
+
     /**
      * role is a generalized concept of "initiator" vs "acceptor"
      * with "SEME" being an initiator and "UKE" being acceptor
@@ -93,6 +130,13 @@ interface BluetoothLEModule {
      *
      * This is decided via the leader election process
      */
+
+    /**
+     * Handle an existing scan result
+     * @param scanResult scan result
+     * @return maybe for transaction
+     */
+    fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult>
     enum class ConnectionRole {
         ROLE_UKE, ROLE_SEME
     }

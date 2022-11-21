@@ -56,13 +56,6 @@ interface GattServerConnectionSubcomponent {
             ): BluetoothGattServer {
                 return bluetoothManager.openGattServer(context, gattServerCallback.gattServerCallback)
             }
-
-            @Provides
-            @JvmStatic
-            @GattServerConnectionScope
-            fun providesBluetoothManager(context: Context): BluetoothManager {
-                return context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-            }
         }
     }
 
