@@ -20,10 +20,7 @@ import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.RoutingServiceModul
 import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiver
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiverImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
@@ -56,7 +53,8 @@ interface RoutingServiceComponent {
     @Module(subcomponents = [
         WifiDirectInfoSubcomponent::class,
         BootstrapRequestSubcomponent::class,
-        GattServerConnectionSubcomponent::class
+        GattServerConnectionSubcomponent::class,
+        ScatterbrainTransactionSubcomponent::class
     ])
     abstract class RoutingServiceModule {
         @Binds
@@ -73,19 +71,11 @@ interface RoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun bindWifiDirectRadioModule(impl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
-
-        @Binds
-        @Singleton
         abstract fun bindRouterPreferences(impl: RouterPreferencesImpl): RouterPreferences
 
         @Binds
         @Singleton
         abstract fun bindsDatastoreImportProvider(impl: DatastoreImportProviderImpl): DatastoreImportProvider
-
-        @Binds
-        @Singleton
-        abstract fun bindRadioModuleInternal(impl: BluetoothLERadioModuleImpl): BluetoothLEModule
 
         @Binds
         @Singleton
@@ -111,6 +101,14 @@ interface RoutingServiceComponent {
         @Singleton
         abstract fun bindsScanBroadcastReceiver(impl: ScanBroadcastReceiverImpl): ScanBroadcastReceiver
 
+        @Binds
+        @Singleton
+        abstract fun bindsTransactionFactory(impl: ScatterbrainTransactionFactoryImpl): ScatterbrainTransactionFactory
+
+        @Binds
+        @Singleton
+        abstract fun bindsAdvertiser(impl: AdvertiserImpl): Advertiser
+
         @Module
         companion object {
             @Provides
@@ -120,6 +118,13 @@ interface RoutingServiceComponent {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
                         .fallbackToDestructiveMigration()
                         .build()
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesLeState(): LeState {
+                return LeState()
             }
 
             @Provides
@@ -212,7 +217,6 @@ interface RoutingServiceComponent {
     }
 
     fun scatterRoutingService(): RoutingServiceBackend?
-    fun wifiDirectRadioModule(): WifiDirectRadioModule
     fun inject(provider: DatastoreImportProviderImpl?)
     fun inject(provider: ScanBroadcastReceiverImpl)
 

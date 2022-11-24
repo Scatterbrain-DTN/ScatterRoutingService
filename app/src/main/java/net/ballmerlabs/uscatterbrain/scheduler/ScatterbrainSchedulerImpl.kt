@@ -13,6 +13,7 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.RouterState
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
@@ -30,9 +31,9 @@ import javax.inject.Singleton
  */
 @Singleton
 class ScatterbrainSchedulerImpl @Inject constructor(
-    private val bluetoothLEModule: BluetoothLEModule,
     private val context: Context,
     private val firebaseWrapper: FirebaseWrapper,
+    private val advertiser: Advertiser,
     private val client: RxBleClient,
     powerManager: PowerManager
 ) : ScatterbrainScheduler {
@@ -84,49 +85,18 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             broadcastRouterState(RouterState.DISCOVERING)
             return
         }
+        advertiser.startAdvertise().blockingAwait()
         isAdvertising = true
-        val compositeDisposable = CompositeDisposable()
-        val d2 = bluetoothLEModule.observeTransactionStatus()
-            .subscribe(
-                { res ->
-                    if (res) {
-                        acquireWakelock()
-                    } else {
-                        LOG.v("transaction completed, NOT releasing, should time out naturally")
-                    }
-                },
-                { err ->
-                    LOG.e("error in observeTransactionStatus: wakelocks broked")
-                    err.printStackTrace()
-                }
-            )
-        val d = bluetoothLEModule.startServer()
-            .doOnSubscribe {
-                broadcastRouterState(RouterState.DISCOVERING)
-                client.backgroundScanner.scanBleDeviceInBackground(
-                    pendingIntent,
-                    ScanSettings.Builder()
-                        .setScanMode(SCAN_MODE_LOW_POWER)
-                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .setShouldCheckLocationServicesState(false)
-                        .setLegacy(true)
-                        .build()
-                )
-            }
-            .doFinally { discoveryLock.set(false) }
-            .subscribe(
-                {
-                    LOG.v("finished transaction")
-                },
-                { err ->
-                    firebaseWrapper.recordException(err)
-                    LOG.e("error in transaction: $err this should not happen")
-                    err.printStackTrace()
-                })
-        compositeDisposable.add(d)
-        compositeDisposable.add(d2)
-        val disp = globalDisposable.getAndSet(compositeDisposable)
-        disp?.dispose()
+        client.backgroundScanner.scanBleDeviceInBackground(
+            pendingIntent,
+            ScanSettings.Builder()
+                .setScanMode(SCAN_MODE_LOW_POWER)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .setShouldCheckLocationServicesState(false)
+                .setLegacy(true)
+                .build()
+        )
+        broadcastRouterState(RouterState.DISCOVERING)
     }
 
     @Synchronized
@@ -135,9 +105,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
         broadcastRouterState(RouterState.OFFLINE)
         if (lock) {
-            bluetoothLEModule.clearPeers()
-            bluetoothLEModule.stopServer()
-            bluetoothLEModule.stopDiscover()
+            //TODO: stop advertise
             val disp = globalDisposable.getAndSet(null)
             disp?.dispose()
         }
@@ -148,12 +116,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         get() = isAdvertising && !isDiscovering
 
     init {
-        val d = this.bluetoothLEModule.observeCompletedTransactions()
-            .subscribe({ transactionStats -> broadcastTransactionResult(transactionStats) }
-            ) { e ->
-                LOG.e("fatal error, transaction relay somehow called onError $e")
-                e.printStackTrace()
-                firebaseWrapper.recordException(e)
-            }
+        LOG.e("stop scan")
+        client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
     }
 }

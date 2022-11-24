@@ -3,8 +3,11 @@ package net.ballmerlabs.uscatterbrain
 import android.bluetooth.BluetoothGattServer
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.util.Log
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import dagger.*
+import io.reactivex.Single
+import io.reactivex.android.schedulers.AndroidSchedulers
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.GattServerOperationQueue
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.ServerOperationQueueImpl
@@ -54,7 +57,10 @@ interface GattServerConnectionSubcomponent {
                     context: Context,
                     gattServerCallback: GattServerConnection
             ): BluetoothGattServer {
-                return bluetoothManager.openGattServer(context, gattServerCallback.gattServerCallback)
+                return bluetoothManager.openGattServer(
+                        context,
+                        gattServerCallback.gattServerCallback
+                    )
             }
         }
     }

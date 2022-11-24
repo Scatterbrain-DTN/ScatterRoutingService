@@ -8,18 +8,6 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import java.util.*
 
 interface BluetoothLEModule {
-
-    /**
-     * Stats LE advertise on scatterbrain UUID
-     * This should run offloaded on the adapter until stopAdvertise is called
-     */
-    fun startAdvertise(luid: UUID? = null): Completable
-
-    /**
-     * Stops LE advertise
-     */
-    fun stopAdvertise(): Completable
-
     /**
      * Stops active discovery
      */
@@ -85,21 +73,6 @@ interface BluetoothLEModule {
      */
     fun clearPeers()
 
-
-    /**
-     * Changes the luid value sent in the scan response data
-     * @param scanResult
-     * @return completable
-     */
-    fun setAdvertisingLuid(scanResult: UUID): Completable
-
-
-    /**
-     * Changes the luid value set in the scan response data to the current luid
-     * @return completable
-     */
-    fun setAdvertisingLuid(): Completable
-
     /**
      * Removes the current wifi direct group if it exists
      * @param shouldRemove do nothing if false (what?)
@@ -115,10 +88,11 @@ interface BluetoothLEModule {
     fun shouldConnect(res: ScanResult): Boolean
 
     /**
-     * If the current luid has been around for LUID_RANDOMIZE_DELAY, randomize it
-     * @return true if luid was randomized
+     * Handle an existing scan result
+     * @param scanResult scan result
+     * @return maybe for transaction
      */
-    fun randomizeLuidIfOld(): Boolean
+    fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult>
 
     /**
      * role is a generalized concept of "initiator" vs "acceptor"
@@ -131,12 +105,6 @@ interface BluetoothLEModule {
      * This is decided via the leader election process
      */
 
-    /**
-     * Handle an existing scan result
-     * @param scanResult scan result
-     * @return maybe for transaction
-     */
-    fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult>
     enum class ConnectionRole {
         ROLE_UKE, ROLE_SEME
     }

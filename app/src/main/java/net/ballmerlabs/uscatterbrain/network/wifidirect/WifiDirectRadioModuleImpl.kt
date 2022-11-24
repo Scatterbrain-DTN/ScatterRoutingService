@@ -41,7 +41,7 @@ import javax.inject.Singleton
  *
  * Manually setting the group passphrase requires a very new API level (android 10 or above)
  */
-@Singleton
+@ScatterbrainTransactionScope
 class WifiDirectRadioModuleImpl @Inject constructor(
     private val mManager: WifiP2pManager,
     private val mContext: Context,
@@ -58,37 +58,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val socketProvider: SocketProvider
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
-
-    /*
-     * we need to unregister and register the receiver when
-     * the service stops and starts. NOTE: since we use a foreground
-     * service we do not unregister it when the app's activity is minimized
-     */
-    override fun unregisterReceiver() {
-        LOG.v("unregistering broadcast receier")
-        try {
-            mContext.unregisterReceiver(mBroadcastReceiver.asReceiver())
-        } catch (illegalArgumentException: IllegalArgumentException) {
-            //firebaseWrapper.recordException(illegalArgumentException)
-            LOG.w("attempted to unregister nonexistent receiver, ignore.")
-        }
-    }
-
-    override fun registerReceiver() {
-        LOG.v("registering broadcast receiver")
-        val intentFilter = IntentFilter()
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
-
-        // Indicates a change in the list of available peers.
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
-
-        // Indicates the state of Wi-Fi P2P connectivity has changed.
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
-
-        // Indicates this device's details have changed.
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
-        mContext.registerReceiver(mBroadcastReceiver.asReceiver(), intentFilter)
-    }
 
     private fun createGroupSingle(): Completable {
         return Completable.defer {

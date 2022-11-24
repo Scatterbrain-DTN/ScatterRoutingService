@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Binder
@@ -466,7 +467,7 @@ class ScatterRoutingService : LifecycleService() {
             checkAdminPermission()
             LOG.v("manualRefreshPeers")
             val handle = generateNewHandle()
-            val disp = mBackend.radioModule.refreshPeers()
+            val disp = mBackend.refreshPeers()
                 .doOnDispose { callbackHandles.remove(handle) }
                 .doFinally { callbackHandles.remove(handle) }
                 .subscribe(
@@ -705,11 +706,8 @@ class ScatterRoutingService : LifecycleService() {
         )
         if (!this::mBackend.isInitialized) {
             LOG.e("init!!")
-            val c = DaggerRoutingServiceComponent.builder()
-                .applicationContext(this)
-                ?.build()!!
+            val c = this.getComponent()!!
             component.accept(c)
-            componentVal = c
             mBackend = c.scatterRoutingService()!!
         }
         val manager = getSystemService(NotificationManager::class.java)
@@ -723,8 +721,8 @@ class ScatterRoutingService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         try {
-            mBackend.wifiDirect.registerReceiver()
-            mBackend.radioModule.clearPeers()
+           // mBackend.registerReceiver()
+            mBackend.leState.connectionCache.clear()
         } catch (e: Exception) {
             e.printStackTrace()
             FirebaseCrashlytics.getInstance().recordException(e)
@@ -746,16 +744,27 @@ class ScatterRoutingService : LifecycleService() {
         super.onDestroy()
         LOG.e("onDestroy called")
         mBackend.scheduler.stop()
-        mBackend.radioModule.clearPeers()
-        mBackend.wifiDirect.unregisterReceiver()
+        mBackend.unregisterReceiver()
+       // mBackend.radioModule.clearPeers()
+        //mBackend.wifiDirect.unregisterReceiver()
     }
 
     companion object {
         private val component = BehaviorRelay.create<RoutingServiceComponent>()
-        var componentVal: RoutingServiceComponent? = null
         private const val NOTIFICATION_CHANNEL_FOREGROUND = "foreground"
         fun getComponent(): Single<RoutingServiceComponent> {
             return component.firstOrError()
         }
     }
+}
+
+val component = AtomicReference<RoutingServiceComponent?>(null)
+
+fun Context.getComponent(): RoutingServiceComponent? {
+    return component.updateAndGet { c ->
+        c?: DaggerRoutingServiceComponent
+            .builder()
+            .applicationContext(this)?.build()
+    }!!
+
 }

@@ -34,16 +34,6 @@ interface WifiDirectRadioModule {
     fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest): Single<HandshakeResult>
 
     /**
-     * unregisters the wifi direct broadcast receiver
-     */
-    fun unregisterReceiver()
-
-    /**
-     * registers the wifi direct broadcast receiver
-     */
-    fun registerReceiver()
-
-    /**
      * Manually creates a wifi direct group, autogenerating the username/passphrase and
      * returning them as a BootstrapRequest
      * @return WifiDirectBootstrapRequest

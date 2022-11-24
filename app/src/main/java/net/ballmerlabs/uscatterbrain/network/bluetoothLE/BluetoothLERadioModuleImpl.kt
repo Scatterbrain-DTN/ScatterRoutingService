@@ -21,6 +21,7 @@ import com.polidea.rxandroidble2.scan.ScanResult
 import com.polidea.rxandroidble2.scan.ScanSettings
 import io.reactivex.*
 import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
@@ -28,10 +29,7 @@ import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
-import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
-import net.ballmerlabs.uscatterbrain.R
-import net.ballmerlabs.uscatterbrain.RouterPreferences
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.AckPacket
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
@@ -102,7 +100,7 @@ data class Optional<T>(
  * Instead of mac, we use a randomly generated uuid called an "LUID". Unfortunately this means we
  * must be capable of servicing multiple concurrent connection up to the exchange of LUID values
  */
-@Singleton
+@ScatterbrainTransactionScope
 class BluetoothLERadioModuleImpl @Inject constructor(
     private val mContext: Context,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
@@ -114,43 +112,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
     private val newServer: GattServer,
     private val firebase: FirebaseWrapper,
-    private val manager: BluetoothManager
+    private val manager: BluetoothManager,
+    private val state: LeState,
+    private val advertiser: Advertiser
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
-    private val serverStarted = AtomicReference(false)
-
-    private val isAdvertising = BehaviorSubject.create<Pair<Optional<AdvertisingSet>, Int>>()
-    private val advertisingLock = AtomicReference(false)
-    private val advertisingDataUpdated = PublishSubject.create<Int>()
-
-    // map advertising state to rxjava2
-    private val advertiseSetCallback = object : AdvertisingSetCallback() {
-        override fun onAdvertisingSetStarted(
-            advertisingSet: AdvertisingSet?,
-            txPower: Int,
-            status: Int
-        ) {
-            super.onAdvertisingSetStarted(advertisingSet, txPower, status)
-            if (advertisingSet != null) {
-                isAdvertising.onNext(Pair(Optional.of(advertisingSet), status))
-            } else {
-                isAdvertising.onNext(Pair(Optional.empty(), status))
-            }
-            LOG.v("successfully started advertise $status")
-        }
-
-        override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
-            super.onAdvertisingSetStopped(advertisingSet)
-            LOG.e("advertise stopped")
-            isAdvertising.onNext(Pair(Optional.empty(), ADVERTISE_SUCCESS))
-        }
-
-        override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
-            super.onScanResponseDataSet(advertisingSet, status)
-            advertisingDataUpdated.onNext(status)
-        }
-    }
-
 
     // scatterbrain gatt service object
     private val mService =
@@ -167,15 +133,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val transactionCompleteRelay = PublishRelay.create<HandshakeResult>()
 
-    // luid is a temporary unique identifier used for a single transaction.
-    private val myLuid = AtomicReference(UUID.randomUUID())
-
-    private val connectionCache = ConcurrentHashMap<UUID, CachedLEConnection>()
     private val transactionLock = AtomicReference(false)
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
     private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
     private val transactionInProgressRelay = BehaviorRelay.create<Boolean>()
-    private val lastLuidRandomize = AtomicReference(Date())
 
     // a "channel" is a characteristc that protobuf messages are written to.
     private val channels = ConcurrentHashMap<UUID, LockedCharactersitic>()
@@ -237,7 +198,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             channels[channel] = LockedCharactersitic(makeCharacteristic(channel), i)
         }
         refreshInProgresss.accept(false)
-        isAdvertising.onNext(Pair(Optional.empty(), AdvertisingSetCallback.ADVERTISE_SUCCESS))
         LOG.e("init")
         observeTransactionComplete()
     }
@@ -294,208 +254,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun mapAdvertiseComplete(state: Boolean): Completable {
-        return isAdvertising
-            .takeUntil { v -> (v.first.isPresent == state) || (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) }
-            .flatMapCompletable { v ->
-                if (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) {
-                    Completable.error(IllegalStateException("failed to complete advertise task: ${v.second}"))
-                } else {
-                    Completable.complete()
-                }
-            }
-
-    }
-
-    override fun randomizeLuidIfOld(): Boolean {
-        val now = Date()
-        val old = lastLuidRandomize.getAndUpdate { old ->
-            if (now.compareTo(old) > LUID_RANDOMIZE_DELAY) {
-                now
-            } else {
-                old
-            }
-        }
-        return if (old.compareTo(now) > LUID_RANDOMIZE_DELAY) {
-            myLuid.set(UUID.randomUUID())
-            true
-        } else {
-            false
-        }
-    }
-
-    /**
-     * start offloaded advertising. This should continue even after the phone is asleep
-     */
-    override fun startAdvertise(luid: UUID?): Completable {
-        val advertise = isAdvertising
-            .firstOrError()
-            .flatMapCompletable { v ->
-                if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
-                    Completable.complete()
-                else
-                    Completable.defer {
-                        LOG.v("Starting LE advertise")
-                        val settings = AdvertisingSetParameters.Builder()
-                            .setConnectable(true)
-                            .setScannable(true)
-                            .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
-                            .setLegacyMode(true)
-                            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
-                            .build()
-                        val serviceData = AdvertiseData.Builder()
-                            .setIncludeDeviceName(false)
-                            .setIncludeTxPowerLevel(false)
-                            .addServiceUuid(ParcelUuid(SERVICE_UUID))
-                            .build()
-
-                        val responsedata = if (luid != null) {
-                            AdvertiseData.Builder()
-                                .setIncludeDeviceName(false)
-                                .setIncludeTxPowerLevel(false)
-                                .addServiceData(ParcelUuid(luid), byteArrayOf(5))
-                                .build()
-                        } else {
-                            AdvertiseData.Builder()
-                                .setIncludeDeviceName(false)
-                                .setIncludeTxPowerLevel(false)
-                                .build()
-                        }
-                        if (!advertisingLock.getAndSet(true)) {
-                            if (ActivityCompat.checkSelfPermission(
-                                    mContext,
-                                    Manifest.permission.BLUETOOTH_ADVERTISE
-                                ) != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                throw PermissionsNotAcceptedException()
-                            } else {
-                                manager.adapter?.bluetoothLeAdvertiser?.startAdvertisingSet(
-                                    settings,
-                                    serviceData,
-                                    responsedata,
-                                    null,
-                                    null,
-                                    advertiseSetCallback
-                                )
-                            }
-                        }
-                        mapAdvertiseComplete(true)
-                    }
-            }.doOnError { err ->
-                firebase.recordException(err)
-                LOG.e("error in startAdvertise $err")
-                err.printStackTrace()
-            }.doFinally {
-                LOG.v("startAdvertise completed")
-                advertisingLock.set(false)
-            }
-
-        return advertise
-    }
-
-    override fun setAdvertisingLuid(): Completable {
-        val currentLuid = getHashUuid(myLuid.get()) ?: UUID.randomUUID()
-        return setAdvertisingLuid(currentLuid)
-    }
-
-    override fun setAdvertisingLuid(luid: UUID): Completable {
-        return Completable.defer {
-            if (ActivityCompat.checkSelfPermission(
-                    mContext,
-                    Manifest.permission.BLUETOOTH_ADVERTISE
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                Completable.error(PermissionsNotAcceptedException())
-            } else {
-                isAdvertising
-                    .firstOrError()
-                    .flatMapCompletable { v ->
-                        if (v.first.isPresent) {
-                            awaitAdvertiseDataUpdate()
-                                .doOnSubscribe {
-                                    if (ActivityCompat.checkSelfPermission(
-                                            mContext,
-                                            Manifest.permission.BLUETOOTH_ADVERTISE
-                                        ) == PackageManager.PERMISSION_GRANTED
-                                    ) {
-                                        v.first.item?.setScanResponseData(
-                                            AdvertiseData.Builder()
-                                                .setIncludeDeviceName(false)
-                                                .setIncludeTxPowerLevel(false)
-                                                .addServiceData(ParcelUuid(luid), byteArrayOf(5))
-                                                .build()
-                                        )
-                                    }
-
-                                }
-                        } else {
-                            startAdvertise(luid = luid)
-                        }
-                    }
-            }
-        }
-    }
-
-    private fun awaitAdvertiseDataUpdate(): Completable {
-        return advertisingDataUpdated
-            .firstOrError()
-            .flatMapCompletable { status ->
-                if (status == AdvertisingSetCallback.ADVERTISE_SUCCESS)
-                    Completable.complete()
-                else
-                    Completable.error(IllegalStateException("failed to set advertising data"))
-            }
-    }
-
-    private fun removeLuid(): Completable {
-        return Completable.defer {
-            if (ActivityCompat.checkSelfPermission(
-                    mContext,
-                    Manifest.permission.BLUETOOTH_ADVERTISE
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                Completable.error(PermissionsNotAcceptedException())
-            } else {
-                isAdvertising
-                    .firstOrError()
-                    .flatMapCompletable { v ->
-                        if (v.first.isPresent) {
-                            awaitAdvertiseDataUpdate()
-                                .doOnSubscribe {
-                                    v.first.item?.setScanResponseData(
-                                        AdvertiseData.Builder()
-                                            .setIncludeDeviceName(false)
-                                            .setIncludeTxPowerLevel(false)
-                                            .build()
-                                    )
-                                }
-                        } else {
-                            Completable.error(IllegalStateException("failed to set advertising data removeLuid"))
-                        }
-                    }
-            }
-        }
-            .doOnComplete { LOG.v("successfully removed luid") }
-    }
-
-    /**
-     * stop offloaded advertising
-     */
-    override fun stopAdvertise(): Completable {
-        LOG.v("stopping LE advertise")
-        return Completable.fromAction {
-            if (ActivityCompat.checkSelfPermission(
-                    mContext,
-                    Manifest.permission.BLUETOOTH_ADVERTISE
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                manager.adapter?.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseSetCallback)
-            } else {
-                throw PermissionsNotAcceptedException()
-            }
-            mapAdvertiseComplete(false)
-        }
-    }
 
     /**
      * Select the bootstrap protocol we should vote for in leader election
@@ -899,7 +657,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 if (!b) {
                     refreshInProgresss.takeUntil { v -> !v }
                         .flatMap {
-                            Observable.fromIterable(connectionCache.entries)
+                            Observable.fromIterable(state.connectionCache.entries)
                                 .flatMapMaybe { v ->
                                     LOG.v("refreshing peer ${v.key}")
                                     initiateOutgoingConnection(v.value, v.key)
@@ -914,11 +672,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     override fun clearPeers() {
-        connectionCache.values.forEach { c ->
+        state.connectionCache.values.forEach { c ->
             c.dispose()
         }
         activeLuids.clear()
-        connectionCache.clear()
+        state.connectionCache.clear()
     }
 
     private fun getAdvertisedLuid(scanResult: ScanResult): UUID? {
@@ -993,7 +751,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             cachedConnection.connection
                 .firstOrError()
                 .flatMapMaybe { connection ->
-                    val hash = getHashUuid(myLuid.get())!!
+                    val hash = getHashUuid(advertiser.myLuid.get())!!
                     LOG.v("writing hashed luid $hash")
                     connection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
                         .doOnSuccess { res ->
@@ -1045,8 +803,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 if (shouldConnect(res)) {
                     transactionInProgressRelay.accept(true)
                 }
-                setAdvertisingLuid()
-                    .andThen(removeWifiDirectGroup(randomizeLuidIfOld()).onErrorComplete())
+                advertiser.setAdvertisingLuid()
+                    .andThen(removeWifiDirectGroup(advertiser.randomizeLuidIfOld()).onErrorComplete())
                     .toSingleDefault(res)
             }
             .filter { res -> shouldConnect(res) }
@@ -1151,36 +909,36 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val connectSingle =
             Single.fromCallable {
                 LOG.e(
-                    "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
+                    "establishing cached connection to ${device.macAddress}, $luid, ${state.connectionCache.size} devices connected"
                 )
                 val newconnection = CachedLEConnection(channels, operationsScheduler, device)
-                val connection = connectionCache[luid]
+                val connection = state.connectionCache[luid]
                 if (connection != null) {
                     LOG.e("cache HIT")
                     connection
                 } else {
                     val rawConnection = device.establishConnection(false)
-                        .doOnError { connectionCache.remove(luid) }
+                        .doOnError { state.connectionCache.remove(luid) }
                         .doOnNext {
                             LOG.e("established cached connection to ${device.macAddress}")
                         }
                     newconnection.setOnDisconnect {
                         LOG.e("client onDisconnect $luid")
-                        val conn = connectionCache.remove(luid)
+                        val conn = state.connectionCache.remove(luid)
                         conn?.dispose()
-                        if (connectionCache.isEmpty()) {
-                            removeLuid()
+                        if (state.connectionCache.isEmpty()) {
+                            advertiser.removeLuid()
                         } else {
                             Completable.complete()
                         }
                     }
                     newconnection.subscribeConnection(rawConnection)
-                    connectionCache.putIfAbsent(luid, newconnection)
+                    state.connectionCache.putIfAbsent(luid, newconnection)
                     newconnection
                 }
             }.subscribeOn(serverScheduler)
 
-        return setAdvertisingLuid(getHashUuid(myLuid.get()) ?: UUID.randomUUID())
+        return advertiser.setAdvertisingLuid(getHashUuid(advertiser.myLuid.get()) ?: UUID.randomUUID())
             .andThen(connectSingle)
     }
 
@@ -1220,7 +978,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("successfully connected to $luid")
                         val s = LeDeviceSession(
                             device.bluetoothDevice,
-                            myLuid.get(),
+                            advertiser.myLuid.get(),
                             clientConnection,
                             connection,
                             luid
@@ -1350,7 +1108,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .subscribeOn(operationsScheduler)
             .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
             .flatMapCompletable { trans ->
-                val luid = getHashUuid(myLuid.get())
+                val luid = getHashUuid(advertiser.myLuid.get())
                 LOG.v("hello characteristic read, replying with luid $luid")
                 trans.sendReply(uuid2bytes(luid), BluetoothGatt.GATT_SUCCESS)
             }
@@ -1367,10 +1125,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 val luid = bytes2uuid(trans.value)!!
                 serverConnection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
-                    val conn = connectionCache.remove(luid)
+                    val conn = state.connectionCache.remove(luid)
                     conn?.dispose()
-                    if (connectionCache.isEmpty()) {
-                        removeLuid().blockingAwait()
+                    if (state.connectionCache.isEmpty()) {
+                        advertiser.removeLuid().blockingAwait()
                     }
                 }
                 LOG.e("server handling luid $luid")
@@ -1414,15 +1172,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * @return false on failure
      */
     override fun startServer(): Completable {
-        val started = serverStarted.getAndSet(true)
-        if (started) {
-            return startAdvertise()
-        }
-
         val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
             .addService(mService)
-
-        val startSubject = CompletableSubject.create()
 
         /*
          * NOTE: HIGHLY IMPORTANT: ACHTUNG!!
@@ -1437,15 +1188,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          * As a result, gatt client connections are seemingly thrown away and unhandled. THIS IS FAKE NEWS
          * they are handled here.
          */
-        val d = newServer.openServer(config)
+        return newServer.openServer(config)
+            .subscribeOn(serverScheduler)
             .doOnSubscribe { LOG.v("gatt server subscribed") }
             .doOnError { e ->
-                LOG.e("failed to open server")
-                startSubject.onError(e)
-            }
-            .flatMap { server ->
-                startAdvertise().toSingleDefault(server)
-                    .doOnSuccess { startSubject.onComplete() }
+                LOG.e("failed to open server: $e")
             }
             .flatMapObservable { connectionRaw ->
                 LOG.v("gatt server initialized")
@@ -1474,12 +1221,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("gatt server shut down with error: $err")
                 err.printStackTrace()
             }
+            .ignoreElements()
             .doOnComplete { LOG.e("gatt server completed. This shouldn't happen") }
-            .subscribe(transactionCompleteRelay)
-        val disp = CompositeDisposable()
-        disp.add(d)
-        gattServerDisposable.getAndSet(disp)?.dispose()
-        return startSubject
     }
 
     /**
