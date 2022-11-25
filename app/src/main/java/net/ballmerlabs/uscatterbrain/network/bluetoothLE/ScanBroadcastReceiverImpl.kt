@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import com.polidea.rxandroidble2.RxBleClient
 import io.reactivex.Observable
+import io.reactivex.schedulers.Schedulers
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
 import net.ballmerlabs.uscatterbrain.component
 import net.ballmerlabs.uscatterbrain.getComponent
@@ -47,6 +48,7 @@ class ScanBroadcastReceiverImpl @Inject constructor() : ScanBroadcastReceiver, B
                     if (result.isNotEmpty()) {
                         val radioModule = factory.transaction().bluetoothLeRadioModule()
                         val disp = radioModule.startServer()
+                            .observeOn(Schedulers.computation())
                             .doOnError { e -> e.printStackTrace() }
                             .mergeWith(
                                 Observable.fromIterable(result)
