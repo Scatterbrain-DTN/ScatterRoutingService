@@ -43,7 +43,7 @@ class ServerSocketSingle(private val socket: ServerSocket): Single<ServerSocketS
 @Singleton
 class ServerSocketManagerImpl @Inject constructor(
         private val firebaseWrapper: FirebaseWrapper,
-        @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler
+        @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler
         ) : ServerSocketManager {
     private val LOG by scatterLog()
     private val serverSocket = retryDelay(

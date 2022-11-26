@@ -11,15 +11,18 @@ import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import androidx.core.app.ActivityCompat
 import io.reactivex.Completable
+import io.reactivex.Scheduler
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Singleton
@@ -27,6 +30,8 @@ class AdvertiserImpl @Inject constructor(
     val context: Context,
     private val manager: BluetoothManager,
     private val firebase: FirebaseWrapper,
+    @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION)
+    private val scheduler: Scheduler
     ) : Advertiser {
 
     private val LOG by scatterLog()
@@ -69,6 +74,7 @@ class AdvertiserImpl @Inject constructor(
     override fun setAdvertisingLuid(): Completable {
         val currentLuid = getHashUuid(myLuid.get()) ?: UUID.randomUUID()
         return setAdvertisingLuid(currentLuid)
+            .subscribeOn(scheduler)
     }
 
     override fun setAdvertisingLuid(luid: UUID): Completable {
@@ -106,7 +112,7 @@ class AdvertiserImpl @Inject constructor(
                         }
                     }
             }
-        }
+        }.subscribeOn(scheduler)
     }
 
     private fun awaitAdvertiseDataUpdate(): Completable {
@@ -118,6 +124,7 @@ class AdvertiserImpl @Inject constructor(
                 else
                     Completable.error(IllegalStateException("failed to set advertising data"))
             }
+            .subscribeOn(scheduler)
     }
 
     override fun removeLuid(): Completable {
@@ -148,6 +155,7 @@ class AdvertiserImpl @Inject constructor(
                     }
             }
         }
+            .subscribeOn(scheduler)
             .doOnComplete { LOG.v("successfully removed luid") }
     }
 
@@ -168,6 +176,7 @@ class AdvertiserImpl @Inject constructor(
             }
             mapAdvertiseComplete(false)
         }
+            .subscribeOn(scheduler)
     }
 
 
@@ -237,7 +246,9 @@ class AdvertiserImpl @Inject constructor(
                 firebase.recordException(err)
                 LOG.e("error in startAdvertise $err")
                 err.printStackTrace()
-            }.doFinally {
+            }
+            .subscribeOn(scheduler)
+            .doFinally {
                 LOG.v("startAdvertise completed")
                 advertisingLock.set(false)
             }

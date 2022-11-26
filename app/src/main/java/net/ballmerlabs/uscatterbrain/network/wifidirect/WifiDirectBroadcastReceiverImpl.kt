@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
@@ -15,7 +14,6 @@ import android.net.wifi.p2p.WifiP2pManager.*
 import androidx.core.app.ActivityCompat
 import io.reactivex.Observable
 import io.reactivex.Scheduler
-import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.util.scatterLog
@@ -34,7 +32,7 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
         private val manager: WifiP2pManager,
         private val channel: Channel,
         private val context: Context,
-        @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationScheduler: Scheduler
+        @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationScheduler: Scheduler
 ) : BroadcastReceiver(), WifiDirectBroadcastReceiver {
     
     private val LOG by scatterLog()

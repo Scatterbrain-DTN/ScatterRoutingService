@@ -1,15 +1,12 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.Manifest
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.*
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.ParcelUuid
-import androidx.core.app.ActivityCompat
 import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleClient
@@ -25,10 +22,7 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.CompletableSubject
-import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
 import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.AckPacket
@@ -52,7 +46,6 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
-import javax.inject.Singleton
 
 // deca
 data class Optional<T>(
@@ -104,7 +97,9 @@ data class Optional<T>(
 class BluetoothLERadioModuleImpl @Inject constructor(
     private val mContext: Context,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val computeScheduler: Scheduler,
     private val mClient: RxBleClient,
     private val wifiDirectRadioModule: WifiDirectRadioModule,
     private val datastore: ScatterbrainDatastore,
@@ -112,7 +107,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
     private val newServer: GattServer,
     private val firebase: FirebaseWrapper,
-    private val manager: BluetoothManager,
     private val state: LeState,
     private val advertiser: Advertiser
 ) : BluetoothLEModule {
@@ -765,6 +759,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .andThen(handleConnection(cachedConnection, cachedConnection.device, luid))
                 }
         }
+            .subscribeOn(computeScheduler)
             .doOnError { err ->
                 LOG.v("error in initiateOutgoingConnection $err")
                 firebase.recordException(err)
@@ -831,6 +826,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 clearPeers()
             }
             .doFinally { discoveryPersistent.set(false) }
+            .subscribeOn(computeScheduler)
             .doOnSubscribe { LOG.e("subscribed discoverForever") }
 
         return discover
@@ -842,7 +838,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         e: Observable<Throwable>,
         defaultDelay: Long = 10
     ): Observable<T> {
-        return e.concatMap { err ->
+        return e
+            .subscribeOn(computeScheduler)
+            .concatMap { err ->
             if (err is BleScanException && err.retryDateSuggestion != null) {
                 val delay = err.retryDateSuggestion!!.time - Date().time
                 LOG.e("undocumented scan throttling. Waiting $delay seconds")
@@ -892,6 +890,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return Completable.defer {
             if (shouldRemove) {
                 wifiDirectRadioModule.removeGroup()
+                    .subscribeOn(computeScheduler)
                     .doOnError { err ->
                         LOG.e("failed to cleanup wifi direct group after termination")
                         firebase.recordException(err)
@@ -936,10 +935,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     state.connectionCache.putIfAbsent(luid, newconnection)
                     newconnection
                 }
-            }.subscribeOn(serverScheduler)
+            }.subscribeOn(clientScheduler)
 
         return advertiser.setAdvertisingLuid(getHashUuid(advertiser.myLuid.get()) ?: UUID.randomUUID())
             .andThen(connectSingle)
+            .subscribeOn(computeScheduler)
     }
 
     private fun awaitAck(clientConnection: CachedLEConnection): Completable {
@@ -952,6 +952,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 else
                     Completable.error(IllegalStateException("ack failed: $status, $message"))
             }
+            .subscribeOn(computeScheduler)
     }
 
     private fun sendAck(
@@ -1001,7 +1002,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             } else {
                 Maybe.empty()
             }
-        }
+        }.subscribeOn(computeScheduler)
     }
 
     /*
@@ -1079,6 +1080,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 updateDisconnected(luid)
             }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+            .subscribeOn(computeScheduler)
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 transactionInProgressRelay.accept(false)
@@ -1098,8 +1100,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val await = awaitAck(clientConnection)
 
         return Completable.mergeArray(
-            send,
-            await
+            send.subscribeOn(serverScheduler),
+            await.subscribeOn(clientScheduler)
         ).toSingleDefault(transactionResult)
     }
 
@@ -1189,7 +1191,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
          * they are handled here.
          */
         return newServer.openServer(config)
-            .subscribeOn(serverScheduler)
+            .subscribeOn(AndroidSchedulers.mainThread())
+            .observeOn(computeScheduler)
             .doOnSubscribe { LOG.v("gatt server subscribed") }
             .doOnError { e ->
                 LOG.e("failed to open server: $e")
@@ -1221,7 +1224,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("gatt server shut down with error: $err")
                 err.printStackTrace()
             }
-            .ignoreElements()
+            .firstOrError()
+            .ignoreElement()
             .doOnComplete { LOG.e("gatt server completed. This shouldn't happen") }
     }
 

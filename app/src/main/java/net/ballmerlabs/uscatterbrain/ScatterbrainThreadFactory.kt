@@ -8,9 +8,9 @@ import java.util.concurrent.atomic.AtomicLong
  * thread factory to create rxjava schedulers with
  * allows for naming threads and setting scheduling priority if needed
  */
-class ScatterbrainThreadFactory : AtomicLong(), ThreadFactory {
+class ScatterbrainThreadFactory(private val threadName: String) : AtomicLong(), ThreadFactory {
     override fun newThread(r: Runnable): Thread {
-        val name = "ScatterbrainThread-" + incrementAndGet()
+        val name = "ScatterbrainThread-$threadName-${incrementAndGet()}"
         val t: Thread = ScatterbrainNonblockingThread(r, name)
         t.priority = Thread.NORM_PRIORITY
         t.isDaemon = true

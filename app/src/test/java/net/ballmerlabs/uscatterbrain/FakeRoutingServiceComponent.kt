@@ -167,7 +167,7 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS)
+            @Named(RoutingServiceComponent.NamedSchedulers.IO)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
             }

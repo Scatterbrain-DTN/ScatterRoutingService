@@ -11,7 +11,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SocketProviderImpl @Inject constructor(
-        @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler
+        @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler
 ): SocketProvider {
     override fun getSocket(address: InetAddress, port: Int): Single<Socket> {
         return Single.fromCallable { Socket(address, port) }

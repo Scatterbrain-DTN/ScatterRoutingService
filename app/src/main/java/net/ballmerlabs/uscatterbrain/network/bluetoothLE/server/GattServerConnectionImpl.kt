@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
 import android.bluetooth.*
+import android.content.Context
 import android.util.Pair
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleClient
@@ -40,6 +41,7 @@ class GattServerConnectionImpl @Inject constructor(
         private val operationsProvider: GattServerConnectionOperationsProvider,
         private val serverTransactionFactory: ServerTransactionFactory,
         private val firebaseWrapper: FirebaseWrapper,
+        private val context: Context,
         private val gattServer: Provider<BluetoothGattServer>
 ) : GattServerConnection {
     private val Log by scatterLog()

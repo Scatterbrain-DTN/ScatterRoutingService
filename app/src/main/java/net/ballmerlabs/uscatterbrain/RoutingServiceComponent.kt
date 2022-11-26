@@ -1,10 +1,7 @@
 package net.ballmerlabs.uscatterbrain
 
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
-import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
-import android.content.SharedPreferences
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.PowerManager
@@ -28,6 +25,7 @@ import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapperImpl
+import java.util.jar.Attributes.Name
 import javax.inject.Named
 import javax.inject.Singleton
 val Context.dataStore by preferencesDataStore(name = RouterPreferences.PREF_NAME)
@@ -40,7 +38,8 @@ interface RoutingServiceComponent {
         const val BLE_CLIENT = "scheduler-ble-client"
         const val BLE_CALLBACKS = "ble-callbacks"
         const val BLE_SERVER = "scheduler-ble-server"
-        const val OPERATIONS = "wifi-direct-operations"
+        const val IO = "network-io"
+        const val COMPUTATION = "computation"
     }
 
     @Component.Builder
@@ -149,17 +148,25 @@ interface RoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            @Named(NamedSchedulers.DATABASE)
-            fun provideDatabaseScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
+            @Named(NamedSchedulers.COMPUTATION)
+            fun providesComputationScheduler(): Scheduler {
+                return RxJavaPlugins.createComputationScheduler(ScatterbrainThreadFactory(NamedSchedulers.COMPUTATION))
             }
 
             @Provides
             @JvmStatic
             @Singleton
-            @Named(NamedSchedulers.OPERATIONS)
+            @Named(NamedSchedulers.DATABASE)
+            fun provideDatabaseScheduler(): Scheduler {
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(NamedSchedulers.DATABASE))
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(NamedSchedulers.IO)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(NamedSchedulers.IO))
             }
 
             @Provides
@@ -181,7 +188,7 @@ interface RoutingServiceComponent {
             @Singleton
             @Named(NamedSchedulers.BLE_CLIENT)
             fun provideBleClientScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BLE_CLIENT))
             }
 
             @Provides
@@ -189,7 +196,7 @@ interface RoutingServiceComponent {
             @Singleton
             @Named(NamedSchedulers.BLE_CALLBACKS)
             fun providesBleCallbacksScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BLE_CALLBACKS))
             }
 
             @Provides
@@ -197,7 +204,7 @@ interface RoutingServiceComponent {
             @Singleton
             @Named(NamedSchedulers.BLE_SERVER)
             fun provideBleServerScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BLE_SERVER))
             }
 
 

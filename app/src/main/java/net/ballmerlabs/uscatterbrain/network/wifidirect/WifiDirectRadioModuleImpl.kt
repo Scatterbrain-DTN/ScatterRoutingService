@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.Context
-import android.content.IntentFilter
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pManager
@@ -26,7 +25,6 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
-import javax.inject.Singleton
 
 /**
  * Transport layer radio module for wifi direct. Currently this module only supports
@@ -47,7 +45,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val mContext: Context,
     private val datastore: ScatterbrainDatastore,
     private val preferences: RouterPreferences,
-    @Named(RoutingServiceComponent.NamedSchedulers.OPERATIONS) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
     private val channel: WifiP2pManager.Channel,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
