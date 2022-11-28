@@ -108,6 +108,14 @@ interface RoutingServiceComponent {
         @Singleton
         abstract fun bindsAdvertiser(impl: AdvertiserImpl): Advertiser
 
+        @Binds
+        @Singleton
+        abstract fun bindsLeState(impl: LeStateImpl): LeState
+
+        @Binds
+        @Singleton
+        abstract fun bindsManagedServer(impl: ManagedGattServerImpl): ManagedGattServer
+
         @Module
         companion object {
             @Provides
@@ -117,13 +125,6 @@ interface RoutingServiceComponent {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
                         .fallbackToDestructiveMigration()
                         .build()
-            }
-
-            @Provides
-            @JvmStatic
-            @Singleton
-            fun providesLeState(): LeState {
-                return LeState()
             }
 
             @Provides

@@ -1,9 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
-import android.bluetooth.BluetoothManager
 import android.bluetooth.le.*
 import android.content.Context
 import android.os.ParcelUuid
@@ -11,14 +9,12 @@ import com.jakewharton.rxrelay2.BehaviorRelay
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.RxBleDevice
-import com.polidea.rxandroidble2.Timeout
 import com.polidea.rxandroidble2.exceptions.BleScanException
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanResult
 import com.polidea.rxandroidble2.scan.ScanSettings
 import io.reactivex.*
 import io.reactivex.Observable
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
@@ -29,8 +25,6 @@ import net.ballmerlabs.uscatterbrain.network.AckPacket
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
@@ -40,7 +34,6 @@ import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -97,7 +90,6 @@ data class Optional<T>(
 class BluetoothLERadioModuleImpl @Inject constructor(
     private val mContext: Context,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val computeScheduler: Scheduler,
     private val mClient: RxBleClient,
@@ -129,11 +121,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val transactionLock = AtomicReference(false)
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
-    private val activeLuids = ConcurrentHashMap<UUID, Boolean>()
     private val transactionInProgressRelay = BehaviorRelay.create<Boolean>()
 
-    // a "channel" is a characteristc that protobuf messages are written to.
-    private val channels = ConcurrentHashMap<UUID, LockedCharactersitic>()
 
     companion object {
         const val LUID_RANDOMIZE_DELAY = 400
@@ -189,7 +178,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         makeCharacteristic(UUID_HELLO)
         for (i in 0 until NUM_CHANNELS) {
             val channel = incrementUUID(SERVICE_UUID, i + 1)
-            channels[channel] = LockedCharactersitic(makeCharacteristic(channel), i)
+            state.channels[channel] = LockedCharactersitic(makeCharacteristic(channel), i)
         }
         refreshInProgresss.accept(false)
         LOG.e("init")
@@ -669,31 +658,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         state.connectionCache.values.forEach { c ->
             c.dispose()
         }
-        activeLuids.clear()
+        state.activeLuids.clear()
         state.connectionCache.clear()
     }
 
-    private fun getAdvertisedLuid(scanResult: ScanResult): UUID? {
-        return when (scanResult.scanRecord.serviceData.keys.size) {
-            1 -> scanResult.scanRecord.serviceData.keys.iterator().next()?.uuid
-            0 -> null
-            else -> throw IllegalStateException("too many luids")
-        }
-    }
 
-    private fun updateConnected(luid: UUID): Boolean {
-        LOG.e("updateConnected $luid")
-        return if (activeLuids.putIfAbsent(luid, true) == null) {
-            return true
-        } else {
-            false
-        }
-    }
 
     private fun updateDisconnected(luid: UUID) {
         LOG.e("updateDisconnected $luid")
-        activeLuids.remove(luid)
-        if (activeLuids.isEmpty()) {
+        state.activeLuids.remove(luid)
+        if (state.activeLuids.isEmpty()) {
             transactionInProgressRelay.accept(false)
         }
     }
@@ -701,18 +675,18 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult> {
         LOG.d("scan result: " + scanResult.bleDevice.macAddress)
         return Maybe.defer {
-            val remoteUuid = getAdvertisedLuid(scanResult)
+            val remoteUuid = state.getAdvertisedLuid(scanResult)
             if (remoteUuid != null) {
-                establishConnectionCached(scanResult.bleDevice, remoteUuid)
+                state.establishConnectionCached(scanResult.bleDevice, remoteUuid)
                     .flatMapMaybe { cached ->
                         cached.connection
                             .concatMapMaybe { raw ->
                                 LOG.v("attempting to read hello characteristic")
-                                if (shouldConnect(scanResult)) {
+                                if (state.shouldConnect(scanResult)) {
                                     raw.readCharacteristic(UUID_HELLO)
                                         .flatMapMaybe { luid ->
                                             val luidUuid = bytes2uuid(luid)!!
-                                            updateConnected(luidUuid)
+                                            state.updateConnected(luidUuid)
                                             LOG.v("read remote luid from GATT $luidUuid")
                                             initiateOutgoingConnection(
                                                 cached,
@@ -781,11 +755,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         )
     }
 
-    override fun shouldConnect(res: ScanResult): Boolean {
-        val advertisingLuid = getAdvertisedLuid(res)
-        return advertisingLuid != null && !activeLuids.containsKey(advertisingLuid)
-    }
-
     /**
      * start device discovery forever, dispose to cancel.
      * @return observable of HandshakeResult containing transaction stats
@@ -795,14 +764,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
             .doOnSubscribe { discoveryPersistent.set(true) }
             .concatMapSingle { res ->
-                if (shouldConnect(res)) {
+                if (state.shouldConnect(res)) {
                     transactionInProgressRelay.accept(true)
                 }
                 advertiser.setAdvertisingLuid()
                     .andThen(removeWifiDirectGroup(advertiser.randomizeLuidIfOld()).onErrorComplete())
                     .toSingleDefault(res)
             }
-            .filter { res -> shouldConnect(res) }
+            .filter { res -> state.shouldConnect(res) }
             .concatMapMaybe { scanResult ->
                 processScanResult(scanResult)
                     .onErrorComplete()
@@ -841,16 +810,16 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return e
             .subscribeOn(computeScheduler)
             .concatMap { err ->
-            if (err is BleScanException && err.retryDateSuggestion != null) {
-                val delay = err.retryDateSuggestion!!.time - Date().time
-                LOG.e("undocumented scan throttling. Waiting $delay seconds")
-                Completable.complete().delay(delay, TimeUnit.SECONDS)
-                    .andThen(Observable.error(err))
-            } else {
-                Completable.complete().delay(defaultDelay, TimeUnit.SECONDS)
-                    .andThen(Observable.error(err))
+                if (err is BleScanException && err.retryDateSuggestion != null) {
+                    val delay = err.retryDateSuggestion!!.time - Date().time
+                    LOG.e("undocumented scan throttling. Waiting $delay seconds")
+                    Completable.complete().delay(delay, TimeUnit.SECONDS)
+                        .andThen(Observable.error(err))
+                } else {
+                    Completable.complete().delay(defaultDelay, TimeUnit.SECONDS)
+                        .andThen(Observable.error(err))
+                }
             }
-        }
     }
 
     override fun observeTransactionStatus(): Observable<Boolean> {
@@ -901,47 +870,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun establishConnectionCached(
-        device: RxBleDevice,
-        luid: UUID
-    ): Single<CachedLEConnection> {
-        val connectSingle =
-            Single.fromCallable {
-                LOG.e(
-                    "establishing cached connection to ${device.macAddress}, $luid, ${state.connectionCache.size} devices connected"
-                )
-                val newconnection = CachedLEConnection(channels, operationsScheduler, device)
-                val connection = state.connectionCache[luid]
-                if (connection != null) {
-                    LOG.e("cache HIT")
-                    connection
-                } else {
-                    val rawConnection = device.establishConnection(false)
-                        .doOnError { state.connectionCache.remove(luid) }
-                        .doOnNext {
-                            LOG.e("established cached connection to ${device.macAddress}")
-                        }
-                    newconnection.setOnDisconnect {
-                        LOG.e("client onDisconnect $luid")
-                        val conn = state.connectionCache.remove(luid)
-                        conn?.dispose()
-                        if (state.connectionCache.isEmpty()) {
-                            advertiser.removeLuid()
-                        } else {
-                            Completable.complete()
-                        }
-                    }
-                    newconnection.subscribeConnection(rawConnection)
-                    state.connectionCache.putIfAbsent(luid, newconnection)
-                    newconnection
-                }
-            }.subscribeOn(clientScheduler)
-
-        return advertiser.setAdvertisingLuid(getHashUuid(advertiser.myLuid.get()) ?: UUID.randomUUID())
-            .andThen(connectSingle)
-            .subscribeOn(computeScheduler)
-    }
-
     private fun awaitAck(clientConnection: CachedLEConnection): Completable {
         return clientConnection.readAck()
             .flatMapCompletable { ack ->
@@ -952,7 +880,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 else
                     Completable.error(IllegalStateException("ack failed: $status, $message"))
             }
-            .subscribeOn(computeScheduler)
     }
 
     private fun sendAck(
@@ -966,7 +893,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         )
     }
 
-    private fun handleConnection(
+    override fun handleConnection(
         clientConnection: CachedLEConnection,
         device: RxBleDevice,
         luid: UUID
@@ -1002,7 +929,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             } else {
                 Maybe.empty()
             }
-        }.subscribeOn(computeScheduler)
+        }
     }
 
     /*
@@ -1080,7 +1007,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 updateDisconnected(luid)
             }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-            .subscribeOn(computeScheduler)
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 transactionInProgressRelay.accept(false)
@@ -1100,140 +1026,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val await = awaitAck(clientConnection)
 
         return Completable.mergeArray(
-            send.subscribeOn(serverScheduler),
-            await.subscribeOn(clientScheduler)
+            send,
+            await
         ).toSingleDefault(transactionResult)
-    }
-
-    private fun helloRead(serverConnection: GattServerConnection): Completable {
-        return serverConnection.getOnCharacteristicReadRequest(UUID_HELLO)
-            .subscribeOn(operationsScheduler)
-            .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
-            .flatMapCompletable { trans ->
-                val luid = getHashUuid(advertiser.myLuid.get())
-                LOG.v("hello characteristic read, replying with luid $luid")
-                trans.sendReply(uuid2bytes(luid), BluetoothGatt.GATT_SUCCESS)
-            }
-            .doOnError { err ->
-                LOG.e("error in hello characteristic read: $err")
-            }.onErrorComplete()
-    }
-
-    private fun helloWrite(serverConnection: GattServerConnection): Observable<HandshakeResult> {
-        return serverConnection.getOnCharacteristicWriteRequest(UUID_HELLO)
-            .subscribeOn(operationsScheduler)
-            .flatMapMaybe { trans ->
-                LOG.e("hello from ${trans.remoteDevice.macAddress}")
-                val luid = bytes2uuid(trans.value)!!
-                serverConnection.setOnDisconnect(trans.remoteDevice) {
-                    LOG.e("server onDisconnect $luid")
-                    val conn = state.connectionCache.remove(luid)
-                    conn?.dispose()
-                    if (state.connectionCache.isEmpty()) {
-                        advertiser.removeLuid().blockingAwait()
-                    }
-                }
-                LOG.e("server handling luid $luid")
-                LOG.e("transaction NOT locked, continuing")
-                if (updateConnected(luid)) {
-                    transactionInProgressRelay.accept(true)
-                }
-                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                    .andThen(establishConnectionCached(trans.remoteDevice, luid))
-                    .flatMapMaybe { connection ->
-                        handleConnection(
-                            connection,
-                            trans.remoteDevice,
-                            luid
-                        )
-                    }
-                    .doOnError { err ->
-                        LOG.e("error in handleConnection $err")
-                        firebase.recordException(err)
-                        updateDisconnected(luid)
-                    }
-
-            }
-            .onErrorReturnItem(
-                HandshakeResult(
-                    0,
-                    0,
-                    HandshakeResult.TransactionStatus.STATUS_FAIL
-                )
-            )
-            .doOnError { e ->
-                LOG.e("failed to read hello characteristic: $e")
-            }
-            .doOnNext { t -> LOG.v("transactionResult ${t.success}") }
-    }
-
-    /**
-     * starts the gatt server in the background.
-     * NOTE: this function contains all the LOGic for running the state machine.
-     * this function NEEDS to be called for the device to be connectable
-     * @return false on failure
-     */
-    override fun startServer(): Completable {
-        val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
-            .addService(mService)
-
-        /*
-         * NOTE: HIGHLY IMPORTANT: ACHTUNG!!
-         * this may seem like black magic, but gatt server connections are registered for
-         * BOTH incoming gatt connections AND outgoing connections. In fact, I cannot find a way to
-         * distinguish incoming and outgoing connections. So every connection, even CLIENT connections
-         * that we just initiated show up as emissions from this observable. Really wonky right?
-         *
-         * In a perfect world I would refactor my fork of RxAndroidBle to fix this, but the changes
-         * required to do that are very invasive and probably not worth it in the long run.
-         *
-         * As a result, gatt client connections are seemingly thrown away and unhandled. THIS IS FAKE NEWS
-         * they are handled here.
-         */
-        return newServer.openServer(config)
-            .subscribeOn(AndroidSchedulers.mainThread())
-            .observeOn(computeScheduler)
-            .doOnSubscribe { LOG.v("gatt server subscribed") }
-            .doOnError { e ->
-                LOG.e("failed to open server: $e")
-            }
-            .flatMapObservable { connectionRaw ->
-                LOG.v("gatt server initialized")
-                serverSubject.onNext(
-                    CachedLEServerConnection(
-                        connectionRaw,
-                        channels,
-                        scheduler = operationsScheduler,
-                        ioScheduler = operationsScheduler,
-                        firebaseWrapper = firebase
-                    )
-                )
-
-                val write = helloWrite(connectionRaw)
-                val read = helloRead(connectionRaw)
-
-                write.mergeWith(read)
-                    .retry(10)
-            }
-            .doOnDispose {
-                LOG.e("gatt server disposed")
-                transactionErrorRelay.accept(IllegalStateException("gatt server disposed"))
-                stopServer()
-            }
-            .doOnError { err ->
-                LOG.e("gatt server shut down with error: $err")
-                err.printStackTrace()
-            }
-            .firstOrError()
-            .ignoreElement()
-            .doOnComplete { LOG.e("gatt server completed. This shouldn't happen") }
-    }
-
-    /**
-     * stop our server and stop advertising
-     */
-    override fun stopServer() {
-        //do nothing until I fix gatt server breakededing
     }
 
     /**

@@ -32,6 +32,8 @@ class GattServerImpl @Inject constructor(
                     .connection()
 
         }
+            .subscribeOn(computeScheduler)
+            .observeOn(AndroidSchedulers.mainThread())
             .flatMap { conn -> conn.initializeServer(config).toSingleDefault(conn) }
     }
 }

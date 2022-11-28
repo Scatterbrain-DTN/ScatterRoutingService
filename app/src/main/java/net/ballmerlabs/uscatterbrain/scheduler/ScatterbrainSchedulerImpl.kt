@@ -13,11 +13,11 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.RouterState
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiver
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.*
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.loggerScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,6 +35,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val firebaseWrapper: FirebaseWrapper,
     private val advertiser: Advertiser,
     private val client: RxBleClient,
+    private val state: BroadcastReceiverState,
+    private val server: ManagedGattServer,
     powerManager: PowerManager
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
@@ -85,30 +87,45 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             broadcastRouterState(RouterState.DISCOVERING)
             return
         }
-        advertiser.startAdvertise().blockingAwait()
-        isAdvertising = true
-        client.backgroundScanner.scanBleDeviceInBackground(
-            pendingIntent,
-            ScanSettings.Builder()
-                .setScanMode(SCAN_MODE_LOW_POWER)
-                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                .setShouldCheckLocationServicesState(false)
-                .setLegacy(true)
-                .build()
+        state.shouldScan = true
+        val disp = advertiser.startAdvertise()
+            .andThen(server.startServer())
+            .timeout(10, TimeUnit.SECONDS)
+            .subscribe(
+            {
+             LOG.v("started advertise")
+                client.backgroundScanner.scanBleDeviceInBackground(
+                    pendingIntent,
+                    ScanSettings.Builder()
+                        .setScanMode(SCAN_MODE_LOW_POWER)
+                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                        .setShouldCheckLocationServicesState(false)
+                        .setLegacy(true)
+                        .build()
+                )
+                broadcastRouterState(RouterState.DISCOVERING)
+            },
+            { e ->
+                LOG.e("failed to start: $e")
+                e.printStackTrace()
+                firebaseWrapper.recordException(e)
+                broadcastRouterState(RouterState.ERROR)
+            }
         )
-        broadcastRouterState(RouterState.DISCOVERING)
+
+        globalDisposable.getAndSet(disp)?.dispose()
+        isAdvertising = true
+
     }
 
     @Synchronized
     override fun stop(): Boolean {
         val lock = discoveryLock.getAndSet(false)
+        state.shouldScan = false
+        server.stopServer()
         client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
         broadcastRouterState(RouterState.OFFLINE)
-        if (lock) {
-            //TODO: stop advertise
-            val disp = globalDisposable.getAndSet(null)
-            disp?.dispose()
-        }
+        globalDisposable.getAndSet(null)?.dispose()
         return lock
     }
 
@@ -116,7 +133,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         get() = isAdvertising && !isDiscovering
 
     init {
-        LOG.e("stop scan")
-        client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
+
     }
 }

@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
 import io.reactivex.Maybe
@@ -12,17 +13,6 @@ interface BluetoothLEModule {
      * Stops active discovery
      */
     fun stopDiscover()
-
-    /**
-     * Starts GATT server accept loop.
-     *
-     */
-    fun startServer(): Completable
-
-    /**
-     * Stops the gatt server accept loop
-     */
-    fun stopServer()
 
     /**
      * Returns a completable that completes when the current transaction is finished or emits an error
@@ -80,12 +70,7 @@ interface BluetoothLEModule {
      */
     fun removeWifiDirectGroup(shouldRemove: Boolean): Completable
 
-    /**
-     * Return true if the scanresult contains a connectable device
-     * @param result ScanResult
-     * @return true if we should connect
-     */
-    fun shouldConnect(res: ScanResult): Boolean
+
 
     /**
      * Handle an existing scan result
@@ -93,6 +78,12 @@ interface BluetoothLEModule {
      * @return maybe for transaction
      */
     fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult>
+
+    fun handleConnection(
+        clientConnection: CachedLEConnection,
+        device: RxBleDevice,
+        luid: UUID
+    ): Maybe<HandshakeResult>
 
     /**
      * role is a generalized concept of "initiator" vs "acceptor"
@@ -104,7 +95,6 @@ interface BluetoothLEModule {
      *
      * This is decided via the leader election process
      */
-
     enum class ConnectionRole {
         ROLE_UKE, ROLE_SEME
     }

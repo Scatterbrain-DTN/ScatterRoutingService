@@ -12,6 +12,7 @@ import android.os.ParcelUuid
 import androidx.core.app.ActivityCompat
 import io.reactivex.Completable
 import io.reactivex.Scheduler
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
@@ -50,23 +51,21 @@ class AdvertiserImpl @Inject constructor(
             txPower: Int,
             status: Int
         ) {
-            super.onAdvertisingSetStarted(advertisingSet, txPower, status)
+            LOG.v("successfully started advertise $status")
             if (advertisingSet != null) {
                 isAdvertising.onNext(Pair(Optional.of(advertisingSet), status))
             } else {
                 isAdvertising.onNext(Pair(Optional.empty(), status))
             }
-            LOG.v("successfully started advertise $status")
         }
 
         override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
-            super.onAdvertisingSetStopped(advertisingSet)
             LOG.e("advertise stopped")
             isAdvertising.onNext(Pair(Optional.empty(), ADVERTISE_SUCCESS))
         }
 
         override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
-            super.onScanResponseDataSet(advertisingSet, status)
+            LOG.e("scan response data updated")
             advertisingDataUpdated.onNext(status)
         }
     }
@@ -181,7 +180,15 @@ class AdvertiserImpl @Inject constructor(
 
 
     private fun mapAdvertiseComplete(state: Boolean): Completable {
-        return Completable.complete()
+                return isAdvertising
+                    .takeUntil { v -> (v.first.isPresent == state) || (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) }
+                    .flatMapCompletable { v ->
+                            if (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) {
+                                    Completable.error(IllegalStateException("failed to complete advertise task: ${v.second}"))
+                                } else {
+                    Completable.complete()
+                                }
+                        }
 
     }
     
@@ -195,15 +202,15 @@ class AdvertiserImpl @Inject constructor(
                 if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
                     Completable.complete()
                 else
-                    Completable.defer {
+                    Completable.fromAction {
                         LOG.v("Starting LE advertise")
                         val settings = AdvertisingSetParameters.Builder()
-                            .setConnectable(true)
-                            .setScannable(true)
-                            .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
-                            .setLegacyMode(true)
-                            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
-                            .build()
+                        .setConnectable(true)
+                        .setScannable(true)
+                        .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                        .setLegacyMode(true)
+                        .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                        .build()
                         val serviceData = AdvertiseData.Builder()
                             .setIncludeDeviceName(false)
                             .setIncludeTxPowerLevel(false)
@@ -222,7 +229,6 @@ class AdvertiserImpl @Inject constructor(
                                 .setIncludeTxPowerLevel(false)
                                 .build()
                         }
-                        if (!advertisingLock.getAndSet(true)) {
                             if (ActivityCompat.checkSelfPermission(
                                     context,
                                     Manifest.permission.BLUETOOTH_ADVERTISE
@@ -230,24 +236,28 @@ class AdvertiserImpl @Inject constructor(
                             ) {
                                 throw PermissionsNotAcceptedException()
                             } else {
-                                manager.adapter?.bluetoothLeAdvertiser?.startAdvertisingSet(
-                                    settings,
-                                    serviceData,
-                                    responsedata,
-                                    null,
-                                    null,
-                                    advertiseSetCallback
-                                )
+                                try {
+                                    manager.adapter.bluetoothLeAdvertiser.startAdvertisingSet(
+                                        settings,
+                                        serviceData,
+                                        responsedata,
+                                        null,
+                                        null,
+                                        advertiseSetCallback
+                                    )
+                                } catch (exc: Exception) {
+                                    LOG.e("failed to advertise $exc")
+                                }
+                                LOG.v("advertise start")
                             }
-                        }
-                        mapAdvertiseComplete(true)
-                    }
-            }.doOnError { err ->
+                    }.subscribeOn(scheduler)
+                        .andThen(mapAdvertiseComplete(true))
+            }
+            .doOnError { err ->
                 firebase.recordException(err)
                 LOG.e("error in startAdvertise $err")
                 err.printStackTrace()
             }
-            .subscribeOn(scheduler)
             .doFinally {
                 LOG.v("startAdvertise completed")
                 advertisingLock.set(false)

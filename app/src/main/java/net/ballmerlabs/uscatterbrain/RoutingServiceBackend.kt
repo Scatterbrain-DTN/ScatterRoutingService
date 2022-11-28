@@ -5,9 +5,8 @@ import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeStateImpl
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import java.util.*
 
