@@ -49,43 +49,52 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
         try {
             val lock = state.transactionLock.getAndSet(true)
             if (!lock) {
-                if (!result.none { r -> leState.shouldConnect(r) }) {
+                val disp = if (result.all { r -> leState.shouldConnect(r) }) {
                     LOG.e("LOCKED!")
                     val radioModule = factory.transaction().bluetoothLeRadioModule()
 
-                    val disp =
-                        advertiser.setAdvertisingLuid()
-                            .andThen(radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld()))
-                            .andThen(
-                                Observable.fromIterable(result)
-                                    .concatMapSingle { res ->
-                                        advertiser.setAdvertisingLuid()
-                                            .andThen(
-                                                radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
-                                                    .onErrorComplete()
-                                            )
-                                            .toSingleDefault(res)
-                                    }
-                                    .filter { res -> leState.shouldConnect(res) }
-                                    .concatMapMaybe { r ->
-                                        radioModule.processScanResult(r)
-                                            .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
-                                            .doOnError { err -> LOG.e("process scan result error $err") }
-                                    }
-                                    .ignoreElements()
-                                    .doOnError { err -> LOG.e("process scan result error $err") }
-                                    .onErrorComplete())
-                            .doOnError { err -> LOG.e("scan error $err") }
-                            .doFinally {
-                                state.disposable.getAndSet(null)?.dispose()
-                                state.transactionLock.set(false)
-                            }
-                            .subscribe(
-                                { LOG.v("client transaction complete") },
-                                { err -> LOG.e("client transaction error $err") }
-                            )
-                    state.disposable.getAndSet(disp)?.dispose()
+                    radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
+                        .andThen(
+                            Observable.fromIterable(result)
+                                .concatMapSingle { res ->
+                                    advertiser.setAdvertisingLuid()
+                                        .andThen(
+                                            radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
+                                                .onErrorComplete()
+                                        )
+                                        .toSingleDefault(res)
+                                }
+                                .filter { res -> leState.shouldConnect(res) }
+                                .concatMapMaybe { r ->
+                                    radioModule.processScanResult(r)
+                                        .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
+                                        .doOnError { err -> LOG.e("process scan result error $err") }
+                                }
+                                .ignoreElements()
+                                .doOnError { err -> LOG.e("process scan result error $err") }
+                                .onErrorComplete())
+                        .doOnError { err -> LOG.e("scan error $err") }
+                        .doFinally {
+                            state.disposable.getAndSet(null)?.dispose()
+                            state.transactionLock.set(false)
+                        }
+                        .subscribe(
+                            { LOG.v("client transaction complete") },
+                            { err -> LOG.e("client transaction error $err") }
+                        )
+                } else {
+                    advertiser.setAdvertisingLuid()
+                        .doFinally {
+                            state.disposable.getAndSet(null)?.dispose()
+                            state.transactionLock.set(false)
+                        }
+                        .subscribe(
+                            { LOG.v("client transaction complete") },
+                            { err -> LOG.e("client transaction error $err") }
+                        )
+
                 }
+                state.disposable.getAndSet(disp)?.dispose()
             }
         } catch (exc: Exception) {
             state.transactionLock.set(false)

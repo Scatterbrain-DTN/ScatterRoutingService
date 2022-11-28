@@ -39,9 +39,6 @@ class ManagedGattServerImpl @Inject constructor(
 
     private val LOG by scatterLog()
 
-    // scatterbrain gatt service object
-    private val mService =
-        BluetoothGattService(BluetoothLERadioModuleImpl.SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
 
     private fun helloRead(serverConnection: GattServerConnection): Completable {
         return serverConnection.getOnCharacteristicReadRequest(BluetoothLERadioModuleImpl.UUID_HELLO)
@@ -122,8 +119,19 @@ class ManagedGattServerImpl @Inject constructor(
      * @return false on failure
      */
     override fun startServer(): Completable {
+        // initialize our channels
+        makeCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
+        makeCharacteristic(BluetoothLERadioModuleImpl.UUID_HELLO)
+        for (i in 0 until BluetoothLERadioModuleImpl.NUM_CHANNELS) {
+            val channel = BluetoothLERadioModuleImpl.incrementUUID(
+                BluetoothLERadioModuleImpl.SERVICE_UUID,
+                i + 1
+            )
+            state.channels[channel] =
+                BluetoothLERadioModuleImpl.LockedCharactersitic(makeCharacteristic(channel), i)
+        }
         val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
-            .addService(mService)
+            .addService(gattService)
 
         /*
          * NOTE: HIGHLY IMPORTANT: ACHTUNG!!

@@ -104,10 +104,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
 
-    // scatterbrain gatt service object
-    private val mService =
-        BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
 
@@ -139,9 +135,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         val UUID_HELLO: UUID = UUID.fromString("5d1b424e-ff15-49b4-b557-48274634a01a")
 
         // number of channels. This can be increased or decreased for performance
-        private const val NUM_CHANNELS = 8
+        val NUM_CHANNELS = 8
 
-        private fun incrementUUID(uuid: UUID, i: Int): UUID {
+        fun incrementUUID(uuid: UUID, i: Int): UUID {
             val buffer = ByteBuffer.allocate(16)
             buffer.putLong(uuid.mostSignificantBits)
             buffer.putLong(uuid.leastSignificantBits)
@@ -173,36 +169,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
 
     init {
-        // initialize our channels
-        makeCharacteristic(UUID_SEMAPHOR)
-        makeCharacteristic(UUID_HELLO)
-        for (i in 0 until NUM_CHANNELS) {
-            val channel = incrementUUID(SERVICE_UUID, i + 1)
-            state.channels[channel] = LockedCharactersitic(makeCharacteristic(channel), i)
-        }
         refreshInProgresss.accept(false)
         LOG.e("init")
         observeTransactionComplete()
     }
 
-    /**
-     * shortcut to generate a characteristic with the required permissions
-     * and properties and add it to our service.
-     * We need PROPERTY_INDICATE to send large protobuf blobs and
-     * READ and WRITE for timing / locking
-     */
-    private fun makeCharacteristic(uuid: UUID): BluetoothGattCharacteristic {
-        val characteristic = BluetoothGattCharacteristic(
-            uuid,
-            BluetoothGattCharacteristic.PROPERTY_READ or
-                    BluetoothGattCharacteristic.PROPERTY_WRITE or
-                    BluetoothGattCharacteristic.PROPERTY_INDICATE,
-            BluetoothGattCharacteristic.PERMISSION_WRITE or
-                    BluetoothGattCharacteristic.PERMISSION_READ
-        )
-        mService.addCharacteristic(characteristic)
-        return characteristic
-    }
+
 
     private fun observeTransactionComplete() {
         val d = transactionCompleteRelay.subscribe(

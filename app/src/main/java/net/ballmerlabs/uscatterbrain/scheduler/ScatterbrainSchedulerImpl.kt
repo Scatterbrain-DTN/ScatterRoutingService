@@ -2,9 +2,11 @@ package net.ballmerlabs.uscatterbrain.scheduler
 
 import android.content.Context
 import android.content.Intent
+import android.os.ParcelUuid
 import android.os.Parcelable
 import android.os.PowerManager
 import com.polidea.rxandroidble2.RxBleClient
+import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanSettings
 import com.polidea.rxandroidble2.scan.ScanSettings.SCAN_MODE_LOW_POWER
 import io.reactivex.disposables.CompositeDisposable
@@ -101,6 +103,9 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                         .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                         .setShouldCheckLocationServicesState(false)
                         .setLegacy(true)
+                        .build(),
+                    ScanFilter.Builder()
+                        .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
                         .build()
                 )
                 broadcastRouterState(RouterState.DISCOVERING)
