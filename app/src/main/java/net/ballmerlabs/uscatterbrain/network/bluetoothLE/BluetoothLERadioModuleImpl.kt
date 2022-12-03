@@ -97,10 +97,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val datastore: ScatterbrainDatastore,
     private val preferences: RouterPreferences,
     private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
-    private val newServer: GattServer,
     private val firebase: FirebaseWrapper,
     private val state: LeState,
-    private val advertiser: Advertiser
+    private val advertiser: Advertiser,
+    private val managedGattServer: ManagedGattServer
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
 
@@ -108,8 +108,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
 
     private val discoveryPersistent = AtomicReference(false)
-
-    private val serverSubject = BehaviorSubject.create<CachedLEServerConnection>()
 
     private val discoveryDispoable = AtomicReference<Disposable>()
 
@@ -872,8 +870,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
             if (!transactionLock.getAndSet(true)) {
-                serverSubject
-                    .firstOrError()
+                managedGattServer.getServer()
+                    .toSingle()
                     .flatMapMaybe { connection ->
                         LOG.v("successfully connected to $luid")
                         val s = LeDeviceSession(
