@@ -2,7 +2,9 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.scan.ScanResult
+import io.reactivex.Observable
 import io.reactivex.Single
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -28,4 +30,13 @@ interface LeState {
     fun shouldConnect(res: ScanResult): Boolean
 
     fun updateDisconnected(luid: UUID)
+
+    /**
+     * attempt to reinitiate a connection with all nearby peers and
+     * run another transaction. This should be called sparingly if new data is available
+     * If a refresh is already in progress this function calls oncomplete when the current
+     * refresh is complete
+     * @returns Observable emitting handshake results
+     */
+    fun refreshPeers(): Observable<HandshakeResult>
 }

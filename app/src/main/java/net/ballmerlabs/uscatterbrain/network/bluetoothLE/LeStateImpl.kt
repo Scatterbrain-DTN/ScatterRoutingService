@@ -1,11 +1,15 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import com.jakewharton.rxrelay2.BehaviorRelay
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
+import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
@@ -17,9 +21,11 @@ import javax.inject.Singleton
 @Singleton
 class LeStateImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
+    val factory: ScatterbrainTransactionFactory,
     private val advertiser: Advertiser
 ): LeState {
-
+    //avoid triggering concurrent peer refreshes
+    private val refreshInProgresss = BehaviorRelay.create<Boolean>()
     override val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection> = ConcurrentHashMap<UUID, CachedLEConnection>()
     override val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
     // a "channel" is a characteristc that protobuf messages are written to.
@@ -93,6 +99,36 @@ class LeStateImpl @Inject constructor(
         return advertiser.setAdvertisingLuid(getHashUuid(advertiser.myLuid.get()) ?: UUID.randomUUID())
             .andThen(connectSingle)
     }
+
+    override fun refreshPeers(): Observable<HandshakeResult> {
+        LOG.v("refreshPeers called")
+        return refreshInProgresss
+            .firstOrError()
+            .flatMapObservable { b ->
+                if (!b) {
+                    refreshInProgresss.takeUntil { v -> !v }
+                        .flatMap {
+                            val module = factory.transaction().bluetoothLeRadioModule()
+                            Observable.fromIterable(connectionCache.entries)
+                                .flatMapMaybe { v ->
+                                    LOG.v("refreshing peer ${v.key}")
+                                    activeLuids.remove(v.key)
+                                    module.initiateOutgoingConnection(v.value, v.key)
+                                        .onErrorComplete()
+                                }
+                        }
+                } else {
+                    LOG.v("refresh already in progress, skipping")
+                    Observable.empty()
+                }
+            }
+    }
+
+
+    init {
+        refreshInProgresss.accept(false)
+    }
+
 
 
 }

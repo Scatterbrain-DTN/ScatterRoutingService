@@ -49,15 +49,6 @@ interface BluetoothLEModule {
     fun discoverForever(): Observable<HandshakeResult>
 
     /**
-     * attempt to reinitiate a connection with all nearby peers and
-     * run another transaction. This should be called sparingly if new data is available
-     * If a refresh is already in progress this function calls oncomplete when the current
-     * refresh is complete
-     * @returns Observable emitting handshake results
-     */
-    fun refreshPeers(): Observable<HandshakeResult>
-
-    /**
      * Clears the list of nearby peers, nearby devices currently in range will
      * be reconnected to if possible
      */
@@ -82,6 +73,11 @@ interface BluetoothLEModule {
     fun handleConnection(
         clientConnection: CachedLEConnection,
         device: RxBleDevice,
+        luid: UUID
+    ): Maybe<HandshakeResult>
+
+    fun initiateOutgoingConnection(
+        cachedConnection: CachedLEConnection,
         luid: UUID
     ): Maybe<HandshakeResult>
 

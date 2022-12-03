@@ -322,8 +322,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     }
 
     override fun refreshPeers(): Completable {
-        val radioModule = transactionBuilder.transaction().bluetoothLeRadioModule()
-        return radioModule.refreshPeers()
+        return leState.refreshPeers()
             .ignoreElements()
             .timeout(
                 prefs.getLong(

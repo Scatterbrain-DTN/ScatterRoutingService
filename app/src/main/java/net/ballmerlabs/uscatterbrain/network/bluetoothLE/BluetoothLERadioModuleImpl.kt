@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGattCharacteristic
-import android.bluetooth.BluetoothGattService
 import android.bluetooth.le.*
 import android.content.Context
 import android.os.ParcelUuid
@@ -17,14 +16,12 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.AckPacket
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
@@ -104,9 +101,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
 
-    //avoid triggering concurrent peer refreshes
-    private val refreshInProgresss = BehaviorRelay.create<Boolean>()
-
     private val discoveryPersistent = AtomicReference(false)
 
     private val discoveryDispoable = AtomicReference<Disposable>()
@@ -167,11 +161,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
 
     init {
-        refreshInProgresss.accept(false)
         LOG.e("init")
         observeTransactionComplete()
     }
-
 
 
     private fun observeTransactionComplete() {
@@ -602,28 +594,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }
     }
 
-    override fun refreshPeers(): Observable<HandshakeResult> {
-        LOG.v("refreshPeers called")
-        return refreshInProgresss
-            .firstOrError()
-            .flatMapObservable { b ->
-                if (!b) {
-                    refreshInProgresss.takeUntil { v -> !v }
-                        .flatMap {
-                            Observable.fromIterable(state.connectionCache.entries)
-                                .flatMapMaybe { v ->
-                                    LOG.v("refreshing peer ${v.key}")
-                                    initiateOutgoingConnection(v.value, v.key)
-                                        .onErrorComplete()
-                                }
-                        }
-                } else {
-                    LOG.v("refresh already in progress, skipping")
-                    Observable.empty()
-                }
-            }
-    }
-
     override fun clearPeers() {
         state.connectionCache.values.forEach { c ->
             c.dispose()
@@ -646,11 +616,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     raw.readCharacteristic(UUID_HELLO)
                                         .flatMapMaybe { luid ->
                                             val luidUuid = bytes2uuid(luid)!!
-                                                LOG.v("read remote luid from GATT $luidUuid")
-                                                initiateOutgoingConnection(
-                                                    cached,
-                                                    luidUuid
-                                                ).onErrorComplete()
+                                            LOG.v("read remote luid from GATT $luidUuid")
+                                            initiateOutgoingConnection(
+                                                cached,
+                                                luidUuid
+                                            ).onErrorComplete()
                                         }
                                 } else {
                                     Maybe.empty()
@@ -668,7 +638,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
 
-    private fun initiateOutgoingConnection(
+    override fun initiateOutgoingConnection(
         cachedConnection: CachedLEConnection,
         luid: UUID
     ): Maybe<HandshakeResult> {

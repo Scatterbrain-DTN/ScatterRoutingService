@@ -52,7 +52,6 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                 val disp = if (result.all { r -> leState.shouldConnect(r) }) {
                     LOG.e("LOCKED!")
                     val radioModule = factory.transaction().bluetoothLeRadioModule()
-
                     Observable.fromIterable(result)
                         .concatMapSingle { res ->
                             advertiser.setAdvertisingLuid()
