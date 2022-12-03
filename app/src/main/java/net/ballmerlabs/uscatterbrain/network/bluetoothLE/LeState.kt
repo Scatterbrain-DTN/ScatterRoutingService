@@ -26,4 +26,6 @@ interface LeState {
      * @return true if we should connect
      */
     fun shouldConnect(res: ScanResult): Boolean
+
+    fun updateDisconnected(luid: UUID)
 }

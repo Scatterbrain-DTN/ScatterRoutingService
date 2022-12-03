@@ -28,11 +28,16 @@ class LeStateImpl @Inject constructor(
     private val LOG by scatterLog()
 
     override fun updateConnected(luid: UUID): Boolean {
-        return if (activeLuids.putIfAbsent(luid, true) == null) {
+        return if (activeLuids.put(luid, true) == null) {
             return true
         } else {
             false
         }
+    }
+
+    override fun updateDisconnected(luid: UUID) {
+        LOG.e("updateDisconnected $luid")
+        activeLuids.remove(luid)
     }
 
     override fun shouldConnect(res: ScanResult): Boolean {
@@ -72,6 +77,7 @@ class LeStateImpl @Inject constructor(
                         LOG.e("client onDisconnect $luid")
                         val conn = connectionCache.remove(luid)
                         conn?.dispose()
+                        updateDisconnected(luid)
                         if (connectionCache.isEmpty()) {
                             advertiser.removeLuid()
                         } else {

@@ -54,12 +54,6 @@ class ManagedGattServerImpl @Inject constructor(
             }.onErrorComplete()
     }
 
-
-    fun updateDisconnected(luid: UUID) {
-        LOG.e("updateDisconnected $luid")
-        state.activeLuids.remove(luid)
-    }
-
     override fun stopServer() {
         val s = server.getAndSet(null)
         s?.first?.dispose()
@@ -75,6 +69,7 @@ class ManagedGattServerImpl @Inject constructor(
                 serverConnection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
                     val conn = state.connectionCache.remove(luid)
+                    state.updateConnected(luid)
                     conn?.dispose()
                     if (state.connectionCache.isEmpty()) {
                         advertiser.removeLuid().blockingAwait()
@@ -95,7 +90,7 @@ class ManagedGattServerImpl @Inject constructor(
                     .doOnError { err ->
                         LOG.e("error in handleConnection $err")
                         firebase.recordException(err)
-                        updateDisconnected(luid)
+                        state.updateDisconnected(luid)
                     }
 
             }

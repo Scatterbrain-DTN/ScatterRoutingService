@@ -632,16 +632,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         state.connectionCache.clear()
     }
 
-
-
-    private fun updateDisconnected(luid: UUID) {
-        LOG.e("updateDisconnected $luid")
-        state.activeLuids.remove(luid)
-        if (state.activeLuids.isEmpty()) {
-            transactionInProgressRelay.accept(false)
-        }
-    }
-
     override fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult> {
         LOG.d("scan result: " + scanResult.bleDevice.macAddress)
         return Maybe.defer {
@@ -656,12 +646,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     raw.readCharacteristic(UUID_HELLO)
                                         .flatMapMaybe { luid ->
                                             val luidUuid = bytes2uuid(luid)!!
-                                            state.updateConnected(luidUuid)
-                                            LOG.v("read remote luid from GATT $luidUuid")
-                                            initiateOutgoingConnection(
-                                                cached,
-                                                luidUuid
-                                            ).onErrorComplete()
+                                                LOG.v("read remote luid from GATT $luidUuid")
+                                                initiateOutgoingConnection(
+                                                    cached,
+                                                    luidUuid
+                                                ).onErrorComplete()
                                         }
                                 } else {
                                     Maybe.empty()
@@ -707,7 +696,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doOnError { err ->
                 LOG.v("error in initiateOutgoingConnection $err")
                 firebase.recordException(err)
-                updateDisconnected(luid)
+                state.updateDisconnected(luid)
             }
     }
 
@@ -869,33 +858,37 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
-            if (!transactionLock.getAndSet(true)) {
-                managedGattServer.getServer()
-                    .toSingle()
-                    .flatMapMaybe { connection ->
-                        LOG.v("successfully connected to $luid")
-                        val s = LeDeviceSession(
-                            device.bluetoothDevice,
-                            advertiser.myLuid.get(),
-                            clientConnection,
-                            connection,
-                            luid
-                        )
-                        LOG.v("initializing session")
-                        initializeProtocol(s, TransactionResult.STAGE_LUID)
-                            .doOnError { e -> LOG.e("failed to initialize protocol $e") }
-                            .flatMapMaybe { session ->
-                                LOG.v("session initialized")
-                                handleStateMachine(
-                                    session,
-                                    connection,
-                                    clientConnection,
-                                    luid,
-                                    device
-                                )
-                            }
-                    }
-                    .doFinally { transactionLock.set(false) }
+            if (state.updateConnected(luid)) {
+                if (!transactionLock.getAndSet(true)) {
+                    managedGattServer.getServer()
+                        .toSingle()
+                        .flatMapMaybe { connection ->
+                            LOG.v("successfully connected to $luid")
+                            val s = LeDeviceSession(
+                                device.bluetoothDevice,
+                                advertiser.myLuid.get(),
+                                clientConnection,
+                                connection,
+                                luid
+                            )
+                            LOG.v("initializing session")
+                            initializeProtocol(s, TransactionResult.STAGE_LUID)
+                                .doOnError { e -> LOG.e("failed to initialize protocol $e") }
+                                .flatMapMaybe { session ->
+                                    LOG.v("session initialized")
+                                    handleStateMachine(
+                                        session,
+                                        connection,
+                                        clientConnection,
+                                        luid,
+                                        device
+                                    )
+                                }
+                        }
+                        .doFinally { transactionLock.set(false) }
+                } else {
+                    Maybe.empty()
+                }
             } else {
                 Maybe.empty()
             }
@@ -974,7 +967,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("session ${session.remoteLuid} ended with error $err")
                 err.printStackTrace()
                 firebase.recordException(err)
-                updateDisconnected(luid)
+                state.updateDisconnected(luid)
             }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
             .doFinally {
