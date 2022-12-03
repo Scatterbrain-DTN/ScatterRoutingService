@@ -156,7 +156,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 LOG.e("cry $err")
                 err.printStackTrace()
             }
-            .timeout(5, TimeUnit.SECONDS)
+            .timeout(7, TimeUnit.SECONDS)
+            .doOnError { e -> LOG.e("selectProvides error $e")}
             .toSingleDefault(true)
             .onErrorReturnItem(false)
             .flatMap { v ->

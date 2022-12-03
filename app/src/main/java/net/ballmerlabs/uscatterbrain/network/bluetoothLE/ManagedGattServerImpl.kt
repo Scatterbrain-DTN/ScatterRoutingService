@@ -69,7 +69,6 @@ class ManagedGattServerImpl @Inject constructor(
                 serverConnection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
                     val conn = state.connectionCache.remove(luid)
-                    state.updateConnected(luid)
                     conn?.dispose()
                     if (state.connectionCache.isEmpty()) {
                         advertiser.removeLuid().blockingAwait()

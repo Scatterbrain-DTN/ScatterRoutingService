@@ -53,26 +53,26 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                     LOG.e("LOCKED!")
                     val radioModule = factory.transaction().bluetoothLeRadioModule()
 
-                            Observable.fromIterable(result)
-                                .concatMapSingle { res ->
-                                    advertiser.setAdvertisingLuid()
-                                        .andThen(
-                                            radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
-                                                .onErrorComplete()
-                                        )
-                                        .toSingleDefault(res)
-                                }
-                                .filter { res -> leState.shouldConnect(res) }
-                                .concatMapMaybe { r ->
+                    Observable.fromIterable(result)
+                        .concatMapSingle { res ->
+                            advertiser.setAdvertisingLuid()
+                                .andThen(
                                     radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
-                                        .andThen(
+                                        .onErrorComplete()
+                                )
+                                .toSingleDefault(res)
+                        }
+                        .filter { res -> leState.shouldConnect(res) }
+                        .concatMapMaybe { r ->
+                            radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
+                                .andThen(
                                     radioModule.processScanResult(r)
                                         .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
                                         .doOnError { err -> LOG.e("process scan result error $err") })
-                                }
-                                .ignoreElements()
-                                .doOnError { err -> LOG.e("process scan result error $err") }
-                                .onErrorComplete()
+                        }
+                        .ignoreElements()
+                        .doOnError { err -> LOG.e("process scan result error $err") }
+                        .onErrorComplete()
                         .doOnError { err -> LOG.e("scan error $err") }
                         .doFinally {
                             state.disposable.getAndSet(null)?.dispose()

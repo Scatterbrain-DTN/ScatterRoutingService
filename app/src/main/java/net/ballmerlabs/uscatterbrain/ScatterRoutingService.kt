@@ -721,7 +721,7 @@ class ScatterRoutingService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         try {
-           // mBackend.registerReceiver()
+            mBackend.registerReceiver()
             mBackend.leState.connectionCache.clear()
         } catch (e: Exception) {
             e.printStackTrace()
