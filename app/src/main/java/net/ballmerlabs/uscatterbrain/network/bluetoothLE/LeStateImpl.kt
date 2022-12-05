@@ -14,6 +14,8 @@ import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -24,6 +26,7 @@ class LeStateImpl @Inject constructor(
     val factory: ScatterbrainTransactionFactory,
     private val advertiser: Advertiser
 ): LeState {
+    override val transactionLock: AtomicBoolean = AtomicBoolean(false)
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
     override val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection> = ConcurrentHashMap<UUID, CachedLEConnection>()
@@ -83,7 +86,6 @@ class LeStateImpl @Inject constructor(
                         LOG.e("client onDisconnect $luid")
                         val conn = connectionCache.remove(luid)
                         conn?.dispose()
-                        updateDisconnected(luid)
                         if (connectionCache.isEmpty()) {
                             advertiser.removeLuid()
                         } else {
@@ -110,9 +112,8 @@ class LeStateImpl @Inject constructor(
                         .flatMap {
                             val module = factory.transaction().bluetoothLeRadioModule()
                             Observable.fromIterable(connectionCache.entries)
-                                .flatMapMaybe { v ->
+                                .concatMapMaybe { v ->
                                     LOG.v("refreshing peer ${v.key}")
-                                    activeLuids.remove(v.key)
                                     module.initiateOutgoingConnection(v.value, v.key)
                                         .onErrorComplete()
                                 }

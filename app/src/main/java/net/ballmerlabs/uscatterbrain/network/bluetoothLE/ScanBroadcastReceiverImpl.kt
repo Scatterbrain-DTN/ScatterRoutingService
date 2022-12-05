@@ -47,7 +47,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
         }
         val result = client.backgroundScanner.onScanResultReceived(intent)
         try {
-            val lock = state.transactionLock.getAndSet(true)
+            val lock = state.scanLock.getAndSet(true)
             if (!lock) {
                 val disp = if (result.all { r -> leState.shouldConnect(r) }) {
                     LOG.e("LOCKED!")
@@ -61,7 +61,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                                 )
                                 .toSingleDefault(res)
                         }
-                        .filter { res -> leState.shouldConnect(res) }
+                        .filter { res -> leState.shouldConnect(res) && leState.updateConnected(leState.getAdvertisedLuid(res)!!)}
                         .concatMapMaybe { r ->
                             radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
                                 .andThen(
@@ -75,7 +75,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                         .doOnError { err -> LOG.e("scan error $err") }
                         .doFinally {
                             state.disposable.getAndSet(null)?.dispose()
-                            state.transactionLock.set(false)
+                            state.scanLock.set(false)
                         }
                         .subscribe(
                             { LOG.v("client transaction complete") },
@@ -85,18 +85,20 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                     advertiser.setAdvertisingLuid()
                         .doFinally {
                             state.disposable.getAndSet(null)?.dispose()
-                            state.transactionLock.set(false)
+                            state.scanLock.set(false)
                         }
                         .subscribe(
-                            { LOG.v("client transaction complete") },
+                            { LOG.v("update advertising luid") },
                             { err -> LOG.e("client transaction error $err") }
                         )
 
                 }
                 state.disposable.getAndSet(disp)?.dispose()
+            } else {
+                LOG.v("skipping scan result due to lock")
             }
         } catch (exc: Exception) {
-            state.transactionLock.set(false)
+            state.scanLock.set(false)
             LOG.e("exception in scan broadcastreceiver $exc")
         }
     }

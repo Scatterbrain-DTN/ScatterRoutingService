@@ -107,7 +107,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     private val transactionCompleteRelay = PublishRelay.create<HandshakeResult>()
 
-    private val transactionLock = AtomicReference(false)
     private val transactionErrorRelay = PublishRelay.create<Throwable>()
     private val transactionInProgressRelay = BehaviorRelay.create<Boolean>()
 
@@ -612,7 +611,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         cached.connection
                             .concatMapMaybe { raw ->
                                 LOG.v("attempting to read hello characteristic")
-                                if (state.shouldConnect(scanResult)) {
                                     raw.readCharacteristic(UUID_HELLO)
                                         .flatMapMaybe { luid ->
                                             val luidUuid = bytes2uuid(luid)!!
@@ -622,9 +620,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 luidUuid
                                             ).onErrorComplete()
                                         }
-                                } else {
-                                    Maybe.empty()
-                                }
                             }
                             .firstOrError()
                             .toMaybe()
@@ -828,8 +823,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
-            if (state.updateConnected(luid)) {
-                if (!transactionLock.getAndSet(true)) {
+                if (!state.transactionLock.getAndSet(true)) {
                     managedGattServer.getServer()
                         .toSingle()
                         .flatMapMaybe { connection ->
@@ -855,13 +849,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     )
                                 }
                         }
-                        .doFinally { transactionLock.set(false) }
+                        .doFinally { state.transactionLock.set(false) }
                 } else {
                     Maybe.empty()
                 }
-            } else {
-                Maybe.empty()
-            }
         }
     }
 
@@ -937,7 +928,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("session ${session.remoteLuid} ended with error $err")
                 err.printStackTrace()
                 firebase.recordException(err)
-                state.updateDisconnected(luid)
             }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
             .doFinally {

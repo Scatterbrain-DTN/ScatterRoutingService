@@ -10,7 +10,7 @@ import javax.inject.Singleton
 @Singleton
 class BroadcastReceiverState @Inject constructor() {
     private val log by scatterLog()
-    val transactionLock = AtomicBoolean(false)
+    val scanLock = AtomicBoolean(false)
     val disposable = AtomicReference<Disposable?>(null)
     var shouldScan = false
     init {

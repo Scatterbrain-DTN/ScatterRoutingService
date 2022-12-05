@@ -7,10 +7,13 @@ import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 interface LeState {
     val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection>
     val activeLuids: ConcurrentHashMap<UUID, Boolean>
+    val transactionLock: AtomicBoolean
     // a "channel" is a characteristc that protobuf messages are written to.
     val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic>
 
