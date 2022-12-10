@@ -86,7 +86,6 @@ data class Optional<T>(
 @ScatterbrainTransactionScope
 class BluetoothLERadioModuleImpl @Inject constructor(
     private val mContext: Context,
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val computeScheduler: Scheduler,
     private val mClient: RxBleClient,

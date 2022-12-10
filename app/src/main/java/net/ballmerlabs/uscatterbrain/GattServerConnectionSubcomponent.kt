@@ -9,8 +9,6 @@ import dagger.*
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.*
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.GattServerOperationQueue
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.ServerOperationQueueImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactoryImpl
 
@@ -29,10 +27,6 @@ interface GattServerConnectionSubcomponent {
     abstract class GattServerConnectionModule {
         @Binds
         @GattServerConnectionScope
-        abstract fun bindServerOperationQueue(impl: ServerOperationQueueImpl): GattServerOperationQueue
-
-        @Binds
-        @GattServerConnectionScope
         abstract fun bindServerConnection(impl: GattServerConnectionImpl): GattServerConnection
 
         @Binds
@@ -43,9 +37,6 @@ interface GattServerConnectionSubcomponent {
         @GattServerConnectionScope
         abstract fun bindTransactionFactory(impl: ServerTransactionFactoryImpl): ServerTransactionFactory
 
-        @Binds
-        @GattServerConnectionScope
-        abstract fun bindsOperationProvider(impl: GattServerConnectionOperationsProviderImpl): GattServerConnectionOperationsProvider
         @Module
         companion object {
             @Provides

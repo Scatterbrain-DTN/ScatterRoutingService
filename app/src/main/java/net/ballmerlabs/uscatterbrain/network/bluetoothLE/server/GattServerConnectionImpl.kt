@@ -17,7 +17,6 @@ import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Companion.CLIENT_CONFIG
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.LongWriteClosableOutput
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Output
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.GattServerOperationQueue
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.GattServerTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
@@ -25,6 +24,7 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.Callable
+import java.util.concurrent.Flow
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
@@ -32,16 +32,12 @@ import javax.inject.Provider
 
 @GattServerConnectionScope
 class GattServerConnectionImpl @Inject constructor(
-        @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val connectionScheduler: Scheduler,
         @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS) private val callbackScheduler: Scheduler,
-        private val operationQueue: GattServerOperationQueue,
         private val serverState: ServerState,
         private val client: RxBleClient,
         private val bluetoothManager: BluetoothManager,
-        private val operationsProvider: GattServerConnectionOperationsProvider,
         private val serverTransactionFactory: ServerTransactionFactory,
         private val firebaseWrapper: FirebaseWrapper,
-        private val context: Context,
         private val gattServer: Provider<BluetoothGattServer>
 ) : GattServerConnection {
     private val Log by scatterLog()
@@ -346,7 +342,7 @@ class GattServerConnectionImpl @Inject constructor(
                         System.arraycopy(second, 0, both, first.size, second.size)
                         both
                     }
-                    .subscribeOn(connectionScheduler)
+                    .subscribeOn(callbackScheduler)
                     .toSingle()
                     .subscribe(output.out)
             characteristicMultiIndex.put(requestid, output)
@@ -365,7 +361,7 @@ class GattServerConnectionImpl @Inject constructor(
                         System.arraycopy(second, 0, both, first.size, second.size)
                         both
                     }
-                    .subscribeOn(connectionScheduler)
+                    .subscribeOn(callbackScheduler)
                     .toSingle()
                     .subscribe(output.out)
             descriptorMultiIndex.put(requestid, output)
@@ -394,7 +390,7 @@ class GattServerConnectionImpl @Inject constructor(
                     if (output != null) {
                         output.valueRelay.onComplete()
                         characteristicMultiIndex.remove(integer)
-                        return@Function output.out.delay(0, TimeUnit.SECONDS, connectionScheduler)
+                        return@Function output.out.delay(0, TimeUnit.SECONDS, callbackScheduler)
                     }
                     Single.never()
                 })
@@ -465,30 +461,23 @@ class GattServerConnectionImpl @Inject constructor(
             notifications
                     .delay<ByteArray> {
                         setupNotificationsDelay(clientconfig, characteristic, isIndication)
-                                .timeout(5, TimeUnit.SECONDS)
                                 .toFlowable()
                     }
                     .onBackpressureBuffer()
-                    .concatMap { bytes ->
+                    .concatMapSingle { bytes ->
                         Log.v("processing bytes length: " + bytes.size)
                         try {
-                            if (bluetoothManager.getConnectionState(device.bluetoothDevice, BluetoothProfile.GATT_SERVER)
-                                    == BluetoothProfile.STATE_CONNECTED) {
-                                val operation = operationsProvider.provideNotifyOperation(
-                                        characteristic,
-                                        bytes,
-                                        isIndication,
-                                        device
-                                )
-                                Log.v("queueing notification/indication")
-                                operationQueue.queue(operation).toFlowable(BackpressureStrategy.BUFFER)
-                            } else {
-                                Flowable.error(IllegalStateException("not connected"))
-                            }
+                                characteristic.value = bytes
+                                if (!gattServer.get().notifyCharacteristicChanged(device.bluetoothDevice, characteristic, isIndication)) {
+                                    Single.error(java.lang.IllegalStateException("falied to indicate"))
+                                } else {
+                                    getOnNotification().firstOrError()
+                                }
                         } catch (exc: SecurityException) {
                             firebaseWrapper.recordException(exc)
-                            Flowable.error(exc)
+                            Single.error(exc)
                         }
+
                     }
                     .concatMap { integer ->
                         Log.v("notification result: $integer")
@@ -577,7 +566,13 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun disconnect(device: RxBleDevice): Completable {
-        return operationQueue.queue<Void>(operationsProvider.provideDisconnectOperation(device)).ignoreElements()
+        return Completable.fromAction {
+            try  {
+                gattServer.get().cancelConnection(device.bluetoothDevice)
+            } catch (exc: SecurityException) {
+                throw exc
+            }
+        }
     }
 
     override fun setOnDisconnect(func: (device: RxBleDevice) -> Unit) {
@@ -625,13 +620,13 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun blindAck(requestID: Int, status: Int, value: ByteArray, device: RxBleDevice): Observable<Boolean> {
-        return operationQueue.queue<Boolean>(operationsProvider.provideReplyOperation(
-                device,
-                requestID,
-                status,
-                0,
-                value
-        ))
+        return Observable.fromCallable {
+            try {
+                gattServer.get().sendResponse(device.bluetoothDevice, requestID, status, 0, value)
+            } catch (exc: SecurityException) {
+                throw exc
+            }
+        }
     }
 
     override fun dispose() {

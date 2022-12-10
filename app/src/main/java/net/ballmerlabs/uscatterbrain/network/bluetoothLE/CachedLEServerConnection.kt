@@ -130,7 +130,6 @@ class CachedLEServerConnection(
                                 req.remoteDevice
                             )
                                 .subscribeOn(scheduler)
-                                .timeout(20, TimeUnit.SECONDS)
                                 .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
                                 .doOnComplete {
                                     LOG.v("indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
@@ -148,7 +147,6 @@ class CachedLEServerConnection(
                                     LOG.e("error in gatt server indication $err")
                                     errorRelay.accept(err)
                                 }
-                                .timeout(20, TimeUnit.SECONDS)
                                 .onErrorComplete()
                                 .doFinally {
                                     LOG.v("releasing locked characteristic ${characteristic.uuid}")
