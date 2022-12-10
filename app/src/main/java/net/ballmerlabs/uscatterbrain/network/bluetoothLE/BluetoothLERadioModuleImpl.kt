@@ -925,7 +925,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 transactionInProgressRelay.accept(false)
-             //   broadcastReceiverState.dispose()
+                broadcastReceiverState.dispose()
                 state.transactionLock.set(false)
             }
     }

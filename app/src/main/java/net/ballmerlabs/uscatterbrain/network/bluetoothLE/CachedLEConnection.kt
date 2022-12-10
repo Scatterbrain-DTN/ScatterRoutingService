@@ -11,7 +11,6 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.util.scatterLog
@@ -65,21 +64,21 @@ class CachedLEConnection(
     private fun premptiveEnable(): Completable {
         return Observable.fromIterable(channels.keys)
             .flatMapCompletable { uuid ->
-                        val subject = channelNotifs[uuid]
-                        if (subject != null) {
-                            connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                                .firstOrError()
-                                .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
-                                .flatMapCompletable { obs ->
-                                    obs
-                                        .doOnNext { b -> LOG.v("read ${b.size} bytes for channel $uuid") }
-                                        .doOnError { e -> LOG.e("error in notication obs $e") }
-                                        .subscribe(subject)
-                                    Completable.complete()
-                                }
-                        } else {
-                            Completable.error(IllegalStateException("channel $uuid does not exist"))
+                val subject = channelNotifs[uuid]
+                if (subject != null) {
+                    connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                        .firstOrError()
+                        .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
+                        .flatMapCompletable { obs ->
+                            obs
+                                .doOnNext { b -> LOG.v("read ${b.size} bytes for channel $uuid") }
+                                .doOnError { e -> LOG.e("error in notication obs $e") }
+                                .subscribe(subject)
+                            Completable.complete()
                         }
+                } else {
+                    Completable.error(IllegalStateException("channel $uuid does not exist"))
+                }
 
 
             }
@@ -100,13 +99,13 @@ class CachedLEConnection(
      */
     private fun selectChannel(): Single<UUID> {
         return connection.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
-                    .map { bytes ->
-                        val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
-                        if (!channelNotifs.containsKey(uuid)) {
-                            throw IllegalStateException("gatt server returned invalid uuid")
-                        }
-                        uuid
-                    }
+            .map { bytes ->
+                val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
+                if (!channelNotifs.containsKey(uuid)) {
+                    throw IllegalStateException("gatt server returned invalid uuid")
+                }
+                uuid
+            }
             .doOnSuccess { uuid -> LOG.v("client selected channel $uuid") }
     }
 
@@ -116,18 +115,20 @@ class CachedLEConnection(
      * to receive data
      * @return observable emitting bytes received
      */
-    private inline fun <reified T: ScatterSerializable<R>, reified R: MessageLite> cachedNotification(parser: ScatterSerializable.Companion.Parser<R, T>): Single<T> {
+    private inline fun <reified T : ScatterSerializable<R>, reified R : MessageLite> cachedNotification(
+        parser: ScatterSerializable.Companion.Parser<R, T>
+    ): Single<T> {
         return selectChannel()
-                    .flatMap { uuid ->
-                        connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                            .flatMapSingle { obs ->
-                                LOG.v("indication setup")
-                                val o = InputStreamObserver(4096)
-                                obs.subscribe(o)
-                                ScatterSerializable.parseWrapperFromCRC(parser, o as InputStream, scheduler)
-                            }
-                            .firstOrError()
+            .flatMap { uuid ->
+                connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                    .flatMapSingle { obs ->
+                        LOG.v("indication setup")
+                        val o = InputStreamObserver(4096)
+                        obs.subscribe(o)
+                        ScatterSerializable.parseWrapperFromCRC(parser, o as InputStream, scheduler)
                     }
+                    .firstOrError()
+            }
             .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
 
     }

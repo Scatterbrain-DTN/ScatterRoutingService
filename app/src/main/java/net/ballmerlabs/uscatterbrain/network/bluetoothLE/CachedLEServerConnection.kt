@@ -124,25 +124,24 @@ class CachedLEServerConnection(
                         .flatMapCompletable { characteristic ->
                             LOG.v("LOCKED characteristic ${characteristic.uuid} packet: ${packet.first.type}")
 
-                            connection.setupIndication(
-                                characteristic.uuid,
-                                packet.first.writeToStream(GATT_SIZE, scheduler),
-                                req.remoteDevice
+                            req.sendReply(
+                                BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
+                                BluetoothGatt.GATT_SUCCESS
                             )
-                                .subscribeOn(scheduler)
+                                .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
+                                .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
+                                .andThen(
+                                    connection.setupIndication(
+                                        characteristic.uuid,
+                                        packet.first.writeToStream(GATT_SIZE, scheduler),
+                                        req.remoteDevice
+                                    )
+                                        .subscribeOn(scheduler)
+                                )
                                 .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
                                 .doOnComplete {
                                     LOG.v("indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
                                 }
-                                .mergeWith(
-                                    req.sendReply(
-                                        BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
-                                        BluetoothGatt.GATT_SUCCESS
-                                    )
-                                        .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
-                                        .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
-                                        .onErrorComplete()
-                                )
                                 .doOnError { err ->
                                     LOG.e("error in gatt server indication $err")
                                     errorRelay.accept(err)
