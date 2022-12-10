@@ -63,8 +63,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                         leState.shouldConnect(res) && leState.updateConnected(
                             leState.getAdvertisedLuid(
                                 res
-                            )!!,
-                            res.bleDevice
+                            )!!
                         )
                     }
                     .concatMapMaybe { r ->

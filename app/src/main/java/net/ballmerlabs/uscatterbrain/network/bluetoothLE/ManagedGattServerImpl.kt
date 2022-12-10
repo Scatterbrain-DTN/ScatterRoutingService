@@ -76,13 +76,15 @@ class ManagedGattServerImpl @Inject constructor(
                 serverConnection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
                     state.updateDisconnected(luid)
+                   if (state.connectionCache.isEmpty()) {
+                        advertiser.removeLuid().blockingAwait()
+                   }
                 }
                 LOG.e("server handling luid $luid")
                 LOG.e("transaction NOT locked, continuing")
                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                    .andThen(trans.remoteDevice.establishConnection(false))
-                    .flatMapMaybe { conn ->
-                        val connection = CachedLEConnection(state.channels, operationsScheduler, trans.remoteDevice, conn)
+                    .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
+                    .flatMapMaybe { connection ->
                         val t = builder.build().bluetoothLeRadioModule()
                         t.handleConnection(
                             connection,
@@ -90,8 +92,6 @@ class ManagedGattServerImpl @Inject constructor(
                             luid
                         )
                     }
-                    .firstOrError()
-                    .toMaybe()
                     .doOnError { err ->
                         LOG.e("error in handleConnection $err")
                         firebase.recordException(err)

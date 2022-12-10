@@ -11,6 +11,7 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.util.scatterLog
@@ -30,13 +31,13 @@ import java.util.concurrent.TimeUnit
 class CachedLEConnection(
     private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
     private val scheduler: Scheduler,
-    val device: RxBleDevice,
-    val connection: RxBleConnection
+    val device: RxBleDevice
 ) : Disposable {
     private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
     private val timeout: Long = 20
 
+    val connection = BehaviorSubject.create<RxBleConnection>()
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
     private val channelNotifs = ConcurrentHashMap<UUID, InputStreamObserver>()
 
@@ -44,6 +45,20 @@ class CachedLEConnection(
         for (id in channels.keys()) {
             channelNotifs[id] = InputStreamObserver(4096)
         }
+    }
+
+    fun subscribeConnection(rawConnection: Observable<RxBleConnection>) {
+        rawConnection.doOnSubscribe { disp ->
+            disposable.add(disp)
+            LOG.v("subscribed to connection subject")
+        }
+            .doOnError { err ->
+                LOG.e("raw connection error: $err")
+                onDisconnect().subscribeOn(scheduler).blockingAwait()
+            }
+            .doOnComplete { LOG.e("raw connection completed") }
+            .concatWith(onDisconnect())
+            .subscribe(connection)
     }
 
     private fun onDisconnect(): Completable {
@@ -55,42 +70,6 @@ class CachedLEConnection(
         disconnectCallbacks[callback] = true
     }
 
-    /**
-     * to avoid data races when writing to the ClientConfig descriptor,
-     * enable indications for all channel characteristics
-     * as soon as we have the RxBleConnection.
-     * @return Completable
-     */
-    private fun premptiveEnable(): Completable {
-        return Observable.fromIterable(channels.keys)
-            .flatMapCompletable { uuid ->
-                val subject = channelNotifs[uuid]
-                if (subject != null) {
-                    connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                        .firstOrError()
-                        .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
-                        .flatMapCompletable { obs ->
-                            obs
-                                .doOnNext { b -> LOG.v("read ${b.size} bytes for channel $uuid") }
-                                .doOnError { e -> LOG.e("error in notication obs $e") }
-                                .subscribe(subject)
-                            Completable.complete()
-                        }
-                } else {
-                    Completable.error(IllegalStateException("channel $uuid does not exist"))
-                }
-
-
-            }
-            .onErrorResumeNext { err ->
-                when (err) {
-                    is BleDisconnectedException -> Completable.error(err)
-                    else -> Completable.complete()
-                }
-            }
-            .doOnError { e -> LOG.e("failed to preemtively enable indications $e") }
-            .doOnComplete { LOG.v("all notifications enabled") }
-    }
 
     /**
      * read from the semaphor characteristic to determine what channel
@@ -98,13 +77,17 @@ class CachedLEConnection(
      * @return Single emitting uuid of channel selected
      */
     private fun selectChannel(): Single<UUID> {
-        return connection.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
-            .map { bytes ->
-                val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
-                if (!channelNotifs.containsKey(uuid)) {
-                    throw IllegalStateException("gatt server returned invalid uuid")
-                }
-                uuid
+        return connection
+            .firstOrError()
+            .flatMap { c ->
+                c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
+                    .map { bytes ->
+                        val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
+                        if (!channelNotifs.containsKey(uuid)) {
+                            throw IllegalStateException("gatt server returned invalid uuid")
+                        }
+                        uuid
+                    }
             }
             .doOnSuccess { uuid -> LOG.v("client selected channel $uuid") }
     }
@@ -120,17 +103,22 @@ class CachedLEConnection(
     ): Single<T> {
         return selectChannel()
             .flatMap { uuid ->
-                connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                    .flatMapSingle { obs ->
-                        LOG.v("indication setup")
-                        val o = InputStreamObserver(4096)
-                        obs.subscribe(o)
-                        ScatterSerializable.parseWrapperFromCRC(parser, o as InputStream, scheduler)
-                    }
-                    .firstOrError()
+                connection.firstOrError().flatMap { conn ->
+                    conn.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                        .flatMapSingle { obs ->
+                            LOG.v("indication setup")
+                            val o = InputStreamObserver(4096)
+                            obs.subscribe(o)
+                            ScatterSerializable.parseWrapperFromCRC(
+                                parser,
+                                o as InputStream,
+                                scheduler
+                            )
+                        }
+                        .firstOrError()
+                }
+                    .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
             }
-            .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
-
     }
 
     /**
