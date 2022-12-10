@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
+import com.polidea.rxandroidble2.exceptions.BleDisconnectedException
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Scheduler
@@ -38,7 +39,6 @@ class CachedLEConnection(
     private val timeout: Long = 20
 
     val connection = BehaviorSubject.create<RxBleConnection>()
-    private val buffer = InputStreamObserver(4096)
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
     private val channelNotifs = ConcurrentHashMap<UUID, InputStreamObserver>()
 
@@ -105,8 +105,11 @@ class CachedLEConnection(
                         }
 
                 }
+            .onErrorResumeNext { err -> when(err) {
+                is BleDisconnectedException -> Completable.error(err)
+                else -> Completable.complete()
+            } }
                 .doOnError { e -> LOG.e("failed to preemtively enable indications $e") }
-                .onErrorComplete() //We can swallow errors here since indications are enabled already if failed
                 .doOnComplete { LOG.v("all notifications enabled")}
     }
 

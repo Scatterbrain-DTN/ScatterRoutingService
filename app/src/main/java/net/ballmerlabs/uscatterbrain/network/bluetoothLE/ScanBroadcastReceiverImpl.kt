@@ -47,58 +47,52 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
         }
         val result = client.backgroundScanner.onScanResultReceived(intent)
         try {
-            val lock = state.scanLock.getAndSet(true)
-            if (!lock) {
-                val disp = if (result.all { r -> leState.shouldConnect(r) }) {
-                    LOG.e("LOCKED!")
-                    val radioModule = factory.transaction().bluetoothLeRadioModule()
-                    Observable.fromIterable(result)
-                        .concatMapSingle { res ->
-                            advertiser.setAdvertisingLuid()
-                                .andThen(
-                                    radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
-                                        .onErrorComplete()
-                                )
-                                .toSingleDefault(res)
-                        }
-                        .filter { res -> leState.shouldConnect(res) && leState.updateConnected(leState.getAdvertisedLuid(res)!!)}
-                        .concatMapMaybe { r ->
-                            radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
-                                .andThen(
-                                    radioModule.processScanResult(r)
-                                        .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
-                                        .doOnError { err -> LOG.e("process scan result error $err") })
-                        }
-                        .ignoreElements()
-                        .doOnError { err -> LOG.e("process scan result error $err") }
-                        .onErrorComplete()
-                        .doOnError { err -> LOG.e("scan error $err") }
-                        .doFinally {
-                            state.disposable.getAndSet(null)?.dispose()
-                            state.scanLock.set(false)
-                        }
-                        .subscribe(
-                            { LOG.v("client transaction complete") },
-                            { err -> LOG.e("client transaction error $err") }
+            if (result.all { r -> leState.shouldConnect(r) }) {
+                LOG.e("LOCKED!")
+                val radioModule = factory.transaction().bluetoothLeRadioModule()
+                val disp = Observable.fromIterable(result)
+                    .concatMapSingle { res ->
+                        advertiser.setAdvertisingLuid()
+                            .andThen(
+                                radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
+                                    .onErrorComplete()
+                            )
+                            .toSingleDefault(res)
+                    }
+                    .filter { res ->
+                        leState.shouldConnect(res) && leState.updateConnected(
+                            leState.getAdvertisedLuid(
+                                res
+                            )!!
                         )
-                } else {
-                    advertiser.setAdvertisingLuid()
-                        .doFinally {
-                            state.disposable.getAndSet(null)?.dispose()
-                            state.scanLock.set(false)
-                        }
-                        .subscribe(
-                            { LOG.v("update advertising luid") },
-                            { err -> LOG.e("client transaction error $err") }
-                        )
+                    }
+                    .concatMapMaybe { r ->
+                        radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
+                            .andThen(
+                                radioModule.processScanResult(r)
+                                    .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
+                                    .doOnError { err -> LOG.e("process scan result error $err") })
+                    }
+                    .ignoreElements()
+                    .doOnError { err -> LOG.e("process scan result error $err") }
+                    .onErrorComplete()
+                    .subscribe(
+                        { LOG.v("client transaction complete") },
+                        { err -> LOG.e("client transaction error $err") }
+                    )
+                state.addDisposable(disp)
 
-                }
-                state.disposable.getAndSet(disp)?.dispose()
             } else {
-                LOG.v("skipping scan result due to lock")
+                val disp = advertiser.setAdvertisingLuid()
+                    .subscribe(
+                        {  },
+                        { err -> LOG.e("failed to update advertise luid $err") }
+                    )
+                state.advertiseDisposable(disp)
+
             }
         } catch (exc: Exception) {
-            state.scanLock.set(false)
+            state.dispose()
             LOG.e("exception in scan broadcastreceiver $exc")
         }
     }

@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattService
+import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.Timeout
 import io.reactivex.Completable
 import io.reactivex.Maybe
@@ -54,6 +55,12 @@ class ManagedGattServerImpl @Inject constructor(
             }.onErrorComplete()
     }
 
+    override fun disconnect(device: RxBleDevice?) {
+        if (device != null) {
+            server.get()?.first?.connection?.disconnect(device)
+        }
+    }
+
     override fun stopServer() {
         val s = server.getAndSet(null)
         s?.first?.dispose()
@@ -68,8 +75,7 @@ class ManagedGattServerImpl @Inject constructor(
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
                 serverConnection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
-                    val conn = state.connectionCache.remove(luid)
-                    conn?.dispose()
+                    state.updateDisconnected(luid)
                     if (state.connectionCache.isEmpty()) {
                         advertiser.removeLuid().blockingAwait()
                     }

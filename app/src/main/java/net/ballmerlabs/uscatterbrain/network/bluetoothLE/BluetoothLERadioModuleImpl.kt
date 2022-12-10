@@ -97,7 +97,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val firebase: FirebaseWrapper,
     private val state: LeState,
     private val advertiser: Advertiser,
-    private val managedGattServer: ManagedGattServer
+    private val managedGattServer: ManagedGattServer,
+    private val broadcastReceiverState: BroadcastReceiverState
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
 
@@ -609,7 +610,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 state.establishConnectionCached(scanResult.bleDevice, remoteUuid)
                     .flatMapMaybe { cached ->
                         cached.connection
-                            .concatMapMaybe { raw ->
+                            .firstOrError()
+                            .flatMapMaybe { raw ->
                                 LOG.v("attempting to read hello characteristic")
                                     raw.readCharacteristic(UUID_HELLO)
                                         .flatMapMaybe { luid ->
@@ -621,9 +623,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             ).onErrorComplete()
                                         }
                             }
-                            .firstOrError()
-                            .toMaybe()
-
                     }
             } else {
                 LOG.e("remote luid was null")
@@ -849,7 +848,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     )
                                 }
                         }
-                        .doFinally { state.transactionLock.set(false) }
                 } else {
                     Maybe.empty()
                 }
@@ -933,6 +931,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 transactionInProgressRelay.accept(false)
+                broadcastReceiverState.dispose()
+                state.transactionLock.set(false)
             }
     }
 

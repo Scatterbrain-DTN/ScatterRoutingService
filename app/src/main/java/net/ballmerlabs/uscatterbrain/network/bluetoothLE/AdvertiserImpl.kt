@@ -65,7 +65,6 @@ class AdvertiserImpl @Inject constructor(
         }
 
         override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
-            LOG.e("scan response data updated")
             advertisingDataUpdated.onNext(status)
         }
     }

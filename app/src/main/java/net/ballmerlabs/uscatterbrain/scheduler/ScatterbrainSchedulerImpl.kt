@@ -39,6 +39,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val client: RxBleClient,
     private val state: BroadcastReceiverState,
     private val server: ManagedGattServer,
+    private val leState: LeState,
     powerManager: PowerManager
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
@@ -109,6 +110,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                         .build()
                 )
                 broadcastRouterState(RouterState.DISCOVERING)
+                isAdvertising = true
             },
             { e ->
                 LOG.e("failed to start: $e")
@@ -119,18 +121,33 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         )
 
         globalDisposable.getAndSet(disp)?.dispose()
-        isAdvertising = true
 
     }
 
     @Synchronized
     override fun stop(): Boolean {
+        LOG.e("stop")
         val lock = discoveryLock.getAndSet(false)
-        state.shouldScan = false
-        server.stopServer()
-        client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
-        broadcastRouterState(RouterState.OFFLINE)
-        globalDisposable.getAndSet(null)?.dispose()
+        if (lock) {
+            client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
+            val disp = advertiser.stopAdvertise().subscribe(
+                {
+                    state.shouldScan = false
+                    leState.connectionCache.forEach { c ->
+                        leState.updateDisconnected(c.key)
+                    }
+                    leState.activeLuids.forEach { c ->
+                        leState.updateDisconnected(c.key)
+                    }
+                    leState.connectionCache.clear()
+                    leState.activeLuids.clear()
+                    server.stopServer()
+                    globalDisposable.getAndSet(null)?.dispose()
+                    broadcastRouterState(RouterState.OFFLINE)
+                },
+                { err -> LOG.e("failed to stop advertise ") }
+            )
+        }
         return lock
     }
 

@@ -10,6 +10,7 @@ import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
@@ -18,13 +19,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
 class LeStateImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
     val factory: ScatterbrainTransactionFactory,
-    private val advertiser: Advertiser
+    private val advertiser: Advertiser,
+    private val server: Provider<ManagedGattServer>
 ): LeState {
     override val transactionLock: AtomicBoolean = AtomicBoolean(false)
     //avoid triggering concurrent peer refreshes
@@ -44,9 +47,14 @@ class LeStateImpl @Inject constructor(
         }
     }
 
+    @Synchronized
     override fun updateDisconnected(luid: UUID) {
         LOG.e("updateDisconnected $luid")
         activeLuids.remove(luid)
+        val c = connectionCache.remove(luid)
+        val device = c?.device
+        server.get().disconnect(device)
+        c?.dispose()
     }
 
     override fun shouldConnect(res: ScanResult): Boolean {
@@ -84,8 +92,7 @@ class LeStateImpl @Inject constructor(
                         }
                     newconnection.setOnDisconnect {
                         LOG.e("client onDisconnect $luid")
-                        val conn = connectionCache.remove(luid)
-                        conn?.dispose()
+                        updateDisconnected(luid)
                         if (connectionCache.isEmpty()) {
                             advertiser.removeLuid()
                         } else {

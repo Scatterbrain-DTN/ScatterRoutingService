@@ -30,7 +30,7 @@ class CachedLEServerConnection(
     private val scheduler: Scheduler,
     private val ioScheduler: Scheduler,
     private val firebaseWrapper: FirebaseWrapper
-) : Disposable {
+) {
     val luid: UUID? = null
     private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
@@ -86,8 +86,9 @@ class CachedLEServerConnection(
     /**
      * dispose this connected
      */
-    override fun dispose() {
+    fun dispose() {
         LOG.e("CachedLEServerConnection disposed")
+        connection.dispose()
         disposable.dispose()
     }
 
@@ -95,7 +96,7 @@ class CachedLEServerConnection(
      * return true if this connection is disposed
      * @return is disposed
      */
-    override fun isDisposed(): Boolean {
+    fun isDisposed(): Boolean {
         return disposable.isDisposed
     }
 
