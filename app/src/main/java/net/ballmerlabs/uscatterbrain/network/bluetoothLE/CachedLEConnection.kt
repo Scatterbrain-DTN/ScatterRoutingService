@@ -11,8 +11,6 @@ import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.ReplaySubject
-import io.reactivex.subjects.UnicastSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.util.scatterLog
@@ -33,7 +31,7 @@ class CachedLEConnection(
     private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
     private val scheduler: Scheduler,
     val device: RxBleDevice
-        ) : Disposable {
+) : Disposable {
     private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
     private val timeout: Long = 20
@@ -81,36 +79,38 @@ class CachedLEConnection(
      */
     private fun premptiveEnable(): Completable {
         return Observable.fromIterable(channels.keys)
-                .flatMapCompletable{ uuid ->
-                    connection
-                        .firstOrError()
-                        .flatMapCompletable { c ->
-                            val subject = channelNotifs[uuid]
-                            if (subject != null) {
-                                c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                                        .doOnNext { LOG.v("preemptively enabled indications for $uuid") }
-                                        .doOnComplete { LOG.e("indications completed. This is bad") }
-                                        .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
-                                        .flatMapCompletable { obs ->
-                                            obs
-                                                    .doOnNext { b -> LOG.v("read ${b.size} bytes for channel $uuid") }
-                                                    .doOnError { e -> LOG.e("error in notication obs $e") }
-                                                    .subscribe(subject)
-                                            Completable.complete()
-                                        }
-                            } else {
-                                Completable.error(IllegalStateException("channel $uuid does not exist"))
-                            }
-
+            .flatMapCompletable { uuid ->
+                connection
+                    .firstOrError()
+                    .flatMapCompletable { c ->
+                        val subject = channelNotifs[uuid]
+                        if (subject != null) {
+                            c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                                .doOnNext { LOG.v("preemptively enabled indications for $uuid") }
+                                .doOnComplete { LOG.e("indications completed. This is bad") }
+                                .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
+                                .flatMapCompletable { obs ->
+                                    obs
+                                        .doOnNext { b -> LOG.v("read ${b.size} bytes for channel $uuid") }
+                                        .doOnError { e -> LOG.e("error in notication obs $e") }
+                                        .subscribe(subject)
+                                    Completable.complete()
+                                }
+                        } else {
+                            Completable.error(IllegalStateException("channel $uuid does not exist"))
                         }
 
+                    }
+
+            }
+            .onErrorResumeNext { err ->
+                when (err) {
+                    is BleDisconnectedException -> Completable.error(err)
+                    else -> Completable.complete()
                 }
-            .onErrorResumeNext { err -> when(err) {
-                is BleDisconnectedException -> Completable.error(err)
-                else -> Completable.complete()
-            } }
-                .doOnError { e -> LOG.e("failed to preemtively enable indications $e") }
-                .doOnComplete { LOG.v("all notifications enabled")}
+            }
+            .doOnError { e -> LOG.e("failed to preemtively enable indications $e") }
+            .doOnComplete { LOG.v("all notifications enabled") }
     }
 
     /**
@@ -123,15 +123,15 @@ class CachedLEConnection(
             .firstOrError()
             .flatMap { c ->
                 c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
-                    .map{ bytes ->
+                    .map { bytes ->
                         val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
                         if (!channelNotifs.containsKey(uuid)) {
                             throw IllegalStateException("gatt server returned invalid uuid")
                         }
                         uuid
                     }
-                }
-                .doOnSuccess{ uuid -> LOG.v("client selected channel $uuid") }
+            }
+            .doOnSuccess { uuid -> LOG.v("client selected channel $uuid") }
     }
 
     /**
@@ -144,11 +144,8 @@ class CachedLEConnection(
         return connection.firstOrError()
             .flatMap { c ->
                 selectChannel()
-                    .flatMap { uuid ->
-                        c.readCharacteristic(uuid)
-                            .map {
-                                channelNotifs[uuid] as InputStream
-                            }
+                    .map { uuid ->
+                        channelNotifs[uuid] as InputStream
                     }.timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
             }
 
@@ -257,8 +254,8 @@ class CachedLEConnection(
     fun readAck(): Single<AckPacket> {
         return cachedNotification().flatMap { input ->
             ScatterSerializable.parseWrapperFromCRC(AckPacket.parser(), input, scheduler)
-                    .doOnSubscribe { LOG.v("called readAck") }
-                    .timeout(timeout, TimeUnit.SECONDS, scheduler)
+                .doOnSubscribe { LOG.v("called readAck") }
+                .timeout(timeout, TimeUnit.SECONDS, scheduler)
         }
     }
 

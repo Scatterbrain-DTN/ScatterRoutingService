@@ -90,6 +90,7 @@ class LeStateImpl @Inject constructor(
                         .doOnNext {
                             LOG.e("established cached connection to ${device.macAddress}")
                         }
+
                     newconnection.setOnDisconnect {
                         LOG.e("client onDisconnect $luid")
                         updateDisconnected(luid)

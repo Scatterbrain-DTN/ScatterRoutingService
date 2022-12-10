@@ -76,9 +76,9 @@ class ManagedGattServerImpl @Inject constructor(
                 serverConnection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
                     state.updateDisconnected(luid)
-                    if (state.connectionCache.isEmpty()) {
+                   if (state.connectionCache.isEmpty()) {
                         advertiser.removeLuid().blockingAwait()
-                    }
+                   }
                 }
                 LOG.e("server handling luid $luid")
                 LOG.e("transaction NOT locked, continuing")

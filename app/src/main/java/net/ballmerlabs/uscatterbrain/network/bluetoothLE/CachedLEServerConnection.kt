@@ -6,7 +6,6 @@ import com.jakewharton.rxrelay2.PublishRelay
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.disposables.Disposable
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
@@ -117,32 +116,24 @@ class CachedLEServerConnection(
                 BluetoothLERadioModuleImpl.UUID_SEMAPHOR
             )
                 .subscribeOn(ioScheduler)
+                .doOnNext { LOG.v("semaphor read") }
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER)) { req, packet ->
                     LOG.v("received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet: ${packet.first.type}")
                     selectCharacteristic()
                         .flatMapCompletable { characteristic ->
                             LOG.v("LOCKED characteristic ${characteristic.uuid} packet: ${packet.first.type}")
-                            connection.getOnCharacteristicReadRequest(characteristic.uuid)
-                                .subscribeOn(ioScheduler)
-                                .firstOrError()
-                                .observeOn(scheduler)
-                                .flatMapCompletable { trans ->
-                                    LOG.v("characteristic ${characteristic.uuid} start indications packet: ${packet.first.type}")
-                                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                        .andThen(
-                                            connection.setupIndication(
-                                                characteristic.uuid,
-                                                packet.first.writeToStream(GATT_SIZE, scheduler),
-                                                trans.remoteDevice
-                                            )
-                                                .subscribeOn(scheduler)
-                                                .timeout(20, TimeUnit.SECONDS)
-                                                .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
-                                                .doOnComplete {
-                                                    LOG.v("indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
-                                                }
-                                        )
+
+                            connection.setupIndication(
+                                characteristic.uuid,
+                                packet.first.writeToStream(GATT_SIZE, scheduler),
+                                req.remoteDevice
+                            )
+                                .subscribeOn(scheduler)
+                                .timeout(20, TimeUnit.SECONDS)
+                                .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
+                                .doOnComplete {
+                                    LOG.v("indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
                                 }
                                 .mergeWith(
                                     req.sendReply(

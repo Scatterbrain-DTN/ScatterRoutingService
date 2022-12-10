@@ -57,6 +57,7 @@ interface GattServerConnectionSubcomponent {
                     context: Context,
                     gattServerCallback: GattServerConnection
             ): BluetoothGattServer {
+                Log.e("debug", "new gatt server")
                 return bluetoothManager.openGattServer(
                         context,
                         gattServerCallback.gattServerCallback
