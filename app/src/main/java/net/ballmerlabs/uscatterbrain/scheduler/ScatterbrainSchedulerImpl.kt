@@ -133,13 +133,9 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             val disp = advertiser.stopAdvertise().subscribe(
                 {
                     state.shouldScan = false
-                    leState.connectionCache.forEach { c ->
-                        leState.updateDisconnected(c.key)
-                    }
                     leState.activeLuids.forEach { c ->
                         leState.updateDisconnected(c.key)
                     }
-                    leState.connectionCache.clear()
                     leState.activeLuids.clear()
                     server.stopServer()
                     globalDisposable.getAndSet(null)?.dispose()

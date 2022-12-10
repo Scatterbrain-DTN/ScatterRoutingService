@@ -722,7 +722,6 @@ class ScatterRoutingService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
         try {
             mBackend.registerReceiver()
-            mBackend.leState.connectionCache.clear()
         } catch (e: Exception) {
             e.printStackTrace()
             FirebaseCrashlytics.getInstance().recordException(e)

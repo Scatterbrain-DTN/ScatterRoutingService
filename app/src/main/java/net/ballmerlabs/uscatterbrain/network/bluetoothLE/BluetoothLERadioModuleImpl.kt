@@ -594,11 +594,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     override fun clearPeers() {
-        state.connectionCache.values.forEach { c ->
-            c.dispose()
-        }
         state.activeLuids.clear()
-        state.connectionCache.clear()
     }
 
     override fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult> {
@@ -606,29 +602,31 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return Maybe.defer {
             val remoteUuid = state.getAdvertisedLuid(scanResult)
             if (remoteUuid != null) {
-                state.establishConnectionCached(scanResult.bleDevice, remoteUuid)
-                    .flatMapMaybe { cached ->
-                        cached.connection
-                            .firstOrError()
-                            .flatMapMaybe { raw ->
-                                LOG.v("attempting to read hello characteristic")
-                                    raw.readCharacteristic(UUID_HELLO)
-                                        .flatMapMaybe { luid ->
-                                            val luidUuid = bytes2uuid(luid)!!
-                                            LOG.v("read remote luid from GATT $luidUuid")
-                                            initiateOutgoingConnection(
-                                                cached,
-                                                luidUuid
-                                            ).onErrorComplete()
-                                        }
-                            }
-                    }
-            } else {
-                LOG.e("remote luid was null")
-                Maybe.empty()
+                scanResult.bleDevice.establishConnection(false)
+                    .flatMapMaybe { c ->
+                    val cached = CachedLEConnection(
+                        state.channels,
+                        operationsScheduler,
+                        scanResult.bleDevice,
+                        c
+                    )
+                            LOG.v("attempting to read hello characteristic")
+                        c.readCharacteristic(UUID_HELLO)
+                                .flatMapMaybe { luid ->
+                                    val luidUuid = bytes2uuid(luid)!!
+                                    LOG.v("read remote luid from GATT $luidUuid")
+                                    initiateOutgoingConnection(
+                                        cached,
+                                        luidUuid
+                                    ).onErrorComplete()
+                                }
+                }.firstOrError().toMaybe()
+                } else {
+                    LOG.e("remote luid was null")
+                    Maybe.empty()
+                }
             }
         }
-    }
 
 
     override fun initiateOutgoingConnection(
@@ -638,12 +636,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return Maybe.defer {
             transactionInProgressRelay.accept(true)
             LOG.e("initiateOutgoingConnection luid $luid")
-            cachedConnection.connection
-                .firstOrError()
-                .flatMapMaybe { connection ->
                     val hash = getHashUuid(advertiser.myLuid.get())!!
                     LOG.v("writing hashed luid $hash")
-                    connection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
+                    cachedConnection.connection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
                         .doOnSuccess { res ->
                             LOG.v("successfully wrote uuid len ${res.size}")
                         }
@@ -653,7 +648,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                         .ignoreElement()
                         .andThen(handleConnection(cachedConnection, cachedConnection.device, luid))
-                }
         }
             .subscribeOn(computeScheduler)
             .doOnError { err ->

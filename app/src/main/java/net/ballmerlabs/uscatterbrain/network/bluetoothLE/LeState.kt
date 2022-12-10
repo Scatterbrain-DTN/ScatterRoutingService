@@ -11,17 +11,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 interface LeState {
-    val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection>
-    val activeLuids: ConcurrentHashMap<UUID, Boolean>
+    val activeLuids: ConcurrentHashMap<UUID, RxBleDevice>
     val transactionLock: AtomicBoolean
     // a "channel" is a characteristc that protobuf messages are written to.
     val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic>
 
-    fun updateConnected(luid: UUID): Boolean
-    fun establishConnectionCached(
-        device: RxBleDevice,
-        luid: UUID
-    ): Single<CachedLEConnection>
+    fun updateConnected(luid: UUID, device: RxBleDevice): Boolean
 
     fun getAdvertisedLuid(scanResult: ScanResult): UUID?
 

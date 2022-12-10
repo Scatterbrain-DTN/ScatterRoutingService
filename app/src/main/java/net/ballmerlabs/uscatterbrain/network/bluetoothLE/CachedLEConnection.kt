@@ -30,13 +30,13 @@ import java.util.concurrent.TimeUnit
 class CachedLEConnection(
     private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
     private val scheduler: Scheduler,
-    val device: RxBleDevice
+    val device: RxBleDevice,
+    val connection: RxBleConnection
 ) : Disposable {
     private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
     private val timeout: Long = 20
 
-    val connection = BehaviorSubject.create<RxBleConnection>()
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
     private val channelNotifs = ConcurrentHashMap<UUID, InputStreamObserver>()
 
@@ -46,20 +46,6 @@ class CachedLEConnection(
         }
         val disp = premptiveEnable().subscribe()
         disposable.add(disp)
-    }
-
-    fun subscribeConnection(rawConnection: Observable<RxBleConnection>) {
-        rawConnection.doOnSubscribe { disp ->
-            disposable.add(disp)
-            LOG.v("subscribed to connection subject")
-        }
-            .doOnError { err ->
-                LOG.e("raw connection error: $err")
-                onDisconnect().subscribeOn(scheduler).blockingAwait()
-            }
-            .doOnComplete { LOG.e("raw connection completed") }
-            .concatWith(onDisconnect())
-            .subscribe(connection)
     }
 
     private fun onDisconnect(): Completable {
@@ -80,12 +66,9 @@ class CachedLEConnection(
     private fun premptiveEnable(): Completable {
         return Observable.fromIterable(channels.keys)
             .flatMapCompletable { uuid ->
-                connection
-                    .firstOrError()
-                    .flatMapCompletable { c ->
                         val subject = channelNotifs[uuid]
                         if (subject != null) {
-                            c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                            connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
                                 .doOnNext { LOG.v("preemptively enabled indications for $uuid") }
                                 .doOnComplete { LOG.e("indications completed. This is bad") }
                                 .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
@@ -100,7 +83,6 @@ class CachedLEConnection(
                             Completable.error(IllegalStateException("channel $uuid does not exist"))
                         }
 
-                    }
 
             }
             .onErrorResumeNext { err ->
@@ -119,10 +101,7 @@ class CachedLEConnection(
      * @return Single emitting uuid of channel selected
      */
     private fun selectChannel(): Single<UUID> {
-        return connection
-            .firstOrError()
-            .flatMap { c ->
-                c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
+        return connection.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
                     .map { bytes ->
                         val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
                         if (!channelNotifs.containsKey(uuid)) {
@@ -130,7 +109,6 @@ class CachedLEConnection(
                         }
                         uuid
                     }
-            }
             .doOnSuccess { uuid -> LOG.v("client selected channel $uuid") }
     }
 
@@ -141,13 +119,10 @@ class CachedLEConnection(
      * @return observable emitting bytes received
      */
     private fun cachedNotification(): Single<InputStream> {
-        return connection.firstOrError()
-            .flatMap { c ->
-                selectChannel()
+        return selectChannel()
                     .map { uuid ->
                         channelNotifs[uuid] as InputStream
                     }.timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
-            }
 
     }
 
