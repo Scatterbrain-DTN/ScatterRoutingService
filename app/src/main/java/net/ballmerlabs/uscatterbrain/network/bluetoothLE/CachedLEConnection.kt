@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import com.google.protobuf.MessageLite
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
@@ -44,8 +45,6 @@ class CachedLEConnection(
         for (id in channels.keys()) {
             channelNotifs[id] = InputStreamObserver(4096)
         }
-        val disp = premptiveEnable().subscribe()
-        disposable.add(disp)
     }
 
     private fun onDisconnect(): Completable {
@@ -69,8 +68,7 @@ class CachedLEConnection(
                         val subject = channelNotifs[uuid]
                         if (subject != null) {
                             connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                                .doOnNext { LOG.v("preemptively enabled indications for $uuid") }
-                                .doOnComplete { LOG.e("indications completed. This is bad") }
+                                .firstOrError()
                                 .doOnError { LOG.e("failed to preemptively enable indications for $uuid") }
                                 .flatMapCompletable { obs ->
                                     obs
@@ -118,11 +116,19 @@ class CachedLEConnection(
      * to receive data
      * @return observable emitting bytes received
      */
-    private fun cachedNotification(): Single<InputStream> {
+    private inline fun <reified T: ScatterSerializable<R>, reified R: MessageLite> cachedNotification(parser: ScatterSerializable.Companion.Parser<R, T>): Single<T> {
         return selectChannel()
-                    .map { uuid ->
-                        channelNotifs[uuid] as InputStream
-                    }.timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
+                    .flatMap { uuid ->
+                        connection.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                            .flatMapSingle { obs ->
+                                LOG.v("indication setup")
+                                val o = InputStreamObserver(4096)
+                                obs.subscribe(o)
+                                ScatterSerializable.parseWrapperFromCRC(parser, o as InputStream, scheduler)
+                            }
+                            .firstOrError()
+                    }
+            .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
 
     }
 
@@ -131,11 +137,7 @@ class CachedLEConnection(
      * @return single emitting advertise packet
      */
     fun readAdvertise(): Single<AdvertisePacket> {
-        return cachedNotification().flatMap { input ->
-            ScatterSerializable.parseWrapperFromCRC(AdvertisePacket.parser(), input, scheduler)
-                .doOnSubscribe { LOG.v("called readAdvertise") }
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
-        }
+        return cachedNotification(AdvertisePacket.parser())
     }
 
     /**
@@ -143,11 +145,7 @@ class CachedLEConnection(
      * @return single emitting upgrade packet
      */
     fun readUpgrade(): Single<UpgradePacket> {
-        return cachedNotification().flatMap { input ->
-            ScatterSerializable.parseWrapperFromCRC(UpgradePacket.parser(), input, scheduler)
-                .doOnSubscribe { LOG.v("called readUpgrade") }
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
-        }
+        return cachedNotification(UpgradePacket.parser())
     }
 
     /**
@@ -155,11 +153,7 @@ class CachedLEConnection(
      * @return single emitting blockheader packet
      */
     fun readBlockHeader(): Single<BlockHeaderPacket> {
-        return cachedNotification().flatMap { input ->
-            ScatterSerializable.parseWrapperFromCRC(BlockHeaderPacket.parser(), input, scheduler)
-                .doOnSubscribe { LOG.v("called readBlockHeader") }
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
-        }
+        return cachedNotification(BlockHeaderPacket.parser())
     }
 
     /**
@@ -167,11 +161,7 @@ class CachedLEConnection(
      * @return single emitting blocksequence packet
      */
     fun readBlockSequence(): Single<BlockSequencePacket> {
-        return cachedNotification().flatMap { input ->
-            ScatterSerializable.parseWrapperFromCRC(BlockSequencePacket.parser(), input, scheduler)
-                .doOnSubscribe { LOG.v("called readBlockSequence") }
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
-        }
+        return cachedNotification(BlockSequencePacket.parser())
     }
 
     /**
@@ -179,11 +169,7 @@ class CachedLEConnection(
      * @return single emitting delcarehashes packet
      */
     fun readDeclareHashes(): Single<DeclareHashesPacket> {
-        return cachedNotification().flatMap { input ->
-            ScatterSerializable.parseWrapperFromCRC(DeclareHashesPacket.parser(), input, scheduler)
-                .doOnSubscribe { LOG.v("called readDeclareHashes") }
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
-        }
+        return cachedNotification(DeclareHashesPacket.parser())
     }
 
     /**
@@ -191,11 +177,7 @@ class CachedLEConnection(
      * @return single emitting electleader packet
      */
     fun readElectLeader(): Single<ElectLeaderPacket> {
-        return cachedNotification().flatMap { input ->
-            ScatterSerializable.parseWrapperFromCRC(ElectLeaderPacket.parser(), input, scheduler)
-                .doOnSubscribe { LOG.v("called readElectLeader") }
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
-        }
+        return cachedNotification(ElectLeaderPacket.parser())
     }
 
     /**
@@ -203,11 +185,7 @@ class CachedLEConnection(
      * @return single emitting identity packet
      */
     fun readIdentityPacket(): Single<IdentityPacket> {
-        return cachedNotification().flatMap { input ->
-            ScatterSerializable.parseWrapperFromCRC(IdentityPacket.parser(), input, scheduler)
-                .doOnSubscribe { LOG.v("called readIdentityPacket") }
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
-        }
+        return cachedNotification(IdentityPacket.parser())
     }
 
     /**
@@ -215,11 +193,7 @@ class CachedLEConnection(
      * @return single emitting luid packet
      */
     fun readLuid(): Single<LuidPacket> {
-        return cachedNotification().flatMap { input ->
-            ScatterSerializable.parseWrapperFromCRC(LuidPacket.parser(), input, scheduler)
-                .doOnSubscribe { LOG.v("called readLuid") }
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
-        }
+        return cachedNotification(LuidPacket.parser())
     }
 
     /**
@@ -227,11 +201,7 @@ class CachedLEConnection(
      * @return single emititng ack packet
      */
     fun readAck(): Single<AckPacket> {
-        return cachedNotification().flatMap { input ->
-            ScatterSerializable.parseWrapperFromCRC(AckPacket.parser(), input, scheduler)
-                .doOnSubscribe { LOG.v("called readAck") }
-                .timeout(timeout, TimeUnit.SECONDS, scheduler)
-        }
+        return cachedNotification(AckPacket.parser())
     }
 
     /**

@@ -49,8 +49,6 @@ class LeStateImpl @Inject constructor(
     @Synchronized
     override fun updateDisconnected(luid: UUID) {
         LOG.e("updateDisconnected $luid")
-        val c = activeLuids.remove(luid)
-        server.get().disconnect(c)
     }
 
     override fun shouldConnect(res: ScanResult): Boolean {
