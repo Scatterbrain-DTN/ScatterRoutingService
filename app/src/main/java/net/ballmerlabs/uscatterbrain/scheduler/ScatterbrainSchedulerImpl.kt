@@ -92,7 +92,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         }
         state.shouldScan = true
         val disp = advertiser.startAdvertise()
-            .andThen(server.startServer())
             .timeout(10, TimeUnit.SECONDS)
             .subscribe(
             {
@@ -141,7 +140,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                     }
                     leState.connectionCache.clear()
                     leState.activeLuids.clear()
-                    server.stopServer()
                     globalDisposable.getAndSet(null)?.dispose()
                     broadcastRouterState(RouterState.OFFLINE)
                 },

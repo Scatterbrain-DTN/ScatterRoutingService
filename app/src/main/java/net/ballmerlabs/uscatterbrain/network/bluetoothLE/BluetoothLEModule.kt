@@ -41,14 +41,6 @@ interface BluetoothLEModule {
     fun observeTransactionStatus(): Observable<Boolean>
 
     /**
-     * Similar to observeTransactions(), but enables active discovery before emitting any
-     * HandshakeResults
-     *
-     * @return Observable emitting handshake results
-     */
-    fun discoverForever(): Observable<HandshakeResult>
-
-    /**
      * Clears the list of nearby peers, nearby devices currently in range will
      * be reconnected to if possible
      */
@@ -68,16 +60,18 @@ interface BluetoothLEModule {
      * @param scanResult scan result
      * @return maybe for transaction
      */
-    fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult>
+    fun processScanResult(scanResult: ScanResult, server: CachedLEServerConnection): Maybe<HandshakeResult>
 
     fun handleConnection(
         clientConnection: CachedLEConnection,
+        server: CachedLEServerConnection,
         device: RxBleDevice,
         luid: UUID
     ): Maybe<HandshakeResult>
 
     fun initiateOutgoingConnection(
         cachedConnection: CachedLEConnection,
+        server: CachedLEServerConnection,
         luid: UUID
     ): Maybe<HandshakeResult>
 

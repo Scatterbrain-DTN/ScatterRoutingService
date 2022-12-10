@@ -1,6 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
+import android.bluetooth.BluetoothGattServer
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
+import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -16,10 +18,10 @@ import javax.inject.Singleton
 class GattServerImpl @Inject constructor(
         private val connectionBuilder: Provider<GattServerConnectionSubcomponent.Builder>,
         @Named(RoutingServiceComponent.NamedSchedulers.IO) private val timeoutScheduler: Scheduler,
-        @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val computeScheduler: Scheduler
+        @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val computeScheduler: Scheduler,
 ): GattServer {
-    override fun openServer(config: ServerConfig): Single<GattServerConnection> {
-        return Single.fromCallable {
+    override fun openServer(config: ServerConfig): Observable<GattServerConnection> {
+        return Observable.fromCallable {
             connectionBuilder.get()
                     .timeoutConfiguration(
                             TimeoutConfiguration(
@@ -34,6 +36,6 @@ class GattServerImpl @Inject constructor(
         }
             .subscribeOn(computeScheduler)
             .observeOn(AndroidSchedulers.mainThread())
-            .flatMap { conn -> conn.initializeServer(config).toSingleDefault(conn) }
+            .flatMapSingle { conn -> conn.initializeServer(config).toSingleDefault(conn) }
     }
 }

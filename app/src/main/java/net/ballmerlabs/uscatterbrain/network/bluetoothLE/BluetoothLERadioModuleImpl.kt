@@ -98,7 +98,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val state: LeState,
     private val advertiser: Advertiser,
     private val managedGattServer: ManagedGattServer,
-    private val broadcastReceiverState: BroadcastReceiverState
+    private val broadcastReceiverState: BroadcastReceiverState,
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
 
@@ -602,7 +602,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         state.connectionCache.clear()
     }
 
-    override fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult> {
+    override fun processScanResult(scanResult: ScanResult, server: CachedLEServerConnection): Maybe<HandshakeResult> {
         LOG.d("scan result: " + scanResult.bleDevice.macAddress)
         return Maybe.defer {
             val remoteUuid = state.getAdvertisedLuid(scanResult)
@@ -619,6 +619,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             LOG.v("read remote luid from GATT $luidUuid")
                                             initiateOutgoingConnection(
                                                 cached,
+                                                server,
                                                 luidUuid
                                             ).onErrorComplete()
                                         }
@@ -634,6 +635,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     override fun initiateOutgoingConnection(
         cachedConnection: CachedLEConnection,
+        server: CachedLEServerConnection,
         luid: UUID
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
@@ -653,7 +655,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             LOG.e("failed to write characteristic: $e")
                         }
                         .ignoreElement()
-                        .andThen(handleConnection(cachedConnection, cachedConnection.device, luid))
+                        .andThen(handleConnection(cachedConnection, server, cachedConnection.device, luid))
                 }
         }
             .subscribeOn(computeScheduler)
@@ -676,52 +678,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 .setServiceUuid(ParcelUuid(SERVICE_UUID))
                 .build()
         )
-    }
-
-    /**
-     * start device discovery forever, dispose to cancel.
-     * @return observable of HandshakeResult containing transaction stats
-     */
-    override fun discoverForever(): Observable<HandshakeResult> {
-        val discover = discoverContinuous()
-            .retryWhen { e -> handleUndocumentedScanThrottling<HandshakeResult>(e) }
-            .doOnSubscribe { discoveryPersistent.set(true) }
-            .concatMapSingle { res ->
-                if (state.shouldConnect(res)) {
-                    transactionInProgressRelay.accept(true)
-                }
-                advertiser.setAdvertisingLuid()
-                    .andThen(removeWifiDirectGroup(advertiser.randomizeLuidIfOld()).onErrorComplete())
-                    .toSingleDefault(res)
-            }
-            .filter { res -> state.shouldConnect(res) }
-            .concatMapMaybe { scanResult ->
-                processScanResult(scanResult)
-                    .onErrorComplete()
-                    .doOnSuccess {
-                        LOG.e(
-                            "I DID A DONE! transaction for ${scanResult.bleDevice.macAddress} complete"
-                        )
-                    }
-                    .doOnError { err ->
-                        firebase.recordException(err)
-                        LOG.e(
-                            "transaction for ${scanResult.bleDevice.macAddress} failed: $err"
-                        )
-                        err.printStackTrace()
-                    }
-            }
-            .doOnComplete { LOG.e("discoverForever completed") }
-            .doOnError { err ->
-                firebase.recordException(err)
-                LOG.e("discoverForever error: $err")
-                clearPeers()
-            }
-            .doFinally { discoveryPersistent.set(false) }
-            .subscribeOn(computeScheduler)
-            .doOnSubscribe { LOG.e("subscribed discoverForever") }
-
-        return discover
     }
 
     // Droids are weird and sometimes throttle repeated LE discoveries.
@@ -818,13 +774,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     override fun handleConnection(
         clientConnection: CachedLEConnection,
+        server: CachedLEServerConnection,
         device: RxBleDevice,
         luid: UUID
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
                 if (!state.transactionLock.getAndSet(true)) {
-                    managedGattServer.getServer()
-                        .toSingle()
+                    Single.just(server)
                         .flatMapMaybe { connection ->
                             LOG.v("successfully connected to $luid")
                             val s = LeDeviceSession(

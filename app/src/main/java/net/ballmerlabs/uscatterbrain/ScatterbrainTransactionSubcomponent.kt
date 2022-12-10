@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain
 
 import dagger.Binds
+import dagger.BindsInstance
 import dagger.Module
 import dagger.Provides
 import dagger.Subcomponent
@@ -8,6 +9,7 @@ import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLEServerConnection
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
 import javax.inject.Named

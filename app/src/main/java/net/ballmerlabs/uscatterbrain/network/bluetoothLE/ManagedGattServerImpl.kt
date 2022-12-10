@@ -8,6 +8,7 @@ import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
+import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
@@ -36,7 +37,6 @@ class ManagedGattServerImpl @Inject constructor(
     private val firebase: FirebaseWrapper
     ) : ManagedGattServer {
 
-    private val server = AtomicReference<Pair<CachedLEServerConnection, Disposable>?>(null)
 
     private val LOG by scatterLog()
 
@@ -55,27 +55,17 @@ class ManagedGattServerImpl @Inject constructor(
             }.onErrorComplete()
     }
 
-    override fun disconnect(device: RxBleDevice?) {
-        if (device != null) {
-            server.get()?.first?.connection?.disconnect(device)
-        }
-    }
 
-    override fun stopServer() {
-        val s = server.getAndSet(null)
-        s?.first?.dispose()
-        s?.second?.dispose()
-    }
-
-    private fun helloWrite(serverConnection: GattServerConnection): Observable<HandshakeResult> {
-        return serverConnection.getOnCharacteristicWriteRequest(BluetoothLERadioModuleImpl.UUID_HELLO)
+    private fun helloWrite(serverConnection: CachedLEServerConnection): Observable<HandshakeResult> {
+        return serverConnection.connection.getOnCharacteristicWriteRequest(BluetoothLERadioModuleImpl.UUID_HELLO)
             .subscribeOn(operationsScheduler)
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
-                serverConnection.setOnDisconnect(trans.remoteDevice) {
+                serverConnection.connection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
                     state.updateDisconnected(luid)
+                    serverConnection.dispose()
                    if (state.connectionCache.isEmpty()) {
                         advertiser.removeLuid().blockingAwait()
                    }
@@ -88,6 +78,7 @@ class ManagedGattServerImpl @Inject constructor(
                         val t = builder.build().bluetoothLeRadioModule()
                         t.handleConnection(
                             connection,
+                            serverConnection,
                             trans.remoteDevice,
                             luid
                         )
@@ -95,6 +86,7 @@ class ManagedGattServerImpl @Inject constructor(
                     .doOnError { err ->
                         LOG.e("error in handleConnection $err")
                         firebase.recordException(err)
+                        serverConnection.dispose()
                         state.updateDisconnected(luid)
                     }
 
@@ -118,7 +110,7 @@ class ManagedGattServerImpl @Inject constructor(
      * this function NEEDS to be called for the device to be connectable
      * @return false on failure
      */
-    override fun startServer(): Completable {
+    override fun startServer(): Observable<CachedLEServerConnection> {
         // initialize our channels
         makeCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
         makeCharacteristic(BluetoothLERadioModuleImpl.UUID_HELLO)
@@ -152,8 +144,7 @@ class ManagedGattServerImpl @Inject constructor(
             .doOnError { e ->
                 LOG.e("failed to open server: $e")
             }
-            .flatMapCompletable { connectionRaw ->
-                Completable.fromAction {
+            .flatMap { connectionRaw ->
                     LOG.v("gatt server initialized")
                     val s = CachedLEServerConnection(
                         connectionRaw,
@@ -163,32 +154,14 @@ class ManagedGattServerImpl @Inject constructor(
                         firebaseWrapper = firebase
                     )
 
-                    val write = helloWrite(connectionRaw)
+                    val write = helloWrite(s)
                     val read = helloRead(connectionRaw)
 
-                    val disp = write.mergeWith(read)
+                    val run = write.mergeWith(read)
                         .retry(10)
                         .ignoreElements()
-                        .subscribe(
-                            { LOG.e("server handler completed") },
-                            { err -> LOG.e("server handler error $err") }
-                        )
 
-                    val old = server.getAndSet(Pair(s, disp))
-                    old?.first?.dispose()
-                    old?.second?.dispose()
-                }
+                Observable.just(s).mergeWith(run)
             }
-    }
-
-    override fun getServer(): Maybe<CachedLEServerConnection> {
-        return Maybe.defer {
-            val s = server.get()
-            if(s != null) {
-                Maybe.just(s.first)
-            } else {
-                Maybe.empty()
-            }
-        }
     }
 }

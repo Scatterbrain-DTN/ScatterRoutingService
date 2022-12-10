@@ -31,6 +31,9 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
     lateinit var leState: LeState
 
     @Inject
+    lateinit var gattServer: ManagedGattServer
+
+    @Inject
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION)
     lateinit var computeScheduler: Scheduler
 
@@ -50,32 +53,36 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
             if (result.all { r -> leState.shouldConnect(r) }) {
                 LOG.e("LOCKED!")
                 val radioModule = factory.transaction().bluetoothLeRadioModule()
-                val disp = Observable.fromIterable(result)
-                    .concatMapSingle { res ->
-                        advertiser.setAdvertisingLuid()
-                            .andThen(
-                                radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
-                                    .onErrorComplete()
+                val disp = gattServer.startServer().flatMapCompletable { server ->
+                    Observable.fromIterable(result)
+                        .concatMapSingle { res ->
+                            advertiser.setAdvertisingLuid()
+                                .andThen(
+                                    radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
+                                        .onErrorComplete()
+                                )
+                                .toSingleDefault(res)
+                        }
+                        .filter { res ->
+                            leState.shouldConnect(res) && leState.updateConnected(
+                                leState.getAdvertisedLuid(
+                                    res
+                                )!!
                             )
-                            .toSingleDefault(res)
-                    }
-                    .filter { res ->
-                        leState.shouldConnect(res) && leState.updateConnected(
-                            leState.getAdvertisedLuid(
-                                res
-                            )!!
-                        )
-                    }
-                    .concatMapMaybe { r ->
-                        radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
-                            .andThen(
-                                radioModule.processScanResult(r)
-                                    .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
-                                    .doOnError { err -> LOG.e("process scan result error $err") })
-                    }
-                    .ignoreElements()
-                    .doOnError { err -> LOG.e("process scan result error $err") }
-                    .onErrorComplete()
+                        }
+                        .concatMapMaybe { r ->
+                            radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
+                                .andThen(
+                                    radioModule.processScanResult(r, server)
+                                        .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
+                                        .doOnError { err -> LOG.e("process scan result error $err") })
+                        }
+                        .ignoreElements()
+                        .doOnError { err -> LOG.e("process scan result error $err") }
+                        .onErrorComplete()
+
+                }
+                    .doOnDispose { LOG.e("scan disposed") }
                     .subscribe(
                         { LOG.v("client transaction complete") },
                         { err -> LOG.e("client transaction error $err") }

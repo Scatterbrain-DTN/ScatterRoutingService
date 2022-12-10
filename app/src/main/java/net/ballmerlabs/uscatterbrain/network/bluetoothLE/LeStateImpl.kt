@@ -53,7 +53,6 @@ class LeStateImpl @Inject constructor(
         activeLuids.remove(luid)
         val c = connectionCache.remove(luid)
         val device = c?.device
-        server.get().disconnect(device)
         c?.dispose()
     }
 
@@ -119,12 +118,14 @@ class LeStateImpl @Inject constructor(
                     refreshInProgresss.takeUntil { v -> !v }
                         .flatMap {
                             val module = factory.transaction().bluetoothLeRadioModule()
-                            Observable.fromIterable(connectionCache.entries)
-                                .concatMapMaybe { v ->
-                                    LOG.v("refreshing peer ${v.key}")
-                                    module.initiateOutgoingConnection(v.value, v.key)
-                                        .onErrorComplete()
-                                }
+                            server.get().startServer().flatMap { server ->
+                                Observable.fromIterable(connectionCache.entries)
+                                    .concatMapMaybe { v ->
+                                        LOG.v("refreshing peer ${v.key}")
+                                        module.initiateOutgoingConnection(v.value, server, v.key)
+                                            .onErrorComplete()
+                                    }
+                            }
                         }
                 } else {
                     LOG.v("refresh already in progress, skipping")

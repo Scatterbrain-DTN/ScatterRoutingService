@@ -6,6 +6,7 @@ import com.jakewharton.rxrelay2.PublishRelay
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.disposables.Disposable
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
@@ -29,7 +30,7 @@ class CachedLEServerConnection(
     private val scheduler: Scheduler,
     private val ioScheduler: Scheduler,
     private val firebaseWrapper: FirebaseWrapper
-) {
+): Disposable {
     val luid: UUID? = null
     private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
@@ -85,7 +86,7 @@ class CachedLEServerConnection(
     /**
      * dispose this connected
      */
-    fun dispose() {
+    override fun dispose() {
         LOG.e("CachedLEServerConnection disposed")
         connection.dispose()
         disposable.dispose()
@@ -95,7 +96,7 @@ class CachedLEServerConnection(
      * return true if this connection is disposed
      * @return is disposed
      */
-    fun isDisposed(): Boolean {
+    override fun isDisposed(): Boolean {
         return disposable.isDisposed
     }
 
