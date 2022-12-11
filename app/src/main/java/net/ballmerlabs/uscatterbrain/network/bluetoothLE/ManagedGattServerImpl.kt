@@ -179,6 +179,7 @@ class ManagedGattServerImpl @Inject constructor(
                     old?.second?.dispose()
                 }
             }
+            .cache()
     }
 
     override fun getServer(): Maybe<CachedLEServerConnection> {

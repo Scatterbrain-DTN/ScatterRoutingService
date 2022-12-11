@@ -40,6 +40,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val state: BroadcastReceiverState,
     private val server: ManagedGattServer,
     private val leState: LeState,
+    private val broadcastReceiverState: BroadcastReceiverState,
     powerManager: PowerManager
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
@@ -132,6 +133,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
             val disp = advertiser.stopAdvertise().subscribe(
                 {
+                    broadcastReceiverState.dispose()
                     state.shouldScan = false
                     leState.connectionCache.forEach { c ->
                         leState.updateDisconnected(c.key)
@@ -141,7 +143,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                     }
                     leState.connectionCache.clear()
                     leState.activeLuids.clear()
-                    server.stopServer()
                     globalDisposable.getAndSet(null)?.dispose()
                     broadcastRouterState(RouterState.OFFLINE)
                 },
