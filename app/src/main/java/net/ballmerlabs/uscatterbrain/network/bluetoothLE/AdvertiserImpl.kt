@@ -84,11 +84,7 @@ class AdvertiserImpl @Inject constructor(
                     if (v.first.isPresent) {
                         awaitAdvertiseDataUpdate()
                             .doOnSubscribe {
-                                if (ActivityCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.BLUETOOTH_ADVERTISE
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                ) {
+                                try {
                                     v.first.item?.setScanResponseData(
                                         AdvertiseData.Builder()
                                             .setIncludeDeviceName(false)
@@ -96,8 +92,9 @@ class AdvertiserImpl @Inject constructor(
                                             .addServiceData(ParcelUuid(luid), byteArrayOf(5))
                                             .build()
                                     )
+                                } catch (exc: SecurityException) {
+                                    throw exc
                                 }
-
                             }
                     } else {
                         startAdvertise(luid = luid)
@@ -152,11 +149,11 @@ class AdvertiserImpl @Inject constructor(
     override fun stopAdvertise(): Completable {
         LOG.v("stopping LE advertise")
         return Completable.fromAction {
-                try {
-                    manager.adapter?.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseSetCallback)
-                } catch (exc: SecurityException) {
-                    throw exc
-                }
+            try {
+                manager.adapter?.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseSetCallback)
+            } catch (exc: SecurityException) {
+                throw exc
+            }
             mapAdvertiseComplete(false)
         }
             .subscribeOn(scheduler)

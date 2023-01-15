@@ -61,11 +61,7 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private fun peersChangedAction(context: Context) {
         // The peer list has changed!
         LOG.v("WIFI_P2P_PEERS_CHANGED_ACTION")
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED) {
-            LOG.e("cannot request peers without ACCESS_FINE_LOCATION permission")
-            manager.requestPeers(channel, mListener)
-        }
+        manager.requestPeers(channel, mListener)
     }
 
     private fun connectionChangedAction() {

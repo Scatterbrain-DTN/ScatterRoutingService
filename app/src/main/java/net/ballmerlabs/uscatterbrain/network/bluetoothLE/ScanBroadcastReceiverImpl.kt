@@ -48,15 +48,17 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
         val result = client.backgroundScanner.onScanResultReceived(intent)
         try {
             if (result.all { r -> leState.shouldConnect(r) }) {
-                LOG.e("LOCKED!")
+                LOG.e("LOCKED! ${result.size}")
                 val radioModule = factory.transaction().bluetoothLeRadioModule()
                 val disp = Observable.fromIterable(result)
                     .concatMapSingle { res ->
+                        LOG.e("start handle scan result ${res.bleDevice.macAddress}")
                         advertiser.setAdvertisingLuid()
                             .andThen(
                                 radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
                                     .onErrorComplete()
                             )
+                            .doOnComplete { LOG.e("setAdvertisingLuid complete") }
                             .toSingleDefault(res)
                     }
                     .filter { res ->
@@ -67,7 +69,9 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                         )
                     }
                     .concatMapMaybe { r ->
+                        LOG.e("initiating scan result processing")
                         radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
+                            .doOnComplete { LOG.e("removeWifiDirectGroup complete") }
                             .andThen(
                                 radioModule.processScanResult(r)
                                     .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
