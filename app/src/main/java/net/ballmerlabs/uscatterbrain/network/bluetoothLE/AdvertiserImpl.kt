@@ -33,12 +33,13 @@ class AdvertiserImpl @Inject constructor(
     private val firebase: FirebaseWrapper,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION)
     private val scheduler: Scheduler
-    ) : Advertiser {
+) : Advertiser {
 
     private val LOG by scatterLog()
     private val advertisingLock = AtomicReference(false)
     private val isAdvertising = BehaviorSubject.create<Pair<Optional<AdvertisingSet>, Int>>()
     private val advertisingDataUpdated = PublishSubject.create<Int>()
+
     // luid is a temporary unique identifier used for a single transaction.
     override val myLuid: AtomicReference<UUID> = AtomicReference(UUID.randomUUID())
     private val lastLuidRandomize = AtomicReference(Date())
@@ -77,39 +78,31 @@ class AdvertiserImpl @Inject constructor(
 
     override fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
-            if (ActivityCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.BLUETOOTH_ADVERTISE
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                Completable.error(PermissionsNotAcceptedException())
-            } else {
-                isAdvertising
-                    .firstOrError()
-                    .flatMapCompletable { v ->
-                        if (v.first.isPresent) {
-                            awaitAdvertiseDataUpdate()
-                                .doOnSubscribe {
-                                    if (ActivityCompat.checkSelfPermission(
-                                            context,
-                                            Manifest.permission.BLUETOOTH_ADVERTISE
-                                        ) == PackageManager.PERMISSION_GRANTED
-                                    ) {
-                                        v.first.item?.setScanResponseData(
-                                            AdvertiseData.Builder()
-                                                .setIncludeDeviceName(false)
-                                                .setIncludeTxPowerLevel(false)
-                                                .addServiceData(ParcelUuid(luid), byteArrayOf(5))
-                                                .build()
-                                        )
-                                    }
-
+            isAdvertising
+                .firstOrError()
+                .flatMapCompletable { v ->
+                    if (v.first.isPresent) {
+                        awaitAdvertiseDataUpdate()
+                            .doOnSubscribe {
+                                if (ActivityCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.BLUETOOTH_ADVERTISE
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    v.first.item?.setScanResponseData(
+                                        AdvertiseData.Builder()
+                                            .setIncludeDeviceName(false)
+                                            .setIncludeTxPowerLevel(false)
+                                            .addServiceData(ParcelUuid(luid), byteArrayOf(5))
+                                            .build()
+                                    )
                                 }
-                        } else {
-                            startAdvertise(luid = luid)
-                        }
+
+                            }
+                    } else {
+                        startAdvertise(luid = luid)
                     }
-            }
+                }
         }.subscribeOn(scheduler)
     }
 
@@ -127,31 +120,27 @@ class AdvertiserImpl @Inject constructor(
 
     override fun removeLuid(): Completable {
         return Completable.defer {
-            if (ActivityCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.BLUETOOTH_ADVERTISE
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                Completable.error(PermissionsNotAcceptedException())
-            } else {
-                isAdvertising
-                    .firstOrError()
-                    .flatMapCompletable { v ->
-                        if (v.first.isPresent) {
-                            awaitAdvertiseDataUpdate()
-                                .doOnSubscribe {
+            isAdvertising
+                .firstOrError()
+                .flatMapCompletable { v ->
+                    if (v.first.isPresent) {
+                        awaitAdvertiseDataUpdate()
+                            .doOnSubscribe {
+                                try {
                                     v.first.item?.setScanResponseData(
                                         AdvertiseData.Builder()
                                             .setIncludeDeviceName(false)
                                             .setIncludeTxPowerLevel(false)
                                             .build()
                                     )
+                                } catch (exc: SecurityException) {
+                                    throw exc
                                 }
-                        } else {
-                            Completable.error(IllegalStateException("failed to set advertising data removeLuid"))
-                        }
+                            }
+                    } else {
+                        Completable.error(IllegalStateException("failed to set advertising data removeLuid"))
                     }
-            }
+                }
         }
             .subscribeOn(scheduler)
             .doOnComplete { LOG.v("successfully removed luid") }
@@ -163,15 +152,11 @@ class AdvertiserImpl @Inject constructor(
     override fun stopAdvertise(): Completable {
         LOG.v("stopping LE advertise")
         return Completable.fromAction {
-            if (ActivityCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.BLUETOOTH_ADVERTISE
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                manager.adapter?.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseSetCallback)
-            } else {
-                throw PermissionsNotAcceptedException()
-            }
+                try {
+                    manager.adapter?.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseSetCallback)
+                } catch (exc: SecurityException) {
+                    throw exc
+                }
             mapAdvertiseComplete(false)
         }
             .subscribeOn(scheduler)
@@ -179,18 +164,18 @@ class AdvertiserImpl @Inject constructor(
 
 
     private fun mapAdvertiseComplete(state: Boolean): Completable {
-                return isAdvertising
-                    .takeUntil { v -> (v.first.isPresent == state) || (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) }
-                    .flatMapCompletable { v ->
-                            if (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) {
-                                    Completable.error(IllegalStateException("failed to complete advertise task: ${v.second}"))
-                                } else {
+        return isAdvertising
+            .takeUntil { v -> (v.first.isPresent == state) || (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) }
+            .flatMapCompletable { v ->
+                if (v.second != AdvertisingSetCallback.ADVERTISE_SUCCESS) {
+                    Completable.error(IllegalStateException("failed to complete advertise task: ${v.second}"))
+                } else {
                     Completable.complete()
-                                }
-                        }
+                }
+            }
 
     }
-    
+
     /**
      * start offloaded advertising. This should continue even after the phone is asleep
      */
@@ -204,12 +189,12 @@ class AdvertiserImpl @Inject constructor(
                     Completable.fromAction {
                         LOG.v("Starting LE advertise")
                         val settings = AdvertisingSetParameters.Builder()
-                        .setConnectable(true)
-                        .setScannable(true)
-                        .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                        .setLegacyMode(true)
-                        .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
-                        .build()
+                            .setConnectable(true)
+                            .setScannable(true)
+                            .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                            .setLegacyMode(true)
+                            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                            .build()
                         val serviceData = AdvertiseData.Builder()
                             .setIncludeDeviceName(false)
                             .setIncludeTxPowerLevel(false)
@@ -228,27 +213,22 @@ class AdvertiserImpl @Inject constructor(
                                 .setIncludeTxPowerLevel(false)
                                 .build()
                         }
-                            if (ActivityCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.BLUETOOTH_ADVERTISE
-                                ) != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                throw PermissionsNotAcceptedException()
-                            } else {
-                                try {
-                                    manager.adapter.bluetoothLeAdvertiser.startAdvertisingSet(
-                                        settings,
-                                        serviceData,
-                                        responsedata,
-                                        null,
-                                        null,
-                                        advertiseSetCallback
-                                    )
-                                } catch (exc: Exception) {
-                                    LOG.e("failed to advertise $exc")
-                                }
-                                LOG.v("advertise start")
-                            }
+
+                        try {
+                            manager.adapter.bluetoothLeAdvertiser.startAdvertisingSet(
+                                settings,
+                                serviceData,
+                                responsedata,
+                                null,
+                                null,
+                                advertiseSetCallback
+                            )
+                        } catch (exc: SecurityException) {
+                            throw exc
+                        } catch (exc: Exception) {
+                            LOG.e("failed to advertise $exc")
+                        }
+                        LOG.v("advertise start")
                     }.subscribeOn(scheduler)
                         .andThen(mapAdvertiseComplete(true))
             }
