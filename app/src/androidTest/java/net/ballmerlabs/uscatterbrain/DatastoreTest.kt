@@ -27,7 +27,7 @@ class DatastoreTest {
     private lateinit var ctx: Context
     private lateinit var datastore: ScatterbrainDatastore
     private lateinit var database: Datastore
-    private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
+    private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test"))
 
 
     @Rule
@@ -46,7 +46,7 @@ class DatastoreTest {
                 .fallbackToDestructiveMigration()
                 .build()
         val prefs = RouterPreferencesImpl(
-                ctx.getSharedPreferences(RoutingServiceComponent.SHARED_PREFS, Context.MODE_PRIVATE)
+                ctx.dataStore
         )
 
         datastore = ScatterbrainDatastoreImpl(

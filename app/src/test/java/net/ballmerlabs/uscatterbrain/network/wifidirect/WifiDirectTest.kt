@@ -90,7 +90,8 @@ class WifiDirectTest {
             .packetOutputStream(packetOutputStream)
             .wifiDirectBroadcastReceiver(broadcastReceiver)
             .build()!!
-        module = component.wifiDirectModule()
+        val trans = component.getTransactionBuilder().build()!!
+        module = trans.wifiDirectRadioModule()
         bootstrapRequestComponentBuilder = component.bootstrapSubcomponent().get()
 
     }

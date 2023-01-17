@@ -4,8 +4,7 @@ import android.bluetooth.BluetoothGattServer
 import android.bluetooth.BluetoothManager
 import dagger.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.*
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.GattServerOperationQueue
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.ServerOperationQueueImpl
+
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactoryImpl
 
@@ -15,8 +14,6 @@ interface FakeGattServerConnectionSubcomponent: GattServerConnectionSubcomponent
 
     @Subcomponent.Builder
     interface Builder: GattServerConnectionSubcomponent.Builder {
-        @BindsInstance
-        fun bluetoothManager(manager: BluetoothManager): Builder
 
         @BindsInstance
         fun gattServer(bluetoothGattServer: BluetoothGattServer): Builder
@@ -26,10 +23,6 @@ interface FakeGattServerConnectionSubcomponent: GattServerConnectionSubcomponent
 
     @Module(subcomponents = [FakeServerTransactionSubcomponent::class])
     abstract class GattServerConnectionModule {
-        @Binds
-        @GattServerConnectionScope
-        abstract fun bindServerOperationQueue(impl: ServerOperationQueueImpl): GattServerOperationQueue
-
         @Binds
         @GattServerConnectionScope
         abstract fun bindServerConnection(impl: GattServerConnectionImpl): GattServerConnection
@@ -42,9 +35,6 @@ interface FakeGattServerConnectionSubcomponent: GattServerConnectionSubcomponent
         @GattServerConnectionScope
         abstract fun bindTransactionFactory(impl: ServerTransactionFactoryImpl): ServerTransactionFactory
 
-        @Binds
-        @GattServerConnectionScope
-        abstract fun bindsOperationProvider(impl: GattServerConnectionOperationsProviderImpl): GattServerConnectionOperationsProvider
         @Module
         companion object {
             @Provides

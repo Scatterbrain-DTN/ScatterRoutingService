@@ -85,7 +85,7 @@ class ManagedGattServerImpl @Inject constructor(
                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                     .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
                     .flatMapMaybe { connection ->
-                        val t = builder.build().bluetoothLeRadioModule()
+                        val t = builder.build()!!.bluetoothLeRadioModule()
                         t.handleConnection(
                             connection,
                             trans.remoteDevice,

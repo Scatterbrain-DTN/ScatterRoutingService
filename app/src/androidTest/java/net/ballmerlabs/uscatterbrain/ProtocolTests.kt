@@ -21,8 +21,8 @@ import java.util.*
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 class ProtocolTests {
-    private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
-    private val writeScheduler = RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+    private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test"))
+    private val writeScheduler = RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test2"))
 
     @Before
     fun init() {

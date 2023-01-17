@@ -224,7 +224,8 @@ interface RoutingServiceComponent {
         
     }
 
-    fun scatterRoutingService(): RoutingServiceBackend?
+    fun transaction(): ScatterbrainTransactionSubcomponent.Builder
+    fun scatterRoutingService(): RoutingServiceBackend
     fun inject(provider: DatastoreImportProviderImpl?)
     fun inject(provider: ScanBroadcastReceiverImpl)
 

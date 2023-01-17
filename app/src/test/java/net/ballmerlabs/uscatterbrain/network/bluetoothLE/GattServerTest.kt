@@ -102,7 +102,6 @@ class GattServerTest {
     private fun getConnection(): GattServerConnection {
         return connectionBuilder
                 .gattServer(androidGattServer)
-                .bluetoothManager(manager)
                 .timeoutConfiguration(TimeoutConfiguration(
                         10,
                         TimeUnit.SECONDS,

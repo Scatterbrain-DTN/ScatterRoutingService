@@ -13,17 +13,16 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImp
 import javax.inject.Named
 
 @ScatterbrainTransactionScope
-@Subcomponent(modules = [ScatterbrainTransactionSubcomponent.ScatterbrainTransactionModule::class])
-interface ScatterbrainTransactionSubcomponent {
-
+@Subcomponent(modules = [FakeTransactionSubcomponent.ScatterbrainTransactionModule::class])
+interface FakeTransactionSubcomponent: ScatterbrainTransactionSubcomponent {
     object NamedSchedulers {
         const val WIFI_READ = "wifi-read"
         const val WIFI_WRITE = "wifi-write"
     }
 
     @Subcomponent.Builder
-    interface Builder {
-        fun build(): ScatterbrainTransactionSubcomponent?
+    interface Builder: ScatterbrainTransactionSubcomponent.Builder {
+        override fun build(): ScatterbrainTransactionSubcomponent?
     }
 
     @Module
@@ -46,6 +45,7 @@ interface ScatterbrainTransactionSubcomponent {
             fun providesWifiReadScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.WIFI_READ))
             }
+
             @Provides
             @JvmStatic
             @ScatterbrainTransactionScope
@@ -57,7 +57,6 @@ interface ScatterbrainTransactionSubcomponent {
         }
     }
 
-
-    fun wifiDirectRadioModule(): WifiDirectRadioModule
-    fun bluetoothLeRadioModule(): BluetoothLEModule
+    fun wifiModule(): WifiDirectRadioModule
+    fun bluetoothModule(): BluetoothLEModule
 }

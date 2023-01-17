@@ -44,7 +44,7 @@ class WifiDirectTest {
     private lateinit var datastore: ScatterbrainDatastore
     private lateinit var broadcastReceiver: WifiDirectBroadcastReceiver
     private lateinit var ctx: Context
-    private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
+    private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test"))
     private lateinit var database: Datastore
 
 
@@ -64,17 +64,18 @@ class WifiDirectTest {
                 .fallbackToDestructiveMigration()
                 .build()
 
-        val prefs = RouterPreferencesImpl(ctx.getSharedPreferences(SHARED_PREFS, Context.MODE_PRIVATE))
+        val prefs = RouterPreferencesImpl(ctx.dataStore)
         datastore = ScatterbrainDatastoreImpl(
                 ctx,
                 database,
                 scheduler,
                 prefs
         )
-        radioModule = DaggerRoutingServiceComponent.builder()
-                .applicationContext(ctx)
-                ?.build()!!.wifiDirectRadioModule()
-        radioModule.registerReceiver()
+        val component = DaggerRoutingServiceComponent.builder()
+            .applicationContext(ctx)
+            ?.build()!!
+        radioModule = component.transaction().build()!!.wifiDirectRadioModule()
+        component.scatterRoutingService().registerReceiver()
     }
 
     @Test

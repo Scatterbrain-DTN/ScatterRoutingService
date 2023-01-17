@@ -9,6 +9,6 @@ class ScatterbrainTransactionFactoryImpl @Inject constructor(
     private val transactionBuilder: Provider<ScatterbrainTransactionSubcomponent.Builder>
 ): ScatterbrainTransactionFactory {
     override fun transaction(): ScatterbrainTransactionSubcomponent {
-        return transactionBuilder.get().build()
+        return transactionBuilder.get().build()!!
     }
 }

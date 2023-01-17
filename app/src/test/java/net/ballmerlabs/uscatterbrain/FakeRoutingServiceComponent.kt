@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.content.SharedPreferences
@@ -17,8 +18,7 @@ import net.ballmerlabs.uscatterbrain.db.MockScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
@@ -58,6 +58,9 @@ interface FakeRoutingServiceComponent {
         fun wifiDirectBroadcastReceiver(wifiDirectBroadcastReceiver: MockWifiDirectBroadcastReceiver): Builder
 
         @BindsInstance
+        fun bluetoothManager(bluetoothManager: BluetoothManager): Builder
+
+        @BindsInstance
         fun rxBleClient(client: RxBleClient): Builder
 
         fun build(): FakeRoutingServiceComponent?
@@ -66,7 +69,8 @@ interface FakeRoutingServiceComponent {
     @Module(subcomponents = [
         FakeWifiDirectInfoSubcomponent::class,
         FakeBootstrapRequestSubcomponent::class,
-        FakeGattServerConnectionSubcomponent::class
+        FakeGattServerConnectionSubcomponent::class,
+        FakeTransactionSubcomponent::class
     ])
     abstract class FakeRoutingServiceModule {
         @Binds
@@ -83,10 +87,6 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun bindWifiDirectRadioModule(impl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
-
-        @Binds
-        @Singleton
         abstract fun bindRouterPreferences(impl: MockRouterPreferences): RouterPreferences
 
         @Binds
@@ -95,7 +95,11 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun bindRadioModuleInternal(impl: BluetoothLERadioModuleImpl): BluetoothLEModule
+        abstract fun bindsTransactionFactory(impl: ScatterbrainTransactionFactoryImpl): ScatterbrainTransactionFactory
+
+        @Binds
+        @Singleton
+        abstract fun bindsAdvertiser(impl: AdvertiserImpl): Advertiser
 
         @Binds
         @Singleton
@@ -104,6 +108,10 @@ interface FakeRoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindsServerSocketManager(impl: MockServerSocketManager): ServerSocketManager
+
+        @Binds
+        @Singleton
+        abstract fun bindsLeState(impl: LeStateImpl): LeState
 
         @Binds
         @Singleton
@@ -116,6 +124,10 @@ interface FakeRoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindGattServer(impl: GattServerImpl): GattServer
+
+        @Binds
+        @Singleton
+        abstract fun bindsManagedServer(impl: ManagedGattServerImpl): ManagedGattServer
 
         @Module
         companion object {
@@ -161,15 +173,24 @@ interface FakeRoutingServiceComponent {
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.DATABASE)
             fun provideDatabaseScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test-database"))
             }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION)
+            fun provideComputeScheduler(): Scheduler {
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test-computation"))
+            }
+
 
             @Provides
             @JvmStatic
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.IO)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test-ops"))
             }
 
             @Provides
@@ -177,7 +198,7 @@ interface FakeRoutingServiceComponent {
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT)
             fun provideBleClientScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-client"))
             }
 
             @Provides
@@ -185,7 +206,7 @@ interface FakeRoutingServiceComponent {
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS)
             fun providesBleCallbacksScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-callbacks"))
             }
 
             @Provides
@@ -193,7 +214,7 @@ interface FakeRoutingServiceComponent {
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER)
             fun provideBleServerScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory())
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-server"))
             }
 
             @Provides
@@ -218,10 +239,10 @@ interface FakeRoutingServiceComponent {
     }
 
     fun scatterRoutingService(): RoutingServiceBackend
-    fun wifiDirectModule(): WifiDirectRadioModule
     fun gattServer(): GattServer
     fun gattConnectionBuilder(): FakeGattServerConnectionSubcomponent.Builder
     fun bootstrapSubcomponent(): Provider<BootstrapRequestSubcomponent.Builder>
+    fun getTransactionBuilder(): ScatterbrainTransactionSubcomponent.Builder
     fun inject(provider: DatastoreImportProviderImpl?)
 
     companion object {

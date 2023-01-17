@@ -31,7 +31,6 @@ import javax.inject.Singleton
 class WifiDirectBroadcastReceiverImpl @Inject constructor(
         private val manager: WifiP2pManager,
         private val channel: Channel,
-        private val context: Context,
         @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationScheduler: Scheduler
 ) : BroadcastReceiver(), WifiDirectBroadcastReceiver {
     
