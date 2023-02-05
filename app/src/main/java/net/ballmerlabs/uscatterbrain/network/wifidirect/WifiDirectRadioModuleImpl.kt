@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
 import io.reactivex.*
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import io.reactivex.subjects.SingleSubject
@@ -21,10 +23,12 @@ import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.Socket
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
+import kotlin.random.Random
 
 /**
  * Transport layer radio module for wifi direct. Currently this module only supports
@@ -82,7 +86,27 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
                 }
                 mBroadcastReceiver.observeConnectionInfo()
-                    .doOnSubscribe { mManager.createGroup(channel, listener) }
+                    .doOnSubscribe {
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            val builder = infoComponentProvider.get()
+                            val pass = ByteArray(8)
+                            LibsodiumInterface.sodium.randombytes_buf(pass, pass.size)
+                            val base64pass = android.util.Base64.encodeToString(
+                                pass,
+                                android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE
+                            )
+                            val fakeConfig = builder.fakeWifiP2pConfig(
+                                WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
+                                    passphrase = base64pass,
+                                    networkName = "DIRECT-scatterbrain"
+                                )
+                            ).build()!!.fakeWifiP2pConfig()
+                            mManager.createGroup(channel, fakeConfig.asConfig(),  listener)
+                        } else {
+                            mManager.createGroup(channel, listener)
+                        }
+                    }
                     .doOnError { err -> LOG.e("createGroup error: $err") }
                     .takeUntil { wifiP2pInfo -> (wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner()) }
                     .ignoreElements()
@@ -163,9 +187,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .onErrorReturnItem(false)
             .flatMap { v ->
                 if (v) {
-                    removeGroup(retries = 9, delay = 1).toSingleDefault(v)
+                    removeGroup(retries = 9, delay = 1).toSingleDefault(true)
                 } else {
-                    Single.just(v)
+                    Single.just(false)
                 }
             }
     }
@@ -239,8 +263,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         )
                     ).build()!!.fakeWifiP2pConfig()
 
-                    retryDelay(initiateConnection(fakeConfig.asConfig()), 20, 5)
-                        .andThen(awaitConnection(timeout))
+                    retryDelay(removeGroup().andThen(initiateConnection(fakeConfig.asConfig())), 20, 5)
+                        .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
                         .subscribe(subject)
                 }
             }
@@ -305,7 +329,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 firebaseWrapper.recordException(e)
                 return@defer Completable.error(e)
             }
-        }
+        }.subscribeOn(AndroidSchedulers.mainThread())
     }
 
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {
@@ -423,7 +447,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     private fun awaitConnection(timeout: Int): Single<WifiDirectInfo> {
         return mBroadcastReceiver.observeConnectionInfo()
-            .takeUntil { info -> info.groupFormed() && !info.isGroupOwner() }
+            .takeUntil { info -> !info.isGroupOwner() && info.groupOwnerAddress() != null }
             .lastOrError()
             .timeout(timeout.toLong(), TimeUnit.SECONDS, operationsScheduler)
             .doOnSuccess { info -> LOG.v("connect to group returned: " + info.groupOwnerAddress()) }
@@ -449,7 +473,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     == ConnectionRole.ROLE_UKE -> {
                 serverSocketManager.getServerSocket()
                     .subscribeOn(operationsScheduler)
-                    .doOnError { err -> LOG.e("failed to get server socket: $err") }
+                    .doOnError { err ->
+                        LOG.e("failed to get server socket: $err")
+                        firebaseWrapper.recordException(err)
+                    }
+                    .doOnSuccess { LOG.v("got serversocket") }
                     .flatMap { socket ->
                         routingMetadataUke(
                             Flowable.just(

@@ -822,7 +822,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
-                if (!state.transactionLock.getAndSet(true)) {
+                if (state.transactionLock.compareAndSet(null, luid)) {
                     managedGattServer.getServer()
                         .toSingle()
                         .flatMapMaybe { connection ->
@@ -932,7 +932,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("TERMINATION: session $device terminated")
                 transactionInProgressRelay.accept(false)
                 broadcastReceiverState.dispose()
-                state.transactionLock.set(false)
+                if (!state.transactionLock.compareAndSet(luid, null)) {
+                    val st = "encountered a love triangle, fwaaaa"
+                    LOG.w(st)
+                    firebase.recordException(IllegalStateException(st))
+                }
             }
     }
 

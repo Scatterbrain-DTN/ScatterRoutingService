@@ -29,7 +29,7 @@ class LeStateImpl @Inject constructor(
     private val advertiser: Advertiser,
     private val server: Provider<ManagedGattServer>
 ): LeState {
-    override val transactionLock: AtomicBoolean = AtomicBoolean(false)
+    override val transactionLock:AtomicReference<UUID?> = AtomicReference<UUID?>(null)
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
     override val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection> = ConcurrentHashMap<UUID, CachedLEConnection>()
@@ -59,7 +59,9 @@ class LeStateImpl @Inject constructor(
 
     override fun shouldConnect(res: ScanResult): Boolean {
         val advertisingLuid = getAdvertisedLuid(res)
-        return advertisingLuid != null && !activeLuids.containsKey(advertisingLuid)
+        return advertisingLuid != null
+                && !activeLuids.containsKey(advertisingLuid)
+                && transactionLock.get() != advertisingLuid
     }
 
     override fun getAdvertisedLuid(scanResult: ScanResult): UUID? {

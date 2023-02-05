@@ -73,30 +73,36 @@ class ManagedGattServerImpl @Inject constructor(
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
-                serverConnection.setOnDisconnect(trans.remoteDevice) {
-                    LOG.e("server onDisconnect $luid")
-                    state.updateDisconnected(luid)
-                   if (state.connectionCache.isEmpty()) {
-                        advertiser.removeLuid().blockingAwait()
-                   }
-                }
-                LOG.e("server handling luid $luid")
-                LOG.e("transaction NOT locked, continuing")
-                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                    .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
-                    .flatMapMaybe { connection ->
-                        val t = builder.build()!!.bluetoothLeRadioModule()
-                        t.handleConnection(
-                            connection,
-                            trans.remoteDevice,
-                            luid
-                        )
-                    }
-                    .doOnError { err ->
-                        LOG.e("error in handleConnection $err")
-                        firebase.recordException(err)
+                val lock = state.transactionLock.get()
+                if (lock == null || lock == luid ) {
+                    serverConnection.setOnDisconnect(trans.remoteDevice) {
+                        LOG.e("server onDisconnect $luid")
                         state.updateDisconnected(luid)
+                        if (state.connectionCache.isEmpty()) {
+                            advertiser.removeLuid().blockingAwait()
+                        }
                     }
+                    LOG.e("server handling luid $luid")
+                    LOG.e("transaction NOT locked, continuing")
+                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                        .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
+                        .flatMapMaybe { connection ->
+                            val t = builder.build()!!.bluetoothLeRadioModule()
+                            t.handleConnection(
+                                connection,
+                                trans.remoteDevice,
+                                luid
+                            )
+                        }
+                        .doOnError { err ->
+                            LOG.e("error in handleConnection $err")
+                            firebase.recordException(err)
+                            state.updateDisconnected(luid)
+                        }
+                } else {
+                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
+                        .toMaybe()
+                }
 
             }
             .onErrorReturnItem(

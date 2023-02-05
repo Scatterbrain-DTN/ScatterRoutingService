@@ -43,7 +43,7 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private val mListener = PeerListListener { value: WifiP2pDeviceList -> deviceListSubject.onNext(value) }
     private val mConnectionInfoListener = ConnectionInfoListener { value ->
         connectionSubject.onNext(value)
-        LOG.v("retrieved WifiP2pInfo: ${value.groupFormed}")
+        LOG.v("retrieved WifiP2pInfo: ${value.groupFormed} ${value.isGroupOwner}")
     }
 
     private fun p2pStateChangedAction(intent: Intent) {
