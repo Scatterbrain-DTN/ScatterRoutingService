@@ -51,7 +51,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
             if (result.all { r -> leState.shouldConnect(r) }) {
                 val radioModule = factory.transaction().bluetoothLeRadioModule()
                 val disp = Observable.fromIterable(result)
-                    .distinct { v -> v.bleDevice.macAddress }
+                    .distinct { v -> leState.getAdvertisedLuid(v) }
                     .concatMapMaybe { r ->
                         val luid = leState.getAdvertisedLuid(r)
                         if (luid != null) {

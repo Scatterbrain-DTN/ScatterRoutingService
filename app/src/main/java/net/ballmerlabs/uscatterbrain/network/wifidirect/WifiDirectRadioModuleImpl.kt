@@ -164,7 +164,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 passphrase = groupInfo.passphrase,
                                 name = groupInfo.networkName,
                                 role = ConnectionRole.ROLE_UKE,
-                                band = band
+                                band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
                             )
                         ).build()!!.wifiBootstrapRequest()
                 }
@@ -267,7 +267,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
                             passphrase = passphrase,
                             networkName = name,
-                            band = band
+                            band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
                         )
                     ).build()!!.fakeWifiP2pConfig()
 

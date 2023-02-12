@@ -608,25 +608,33 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         state.connectionCache.clear()
     }
 
-    override fun processScanResult(remoteUuid: UUID, bleDevice: RxBleDevice): Maybe<HandshakeResult> {
+    override fun processScanResult(
+        remoteUuid: UUID,
+        bleDevice: RxBleDevice
+    ): Maybe<HandshakeResult> {
         return Maybe.defer {
-                    state.establishConnectionCached(bleDevice, remoteUuid)
-                        .flatMapMaybe { cached ->
-                            cached.connection
-                                .firstOrError()
-                                .flatMapMaybe { raw ->
-                                    LOG.v("attempting to read hello characteristic")
-                                    raw.readCharacteristic(UUID_HELLO)
-                                        .flatMapMaybe { luid ->
-                                            val luidUuid = bytes2uuid(luid)!!
-                                            LOG.v("read remote luid from GATT $luidUuid")
-                                            initiateOutgoingConnection(
-                                                cached,
-                                                luidUuid
-                                            ).onErrorComplete()
-                                        }
+            state.establishConnectionCached(bleDevice, remoteUuid)
+                .flatMapMaybe { cached ->
+                    cached.connection
+                        .firstOrError()
+                        .flatMapMaybe { raw ->
+                            LOG.v("attempting to read hello characteristic")
+                            raw.readCharacteristic(UUID_HELLO)
+                                .flatMapMaybe { luid ->
+                                    val luidUuid = bytes2uuid(luid)!!
+                                    if (state.transactionLockIsSelf(luidUuid)) {
+                                        LOG.v("read remote luid from GATT $luidUuid")
+                                        initiateOutgoingConnection(
+                                            cached,
+                                            luidUuid
+                                        ).onErrorComplete()
+                                    } else {
+                                        Maybe.empty()
+                                    }
                                 }
+                                .onErrorComplete()
                         }
+                }
         }
     }
 
@@ -653,6 +661,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                         .ignoreElement()
                         .andThen(handleConnection(cachedConnection, cachedConnection.device, luid))
+                        .onErrorComplete()
                 }
         }
             .subscribeOn(computeScheduler)
@@ -693,7 +702,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .filter { res -> state.updateActive(state.getAdvertisedLuid(scanResult = res)) }
             .concatMapMaybe { scanResult ->
                 //TODO: remove this
-                processScanResult(UUID.randomUUID(),scanResult.bleDevice)
+                processScanResult(UUID.randomUUID(), scanResult.bleDevice)
                     .onErrorComplete()
                     .doOnSuccess {
                         LOG.e(

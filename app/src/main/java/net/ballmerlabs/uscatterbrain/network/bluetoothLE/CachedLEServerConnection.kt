@@ -71,14 +71,9 @@ class CachedLEServerConnection(
         packet: ScatterSerializable<T>
     ): Completable {
         val cookie = getCookie()
-        return cookieCompleteRelay.takeUntil { v -> v == cookie }
-            .doOnSubscribe {
-                LOG.v("serverNotify ACCEPTED packet ${packet.type} cookie: $cookie")
-                packetQueue.accept(Pair(packet, cookie))
-            }
-            .ignoreElements()
-            .timeout(20, TimeUnit.SECONDS)
-            .doOnComplete { LOG.v("serverNotify COMPLETED for ${packet.type} cookie $cookie") }
+        return Completable.fromAction {
+            packetQueue.accept(Pair(packet, cookie))
+        }
 
     }
 
@@ -116,7 +111,7 @@ class CachedLEServerConnection(
                 BluetoothLERadioModuleImpl.UUID_SEMAPHOR
             )
                 .subscribeOn(ioScheduler)
-                .doOnNext { LOG.v("semaphor read") }
+                .doOnNext { LOG.v("semaphor read ${channels.size}") }
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER)) { req, packet ->
                     LOG.v("received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet: ${packet.first.type}")
@@ -150,9 +145,6 @@ class CachedLEServerConnection(
                                 .doFinally {
                                     LOG.v("releasing locked characteristic ${characteristic.uuid}")
                                     characteristic.release()
-                                    if (cookieCompleteRelay.hasObservers()) {
-                                        cookieCompleteRelay.accept(packet.second)
-                                    }
                                 }
                         }
                         .doOnError { err ->

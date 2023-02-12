@@ -76,6 +76,7 @@ class ManagedGattServerImpl @Inject constructor(
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
+
                 if(state.transactionLockIsSelf(luid)) {
                     serverConnection.setOnDisconnect(trans.remoteDevice) {
                         LOG.e("server onDisconnect $luid")
