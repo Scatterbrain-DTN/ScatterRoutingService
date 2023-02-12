@@ -34,7 +34,7 @@ class ManagedGattServerImpl @Inject constructor(
     private val state: LeState,
     private val builder: ScatterbrainTransactionSubcomponent.Builder,
     private val firebase: FirebaseWrapper
-    ) : ManagedGattServer {
+) : ManagedGattServer {
 
     private val server = AtomicReference<Pair<CachedLEServerConnection, Disposable>?>(null)
 
@@ -48,7 +48,10 @@ class ManagedGattServerImpl @Inject constructor(
             .flatMapCompletable { trans ->
                 val luid = getHashUuid(advertiser.myLuid.get())
                 LOG.v("hello characteristic read, replying with luid $luid")
-                trans.sendReply(BluetoothLERadioModuleImpl.uuid2bytes(luid), BluetoothGatt.GATT_SUCCESS)
+                trans.sendReply(
+                    BluetoothLERadioModuleImpl.uuid2bytes(luid),
+                    BluetoothGatt.GATT_SUCCESS
+                )
             }
             .doOnError { err ->
                 LOG.e("error in hello characteristic read: $err")
@@ -73,6 +76,7 @@ class ManagedGattServerImpl @Inject constructor(
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
+                if(state.transactionLockIsSelf(luid)) {
                     serverConnection.setOnDisconnect(trans.remoteDevice) {
                         LOG.e("server onDisconnect $luid")
                         state.updateDisconnected(luid)
@@ -97,6 +101,10 @@ class ManagedGattServerImpl @Inject constructor(
                             firebase.recordException(err)
                             state.updateDisconnected(luid)
                         }
+                } else {
+                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
+                        .toMaybe()
+                }
 
             }
             .onErrorReturnItem(
@@ -185,7 +193,7 @@ class ManagedGattServerImpl @Inject constructor(
     override fun getServer(): Maybe<CachedLEServerConnection> {
         return Maybe.defer {
             val s = server.get()
-            if(s != null) {
+            if (s != null) {
                 Maybe.just(s.first)
             } else {
                 Maybe.empty()

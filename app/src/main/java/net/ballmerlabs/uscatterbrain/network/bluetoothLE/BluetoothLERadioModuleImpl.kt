@@ -164,7 +164,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
 
     init {
-        LOG.e("init")
         observeTransactionComplete()
     }
 
@@ -926,7 +925,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 firebase.recordException(err)
             }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-            .doOnDispose { state.transactionUnlock(luid) }
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 transactionInProgressRelay.accept(false)

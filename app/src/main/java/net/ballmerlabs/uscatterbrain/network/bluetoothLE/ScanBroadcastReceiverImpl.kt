@@ -49,12 +49,10 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
         val result = client.backgroundScanner.onScanResultReceived(intent)
         try {
             if (result.all { r -> leState.shouldConnect(r) }) {
-                LOG.e("LOCKED! ${result.size}")
                 val radioModule = factory.transaction().bluetoothLeRadioModule()
                 val disp = Observable.fromIterable(result)
                     .distinct { v -> v.bleDevice.macAddress }
                     .concatMapMaybe { r ->
-                        LOG.e("initiating scan result processing")
                         val luid = leState.getAdvertisedLuid(r)
                         if (luid != null) {
                             radioModule.processScanResult(luid, r.bleDevice)
@@ -76,7 +74,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
             } else {
                 val disp = advertiser.setAdvertisingLuid()
                     .subscribe(
-                        { LOG.v("set advertising luid") },
+                        {  },
                         { err -> LOG.e("failed to update advertise luid $err") }
                     )
                 state.advertiseDisposable(disp)

@@ -39,17 +39,12 @@ class LeStateImpl @Inject constructor(
 
 
     override fun transactionLockIsSelf(luid: UUID?): Boolean {
-        val lock = transactionLock.accumulateAndGet(luid) { c, n ->
-            when(c) {
-                n -> n
-                null -> n
-                else -> c
-            }
-        }
+        val lock = transactionLock.get()
         return lock == luid || lock == null
     }
 
     override fun transactionLockAccquire(luid: UUID?): Boolean {
+        updateActive(luid)
         return transactionLock.getAndAccumulate(luid) { c, n ->
             when(c) {
                 n -> n
@@ -60,7 +55,14 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun transactionUnlock(luid: UUID): Boolean {
-        return transactionLock.compareAndSet(luid, null)
+        LOG.e("removing ${transactionLock.get()} $luid")
+        return transactionLock.accumulateAndGet(luid) { old, new ->
+            if(old?.equals(new) == true) {
+                null
+            } else {
+                old
+            }
+        } == null
     }
 
    override fun updateActive(uuid: UUID?): Boolean {
@@ -76,8 +78,8 @@ class LeStateImpl @Inject constructor(
         LOG.e("updateDisconnected $luid")
         activeLuids.remove(luid)
         val c = connectionCache.remove(luid)
-        transactionLock.set(null)
         val device = c?.device
+        transactionLock.set(null)
         server.get().disconnect(device)
         c?.dispose()
     }
@@ -108,13 +110,12 @@ class LeStateImpl @Inject constructor(
                 val newconnection = CachedLEConnection(channels, operationsScheduler, device)
                 val connection = connectionCache[luid]
                 if (connection != null) {
-                    LOG.e("cache HIT")
                     connection
                 } else {
                     val rawConnection = device.establishConnection(false)
                         .doOnError { connectionCache.remove(luid) }
                         .doOnNext {
-                            LOG.e("established cached connection to ${device.macAddress}")
+                            LOG.d("established cached connection to ${device.macAddress}")
                         }
 
                     newconnection.setOnDisconnect {
