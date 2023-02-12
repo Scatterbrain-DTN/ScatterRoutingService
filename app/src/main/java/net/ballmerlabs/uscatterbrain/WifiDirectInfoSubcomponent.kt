@@ -14,13 +14,15 @@ interface WifiDirectInfoSubcomponent {
     data class WifiP2pConfigArgs(
             val passphrase: String? = "",
             val deviceAddress: String? = "02:00:00:00:00:00",
-            val networkName: String? = ""
+            val networkName: String? = "",
+            val band: Int
     )
 
     companion object {
         const val PASSPHRASE = "passphrase"
         const val MAC_ADDRESS = "mac_address"
         const val NETWORK_NAME = "network_name"
+        const val BAND = "band"
     }
 
     @Subcomponent.Builder
@@ -69,6 +71,14 @@ interface WifiDirectInfoSubcomponent {
             fun providesNetworkName(args: WifiP2pConfigArgs): String? {
                 return args.networkName
             }
+            @Provides
+            @JvmStatic
+            @WifiDirectInfoScope
+            @Named(BAND)
+            fun providesBand(args: WifiP2pConfigArgs): Int {
+                return args.band
+            }
+
         }
     }
 

@@ -68,7 +68,7 @@ interface BluetoothLEModule {
      * @param scanResult scan result
      * @return maybe for transaction
      */
-    fun processScanResult(scanResult: ScanResult): Maybe<HandshakeResult>
+    fun processScanResult(remoteUuid: UUID, bleDevice: RxBleDevice): Maybe<HandshakeResult>
 
     fun handleConnection(
         clientConnection: CachedLEConnection,

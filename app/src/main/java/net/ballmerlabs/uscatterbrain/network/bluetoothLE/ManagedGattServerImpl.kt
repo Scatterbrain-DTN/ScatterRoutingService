@@ -73,8 +73,6 @@ class ManagedGattServerImpl @Inject constructor(
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
-                val lock = state.transactionLock.get()
-                if (lock == null || lock == luid ) {
                     serverConnection.setOnDisconnect(trans.remoteDevice) {
                         LOG.e("server onDisconnect $luid")
                         state.updateDisconnected(luid)
@@ -99,10 +97,6 @@ class ManagedGattServerImpl @Inject constructor(
                             firebase.recordException(err)
                             state.updateDisconnected(luid)
                         }
-                } else {
-                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
-                        .toMaybe()
-                }
 
             }
             .onErrorReturnItem(

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.polidea.rxandroidble2.RxBleClient
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
@@ -51,31 +52,17 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                 LOG.e("LOCKED! ${result.size}")
                 val radioModule = factory.transaction().bluetoothLeRadioModule()
                 val disp = Observable.fromIterable(result)
-                    .concatMapSingle { res ->
-                        LOG.e("start handle scan result ${res.bleDevice.macAddress}")
-                        advertiser.setAdvertisingLuid()
-                            .andThen(
-                                radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
-                                    .onErrorComplete()
-                            )
-                            .doOnComplete { LOG.e("setAdvertisingLuid complete") }
-                            .toSingleDefault(res)
-                    }
-                    .filter { res ->
-                        leState.shouldConnect(res) && leState.updateConnected(
-                            leState.getAdvertisedLuid(
-                                res
-                            )!!
-                        )
-                    }
+                    .distinct { v -> v.bleDevice.macAddress }
                     .concatMapMaybe { r ->
                         LOG.e("initiating scan result processing")
-                        radioModule.removeWifiDirectGroup(advertiser.randomizeLuidIfOld())
-                            .doOnComplete { LOG.e("removeWifiDirectGroup complete") }
-                            .andThen(
-                                radioModule.processScanResult(r)
-                                    .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
-                                    .doOnError { err -> LOG.e("process scan result error $err") })
+                        val luid = leState.getAdvertisedLuid(r)
+                        if (luid != null) {
+                            radioModule.processScanResult(luid, r.bleDevice)
+                                .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
+                                .doOnError { err -> LOG.e("process scan result error $err") }
+                        } else {
+                            Maybe.empty()
+                        }
                     }
                     .ignoreElements()
                     .doOnError { err -> LOG.e("process scan result error $err") }
@@ -89,7 +76,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
             } else {
                 val disp = advertiser.setAdvertisingLuid()
                     .subscribe(
-                        {  },
+                        { LOG.v("set advertising luid") },
                         { err -> LOG.e("failed to update advertise luid $err") }
                     )
                 state.advertiseDisposable(disp)

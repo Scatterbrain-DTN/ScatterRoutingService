@@ -10,12 +10,10 @@ import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
@@ -29,7 +27,7 @@ class LeStateImpl @Inject constructor(
     private val advertiser: Advertiser,
     private val server: Provider<ManagedGattServer>
 ): LeState {
-    override val transactionLock:AtomicReference<UUID?> = AtomicReference<UUID?>(null)
+    private val transactionLock:AtomicReference<UUID?> = AtomicReference<UUID?>(null)
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
     override val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection> = ConcurrentHashMap<UUID, CachedLEConnection>()
@@ -39,12 +37,38 @@ class LeStateImpl @Inject constructor(
     = ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic>()
     private val LOG by scatterLog()
 
-    override fun updateConnected(luid: UUID): Boolean {
-        return if (activeLuids.put(luid, true) == null) {
-            return true
-        } else {
-            false
+
+    override fun transactionLockIsSelf(luid: UUID?): Boolean {
+        val lock = transactionLock.accumulateAndGet(luid) { c, n ->
+            when(c) {
+                n -> n
+                null -> n
+                else -> c
+            }
         }
+        return lock == luid || lock == null
+    }
+
+    override fun transactionLockAccquire(luid: UUID?): Boolean {
+        return transactionLock.getAndAccumulate(luid) { c, n ->
+            when(c) {
+                n -> n
+                null -> n
+                else -> c
+            }
+        } == null
+    }
+
+    override fun transactionUnlock(luid: UUID): Boolean {
+        return transactionLock.compareAndSet(luid, null)
+    }
+
+   override fun updateActive(uuid: UUID?): Boolean {
+        return if(uuid != null) activeLuids.put(uuid, true) == null else false
+    }
+
+    override fun updateActive(scanResult: ScanResult): Boolean {
+        return updateActive(getAdvertisedLuid(scanResult))
     }
 
     @Synchronized
@@ -52,6 +76,7 @@ class LeStateImpl @Inject constructor(
         LOG.e("updateDisconnected $luid")
         activeLuids.remove(luid)
         val c = connectionCache.remove(luid)
+        transactionLock.set(null)
         val device = c?.device
         server.get().disconnect(device)
         c?.dispose()
@@ -61,7 +86,6 @@ class LeStateImpl @Inject constructor(
         val advertisingLuid = getAdvertisedLuid(res)
         return advertisingLuid != null
                 && !activeLuids.containsKey(advertisingLuid)
-                && transactionLock.get() != advertisingLuid
     }
 
     override fun getAdvertisedLuid(scanResult: ScanResult): UUID? {

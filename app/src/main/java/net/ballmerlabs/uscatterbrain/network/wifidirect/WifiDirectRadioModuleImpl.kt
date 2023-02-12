@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.Context
+import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pManager
@@ -58,11 +59,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val infoComponentProvider: Provider<WifiDirectInfoSubcomponent.Builder>,
     private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
     private val serverSocketManager: ServerSocketManager,
-    private val socketProvider: SocketProvider
+    private val socketProvider: SocketProvider,
+    private val manager: WifiManager
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
-    private fun createGroupSingle(): Completable {
+    private fun createGroupSingle(band: Int): Completable {
         return Completable.defer {
             val subject = CompletableSubject.create()
             try {
@@ -99,10 +101,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             val fakeConfig = builder.fakeWifiP2pConfig(
                                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
                                     passphrase = base64pass,
-                                    networkName = "DIRECT-scatterbrain"
+                                    networkName = "DIRECT-scatterbrain",
+                                    band = band
                                 )
                             ).build()!!.fakeWifiP2pConfig()
-                            mManager.createGroup(channel, fakeConfig.asConfig(),  listener)
+                            mManager.createGroup(channel, fakeConfig.asConfig(), listener)
                         } else {
                             mManager.createGroup(channel, listener)
                         }
@@ -147,11 +150,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     /**
      * create a wifi direct group with this device as the owner
      */
-    override fun createGroup(): Single<WifiDirectBootstrapRequest> {
+    override fun createGroup(band: Int): Single<WifiDirectBootstrapRequest> {
         val ret = Single.defer {
             LOG.v("createGroup")
 
-            createGroupSingle()
+            createGroupSingle(band)
                 .andThen(requestGroupInfo().toSingle())
                 .map { groupInfo ->
                     LOG.v("got groupInfo")
@@ -160,7 +163,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
                                 passphrase = groupInfo.passphrase,
                                 name = groupInfo.networkName,
-                                role = ConnectionRole.ROLE_UKE
+                                role = ConnectionRole.ROLE_UKE,
+                                band = band
                             )
                         ).build()!!.wifiBootstrapRequest()
                 }
@@ -174,7 +178,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
-        return createGroup()
+        return createGroup(
+            if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+        )
             .ignoreElement()
             .andThen(removeGroup(retries = 9, delay = 1))
             .doOnError { err ->
@@ -182,7 +188,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 err.printStackTrace()
             }
             .timeout(7, TimeUnit.SECONDS)
-            .doOnError { e -> LOG.e("selectProvides error $e")}
+            .doOnError { e -> LOG.e("selectProvides error $e") }
             .toSingleDefault(true)
             .onErrorReturnItem(false)
             .flatMap { v ->
@@ -240,7 +246,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     override fun connectToGroup(
         name: String,
         passphrase: String,
-        timeout: Int
+        timeout: Int,
+        band: Int
     ): Single<WifiDirectInfo> {
         return Single.defer {
             val subject = SingleSubject.create<WifiDirectInfo>()
@@ -259,11 +266,16 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     val fakeConfig = builder.fakeWifiP2pConfig(
                         WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
                             passphrase = passphrase,
-                            networkName = name
+                            networkName = name,
+                            band = band
                         )
                     ).build()!!.fakeWifiP2pConfig()
 
-                    retryDelay(removeGroup().andThen(initiateConnection(fakeConfig.asConfig())), 20, 5)
+                    retryDelay(
+                        removeGroup().andThen(initiateConnection(fakeConfig.asConfig())),
+                        20,
+                        5
+                    )
                         .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
                         .subscribe(subject)
                 }
@@ -336,11 +348,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return AckPacket.newBuilder(success)
             .build()
             .writeToStream(socket.getOutputStream(), writeScheduler)
-            .mergeWith(ScatterSerializable.parseWrapperFromCRC(
-                AckPacket.parser(),
-                socket.getInputStream(),
-                readScheduler
-            ).ignoreElement())
+            .mergeWith(
+                ScatterSerializable.parseWrapperFromCRC(
+                    AckPacket.parser(),
+                    socket.getInputStream(),
+                    readScheduler
+                ).ignoreElement()
+            )
     }
 
     //transfer declare hashes packet as UKE
@@ -534,7 +548,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     connectToGroup(
                         upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
                         upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
-                        120
+                        120,
+                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt()
                     ), 10, 5
                 )
                     .flatMap { info ->

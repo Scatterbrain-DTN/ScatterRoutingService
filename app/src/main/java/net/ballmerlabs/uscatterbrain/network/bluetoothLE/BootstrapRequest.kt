@@ -61,6 +61,14 @@ open class BootstrapRequest  : Parcelable {
         extras.putSerializable(key, `val`)
     }
 
+    fun getIntExtra(key: String): Int {
+        return extras.getInt(key)
+    }
+
+    fun putIntExtra(key: String, int: Int) {
+        extras.putInt(key, int)
+    }
+
     fun getSerializableExtra(key: String): Serializable {
         return extras.getSerializable(key)!!
     }

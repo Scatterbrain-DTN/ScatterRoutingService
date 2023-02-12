@@ -37,9 +37,9 @@ class FakeWifiP2pConfigImpl @Inject constructor(
         @Named(WifiDirectInfoSubcomponent.MAC_ADDRESS) val deviceAddress: String? = "02:00:00:00:00:00",
         @Named(WifiDirectInfoSubcomponent.NETWORK_NAME) val networkName: String? = "",
         val wpsInfo: WpsInfo?,
+        @Named(WifiDirectInfoSubcomponent.BAND) var groupOwnerBand: Int
 ) : FakeWifiP2pConfig {
 
-    var groupOwnerBand: Int = GROUP_OWNER_BAND_2GHZ
 
     var netId: Int = NETWORK_ID_PERSISTENT
     var groupownerIntent: Int = GROUP_OWNER_INTENT_AUTO
@@ -83,6 +83,7 @@ class FakeWifiP2pConfigImpl @Inject constructor(
                     wpsInfo = wpsInfo,
                     networkName = networkName,
                     passphrase = passphrase,
+                groupOwnerBand = groupOwnerBand
             )
             res.groupownerIntent = groupownerIntent
             res.netId = netId
