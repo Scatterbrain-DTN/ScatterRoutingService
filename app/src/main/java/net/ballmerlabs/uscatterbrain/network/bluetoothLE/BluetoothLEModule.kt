@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import com.polidea.rxandroidble2.RxBleDevice
-import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Observable

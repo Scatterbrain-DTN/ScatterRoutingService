@@ -290,7 +290,7 @@ class BlockHeaderPacket(blockdata: BlockData) : ScatterSerializable<BlockData>(b
          *
          * @return the builder
          */
-        @kotlin.jvm.JvmStatic
+        @JvmStatic
         fun newBuilder(): Builder {
             return Builder()
         }

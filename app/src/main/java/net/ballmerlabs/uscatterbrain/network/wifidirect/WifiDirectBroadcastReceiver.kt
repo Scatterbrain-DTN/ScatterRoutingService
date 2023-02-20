@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 import android.content.BroadcastReceiver
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
-import android.net.wifi.p2p.WifiP2pInfo
 import io.reactivex.Observable
 
 /**

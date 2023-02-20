@@ -17,12 +17,12 @@ interface FakeWifiP2pConfig: Parcelable {
         /**
          * Allow the system to pick the operating frequency from the 2.4 GHz band.
          */
-        public const val GROUP_OWNER_BAND_2GHZ = 1
+        const val GROUP_OWNER_BAND_2GHZ = 1
 
         /**
          * Allow the system to pick the operating frequency from the 5 GHz band.
          */
-        public const val GROUP_OWNER_BAND_5GHZ = 2
+        const val GROUP_OWNER_BAND_5GHZ = 2
 
         /**
          * The least inclination to be a group owner, to be filled in the field

@@ -8,6 +8,4 @@ data class DiskFile(
     val global: GlobalHash,
     @Relation(parentColumn = "globalhash", entityColumn = "parent")
     var messageHashes: List<Hashes>,
-) {
-
-}
+)

@@ -49,7 +49,7 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
 
     private fun asyncWrite(text: String) {
         val disp = Completable.fromAction{
-            val t = "$name: $text"
+            val t = "$name: $text\n"
             val f = getCurrentLog()
             f?.appendBytes(t.encodeToByteArray())
             Log.e("debug", "file size ${f?.length()}")

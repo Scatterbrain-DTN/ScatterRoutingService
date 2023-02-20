@@ -708,7 +708,7 @@ class ScatterRoutingService : LifecycleService() {
             LOG.e("init!!")
             val c = this.getComponent()!!
             component.accept(c)
-            mBackend = c.scatterRoutingService()!!
+            mBackend = c.scatterRoutingService()
         }
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)

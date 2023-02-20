@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectInfo
 import java.net.InetAddress
 
 class MockWIfiDirectInfo(

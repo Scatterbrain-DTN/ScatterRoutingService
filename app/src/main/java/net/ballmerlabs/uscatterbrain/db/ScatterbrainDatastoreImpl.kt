@@ -124,12 +124,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val cachedPackages = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val disposable = CompositeDisposable()
 
-    override fun insertMessages(message: net.ballmerlabs.uscatterbrain.db.entities.DbMessage): Completable {
+    override fun insertMessages(message: DbMessage): Completable {
         return mDatastore.scatterMessageDao().insertMessage(message)
             .subscribeOn(databaseScheduler)
     }
 
-    override fun insertMessages(messages: List<net.ballmerlabs.uscatterbrain.db.entities.DbMessage>): Completable {
+    override fun insertMessages(messages: List<DbMessage>): Completable {
         return Observable.fromIterable(messages)
             .subscribeOn(databaseScheduler)
             .flatMapCompletable { scatterMessage -> insertMessages(scatterMessage) }
@@ -318,14 +318,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .toObservable()
             .flatMap { source -> Observable.fromIterable(source) }
 
-    override fun getMessagesByIdentity(id: KeylessIdentity): Observable<net.ballmerlabs.uscatterbrain.db.entities.DbMessage> {
+    override fun getMessagesByIdentity(id: KeylessIdentity): Observable<DbMessage> {
         return mDatastore.scatterMessageDao().getByIdentity(id.fingerprint)
             .subscribeOn(databaseScheduler)
             .toObservable()
             .flatMap { source -> Observable.fromIterable(source) }
     }
 
-    override fun getMessageByPath(path: String): Single<net.ballmerlabs.uscatterbrain.db.entities.DbMessage> {
+    override fun getMessageByPath(path: String): Single<DbMessage> {
         return mDatastore.scatterMessageDao().getByFilePath(path)
             .subscribeOn(databaseScheduler)
             .toObservable()
@@ -782,7 +782,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .blockingGet()
     }
 
-    private fun message2message(message: net.ballmerlabs.uscatterbrain.db.entities.DbMessage): ScatterMessage {
+    private fun message2message(message: DbMessage): ScatterMessage {
         val body = message.message.body
         return if (body == null) {
             val f = File(message.file.global.filePath)
@@ -811,7 +811,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         }
     }
 
-    private fun getApiMessage(entities: Observable<net.ballmerlabs.uscatterbrain.db.entities.DbMessage>): Single<ArrayList<ScatterMessage>> {
+    private fun getApiMessage(entities: Observable<DbMessage>): Single<ArrayList<ScatterMessage>> {
         return entities
             .map { message -> message2message(message) }
             .reduce(ArrayList<ScatterMessage>()) { list, m ->
@@ -820,7 +820,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             }
     }
 
-    private fun getApiMessage(entity: Single<net.ballmerlabs.uscatterbrain.db.entities.DbMessage>): Single<ScatterMessage> {
+    private fun getApiMessage(entity: Single<DbMessage>): Single<ScatterMessage> {
         return entity.map { message -> message2message(message) }
     }
 
@@ -831,8 +831,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
      * NOTE: this only works if the corresponding identity is in the databaes.
      * TODO: ui element warning of identityless messages
      */
-    private fun filterMessagesBySigCheck(messages: Observable<net.ballmerlabs.uscatterbrain.db.entities.DbMessage>):
-            Observable<net.ballmerlabs.uscatterbrain.db.entities.DbMessage> {
+    private fun filterMessagesBySigCheck(messages: Observable<DbMessage>):
+            Observable<DbMessage> {
         return messages.flatMapSingle { message ->
             val fingerprint = message.fromFingerprint.firstOrNull()
             if (fingerprint == null) {
@@ -902,12 +902,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         .subscribeOn(databaseScheduler)
                         .andThen(hashFile(file, blocksize))
                         .flatMapCompletable { hashes ->
-                            file.renameTo(net.ballmerlabs.uscatterbrain.db.entities.DbMessage.getPath(
+                            file.renameTo(DbMessage.getPath(
                                 cacheDir,
                                 message,
                                 hashes
                             ))
-                            val dbmessage = net.ballmerlabs.uscatterbrain.db.entities.DbMessage.from(
+                            val dbmessage = DbMessage.from(
                                     message,
                                     hashes,
                                     cacheDir,
@@ -932,7 +932,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     hashData(body, blocksize)
                         .flatMapCompletable { hashes ->
 
-                            val dbmessage = net.ballmerlabs.uscatterbrain.db.entities.DbMessage.from(
+                            val dbmessage = DbMessage.from(
                                 message,
                                 hashes,
                                 cacheDir,
