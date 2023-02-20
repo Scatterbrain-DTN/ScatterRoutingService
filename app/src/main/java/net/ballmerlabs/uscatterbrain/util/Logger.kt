@@ -5,12 +5,16 @@ import android.content.ContextWrapper
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.util.LoggerImpl.Companion.LOGS_DIR
 import java.io.File
+import java.util.concurrent.Flow
 import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObject
 val loggerScheduler = lazy { RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("logging")) }
 var logger: (c: Class<*>) -> Logger = { c -> LoggerImpl(c) }
-var cacheFileDir: File? = null
+private var cacheFileDir: File? = null
+var logsDir: File? = null
+
 
 fun <T: Any> getCompanionClass(c: Class<T>): Class<*> {
     return c.enclosingClass?.takeIf { c.enclosingClass.kotlin.companionObject?.java == c } ?: c
@@ -24,6 +28,7 @@ fun <T: Context> T.initDiskLogging() {
     val log by scatterLog()
     log.v("init disk logging")
     cacheFileDir = this.applicationContext!!.cacheDir
+    logsDir = File(cacheFileDir, LOGS_DIR)
 }
 
 fun <T: Any> T.scatterLog(): Lazy<Logger> {
@@ -47,6 +52,8 @@ abstract class Logger(c: Class<*>) {
     protected fun fmt(text: String, level: LogLevel): String {
         return "[${level.str}]: $text"
     }
+
+    abstract fun getCurrentLog(): File?
 
     abstract fun d(text: String)
 

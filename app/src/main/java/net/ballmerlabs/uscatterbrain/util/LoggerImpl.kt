@@ -8,6 +8,7 @@ import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.math.log
 
 class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
     private val scheduler: Lazy<Scheduler> = loggerScheduler
@@ -24,11 +25,11 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
         val text = date.format(DateTimeFormatter.ISO_DATE)
         return "$text.log$num"
     }
-
-    private fun getCurrentLog(): File? {
-        return if (cacheFileDir != null) {
+    override fun getCurrentLog(): File? {
+        val file = logsDir
+        return if (file != null) {
             var num = 1
-            val file = File(cacheFileDir, LOGS_DIR)
+
             if (!file.exists()) {
                 file.mkdir()
             }
@@ -41,6 +42,7 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
             f.createNewFile()
             return f
         } else {
+            Log.e("debug","log file null")
             null
         }
     }
@@ -48,7 +50,10 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
     private fun asyncWrite(text: String) {
         val disp = Completable.fromAction{
             val t = "$name: $text"
-            getCurrentLog()?.appendBytes(t.encodeToByteArray())
+            val f = getCurrentLog()
+            f?.appendBytes(t.encodeToByteArray())
+            Log.e("debug", "file size ${f?.length()}")
+
         }
             .doOnError { e -> Log.e("loggermeta", "failed to log: $e") }
             .subscribeOn(scheduler.value)

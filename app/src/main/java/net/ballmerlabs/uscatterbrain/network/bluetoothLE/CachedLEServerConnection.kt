@@ -36,7 +36,6 @@ class CachedLEServerConnection(
     private val packetQueue = PublishRelay.create<Pair<ScatterSerializable<out MessageLite>, Int>>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
     private val cookies = AtomicReference(0)
-    private val cookieCompleteRelay = PublishRelay.create<Int>()
 
     private fun getCookie(): Int {
         return cookies.getAndUpdate { v ->
