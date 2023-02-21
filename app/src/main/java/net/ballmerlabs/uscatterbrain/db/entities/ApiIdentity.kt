@@ -132,7 +132,6 @@ open class ApiIdentity protected constructor(val builder: Builder) {
                 signEd25519(signPair!!.secretkey)
                 hasPrivateKey = true
             } else {
-                require(mPubKeymap.containsKey(ScatterbrainApi.PROTOBUF_PRIVKEY_KEY)) { "key map does not contain scatterbrain pubkey" }
                 pubkey = mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]
             }
             fingerprint = getPubkeyFingerprint()
