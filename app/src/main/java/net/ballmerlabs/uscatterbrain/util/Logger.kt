@@ -1,15 +1,13 @@
 package net.ballmerlabs.uscatterbrain.util
 
 import android.content.Context
-import android.content.ContextWrapper
-import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.util.LoggerImpl.Companion.LOGS_DIR
 import java.io.File
-import java.util.concurrent.Flow
 import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObject
+
 val loggerScheduler = lazy { RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("logging")) }
 var logger: (c: Class<*>) -> Logger = { c -> LoggerImpl(c) }
 private var cacheFileDir: File? = null

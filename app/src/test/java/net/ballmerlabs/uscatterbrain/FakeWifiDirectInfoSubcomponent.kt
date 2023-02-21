@@ -10,7 +10,6 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.MockFakeWifiP2pConfigImpl
 import org.mockito.kotlin.mock
 import javax.inject.Named
-import javax.inject.Singleton
 
 
 @Subcomponent(modules = [FakeWifiDirectInfoSubcomponent.FakeWifiDirectDaggerModule::class])

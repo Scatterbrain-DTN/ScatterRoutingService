@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton

@@ -1,10 +1,11 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.bluetooth.BluetoothGattServer
-import android.bluetooth.BluetoothManager
 import dagger.*
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.*
-
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnectionImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerState
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerStateImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactoryImpl
 

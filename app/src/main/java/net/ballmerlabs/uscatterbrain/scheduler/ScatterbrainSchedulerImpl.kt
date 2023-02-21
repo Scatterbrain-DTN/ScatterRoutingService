@@ -9,7 +9,6 @@ import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanSettings
 import com.polidea.rxandroidble2.scan.ScanSettings.SCAN_MODE_LOW_POWER
-import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.RouterState
@@ -17,7 +16,6 @@ import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.*
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
-import net.ballmerlabs.uscatterbrain.util.loggerScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference

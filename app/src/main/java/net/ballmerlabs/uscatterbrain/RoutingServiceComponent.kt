@@ -25,9 +25,9 @@ import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapperImpl
-import java.util.jar.Attributes.Name
 import javax.inject.Named
 import javax.inject.Singleton
+
 val Context.dataStore by preferencesDataStore(name = RouterPreferences.PREF_NAME)
 
 @Singleton

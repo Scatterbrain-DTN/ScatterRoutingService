@@ -8,7 +8,6 @@ import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentLinkedQueue
-import kotlin.math.log
 
 class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
     private val scheduler: Lazy<Scheduler> = loggerScheduler
@@ -42,18 +41,15 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
             f.createNewFile()
             return f
         } else {
-            Log.e("debug","log file null")
             null
         }
     }
 
     private fun asyncWrite(text: String) {
         val disp = Completable.fromAction{
-            val t = "$name: $text\n"
+            val t = "[$name]: $text\n"
             val f = getCurrentLog()
             f?.appendBytes(t.encodeToByteArray())
-            Log.e("debug", "file size ${f?.length()}")
-
         }
             .doOnError { e -> Log.e("loggermeta", "failed to log: $e") }
             .subscribeOn(scheduler.value)

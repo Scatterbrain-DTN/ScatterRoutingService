@@ -4,7 +4,6 @@ import com.google.protobuf.MessageLite
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
-import com.polidea.rxandroidble2.exceptions.BleDisconnectedException
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Scheduler

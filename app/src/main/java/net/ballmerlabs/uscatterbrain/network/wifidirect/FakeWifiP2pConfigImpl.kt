@@ -4,11 +4,9 @@ import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import android.os.Parcel
 import android.os.Parcelable
-import androidx.room.Ignore
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoScope
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.GROUP_OWNER_BAND_2GHZ
-import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.GROUP_OWNER_BAND_AUTO
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.GROUP_OWNER_INTENT_AUTO
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.NETWORK_ID_PERSISTENT
 import javax.inject.Inject

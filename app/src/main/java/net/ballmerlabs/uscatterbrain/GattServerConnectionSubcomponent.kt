@@ -6,8 +6,6 @@ import android.content.Context
 import android.util.Log
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import dagger.*
-import io.reactivex.Single
-import io.reactivex.android.schedulers.AndroidSchedulers
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactoryImpl
@@ -48,7 +46,6 @@ interface GattServerConnectionSubcomponent {
                     context: Context,
                     gattServerCallback: GattServerConnection
             ): BluetoothGattServer {
-                Log.e("debug", "new gatt server")
                 return bluetoothManager.openGattServer(
                         context,
                         gattServerCallback.gattServerCallback

@@ -14,7 +14,6 @@ import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.rule.GrantPermissionRule
 import com.google.firebase.FirebaseApp
 import io.reactivex.plugins.RxJavaPlugins
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.Companion.SHARED_PREFS
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.RouterPreferencesImpl
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore

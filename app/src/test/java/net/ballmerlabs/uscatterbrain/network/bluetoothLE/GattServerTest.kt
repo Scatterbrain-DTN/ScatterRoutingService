@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.bluetooth.*
 import android.content.Context
 import com.polidea.rxandroidble2.RxBleClient
-import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleClientMock

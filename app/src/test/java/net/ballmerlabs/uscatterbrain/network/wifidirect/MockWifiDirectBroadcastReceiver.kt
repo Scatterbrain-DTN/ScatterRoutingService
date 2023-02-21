@@ -1,17 +1,11 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
-import android.net.wifi.p2p.WifiP2pInfo
 import com.jakewharton.rxrelay2.BehaviorRelay
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver.P2pState
 import io.reactivex.Observable
-import io.reactivex.subjects.BehaviorSubject
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiverImpl
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver.P2pState
 
 class MockWifiDirectBroadcastReceiver(private val broadcastReceiver: BroadcastReceiver): WifiDirectBroadcastReceiver {
 

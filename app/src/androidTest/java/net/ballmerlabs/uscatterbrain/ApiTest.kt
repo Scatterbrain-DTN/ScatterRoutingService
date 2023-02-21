@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import com.google.protobuf.ByteString
-import com.goterl.lazysodium.utils.HexMessageEncoder
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
@@ -14,7 +13,6 @@ import net.ballmerlabs.uscatterbrain.network.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.lang.Exception
 import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.TimeoutException

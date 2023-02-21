@@ -1,20 +1,12 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.os.Bundle
-import androidx.core.app.BundleCompat
-import androidx.core.os.bundleOf
-import dagger.BindsInstance
 import dagger.Module
 import dagger.Provides
 import dagger.Subcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
-import org.mockito.kotlin.mock
-import org.robolectric.Robolectric
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows
-import org.robolectric.internal.bytecode.RobolectricInternals
 import javax.inject.Named
 
 

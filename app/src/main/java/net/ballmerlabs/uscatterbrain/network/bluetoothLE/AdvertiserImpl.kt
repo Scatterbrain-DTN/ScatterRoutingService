@@ -1,21 +1,16 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.Manifest
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertisingSet
 import android.bluetooth.le.AdvertisingSetCallback
 import android.bluetooth.le.AdvertisingSetParameters
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.ParcelUuid
-import androidx.core.app.ActivityCompat
 import io.reactivex.Completable
 import io.reactivex.Scheduler
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
-import net.ballmerlabs.scatterbrainsdk.PermissionsNotAcceptedException
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper

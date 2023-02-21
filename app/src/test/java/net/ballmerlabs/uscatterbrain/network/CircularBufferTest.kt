@@ -2,10 +2,7 @@ package net.ballmerlabs.uscatterbrain.network
 
 import com.github.davidmoten.rx2.Bytes
 import com.google.android.gms.common.util.Hex
-import com.google.android.gms.common.util.HexDumpUtils
-import io.reactivex.Flowable
 import io.reactivex.schedulers.Schedulers
-import org.bouncycastle.util.encoders.HexEncoder
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
