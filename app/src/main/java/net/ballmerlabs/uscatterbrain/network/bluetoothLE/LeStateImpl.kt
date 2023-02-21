@@ -78,9 +78,7 @@ class LeStateImpl @Inject constructor(
         LOG.e("updateDisconnected $luid")
         activeLuids.remove(luid)
         val c = connectionCache.remove(luid)
-        val device = c?.device
         transactionLock.set(null)
-        server.get().disconnect(device)
         c?.dispose()
     }
 

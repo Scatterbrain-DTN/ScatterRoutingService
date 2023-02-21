@@ -54,6 +54,10 @@ interface WifiDirectRadioModule {
      */
     fun wifiDirectIsUsable(): Single<Boolean>
 
+    fun registerReceiver()
+
+    fun unregisterReceiver()
+
     /**
      * Wrapper class combining BlockHeaderPacket, SequencePackets, and
      * a database entity

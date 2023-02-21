@@ -720,15 +720,6 @@ class ScatterRoutingService : LifecycleService() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        try {
-            mBackend.registerReceiver()
-            mBackend.leState.connectionCache.clear()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            FirebaseCrashlytics.getInstance().recordException(e)
-            LOG.e("exception when registering receiver $e")
-            throw e
-        }
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_FOREGROUND)
             .setContentTitle("ScatterRoutingService")
             .setContentText("discovering peers...\n(this uses location permission, but not actual geolocation)")
@@ -736,6 +727,15 @@ class ScatterRoutingService : LifecycleService() {
             .setTicker("fmef am tire")
             .build()
         startForeground(1, notification)
+        try {
+            mBackend.leState.connectionCache.clear()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            FirebaseCrashlytics.getInstance().recordException(e)
+            LOG.e("exception when registering receiver $e")
+            throw e
+        }
+
         return Service.START_STICKY
     }
 
@@ -744,7 +744,6 @@ class ScatterRoutingService : LifecycleService() {
         super.onDestroy()
         LOG.e("onDestroy called")
         mBackend.scheduler.stop()
-        mBackend.unregisterReceiver()
        // mBackend.radioModule.clearPeers()
         //mBackend.wifiDirect.unregisterReceiver()
     }

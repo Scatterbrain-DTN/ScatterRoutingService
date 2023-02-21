@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain
 
 import android.Manifest
 import android.content.Context
+import android.net.wifi.WifiManager
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pManager
@@ -34,9 +35,9 @@ class WifiDirectTest {
 
     @get:Rule
     val wifiDirectGrantRule: GrantPermissionRule = GrantPermissionRule.grant(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION
     )
 
     private lateinit var radioModule: WifiDirectRadioModule
@@ -45,52 +46,61 @@ class WifiDirectTest {
     private lateinit var ctx: Context
     private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test"))
     private lateinit var database: Datastore
-
+    private lateinit var manager: WifiManager
 
     @Before
     fun init() {
         ctx = ApplicationProvider.getApplicationContext()
         FirebaseApp.initializeApp(ctx)
+        manager = ctx.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val manager = ctx.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         val channel = manager.initialize(ctx, ctx.mainLooper, null)
-        broadcastReceiver = WifiDirectBroadcastReceiverImpl(
-                manager,
-                channel,
-                scheduler
-        )
+        broadcastReceiver = WifiDirectBroadcastReceiverImpl()
+
+        (broadcastReceiver as WifiDirectBroadcastReceiverImpl).manager = manager
+        (broadcastReceiver as WifiDirectBroadcastReceiverImpl).channel = channel
+        (broadcastReceiver as WifiDirectBroadcastReceiverImpl).operationScheduler = scheduler
 
         database = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
-                .fallbackToDestructiveMigration()
-                .build()
+            .fallbackToDestructiveMigration()
+            .build()
 
         val prefs = RouterPreferencesImpl(ctx.dataStore)
         datastore = ScatterbrainDatastoreImpl(
-                ctx,
-                database,
-                scheduler,
-                prefs
+            ctx,
+            database,
+            scheduler,
+            prefs
         )
         val component = DaggerRoutingServiceComponent.builder()
             .applicationContext(ctx)
             ?.build()!!
         radioModule = component.transaction().build()!!.wifiDirectRadioModule()
-        component.scatterRoutingService().registerReceiver()
+      //  component.scatterRoutingService().registerReceiver()
     }
 
     @Test
     @Throws(TimeoutException::class)
     fun createGroupTest() {
-        assert(radioModule.createGroup().timeout(20, TimeUnit.SECONDS)
-                .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
+        assert(
+            radioModule.createGroup(
+                if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+            ).timeout(20, TimeUnit.SECONDS)
+                .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
+        )
     }
 
     @Test
     @Throws(TimeoutException::class)
     fun multipleCreateGroup() {
         for (x in 0..5) {
-            assert(radioModule.createGroup()
+            assert(
+                radioModule.createGroup(
+                    if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+                )
                     .timeout(20, TimeUnit.SECONDS)
-                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
+                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
+            )
         }
     }
 
@@ -113,7 +123,9 @@ class WifiDirectTest {
     @Test
     @Throws(TimeoutException::class)
     fun wifiDirectIsUsableAfterCreate() {
-        val res = radioModule.createGroup().blockingGet()
+        val res = radioModule.createGroup(
+            if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+        ).timeout(10, TimeUnit.SECONDS).blockingGet()
         assert(radioModule.wifiDirectIsUsable().timeout(20, TimeUnit.SECONDS).blockingGet())
     }
 
@@ -124,9 +136,13 @@ class WifiDirectTest {
             radioModule.removeGroup()
                 .timeout(10, TimeUnit.SECONDS)
                 .blockingAwait()
-            assert(radioModule.createGroup()
+            assert(
+                radioModule.createGroup(
+                    if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+                )
                     .timeout(10, TimeUnit.SECONDS)
-                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE)
+                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
+            )
         }
     }
 
@@ -136,9 +152,10 @@ class WifiDirectTest {
         val pass = "fmefthisisahorriblepassphrase"
         val name = "DIRECT-fmoo"
         val fakeConfig = FakeWifiP2pConfigImpl(
-                passphrase = pass,
-                networkName = name,
-                wpsInfo = WpsInfo()
+            passphrase = pass,
+            networkName = name,
+            wpsInfo = WpsInfo(),
+            suggestedband = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
         )
 
         val parcel = Parcel.obtain()

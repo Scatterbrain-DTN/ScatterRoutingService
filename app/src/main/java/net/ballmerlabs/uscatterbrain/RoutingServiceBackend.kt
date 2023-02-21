@@ -36,7 +36,5 @@ interface RoutingServiceBackend {
     fun signDataDetached(data: ByteArray, identity: UUID, callingPackageName: String): Single<ByteArray>
     fun verifyData(data: ByteArray, sig: ByteArray, identity: UUID): Single<Boolean>
     fun getIdentity(fingerprint: UUID): Single<Identity>
-    fun registerReceiver()
-    fun unregisterReceiver()
     fun refreshPeers(): Completable
 }

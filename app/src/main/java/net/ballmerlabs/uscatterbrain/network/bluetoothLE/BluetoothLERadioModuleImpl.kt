@@ -874,6 +874,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID,
         device: RxBleDevice
     ): Maybe<HandshakeResult> {
+        wifiDirectRadioModule.registerReceiver()
         return session.observeStage()
             .doOnNext { stage -> LOG.v("handling stage: $stage") }
             .concatMapSingle {
@@ -943,6 +944,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     LOG.w(st)
                     firebase.recordException(IllegalStateException(st))
                 }
+                wifiDirectRadioModule.unregisterReceiver()
             }
     }
 
