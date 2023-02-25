@@ -53,7 +53,7 @@ class CachedLEConnection(
         }
             .doOnError { err ->
                 LOG.e("raw connection error: $err")
-                onDisconnect().subscribeOn(scheduler).blockingAwait()
+                onDisconnect().observeOn(scheduler).subscribeOn(scheduler).blockingAwait()
             }
             .doOnComplete { LOG.e("raw connection completed") }
             .concatWith(onDisconnect())
