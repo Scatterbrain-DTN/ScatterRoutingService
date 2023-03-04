@@ -57,13 +57,19 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                         if (luid != null) {
                             radioModule.processScanResult(luid, r.bleDevice)
                                 .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
-                                .doOnError { err -> LOG.e("process scan result error $err") }
+                                .doOnError { err ->
+                                    err.printStackTrace()
+                                    LOG.e("process scan result error $err")
+                                }
                         } else {
                             Maybe.empty()
                         }
                     }
                     .ignoreElements()
-                    .doOnError { err -> LOG.e("process scan result error $err") }
+                    .doOnError { err ->
+                        err.printStackTrace()
+                        LOG.e("process scan result error $err")
+                    }
                     .onErrorComplete()
                     .subscribe(
                         { LOG.v("client transaction complete") },

@@ -124,23 +124,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun registerReceiver() {
-        LOG.v("registering broadcast receiver")
-        val intentFilter = IntentFilter()
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
 
-        // Indicates a change in the list of available peers.
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
-
-        // Indicates the state of Wi-Fi P2P connectivity has changed.
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
-
-        // Indicates this device's details have changed.
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
-        mContext.registerReceiver(mBroadcastReceiver.asReceiver(), intentFilter)
     }
 
 
     override fun unregisterReceiver() {
+        /*
         LOG.v("unregistering broadcast receier")
         try {
             mContext.unregisterReceiver(mBroadcastReceiver.asReceiver())
@@ -148,6 +137,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             //firebaseWrapper.recordException(illegalArgumentException)
             LOG.w("attempted to unregister nonexistent receiver, ignore.")
         }
+
+         */
     }
 
 

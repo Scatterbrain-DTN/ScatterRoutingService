@@ -727,8 +727,10 @@ class ScatterRoutingService : LifecycleService() {
             .setTicker("fmef am tire")
             .build()
         startForeground(1, notification)
+        mBackend.registerReceiver()
         try {
             mBackend.leState.connectionCache.clear()
+
         } catch (e: Exception) {
             e.printStackTrace()
             FirebaseCrashlytics.getInstance().recordException(e)

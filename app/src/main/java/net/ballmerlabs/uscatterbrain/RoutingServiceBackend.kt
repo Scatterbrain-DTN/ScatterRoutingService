@@ -37,4 +37,6 @@ interface RoutingServiceBackend {
     fun verifyData(data: ByteArray, sig: ByteArray, identity: UUID): Single<Boolean>
     fun getIdentity(fingerprint: UUID): Single<Identity>
     fun refreshPeers(): Completable
+
+    fun registerReceiver()
 }

@@ -842,6 +842,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         )
                         LOG.v("initializing session")
                         initializeProtocol(s, TransactionResult.STAGE_LUID)
+                        initializeProtocol(s, TransactionResult.STAGE_LUID)
                             .doOnError { e -> LOG.e("failed to initialize protocol $e") }
                             .flatMapMaybe { session ->
                                 LOG.v("session initialized")
@@ -857,7 +858,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             } else {
                 Maybe.empty()
             }
-        }
+        }.doOnError { e ->
+            firebase.recordException(e)
+            e.printStackTrace()
+            state.updateDisconnected(luid)
+        }.onErrorComplete()
     }
 
     /*
@@ -874,7 +879,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID,
         device: RxBleDevice
     ): Maybe<HandshakeResult> {
-        wifiDirectRadioModule.registerReceiver()
         return session.observeStage()
             .doOnNext { stage -> LOG.v("handling stage: $stage") }
             .concatMapSingle {
@@ -944,7 +948,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     LOG.w(st)
                     firebase.recordException(IllegalStateException(st))
                 }
-                wifiDirectRadioModule.unregisterReceiver()
             }
     }
 

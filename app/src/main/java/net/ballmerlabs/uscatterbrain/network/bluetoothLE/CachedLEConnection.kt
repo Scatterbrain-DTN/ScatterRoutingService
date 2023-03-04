@@ -55,7 +55,7 @@ class CachedLEConnection(
                 LOG.e("raw connection error: $err")
 
             }
-            .onErrorResumeNext(onDisconnect().observeOn(scheduler).subscribeOn(scheduler).toObservable())
+            .onErrorResumeNext(Observable.empty())
             .doOnComplete { LOG.e("raw connection completed") }
             .concatWith(onDisconnect())
             .subscribe(connection)

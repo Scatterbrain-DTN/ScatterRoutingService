@@ -116,6 +116,26 @@ class RoutingServiceBackendImpl @Inject constructor(
         }
     }
 
+    override fun registerReceiver() {
+        try {
+            LOG.v("registering broadcast receiver")
+            val intentFilter = IntentFilter()
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
+
+            // Indicates a change in the list of available peers.
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
+
+            // Indicates the state of Wi-Fi P2P connectivity has changed.
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
+
+            // Indicates this device's details have changed.
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
+            context.registerReceiver(wifiDirectBroadcastReceiver.asReceiver(), intentFilter)
+        } catch (exc: Exception) {
+            LOG.e("failed to register receiver, ignoring $exc")
+        }
+    }
+
     override fun verifyData(data: ByteArray, sig: ByteArray, identity: UUID): Single<Boolean> {
         return datastore.getIdentityKey(identity)
             .map { keypair ->
