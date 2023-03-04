@@ -278,9 +278,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
 
             val groupListener = WifiP2pManager.GroupInfoListener { group ->
+                LOG.v("groupInfo retrieved")
+                try {
                 if (group != null && !group.isGroupOwner && group.passphrase.equals(passphrase) &&
                     group.networkName.equals(name)
                 ) {
+                    LOG.v("requesting connection info")
                     mManager.requestConnectionInfo(channel, infoListener)
                 } else {
                     val builder = infoComponentProvider.get()
@@ -293,12 +296,19 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     ).build()!!.fakeWifiP2pConfig()
 
                     retryDelay(
-                        removeGroup().andThen(initiateConnection(fakeConfig.asConfig())),
+                        removeGroup().doOnSubscribe { LOG.v("removeGroup subscribed") }
+                            .doOnComplete { LOG.v("removeGroup completed") }
+                            .andThen(initiateConnection(fakeConfig.asConfig())),
                         20,
                         5
                     )
                         .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
                         .subscribe(subject)
+
+                }
+                } catch (exc: Exception) {
+                    exc.printStackTrace()
+                    LOG.e("exception: $exc")
                 }
             }
             try {
@@ -315,7 +325,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
             subject
 
-        }.doOnError { err -> firebaseWrapper.recordException(err) }
+        }.doOnError { err ->
+            err.printStackTrace()
+            firebaseWrapper.recordException(err)
+        }
     }
 
     /*
@@ -362,7 +375,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 firebaseWrapper.recordException(e)
                 return@defer Completable.error(e)
             }
-        }.subscribeOn(AndroidSchedulers.mainThread())
+        }
     }
 
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {
