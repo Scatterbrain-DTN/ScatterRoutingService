@@ -163,6 +163,14 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD)
+            fun providesMainThreadScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("fakemain"))
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
             fun providesWifiDirectSubcomponent(builder: FakeWifiDirectInfoSubcomponent.Builder): WifiDirectInfoSubcomponent.Builder {
                 return builder
             }

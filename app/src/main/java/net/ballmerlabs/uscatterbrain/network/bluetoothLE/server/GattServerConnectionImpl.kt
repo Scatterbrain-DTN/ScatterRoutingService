@@ -91,7 +91,6 @@ class GattServerConnectionImpl @Inject constructor(
     override val gattServerCallback = object : BluetoothGattServerCallback() {
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             super.onConnectionStateChange(device, status, newState)
-            Log.d("gatt server onConnectionStateChange: " + device.address + " " + status + " " + newState)
             val rxdevice = client.getBleDevice(device.address)
             connectionStatePublishRelay.accept(
                 Pair(
@@ -99,7 +98,6 @@ class GattServerConnectionImpl @Inject constructor(
                 )
             )
             if (newState == BluetoothProfile.STATE_DISCONNECTED || newState == BluetoothProfile.STATE_DISCONNECTING) {
-                Log.e("gatt server onDisconnect $rxdevice")
                 onDisconnect(rxdevice)
                 deviceOnDisconnect[rxdevice]?.invoke()
                 deviceOnDisconnect.remove(rxdevice)

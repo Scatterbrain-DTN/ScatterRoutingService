@@ -12,6 +12,7 @@ import androidx.room.Room
 import com.polidea.rxandroidble2.RxBleClient
 import dagger.*
 import io.reactivex.Scheduler
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.RoutingServiceModule
 import net.ballmerlabs.uscatterbrain.db.*
@@ -40,6 +41,7 @@ interface RoutingServiceComponent {
         const val BLE_SERVER = "scheduler-ble-server"
         const val IO = "network-io"
         const val COMPUTATION = "computation"
+        const val MAIN_THREAD = "mainthread"
     }
 
     @Component.Builder
@@ -198,6 +200,14 @@ interface RoutingServiceComponent {
             @Named(NamedSchedulers.BLE_CALLBACKS)
             fun providesBleCallbacksScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BLE_CALLBACKS))
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(NamedSchedulers.MAIN_THREAD)
+            fun providesMainThreadScheduler(): Scheduler {
+                return AndroidSchedulers.mainThread()
             }
 
             @Provides

@@ -54,6 +54,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
     @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.WIFI_READ) private val readScheduler: Scheduler,
     @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.WIFI_WRITE) private val writeScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) private val mainThread: Scheduler,
     private val channel: WifiP2pManager.Channel,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
@@ -375,7 +376,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 firebaseWrapper.recordException(e)
                 return@defer Completable.error(e)
             }
-        }
+        }.subscribeOn(mainThread)
     }
 
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {

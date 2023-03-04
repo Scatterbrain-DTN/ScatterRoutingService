@@ -76,15 +76,14 @@ class ManagedGattServerImpl @Inject constructor(
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
-
-                if(state.transactionLockIsSelf(luid)) {
-                    serverConnection.setOnDisconnect(trans.remoteDevice) {
-                        LOG.e("server onDisconnect $luid")
-                        state.updateDisconnected(luid)
-                        if (state.connectionCache.isEmpty()) {
-                            advertiser.removeLuid().blockingAwait()
-                        }
+                serverConnection.setOnDisconnect(trans.remoteDevice) {
+                    LOG.e("server onDisconnect $luid")
+                    state.updateDisconnected(luid)
+                    if (state.connectionCache.isEmpty()) {
+                        advertiser.removeLuid().blockingAwait()
                     }
+                }
+                if(state.transactionLockIsSelf(luid)) {
                     LOG.e("server handling luid $luid")
                     LOG.e("transaction NOT locked, continuing")
                     trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)

@@ -83,7 +83,10 @@ class LeStateImpl @Inject constructor(
         activeLuids.remove(luid)
         val c = connectionCache.remove(luid)
         transactionLock.set(null)
-        c?.dispose()
+        if (c != null) {
+            server.get().disconnect(c.device)
+            c.dispose()
+        }
     }
 
     override fun shouldConnect(res: ScanResult): Boolean {
