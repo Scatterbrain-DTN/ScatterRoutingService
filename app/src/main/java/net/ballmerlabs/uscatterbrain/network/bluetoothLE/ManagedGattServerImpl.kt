@@ -167,7 +167,7 @@ class ManagedGattServerImpl @Inject constructor(
                     val s = CachedLEServerConnection(
                         connectionRaw,
                         state.channels,
-                        scheduler = operationsScheduler,
+                        scheduler = serverScheduler,
                         ioScheduler = operationsScheduler,
                         firebaseWrapper = firebase
                     )
