@@ -376,7 +376,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 firebaseWrapper.recordException(e)
                 return@defer Completable.error(e)
             }
-        }.subscribeOn(mainThread)
+        }.observeOn(mainThread)
     }
 
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {
@@ -664,7 +664,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         socket: Socket,
         stream: Flowable<BlockDataStream>
     ): Completable {
-        return stream.concatMapCompletable { blockDataStream ->
+        return stream
+            .concatMapCompletable { blockDataStream ->
             blockDataStream.headerPacket.writeToStream(
                 socket.getOutputStream(),
                 writeScheduler
@@ -690,7 +691,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         stream: Flowable<BlockDataStream>,
         socket: Socket
     ): Completable {
-        return stream.doOnSubscribe { LOG.v("subscribed to BlockDataStream observable") }
+        return stream
+            .doOnSubscribe { LOG.v("subscribed to BlockDataStream observable") }
             .doOnNext { LOG.v("writeBlockData processing BlockDataStream") }
             .concatMapCompletable { blockDataStream ->
                 blockDataStream.headerPacket.writeToStream(

@@ -80,12 +80,16 @@ class LeStateImpl @Inject constructor(
     @Synchronized
     override fun updateDisconnected(luid: UUID) {
         LOG.e("updateDisconnected $luid")
-        activeLuids.remove(luid)
-        val c = connectionCache.remove(luid)
-        transactionLock.set(null)
-        if (c != null) {
-            server.get().disconnect(c.device)
-            c.dispose()
+        try {
+            activeLuids.remove(luid)
+            val c = connectionCache.remove(luid)
+            transactionLock.set(null)
+            if (c != null) {
+               // server.get().disconnect(c.device)
+                c.dispose()
+            }
+        } catch (exc: Exception) {
+            LOG.w("exception in updateDisconnected: $exc")
         }
     }
 

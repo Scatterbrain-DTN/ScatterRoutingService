@@ -54,7 +54,6 @@ class ServerSocketManagerImpl @Inject constructor(
     ).doOnError { err -> firebaseWrapper.recordException(err) }
 
     override fun getServerSocket(): Single<Socket> {
-        LOG.v("called getServerSocket")
         return serverSocket.flatMap { socket ->
             ServerSocketSingle(socket)
                     .subscribeOn(operationsScheduler)

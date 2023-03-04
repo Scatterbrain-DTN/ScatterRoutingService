@@ -4,6 +4,7 @@ import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.internal.schedulers.IoScheduler
 import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import java.util.concurrent.TimeUnit
@@ -15,9 +16,7 @@ import javax.inject.Singleton
 @Singleton
 class GattServerImpl @Inject constructor(
         private val connectionBuilder: Provider<GattServerConnectionSubcomponent.Builder>,
-        @Named(RoutingServiceComponent.NamedSchedulers.IO) private val timeoutScheduler: Scheduler,
-        @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val computeScheduler: Scheduler,
-        @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) private val mainThread: Scheduler
+        @Named(RoutingServiceComponent.NamedSchedulers.IO) private val ioScheduler: Scheduler,
 ): GattServer {
     override fun openServer(config: ServerConfig): Single<GattServerConnection> {
         return Single.fromCallable {
@@ -26,15 +25,14 @@ class GattServerImpl @Inject constructor(
                             TimeoutConfiguration(
                                     10,
                                     TimeUnit.SECONDS,
-                                    timeoutScheduler
+                                    ioScheduler
                             )
                     )
                     .build()
                     .connection()
 
         }
-            .subscribeOn(computeScheduler)
-            .observeOn(mainThread)
             .flatMap { conn -> conn.initializeServer(config).toSingleDefault(conn) }
+            .subscribeOn(ioScheduler)
     }
 }

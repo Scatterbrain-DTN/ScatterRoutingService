@@ -48,20 +48,26 @@ class AdvertiserImpl @Inject constructor(
             status: Int
         ) {
             LOG.v("successfully started advertise $status")
-            if (advertisingSet != null) {
-                isAdvertising.onNext(Pair(Optional.of(advertisingSet), status))
-            } else {
-                isAdvertising.onNext(Pair(Optional.empty(), status))
+            if (isAdvertising.hasObservers()) {
+                if (advertisingSet != null) {
+                    isAdvertising.onNext(Pair(Optional.of(advertisingSet), status))
+                } else {
+                    isAdvertising.onNext(Pair(Optional.empty(), status))
+                }
             }
         }
 
         override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
             LOG.e("advertise stopped")
-            isAdvertising.onNext(Pair(Optional.empty(), ADVERTISE_SUCCESS))
+            if (isAdvertising.hasObservers()) {
+                isAdvertising.onNext(Pair(Optional.empty(), ADVERTISE_SUCCESS))
+            }
         }
 
         override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
-            advertisingDataUpdated.onNext(status)
+            if (advertisingDataUpdated.hasObservers()) {
+                advertisingDataUpdated.onNext(status)
+            }
         }
     }
 

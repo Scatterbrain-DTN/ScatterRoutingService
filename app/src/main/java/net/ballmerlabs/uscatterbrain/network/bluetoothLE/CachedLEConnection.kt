@@ -47,7 +47,7 @@ class CachedLEConnection(
         for (id in channels.keys()) {
             val disp = connection.firstOrError()
                 .subscribe { c ->
-                    c.setupIndication(id, NotificationSetupMode.QUICK_SETUP)
+                    c.setupNotification(id, NotificationSetupMode.QUICK_SETUP)
                         .map { obs ->
                             LOG.v("indication setup")
                             val o = InputStreamObserver(4096)
