@@ -329,7 +329,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         }.doOnError { err ->
             err.printStackTrace()
             firebaseWrapper.recordException(err)
-        }
+        }.doOnSuccess { LOG.v("connectToGroup success") }
     }
 
     /*

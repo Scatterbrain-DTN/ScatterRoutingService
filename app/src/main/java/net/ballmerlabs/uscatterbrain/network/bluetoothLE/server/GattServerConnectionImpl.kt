@@ -521,36 +521,34 @@ class GattServerConnectionImpl @Inject constructor(
             val clientconfig = characteristic.getDescriptor(CLIENT_CONFIG)
                 ?: return@Callable Completable.error(IllegalStateException("notification failed"))
             notifications
-                .delay<ByteArray> {
+                .delay<Int> {
                     setupNotificationsDelay(clientconfig, characteristic, isIndication)
                         .toFlowable()
                 }
-                .concatMapSingle { bytes ->
-                    Log.v("processing bytes length: " + bytes.size)
-                    try {
-                        getOnNotification()
-                            .mergeWith(Completable.fromAction {
+                .zipWith(
+                    getOnNotification()
+                        .toFlowable(BackpressureStrategy.BUFFER)
+                        .mergeWith(Flowable.just(BluetoothGatt.GATT_SUCCESS))
+                ) { bytes, notif ->
+                    Log.v("bytes ${bytes.size}")
+                    when (notif) {
+                        BluetoothGatt.GATT_SUCCESS -> {
+                            try {
                                 characteristic.value = bytes
                                 gattServer.get().notifyCharacteristicChanged(
                                     device.bluetoothDevice,
                                     characteristic,
                                     isIndication
                                 )
-                            })
-                            .firstOrError()
-                    } catch (exc: SecurityException) {
-                       Single.error(exc)
-                    }
-
-                }
-                .concatMap { integer ->
-                    Log.v("notification result: $integer")
-                    if (integer != BluetoothGatt.GATT_SUCCESS) {
-                        Flowable.error(IllegalStateException("notification failed $integer"))
-                    } else {
-                        Flowable.just(integer)
+                                Flowable.just(notif)
+                            } catch (exc: SecurityException) {
+                                Flowable.error(exc)
+                            }
+                        }
+                        else -> Flowable.error(IllegalStateException("notification failed $notif"))
                     }
                 }
+                .flatMap { f -> f }
                 .ignoreElements()
                 .doOnComplete { Log.v("notifications completed!") }
         })
