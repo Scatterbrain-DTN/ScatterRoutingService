@@ -15,7 +15,6 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.Companion.SERVICE_UUID
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Companion.CLIENT_CONFIG
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.io.InputStream
@@ -32,7 +31,7 @@ import java.util.concurrent.TimeUnit
  * @property connection raw connection object being wrapped by this class
  */
 class CachedLEConnection(
-    private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
+    private val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>,
     private val scheduler: Scheduler,
     val device: RxBleDevice
 ) : Disposable {

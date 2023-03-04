@@ -12,7 +12,7 @@ interface LeState {
     val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection>
     val activeLuids: ConcurrentHashMap<UUID, Boolean>
     // a "channel" is a characteristc that protobuf messages are written to.
-    val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic>
+    val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>
 
     fun shouldConnect(res: ScanResult): Boolean
 

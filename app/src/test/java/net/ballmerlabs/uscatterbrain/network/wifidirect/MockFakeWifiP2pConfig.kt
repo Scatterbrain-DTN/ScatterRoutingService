@@ -79,6 +79,7 @@ class MockFakeWifiP2pConfigImpl @Inject constructor(
                     wpsInfo = wpsInfo,
                     networkName = networkName,
                     passphrase = passphrase,
+                    suggestedband = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
             )
             res.groupownerIntent = groupownerIntent
             res.netId = netId

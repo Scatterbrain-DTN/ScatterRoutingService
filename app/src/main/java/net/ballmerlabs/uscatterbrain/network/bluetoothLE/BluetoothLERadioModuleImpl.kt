@@ -35,6 +35,7 @@ import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
@@ -908,21 +909,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * implent a locking mechanism to grant single devices tempoary
      * exclusive access to channel characteristics
      */
-    class LockedCharactersitic(
+    class LockedCharacteristic(
         @get:Synchronized
         val characteristic: BluetoothGattCharacteristic,
         val channel: Int,
     ) {
-        private val lockState = BehaviorRelay.create<Boolean>()
-        fun awaitCharacteristic(): Single<OwnedCharacteristic> {
-            return Single.just(asUnlocked())
-                .zipWith(lockState.filter { p -> !p }.firstOrError()) { ch, _ -> ch }
-                .map { ch ->
-                    lock()
-                    ch
-                }
-        }
-
+        private val lockState = AtomicBoolean()
         private fun asUnlocked(): OwnedCharacteristic {
             return OwnedCharacteristic(this)
         }
@@ -931,24 +923,29 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             get() = characteristic.uuid
 
         @Synchronized
-        fun lock() {
-            lockState.accept(true)
+        fun lock(): OwnedCharacteristic? {
+            val lock = lockState.getAndSet(true)
+            return if (!lock) {
+                asUnlocked()
+            } else {
+                null
+            }
+        }
+        
+        fun isLocked(): Boolean {
+            return lockState.get()
         }
 
         @Synchronized
         fun release() {
-            lockState.accept(false)
-        }
-
-        init {
-            lockState.accept(false)
+            lockState.set(false)
         }
     }
 
     /**
      * represents a characteristic that the caller has exclusive access to
      */
-    class OwnedCharacteristic(private val lockedCharactersitic: LockedCharactersitic) {
+    class OwnedCharacteristic(private val lockedCharactersitic: LockedCharacteristic) {
         private var released = false
 
         @Synchronized
@@ -958,7 +955,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
 
         @get:Synchronized
-        @Suppress("Unused")
         val characteristic: BluetoothGattCharacteristic
             get() {
                 if (released) {

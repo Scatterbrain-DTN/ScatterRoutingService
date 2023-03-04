@@ -32,13 +32,13 @@ import javax.inject.Provider
 
 @GattServerConnectionScope
 class GattServerConnectionImpl @Inject constructor(
-        @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS) private val callbackScheduler: Scheduler,
-        private val serverState: ServerState,
-        private val client: RxBleClient,
-        private val bluetoothManager: BluetoothManager,
-        private val serverTransactionFactory: ServerTransactionFactory,
-        private val firebaseWrapper: FirebaseWrapper,
-        private val gattServer: Provider<BluetoothGattServer>
+    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS) private val callbackScheduler: Scheduler,
+    private val serverState: ServerState,
+    private val client: RxBleClient,
+    private val bluetoothManager: BluetoothManager,
+    private val serverTransactionFactory: ServerTransactionFactory,
+    private val firebaseWrapper: FirebaseWrapper,
+    private val gattServer: Provider<BluetoothGattServer>
 ) : GattServerConnection {
     private val Log by scatterLog()
     private val compositeDisposable = CompositeDisposable()
@@ -47,28 +47,35 @@ class GattServerConnectionImpl @Inject constructor(
 
     private val deviceOnDisconnect = mutableMapOf<RxBleDevice, () -> Unit>()
 
-    private val characteristicMultiIndex = MultiIndex<Int, BluetoothGattCharacteristic, LongWriteClosableOutput<ByteArray>>()
-    private val descriptorMultiIndex = MultiIndex<Int, BluetoothGattDescriptor, LongWriteClosableOutput<ByteArray>>()
-    
-    private val errorMapper: Function<Throwable, Observable<*>> = Function { bleGattException -> Observable.error<Any>(bleGattException) }
+    private val characteristicMultiIndex =
+        MultiIndex<Int, BluetoothGattCharacteristic, LongWriteClosableOutput<ByteArray>>()
+    private val descriptorMultiIndex =
+        MultiIndex<Int, BluetoothGattDescriptor, LongWriteClosableOutput<ByteArray>>()
+
+    private val errorMapper: Function<Throwable, Observable<*>> =
+        Function { bleGattException -> Observable.error<Any>(bleGattException) }
 
     private val readCharacteristicOutput = Output<GattServerTransaction<UUID>>()
     private val writeCharacteristicOutput = Output<GattServerTransaction<UUID>>()
     private val readDescriptorOutput = Output<GattServerTransaction<BluetoothGattDescriptor>>()
     private val writeDescriptorOutput = Output<GattServerTransaction<BluetoothGattDescriptor>>()
-    private val connectionStatePublishRelay = PublishRelay.create<Pair<RxBleDevice, RxBleConnectionState>>()
+    private val connectionStatePublishRelay =
+        PublishRelay.create<Pair<RxBleDevice, RxBleConnectionState>>()
     private val notificationPublishRelay = Output<Int>()
     private val changedMtuOutput = Output<Int>()
     private fun registerService(service: BluetoothGattService): Completable {
         return Completable.fromAction {
             for (characteristic in service.characteristics) {
                 if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY == 0
-                        || characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE == 0) {
+                    || characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE == 0
+                ) {
                     Log.d("setting CLIENT_CONFIG for characteristic " + characteristic.uuid)
-                    characteristic.addDescriptor(BluetoothGattDescriptor(
+                    characteristic.addDescriptor(
+                        BluetoothGattDescriptor(
                             CLIENT_CONFIG,
                             BluetoothGattDescriptor.PERMISSION_WRITE or BluetoothGattDescriptor.PERMISSION_READ
-                    ))
+                        )
+                    )
                 }
                 serverState.addCharacteristic(characteristic.uuid, characteristic)
             }
@@ -86,9 +93,11 @@ class GattServerConnectionImpl @Inject constructor(
             super.onConnectionStateChange(device, status, newState)
             Log.d("gatt server onConnectionStateChange: " + device.address + " " + status + " " + newState)
             val rxdevice = client.getBleDevice(device.address)
-            connectionStatePublishRelay.accept(Pair(
+            connectionStatePublishRelay.accept(
+                Pair(
                     rxdevice, mapConnectionStateToRxBleConnectionStatus(newState)
-            ))
+                )
+            )
             if (newState == BluetoothProfile.STATE_DISCONNECTED || newState == BluetoothProfile.STATE_DISCONNECTING) {
                 Log.e("gatt server onDisconnect $rxdevice")
                 onDisconnect(rxdevice)
@@ -102,41 +111,61 @@ class GattServerConnectionImpl @Inject constructor(
             //TODO:
         }
 
-        override fun onCharacteristicReadRequest(device: BluetoothDevice,
-                                                 requestId: Int,
-                                                 offset: Int,
-                                                 characteristic: BluetoothGattCharacteristic) {
+        override fun onCharacteristicReadRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            offset: Int,
+            characteristic: BluetoothGattCharacteristic
+        ) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
             val rxBleDevice: RxBleDevice = client.getBleDevice(device.address)
             if (getReadCharacteristicOutput().hasObservers()) {
                 prepareCharacteristicTransaction(
-                        characteristic,
-                        requestId,
-                        offset,
-                        rxBleDevice,
-                        getReadCharacteristicOutput().valueRelay,
-                        null
+                    characteristic,
+                    requestId,
+                    offset,
+                    rxBleDevice,
+                    getReadCharacteristicOutput().valueRelay,
+                    null
                 )
             }
         }
 
-        override fun onCharacteristicWriteRequest(device: BluetoothDevice,
-                                                  requestId: Int,
-                                                  characteristic: BluetoothGattCharacteristic,
-                                                  preparedWrite: Boolean,
-                                                  responseNeeded: Boolean,
-                                                  offset: Int,
-                                                  value: ByteArray) {
-            super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
-            Log.v("onCharacteristicWriteRequest characteristic: " + characteristic.uuid
-                    + " device: " + device.address + " responseNeeded " + responseNeeded)
+        override fun onCharacteristicWriteRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            characteristic: BluetoothGattCharacteristic,
+            preparedWrite: Boolean,
+            responseNeeded: Boolean,
+            offset: Int,
+            value: ByteArray
+        ) {
+            super.onCharacteristicWriteRequest(
+                device,
+                requestId,
+                characteristic,
+                preparedWrite,
+                responseNeeded,
+                offset,
+                value
+            )
+            Log.v(
+                "onCharacteristicWriteRequest characteristic: " + characteristic.uuid
+                        + " device: " + device.address + " responseNeeded " + responseNeeded
+            )
             val rxBleDevice = client.getBleDevice(device.address)
             if (preparedWrite) {
                 Log.v("characteristic long write")
                 val longWriteOutput = openLongWriteCharacteristicOutput(requestId, characteristic)
                 if (responseNeeded) {
                     try {
-                        gattServer.get().sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, ByteArray(0))
+                        gattServer.get().sendResponse(
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_SUCCESS,
+                            0,
+                            ByteArray(0)
+                        )
                     } catch (exc: SecurityException) {
                         getWriteCharacteristicOutput().errorRelay.onNext(exc)
                     }
@@ -144,33 +173,35 @@ class GattServerConnectionImpl @Inject constructor(
                 longWriteOutput.valueRelay.onNext(value)
             } else if (getWriteCharacteristicOutput().hasObservers()) {
                 prepareCharacteristicTransaction(
-                        characteristic,
-                        requestId,
-                        offset,
-                        rxBleDevice,
-                        getWriteCharacteristicOutput().valueRelay,
-                        value
+                    characteristic,
+                    requestId,
+                    offset,
+                    rxBleDevice,
+                    getWriteCharacteristicOutput().valueRelay,
+                    value
                 )
             } else {
                 Log.e("no observers")
             }
         }
 
-        override fun onDescriptorReadRequest(device: BluetoothDevice,
-                                             requestId: Int,
-                                             offset: Int,
-                                             descriptor: BluetoothGattDescriptor) {
+        override fun onDescriptorReadRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            offset: Int,
+            descriptor: BluetoothGattDescriptor
+        ) {
             super.onDescriptorReadRequest(device, requestId, offset, descriptor)
             Log.v("onDescriptorReadRequest: " + descriptor.uuid)
             val rxBleDevice: RxBleDevice = client.getBleDevice(device.address)
             if (descriptor.uuid.compareTo(CLIENT_CONFIG) == 0) {
                 try {
                     gattServer.get().sendResponse(
-                            device,
-                            requestId,
-                            BluetoothGatt.GATT_SUCCESS,
-                            offset,
-                            serverState.getNotificationValue(descriptor.characteristic.uuid)
+                        device,
+                        requestId,
+                        BluetoothGatt.GATT_SUCCESS,
+                        offset,
+                        serverState.getNotificationValue(descriptor.characteristic.uuid)
                     )
                 } catch (exc: SecurityException) {
                     getReadCharacteristicOutput().errorRelay.onNext(exc)
@@ -178,53 +209,74 @@ class GattServerConnectionImpl @Inject constructor(
             }
             if (getReadDescriptorOutput().hasObservers()) {
                 prepareDescriptorTransaction(
-                        descriptor,
-                        requestId,
-                        offset,
-                        rxBleDevice,
-                        getReadDescriptorOutput().valueRelay,
-                        null
+                    descriptor,
+                    requestId,
+                    offset,
+                    rxBleDevice,
+                    getReadDescriptorOutput().valueRelay,
+                    null
                 )
-            }
-            else {
+            } else {
                 Log.e("no observers")
             }
         }
 
-        override fun onDescriptorWriteRequest(device: BluetoothDevice,
-                                              requestId: Int,
-                                              descriptor: BluetoothGattDescriptor,
-                                              preparedWrite: Boolean,
-                                              responseNeeded: Boolean,
-                                              offset: Int,
-                                              value: ByteArray) {
-            super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value)
+        override fun onDescriptorWriteRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            descriptor: BluetoothGattDescriptor,
+            preparedWrite: Boolean,
+            responseNeeded: Boolean,
+            offset: Int,
+            value: ByteArray
+        ) {
+            super.onDescriptorWriteRequest(
+                device,
+                requestId,
+                descriptor,
+                preparedWrite,
+                responseNeeded,
+                offset,
+                value
+            )
             Log.v("onDescriptorWriteRequest: " + descriptor.uuid)
             val rxBleDevice: RxBleDevice = client.getBleDevice(device.address)
             try {
                 if (preparedWrite) {
                     Log.v("onDescriptorWriteRequest: invoking preparedWrite")
-                    val longWriteOutput: Output<ByteArray> = openLongWriteDescriptorOutput(requestId, descriptor)
+                    val longWriteOutput: Output<ByteArray> =
+                        openLongWriteDescriptorOutput(requestId, descriptor)
                     if (responseNeeded) {
-                        gattServer.get().sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, ByteArray(0))
+                        gattServer.get().sendResponse(
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_SUCCESS,
+                            0,
+                            ByteArray(0)
+                        )
                     }
                     longWriteOutput.valueRelay.onNext(value) //TODO: offset
                 } else {
                     if (descriptor.uuid.compareTo(CLIENT_CONFIG) == 0) {
                         serverState.setNotifications(descriptor.characteristic.uuid, value)
-                        gattServer.get().sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, ByteArray(0))
+                        gattServer.get().sendResponse(
+                            device,
+                            requestId,
+                            BluetoothGatt.GATT_SUCCESS,
+                            0,
+                            ByteArray(0)
+                        )
                     }
                     if (writeDescriptorOutput.hasObservers()) {
                         prepareDescriptorTransaction(
-                                descriptor,
-                                requestId,
-                                offset,
-                                rxBleDevice,
-                                writeDescriptorOutput.valueRelay,
-                                value
+                            descriptor,
+                            requestId,
+                            offset,
+                            rxBleDevice,
+                            writeDescriptorOutput.valueRelay,
+                            value
                         )
-                    }
-                    else {
+                    } else {
                         Log.e("no observers")
                     }
                 }
@@ -237,7 +289,8 @@ class GattServerConnectionImpl @Inject constructor(
             super.onExecuteWrite(device, requestId, execute)
             Log.v("onExecuteWrite $requestId $execute")
             try {
-                gattServer.get().sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, ByteArray(0))
+                gattServer.get()
+                    .sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, ByteArray(0))
                 if (execute) {
                     closeLongWriteCharacteristicOutput(requestId)
                     resetCharacteristicMap()
@@ -253,7 +306,7 @@ class GattServerConnectionImpl @Inject constructor(
             if (getNotificationPublishRelay().valueRelay.hasObservers()) {
                 Log.v("onNotificationSent: " + device.address + " " + status)
                 getNotificationPublishRelay().valueRelay.onNext(
-                        status
+                    status
                 )
             }
         }
@@ -330,40 +383,43 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun openLongWriteCharacteristicOutput(
-            requestid: Int,
-            characteristic: BluetoothGattCharacteristic
+        requestid: Int,
+        characteristic: BluetoothGattCharacteristic
     ): LongWriteClosableOutput<ByteArray> {
         var output = characteristicMultiIndex[requestid]
         if (output == null) {
             output = LongWriteClosableOutput()
             output.valueRelay
-                    .reduce { first, second ->
-                        val both = first.copyOf(first.size + second.size)
-                        System.arraycopy(second, 0, both, first.size, second.size)
-                        both
-                    }
-                    .subscribeOn(callbackScheduler)
-                    .toSingle()
-                    .subscribe(output.out)
+                .reduce { first, second ->
+                    val both = first.copyOf(first.size + second.size)
+                    System.arraycopy(second, 0, both, first.size, second.size)
+                    both
+                }
+                .subscribeOn(callbackScheduler)
+                .toSingle()
+                .subscribe(output.out)
             characteristicMultiIndex.put(requestid, output)
             characteristicMultiIndex.putMulti(characteristic, output)
         }
         return output
     }
 
-    override fun openLongWriteDescriptorOutput(requestid: Int, descriptor: BluetoothGattDescriptor): LongWriteClosableOutput<ByteArray> {
+    override fun openLongWriteDescriptorOutput(
+        requestid: Int,
+        descriptor: BluetoothGattDescriptor
+    ): LongWriteClosableOutput<ByteArray> {
         var output = descriptorMultiIndex[requestid]
         if (output == null) {
             output = LongWriteClosableOutput()
             output.valueRelay
-                    .reduce { first, second ->
-                        val both = first.copyOf(first.size + second.size)
-                        System.arraycopy(second, 0, both, first.size, second.size)
-                        both
-                    }
-                    .subscribeOn(callbackScheduler)
-                    .toSingle()
-                    .subscribe(output.out)
+                .reduce { first, second ->
+                    val both = first.copyOf(first.size + second.size)
+                    System.arraycopy(second, 0, both, first.size, second.size)
+                    both
+                }
+                .subscribeOn(callbackScheduler)
+                .toSingle()
+                .subscribe(output.out)
             descriptorMultiIndex.put(requestid, output)
             descriptorMultiIndex.putMulti(descriptor, output)
         }
@@ -372,28 +428,28 @@ class GattServerConnectionImpl @Inject constructor(
 
     override fun closeLongWriteCharacteristicOutput(requestid: Int): Single<ByteArray> {
         return Single.just(requestid)
-                .flatMap(Function<Int, SingleSource<out ByteArray>> { integer ->
-                    val output  = characteristicMultiIndex.get(integer)
-                    if (output != null) {
-                        output.valueRelay.onComplete()
-                        characteristicMultiIndex.remove(integer)
-                        return@Function output.out.delay(0, TimeUnit.SECONDS, callbackScheduler)
-                    }
-                    Single.never()
-                })
+            .flatMap(Function<Int, SingleSource<out ByteArray>> { integer ->
+                val output = characteristicMultiIndex.get(integer)
+                if (output != null) {
+                    output.valueRelay.onComplete()
+                    characteristicMultiIndex.remove(integer)
+                    return@Function output.out.delay(0, TimeUnit.SECONDS, callbackScheduler)
+                }
+                Single.never()
+            })
     }
 
     override fun closeLongWriteDescriptorOutput(requestid: Int): Single<ByteArray> {
         return Single.just(requestid)
-                .flatMap(Function<Int, SingleSource<out ByteArray>> { integer ->
-                    val output = descriptorMultiIndex[integer]
-                    if (output != null) {
-                        output.valueRelay.onComplete()
-                        characteristicMultiIndex.remove(integer)
-                        return@Function output.out.delay(0, TimeUnit.SECONDS, callbackScheduler)
-                    }
-                    Single.never()
-                })
+            .flatMap(Function<Int, SingleSource<out ByteArray>> { integer ->
+                val output = descriptorMultiIndex[integer]
+                if (output != null) {
+                    output.valueRelay.onComplete()
+                    characteristicMultiIndex.remove(integer)
+                    return@Function output.out.delay(0, TimeUnit.SECONDS, callbackScheduler)
+                }
+                Single.never()
+            })
     }
 
     override fun resetDescriptorMap() {
@@ -404,7 +460,11 @@ class GattServerConnectionImpl @Inject constructor(
         characteristicMultiIndex.clear()
     }
 
-    override fun setupIndication(ch: UUID, indications: Flowable<ByteArray>, device: RxBleDevice): Completable {
+    override fun setupIndication(
+        ch: UUID,
+        indications: Flowable<ByteArray>,
+        device: RxBleDevice
+    ): Completable {
         return Single.fromCallable {
             val characteristic = serverState.getCharacteristic(ch)
             setupNotifications(characteristic, indications, true, device)
@@ -412,9 +472,9 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     private fun setupNotificationsDelay(
-            clientconfig: BluetoothGattDescriptor,
-            characteristic: BluetoothGattCharacteristic,
-            isIndication: Boolean
+        clientconfig: BluetoothGattDescriptor,
+        characteristic: BluetoothGattCharacteristic,
+        isIndication: Boolean
     ): Completable {
         return Single.fromCallable {
             if (isIndication && serverState.getIndications(characteristic.uuid)) {
@@ -441,7 +501,11 @@ class GattServerConnectionImpl @Inject constructor(
         }.flatMapCompletable { completable -> completable }
     }
 
-    override fun setupNotifications(ch: UUID, notifications: Flowable<ByteArray>, device: RxBleDevice): Completable {
+    override fun setupNotifications(
+        ch: UUID,
+        notifications: Flowable<ByteArray>,
+        device: RxBleDevice
+    ): Completable {
         return Single.fromCallable {
             val characteristic = serverState.getCharacteristic(ch)
             setupNotifications(characteristic, notifications, false, device)
@@ -449,116 +513,126 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun setupNotifications(
-            characteristic: BluetoothGattCharacteristic,
-            notifications: Flowable<ByteArray>,
-            isIndication: Boolean,
-            device: RxBleDevice
+        characteristic: BluetoothGattCharacteristic,
+        notifications: Flowable<ByteArray>,
+        isIndication: Boolean,
+        device: RxBleDevice
     ): Completable {
         return Completable.defer(Callable {
             Log.v("setupNotifictions: " + characteristic.uuid)
             val clientconfig = characteristic.getDescriptor(CLIENT_CONFIG)
-                    ?: return@Callable Completable.error(IllegalStateException("notification failed"))
+                ?: return@Callable Completable.error(IllegalStateException("notification failed"))
             notifications
-                    .delay<ByteArray> {
-                        setupNotificationsDelay(clientconfig, characteristic, isIndication)
-                                .toFlowable()
-                    }
-                    .onBackpressureBuffer()
-                    .concatMapSingle { bytes ->
-                        Log.v("processing bytes length: " + bytes.size)
-                        try {
+                .delay<ByteArray> {
+                    setupNotificationsDelay(clientconfig, characteristic, isIndication)
+                        .toFlowable()
+                }
+                .concatMapSingle { bytes ->
+                    Log.v("processing bytes length: " + bytes.size)
+                    try {
+                        getOnNotification()
+                            .mergeWith(Completable.fromAction {
                                 characteristic.value = bytes
-                                if (!gattServer.get().notifyCharacteristicChanged(device.bluetoothDevice, characteristic, isIndication)) {
-                                    Single.error(java.lang.IllegalStateException("falied to indicate"))
-                                } else {
-                                    getOnNotification().firstOrError()
-                                }
-                        } catch (exc: SecurityException) {
-                            firebaseWrapper.recordException(exc)
-                            Single.error(exc)
-                        }
+                                gattServer.get().notifyCharacteristicChanged(
+                                    device.bluetoothDevice,
+                                    characteristic,
+                                    isIndication
+                                )
+                            })
+                            .firstOrError()
+                    } catch (exc: SecurityException) {
+                       Single.error(exc)
+                    }
 
+                }
+                .concatMap { integer ->
+                    Log.v("notification result: $integer")
+                    if (integer != BluetoothGatt.GATT_SUCCESS) {
+                        Flowable.error(IllegalStateException("notification failed $integer"))
+                    } else {
+                        Flowable.just(integer)
                     }
-                    .concatMap { integer ->
-                        Log.v("notification result: $integer")
-                        if (integer != BluetoothGatt.GATT_SUCCESS) {
-                            Flowable.error(IllegalStateException("notification failed $integer"))
-                        } else {
-                            Flowable.just(integer)
-                        }
-                    }
-                    .ignoreElements()
-                    .doOnComplete { Log.v("notifications completed!") }
+                }
+                .ignoreElements()
+                .doOnComplete { Log.v("notifications completed!") }
         })
     }
 
     private fun <T> withDisconnectionHandling(output: Output<T>): Observable<T> {
         return Observable.merge(
-                output.valueRelay,
-                output.errorRelay.flatMap(errorMapper) as Observable<T>
+            output.valueRelay,
+            output.errorRelay.flatMap(errorMapper) as Observable<T>
         )
     }
 
     override fun getOnMtuChanged(): Observable<Int> {
         return withDisconnectionHandling(getChangedMtuOutput())
-                .delay(0, TimeUnit.SECONDS, callbackScheduler)
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun observeDisconnect(): Observable<RxBleDevice> {
         return connectionStatePublishRelay
-                .filter { pair -> pair.second == RxBleConnectionState.DISCONNECTED }
-                .map { pair -> pair.first }
-                .delay(0, TimeUnit.SECONDS, callbackScheduler)
+            .filter { pair -> pair.second == RxBleConnectionState.DISCONNECTED }
+            .map { pair -> pair.first }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun observeConnect(): Observable<RxBleDevice> {
         return connectionStatePublishRelay
-                .filter { pair -> pair.second == RxBleConnectionState.CONNECTED }
-                .map { pair -> pair.first }
-                .delay(0, TimeUnit.SECONDS, callbackScheduler)
+            .filter { pair -> pair.second == RxBleConnectionState.CONNECTED }
+            .map { pair -> pair.first }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun getOnCharacteristicReadRequest(characteristic: UUID): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(getReadCharacteristicOutput())
-                .filter { uuidGattServerTransaction -> uuidGattServerTransaction.first.compareTo(characteristic) == 0 }
-                .map { uuidGattServerTransaction -> uuidGattServerTransaction.second }
-                .delay(0, TimeUnit.SECONDS, callbackScheduler)
+            .filter { uuidGattServerTransaction ->
+                uuidGattServerTransaction.first.compareTo(
+                    characteristic
+                ) == 0
+            }
+            .map { uuidGattServerTransaction -> uuidGattServerTransaction.second }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
 
     override fun getOnCharacteristicWriteRequest(characteristic: UUID): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(getWriteCharacteristicOutput())
-                .filter { uuidGattServerTransaction -> uuidGattServerTransaction.first.compareTo(characteristic) == 0 }
-                .map { uuidGattServerTransaction -> uuidGattServerTransaction.second }
-                .delay(0, TimeUnit.SECONDS, callbackScheduler)
+            .filter { uuidGattServerTransaction ->
+                uuidGattServerTransaction.first.compareTo(
+                    characteristic
+                ) == 0
+            }
+            .map { uuidGattServerTransaction -> uuidGattServerTransaction.second }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun getOnDescriptorReadRequest(
-            characteristic: UUID,
-            descriptor: UUID
+        characteristic: UUID,
+        descriptor: UUID
     ): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(getReadDescriptorOutput())
-                .filter { transaction ->
-                    (transaction.first.uuid.compareTo(descriptor) == 0
-                            && transaction.first.characteristic.uuid
-                            .compareTo(characteristic) == 0)
-                }
-                .map { transaction -> transaction.second }
-                .delay(0, TimeUnit.SECONDS, callbackScheduler)
+            .filter { transaction ->
+                (transaction.first.uuid.compareTo(descriptor) == 0
+                        && transaction.first.characteristic.uuid
+                    .compareTo(characteristic) == 0)
+            }
+            .map { transaction -> transaction.second }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun getOnDescriptorWriteRequest(
-            characteristic: UUID,
-            descriptor: UUID
+        characteristic: UUID,
+        descriptor: UUID
     ): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(getWriteDescriptorOutput())
-                .filter { transaction ->
-                    (transaction.first.uuid.compareTo(descriptor) == 0
-                            && transaction.first.characteristic.uuid
-                            .compareTo(characteristic) == 0)
-                }
-                .map { transaction -> transaction.second }
-                .delay(0, TimeUnit.SECONDS, callbackScheduler)
+            .filter { transaction ->
+                (transaction.first.uuid.compareTo(descriptor) == 0
+                        && transaction.first.characteristic.uuid
+                    .compareTo(characteristic) == 0)
+            }
+            .map { transaction -> transaction.second }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun getOnNotification(): Observable<Int> {
@@ -567,7 +641,7 @@ class GattServerConnectionImpl @Inject constructor(
 
     override fun disconnect(device: RxBleDevice): Completable {
         return Completable.fromAction {
-            try  {
+            try {
                 gattServer.get().cancelConnection(device.bluetoothDevice)
             } catch (exc: SecurityException) {
                 throw exc
@@ -584,42 +658,47 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun prepareDescriptorTransaction(
-            descriptor: BluetoothGattDescriptor,
-            requestID: Int,
-            offset: Int, device: RxBleDevice,
-            valueRelay: PublishSubject<GattServerTransaction<BluetoothGattDescriptor>>,
-            value: ByteArray?
+        descriptor: BluetoothGattDescriptor,
+        requestID: Int,
+        offset: Int, device: RxBleDevice,
+        valueRelay: PublishSubject<GattServerTransaction<BluetoothGattDescriptor>>,
+        value: ByteArray?
     ) {
-        val transaction= serverTransactionFactory.prepareCharacteristicTransaction(
-                value,
-                requestID,
-                offset,
-                device,
-                descriptor.uuid
+        val transaction = serverTransactionFactory.prepareCharacteristicTransaction(
+            value,
+            requestID,
+            offset,
+            device,
+            descriptor.uuid
         )
         valueRelay.onNext(GattServerTransaction(descriptor, transaction))
     }
 
     override fun prepareCharacteristicTransaction(
-            descriptor: BluetoothGattCharacteristic,
-            requestID: Int,
-            offset: Int,
-            device: RxBleDevice,
-            valueRelay: PublishSubject<GattServerTransaction<UUID>>,
-            value: ByteArray?
+        descriptor: BluetoothGattCharacteristic,
+        requestID: Int,
+        offset: Int,
+        device: RxBleDevice,
+        valueRelay: PublishSubject<GattServerTransaction<UUID>>,
+        value: ByteArray?
     ) {
         val transaction = serverTransactionFactory.prepareCharacteristicTransaction(
-                value,
-                requestID,
-                offset,
-                device,
-                descriptor.uuid
+            value,
+            requestID,
+            offset,
+            device,
+            descriptor.uuid
         )
         Log.v("characteristicTransaction")
         valueRelay.onNext(GattServerTransaction(descriptor.uuid, transaction))
     }
 
-    override fun blindAck(requestID: Int, status: Int, value: ByteArray, device: RxBleDevice): Observable<Boolean> {
+    override fun blindAck(
+        requestID: Int,
+        status: Int,
+        value: ByteArray,
+        device: RxBleDevice
+    ): Observable<Boolean> {
         return Observable.fromCallable {
             try {
                 gattServer.get().sendResponse(device.bluetoothDevice, requestID, status, 0, value)

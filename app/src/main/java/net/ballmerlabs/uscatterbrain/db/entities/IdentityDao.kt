@@ -13,7 +13,6 @@ import java.util.*
 @Dao
 interface IdentityDao {
     @get:Query("SELECT * FROM identities")
-    @get:Transaction
     val all: Single<List<Identity>>
 
     @Transaction

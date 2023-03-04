@@ -37,8 +37,8 @@ class LeStateImpl @Inject constructor(
     override val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
 
     // a "channel" is a characteristc that protobuf messages are written to.
-    override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic> =
-        ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic>()
+    override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic> =
+        ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>()
     private val LOG by scatterLog()
 
 

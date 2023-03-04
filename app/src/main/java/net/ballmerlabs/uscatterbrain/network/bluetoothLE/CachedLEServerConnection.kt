@@ -8,7 +8,6 @@ import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
@@ -25,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference
  */
 class CachedLEServerConnection(
     val connection: GattServerConnection,
-    private val channels: ConcurrentHashMap<UUID, LockedCharactersitic>,
+    private val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>,
     private val scheduler: Scheduler,
     private val ioScheduler: Scheduler,
     private val firebaseWrapper: FirebaseWrapper
@@ -50,15 +49,16 @@ class CachedLEServerConnection(
      * @return single emitting characteristic selected
      */
     private fun selectCharacteristic(): Single<OwnedCharacteristic> {
-        return Observable.mergeDelayError(
-            Observable.fromIterable(channels.values)
-                .map { lockedCharactersitic ->
-                    lockedCharactersitic.awaitCharacteristic().toObservable()
+        return Single.defer {
+            for (char in channels.values) {
+                val lock = char.lock()
+                if (lock != null) {
+                    return@defer Single.just(lock)
                 }
-                .subscribeOn(scheduler)
-        )
-            .firstOrError()
-            .doOnSuccess { char -> LOG.v("selected characteristic $char") }
+            }
+
+            Single.error(IllegalStateException("no characteristics"))
+        }
     }
 
     /**

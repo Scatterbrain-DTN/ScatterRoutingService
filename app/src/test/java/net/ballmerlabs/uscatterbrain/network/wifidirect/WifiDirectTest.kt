@@ -1,8 +1,11 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
+import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
 import io.reactivex.Completable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
@@ -28,6 +31,7 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -39,6 +43,7 @@ const val name = "DIRECT-fmoo"
 
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [Build.VERSION_CODES.R])
 class WifiDirectTest {
 
     init {
@@ -71,6 +76,12 @@ class WifiDirectTest {
     @Mock
     private lateinit var wifiP2pManager: WifiP2pManager
 
+    @Mock
+    private lateinit var bluetoothManager: BluetoothManager
+
+    @Mock
+    private lateinit var wifiManager: WifiManager
+
     private lateinit var module: WifiDirectRadioModule
 
     private lateinit var compositeDisposable: CompositeDisposable
@@ -89,6 +100,8 @@ class WifiDirectTest {
             .mockPreferences(preferences)
             .packetOutputStream(packetOutputStream)
             .wifiDirectBroadcastReceiver(broadcastReceiver)
+            .bluetoothManager(bluetoothManager)
+            .wifiManager(wifiManager)
             .build()!!
         val trans = component.getTransactionBuilder().build()!!
         module = trans.wifiDirectRadioModule()
@@ -183,7 +196,7 @@ class WifiDirectTest {
     fun connectGroupTest() {
         wifiP2pManager = mockWifiP2p()
         buildModule()
-        val info = module.connectToGroup(name, pass, 10)
+        val info = module.connectToGroup(name, pass, 10, FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
             .timeout(10, TimeUnit.SECONDS)
             .blockingGet()
 
@@ -200,10 +213,10 @@ class WifiDirectTest {
             .setHashesByte(listOf())
             .build()
         val blockdata = BlockHeaderPacket.newBuilder().setEndOfStream(true).build()
-        routingMetadataPacket.writeToStream(os, delayScheduler).blockingAwait()
-        identityPacket.writeToStream(os, delayScheduler).blockingAwait()
-        declareHashesPacket.writeToStream(os, delayScheduler).blockingAwait()
-        blockdata.writeToStream(os, delayScheduler).blockingAwait()
+        routingMetadataPacket.writeToStream(os, delayScheduler).timeout(1, TimeUnit.SECONDS).blockingAwait()
+        identityPacket.writeToStream(os, delayScheduler).timeout(1, TimeUnit.SECONDS).blockingAwait()
+        declareHashesPacket.writeToStream(os, delayScheduler).timeout(1, TimeUnit.SECONDS).blockingAwait()
+        blockdata.writeToStream(os, delayScheduler).timeout(1, TimeUnit.SECONDS).blockingAwait()
         return ByteArrayInputStream(os.toByteArray())
     }
 
@@ -220,12 +233,13 @@ class WifiDirectTest {
                 BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
                     role = BluetoothLEModule.ConnectionRole.ROLE_UKE,
                     passphrase = pass,
-                    name = name
+                    name = name,
+                    band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
                 )
             )
             .build()!!
             .wifiBootstrapRequest()
-        val res = module.bootstrapFromUpgrade(req).blockingGet()
+        val res = module.bootstrapFromUpgrade(req).timeout(1, TimeUnit.SECONDS).blockingGet()
         assert(res.success)
     }
 
@@ -242,12 +256,13 @@ class WifiDirectTest {
                 BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
                     role = BluetoothLEModule.ConnectionRole.ROLE_SEME,
                     passphrase = pass,
-                    name = name
+                    name = name,
+                    band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
                 )
             )
             .build()!!
             .wifiBootstrapRequest()
-        val res = module.bootstrapFromUpgrade(req).blockingGet()
+        val res = module.bootstrapFromUpgrade(req).timeout(1, TimeUnit.SECONDS).blockingGet()
         assert(res.success)
     }
 
@@ -261,9 +276,10 @@ class WifiDirectTest {
                     val info = module.connectToGroup(
                         name,
                         pass,
-                        ((connectDelay + groupInfoDelay + broadcastDelay) / 1000).toInt() + 5
+                        ((connectDelay + groupInfoDelay + broadcastDelay) / 1000).toInt() + 5,
+                        band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
                     )
-                        .timeout(10, TimeUnit.SECONDS)
+                        .timeout(5, TimeUnit.SECONDS)
                         .blockingGet()
 
                     assert(info.groupOwnerAddress() != null)
@@ -306,8 +322,8 @@ class WifiDirectTest {
             }
         }
         buildModule()
-        val bootstrap = module.createGroup()
-            .timeout(10, TimeUnit.SECONDS)
+        val bootstrap = module.createGroup(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+            .timeout(5, TimeUnit.SECONDS)
             .blockingGet()
         assert(bootstrap.name == name)
         assert(bootstrap.passphrase == pass)
@@ -322,8 +338,8 @@ class WifiDirectTest {
             }
         )
         buildModule()
-        val bootstrap = module.createGroup()
-            .timeout(10, TimeUnit.SECONDS)
+        val bootstrap = module.createGroup(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+            .timeout(5, TimeUnit.SECONDS)
             .blockingGet()
         assert(bootstrap.name == name)
         assert(bootstrap.passphrase == pass)

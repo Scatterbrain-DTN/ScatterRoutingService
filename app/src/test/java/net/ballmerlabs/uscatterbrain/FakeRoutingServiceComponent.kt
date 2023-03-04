@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.PowerManager
 import androidx.room.Room
@@ -59,6 +60,9 @@ interface FakeRoutingServiceComponent {
 
         @BindsInstance
         fun bluetoothManager(bluetoothManager: BluetoothManager): Builder
+
+        @BindsInstance
+        fun wifiManager(wifiManager: WifiManager): Builder
 
         @BindsInstance
         fun rxBleClient(client: RxBleClient): Builder
@@ -138,6 +142,15 @@ interface FakeRoutingServiceComponent {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
                         .fallbackToDestructiveMigration()
                         .build()
+            }
+
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named("band")
+            fun providesBand(): Int {
+                return FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
             }
 
             @Provides

@@ -137,7 +137,7 @@ class ManagedGattServerImpl @Inject constructor(
                 i + 1
             )
             state.channels[channel] =
-                BluetoothLERadioModuleImpl.LockedCharactersitic(makeCharacteristic(channel), i)
+                BluetoothLERadioModuleImpl.LockedCharacteristic(makeCharacteristic(channel), i)
         }
         val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
             .addService(gattService)

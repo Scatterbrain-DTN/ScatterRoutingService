@@ -13,11 +13,9 @@ import java.util.*
 @Dao
 abstract class ScatterMessageDao {
     @get:Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash")
-    @get:Transaction
     abstract val all: Single<List<DbMessage>>
 
     @get:Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash")
-    @get:Transaction
     abstract val messagesWithFiles: Single<List<DbMessage>>
 
     @Transaction
@@ -61,7 +59,6 @@ abstract class ScatterMessageDao {
     abstract fun getByApplication(application: String): Single<List<DbMessage>>
 
     @get:Query("SELECT filepath FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash")
-    @get:Transaction
     abstract val allFiles: Single<List<String>>
 
     @Transaction

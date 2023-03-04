@@ -2,6 +2,8 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.*
 import android.content.Context
+import android.net.wifi.WifiManager
+import android.net.wifi.p2p.WifiP2pManager
 import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
@@ -61,6 +63,10 @@ class GattServerTest {
     private lateinit var manager: BluetoothManager
 
     @Mock
+    private lateinit var wifiManager: WifiManager
+
+
+    @Mock
     private lateinit var androidGattServer: BluetoothGattServer
 
     @Mock
@@ -93,6 +99,8 @@ class GattServerTest {
                 .packetInputStream(ByteArrayInputStream(byteArrayOf()))
                 .wifiDirectBroadcastReceiver(MockWifiDirectBroadcastReceiver(mock {  }))
                 .mockPreferences(preferences)
+            .bluetoothManager(manager)
+            .wifiManager(wifiManager)
                 .build()!!
         gattServer = component.gattServer()
         connectionBuilder = component.gattConnectionBuilder()
@@ -318,7 +326,8 @@ class GattServerTest {
         assert(res.requestID == id)
     }
 
-    private fun testNotify(isIndication: Boolean, length: Long = 1) {
+    private fun testNotify(isIndication: Boolean, length: Long = 1, timeout: Long = 5) {
+        println("testNotify $isIndication $length $timeout")
         val char = UUID.fromString("5C7E5EB0-540B-4675-9137-DC5235AA9786")
         val characteristic = getCharacteristic(char, notify = true)
         val config = getServerConfig(characteristic)
@@ -335,37 +344,39 @@ class GattServerTest {
             } doReturn BluetoothProfile.STATE_CONNECTED
         }
         var connection: GattServerConnection? = null
+        setupModule()
+
         androidGattServer = mock {
             on {
                 notifyCharacteristicChanged(device.bluetoothDevice, characteristic, isIndication)
             } doAnswer { c ->
-                connection!!.gattServerCallback.onNotificationSent(device.bluetoothDevice, BluetoothGatt.GATT_SUCCESS)
+                println("answering notifyCharacteristicChanged")
+                connection!!.getNotificationPublishRelay().valueRelay.onNext(BluetoothGatt.GATT_SUCCESS)
                 true
             }
         }
 
-        setupModule()
         connection = getConnection()
-        connection.initializeServer(config).blockingAwait()
 
+        connection.initializeServer(config).timeout(1, TimeUnit.SECONDS).blockingAwait()
 
-
+        connection.gattServerCallback.onDescriptorWriteRequest(
+            device.bluetoothDevice,
+            0,
+            characteristic.getDescriptor(CLIENT_CONFIG),
+            false,
+            false,
+            0,
+            if (isIndication) BluetoothGattDescriptor.ENABLE_INDICATION_VALUE else BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+        )
         connection.setupNotifications(
                 characteristic,
                 Flowable.just(Random.nextBytes(10)).repeat(length),
                 isIndication,
                 device
-        ).doOnSubscribe {
-            connection.gattServerCallback.onDescriptorWriteRequest(
-                    device.bluetoothDevice,
-                    0,
-                    characteristic.getDescriptor(CLIENT_CONFIG),
-                    false,
-                    false,
-                    0,
-                    if (isIndication) BluetoothGattDescriptor.ENABLE_INDICATION_VALUE else BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            )
-        }.blockingAwait()
+        )
+            .timeout(timeout, TimeUnit.SECONDS)
+            .blockingAwait()
     }
 
     @Test
@@ -380,11 +391,11 @@ class GattServerTest {
 
     @Test
     fun testLongNotify() {
-        testNotify(false, length = 200)
+        testNotify(false, length = 200, timeout =30)
     }
 
     @Test
     fun testLongIndicate() {
-        testNotify(true, length = 200)
+        testNotify(true, length = 200, timeout = 30)
     }
 }
