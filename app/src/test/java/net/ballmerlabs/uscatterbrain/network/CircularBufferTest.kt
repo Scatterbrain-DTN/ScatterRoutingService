@@ -2,13 +2,17 @@ package net.ballmerlabs.uscatterbrain.network
 
 import com.github.davidmoten.rx2.Bytes
 import com.google.android.gms.common.util.Hex
+import io.reactivex.Observable
 import io.reactivex.schedulers.Schedulers
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
 import kotlin.random.Random
 
@@ -53,7 +57,21 @@ class CircularBufferTest {
 
     @Test
     fun emptyRead() {
+        val lock = ReentrantLock()
+        lock.lock()
+        val stream = object : InputStream() {
+            override fun read(): Int {
+                lock.lock()
+                return 0
+            }
+        }
 
+        val packet = ScatterSerializable.parseWrapperFromCRC(AckPacket.parser(), stream, Schedulers.io())
+        val testpacket = packet.timeout(2, TimeUnit.SECONDS)
+            .test()
+            .awaitDone(3, TimeUnit.SECONDS)
+            .assertTerminated()
+            .assertError(TimeoutException::class.java)
     }
 
     @Test

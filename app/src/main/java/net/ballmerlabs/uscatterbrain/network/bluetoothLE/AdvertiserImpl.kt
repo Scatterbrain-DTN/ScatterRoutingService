@@ -80,23 +80,22 @@ class AdvertiserImpl @Inject constructor(
     override fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
             isAdvertising
-                .take(1)
+                .firstOrError()
                 .flatMapCompletable { v ->
                     if (v.first.isPresent) {
-                        awaitAdvertiseDataUpdate()
-                            .doOnSubscribe {
-                                try {
-                                    v.first.item?.setScanResponseData(
-                                        AdvertiseData.Builder()
-                                            .setIncludeDeviceName(false)
-                                            .setIncludeTxPowerLevel(false)
-                                            .addServiceData(ParcelUuid(luid), byteArrayOf(5))
-                                            .build()
-                                    )
-                                } catch (exc: SecurityException) {
-                                    throw exc
-                                }
-                            }
+                      Completable.fromAction {
+                          try {
+                              v.first.item?.setScanResponseData(
+                                  AdvertiseData.Builder()
+                                      .setIncludeDeviceName(false)
+                                      .setIncludeTxPowerLevel(false)
+                                      .addServiceData(ParcelUuid(luid), byteArrayOf(5))
+                                      .build()
+                              )
+                          } catch (exc: SecurityException) {
+                              throw exc
+                          }
+                      }
                     } else {
                         startAdvertise(luid = luid)
                     }
@@ -122,19 +121,18 @@ class AdvertiserImpl @Inject constructor(
                 .firstOrError()
                 .flatMapCompletable { v ->
                     if (v.first.isPresent) {
-                        awaitAdvertiseDataUpdate()
-                            .doOnSubscribe {
-                                try {
-                                    v.first.item?.setScanResponseData(
-                                        AdvertiseData.Builder()
-                                            .setIncludeDeviceName(false)
-                                            .setIncludeTxPowerLevel(false)
-                                            .build()
-                                    )
-                                } catch (exc: SecurityException) {
-                                    throw exc
-                                }
+                        Completable.fromAction {
+                            try {
+                                v.first.item?.setScanResponseData(
+                                    AdvertiseData.Builder()
+                                        .setIncludeDeviceName(false)
+                                        .setIncludeTxPowerLevel(false)
+                                        .build()
+                                )
+                            } catch (exc: SecurityException) {
+                                throw exc
                             }
+                        }
                     } else {
                         Completable.error(IllegalStateException("failed to set advertising data removeLuid"))
                     }

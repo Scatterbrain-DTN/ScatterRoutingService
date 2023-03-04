@@ -81,7 +81,7 @@ interface GattServerConnection: Disposable {
             notifications: Flowable<ByteArray>,
             isIndication: Boolean,
             device: RxBleDevice
-    ): Completable
+    ): Flowable<ByteArray>
 
     fun setupNotifications(ch: UUID, notifications: Flowable<ByteArray>, device: RxBleDevice): Completable
 

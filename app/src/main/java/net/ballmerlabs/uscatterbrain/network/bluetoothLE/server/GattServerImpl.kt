@@ -17,6 +17,7 @@ import javax.inject.Singleton
 class GattServerImpl @Inject constructor(
         private val connectionBuilder: Provider<GattServerConnectionSubcomponent.Builder>,
         @Named(RoutingServiceComponent.NamedSchedulers.IO) private val ioScheduler: Scheduler,
+        @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) private val mainThread: Scheduler
 ): GattServer {
     override fun openServer(config: ServerConfig): Single<GattServerConnection> {
         return Single.fromCallable {
@@ -31,8 +32,8 @@ class GattServerImpl @Inject constructor(
                     .build()
                     .connection()
 
-        }
+        }.observeOn(mainThread)
             .flatMap { conn -> conn.initializeServer(config).toSingleDefault(conn) }
-            .subscribeOn(ioScheduler)
+
     }
 }

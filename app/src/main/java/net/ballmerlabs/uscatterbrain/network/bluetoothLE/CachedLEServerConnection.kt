@@ -35,7 +35,6 @@ class CachedLEServerConnection(
     private val packetQueue = PublishRelay.create<Pair<ScatterSerializable<out MessageLite>, Int>>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
     private val cookies = AtomicReference(0)
-    private val cookieCompleteRelay = PublishRelay.create<Int>()
 
     private fun getCookie(): Int {
         return cookies.getAndUpdate { v ->
@@ -62,7 +61,6 @@ class CachedLEServerConnection(
         }
     }
 
-
     /**
      * Send a scatterbrain message to the connected client.
      * @param packet ScatterSerializable message to send
@@ -72,11 +70,10 @@ class CachedLEServerConnection(
         packet: ScatterSerializable<T>
     ): Completable {
         val cookie = getCookie()
+        return Completable.fromAction {
+            packetQueue.accept(Pair(packet, cookie))
+        }
 
-                LOG.v("serverNotify ACCEPTED packet ${packet.type} cookie: $cookie")
-                packetQueue.accept(Pair(packet, cookie))
-
-        return Completable.complete()
     }
 
     /**
@@ -113,7 +110,7 @@ class CachedLEServerConnection(
                 BluetoothLERadioModuleImpl.UUID_SEMAPHOR
             )
                 .subscribeOn(ioScheduler)
-                .doOnNext { LOG.v("semaphor read") }
+                .doOnNext { LOG.v("semaphor read ${channels.size}") }
                 .toFlowable(BackpressureStrategy.BUFFER)
                 .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER)) { req, packet ->
                     LOG.v("received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet: ${packet.first.type}")
@@ -128,11 +125,12 @@ class CachedLEServerConnection(
                                 .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
                                 .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
                                 .andThen(
-                                    connection.setupNotifications(
+                                    connection.setupIndication(
                                         characteristic.uuid,
                                         packet.first.writeToStream(GATT_SIZE, scheduler),
                                         req.remoteDevice
                                     )
+                                        .subscribeOn(scheduler)
                                 )
                                 .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
                                 .doOnComplete {
@@ -146,9 +144,6 @@ class CachedLEServerConnection(
                                 .doFinally {
                                     LOG.v("releasing locked characteristic ${characteristic.uuid}")
                                     characteristic.release()
-                                    if (cookieCompleteRelay.hasObservers()) {
-                                        cookieCompleteRelay.accept(packet.second)
-                                    }
                                 }
                         }
                         .doOnError { err ->

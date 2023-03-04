@@ -92,6 +92,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val mContext: Context,
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val computeScheduler: Scheduler,
+    @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.WIFI_READ) private val readScheduler: Scheduler,
+    @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.WIFI_WRITE) private val writeScheduler: Scheduler,
     private val mClient: RxBleClient,
     private val wifiDirectRadioModule: WifiDirectRadioModule,
     private val datastore: ScatterbrainDatastore,
@@ -237,6 +239,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return Single.just(s)
             .map { session ->
                 /*
+                /*
                  * luid stage reveals unhashed packets after all hashed packets are collected
                  * hashes are compared to unhashed packets
                  */
@@ -276,7 +279,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 err.printStackTrace()
                             }
                     })
-
+*/
                 /*
                  * if no one cheats and sending luids, we exchange advertise packets.
                  * This is really boring currently because all scatterbrain routers offer the same capabilities
@@ -409,7 +412,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             wifiDirectRadioModule.createGroup(
                                 if (wifiManager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
                             )
-                                .timeout(10, TimeUnit.SECONDS)
+                                .timeout(5, TimeUnit.SECONDS)
                                 .flatMap { bootstrap ->
                                     val upgradeStage = session.upgradeStage
                                     if (upgradeStage != null) {
@@ -650,16 +653,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("initiateOutgoingConnection luid $luid")
                 cachedConnection.connection
                     .firstOrError()
-                    .flatMapMaybe { connection ->
+                    .flatMapMaybe { conn ->
                         val hash = getHashUuid(advertiser.myLuid.get())!!
                         LOG.v("writing hashed luid $hash")
-                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
+                        conn.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
                             .doOnSuccess { res ->
                                 LOG.v("successfully wrote uuid len ${res.size}")
-                            }
-                            .doOnError { e ->
-                                firebase.recordException(e)
-                                LOG.e("failed to write characteristic: $e")
                             }
                             .ignoreElement()
                             .andThen(
@@ -788,8 +787,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             luid
                         )
                         LOG.v("initializing session")
-                        initializeProtocol(s, TransactionResult.STAGE_LUID)
-                        initializeProtocol(s, TransactionResult.STAGE_LUID)
+                        initializeProtocol(s, TransactionResult.STAGE_ADVERTISE)
                             .doOnError { e -> LOG.e("failed to initialize protocol $e") }
                             .flatMapMaybe { session ->
                                 LOG.v("session initialized")
@@ -808,7 +806,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }.doOnError { e ->
             firebase.recordException(e)
             e.printStackTrace()
-            state.updateDisconnected(luid)
         }.onErrorComplete()
     }
 
@@ -882,10 +879,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .toMaybe()
             .doOnError { err ->
                 LOG.e("session ${session.remoteLuid} ended with error $err")
+                state.updateDisconnected(luid)
                 err.printStackTrace()
                 firebase.recordException(err)
             }
-            .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 transactionInProgressRelay.accept(false)

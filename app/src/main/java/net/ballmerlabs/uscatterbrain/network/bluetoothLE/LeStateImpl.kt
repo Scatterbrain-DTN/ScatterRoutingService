@@ -24,6 +24,7 @@ import javax.inject.Singleton
 @Singleton
 class LeStateImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val clientScheduler: Scheduler,
     val factory: ScatterbrainTransactionFactory,
     private val advertiser: Advertiser,
     private val server: Provider<ManagedGattServer>
@@ -77,7 +78,6 @@ class LeStateImpl @Inject constructor(
         return updateActive(getAdvertisedLuid(scanResult))
     }
 
-    @Synchronized
     override fun updateDisconnected(luid: UUID) {
         LOG.e("updateDisconnected $luid")
         try {
@@ -85,7 +85,7 @@ class LeStateImpl @Inject constructor(
             val c = connectionCache.remove(luid)
             transactionLock.set(null)
             if (c != null) {
-               // server.get().disconnect(c.device)
+                server.get().disconnect(c.device)
                 c.dispose()
             }
         } catch (exc: Exception) {
@@ -116,7 +116,7 @@ class LeStateImpl @Inject constructor(
                 LOG.e(
                     "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
-                val newconnection = CachedLEConnection(channels, operationsScheduler, device)
+                val newconnection = CachedLEConnection(channels, clientScheduler, device)
                 val connection = connectionCache[luid]
                 if (connection != null) {
                     connection

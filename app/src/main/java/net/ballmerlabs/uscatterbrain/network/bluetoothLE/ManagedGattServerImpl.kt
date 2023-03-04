@@ -84,6 +84,7 @@ class ManagedGattServerImpl @Inject constructor(
                     }
                 }
                 if(state.transactionLockIsSelf(luid)) {
+
                     LOG.e("server handling luid $luid")
                     LOG.e("transaction NOT locked, continuing")
                     trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
@@ -99,7 +100,6 @@ class ManagedGattServerImpl @Inject constructor(
                         .doOnError { err ->
                             LOG.e("error in handleConnection $err")
                             firebase.recordException(err)
-                            state.updateDisconnected(luid)
                         }
                 } else {
                     trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
@@ -166,7 +166,7 @@ class ManagedGattServerImpl @Inject constructor(
                     val s = CachedLEServerConnection(
                         connectionRaw,
                         state.channels,
-                        scheduler = operationsScheduler,
+                        scheduler = serverScheduler,
                         ioScheduler = operationsScheduler,
                         firebaseWrapper = firebase
                     )

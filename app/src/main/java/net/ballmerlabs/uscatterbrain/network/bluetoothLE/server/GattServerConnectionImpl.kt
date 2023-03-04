@@ -91,6 +91,7 @@ class GattServerConnectionImpl @Inject constructor(
     override val gattServerCallback = object : BluetoothGattServerCallback() {
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             super.onConnectionStateChange(device, status, newState)
+            Log.d("gatt server onConnectionStateChange: " + device.address + " " + status + " " + newState)
             val rxdevice = client.getBleDevice(device.address)
             connectionStatePublishRelay.accept(
                 Pair(
@@ -98,6 +99,7 @@ class GattServerConnectionImpl @Inject constructor(
                 )
             )
             if (newState == BluetoothProfile.STATE_DISCONNECTED || newState == BluetoothProfile.STATE_DISCONNECTING) {
+                Log.e("gatt server onDisconnect $rxdevice")
                 onDisconnect(rxdevice)
                 deviceOnDisconnect[rxdevice]?.invoke()
                 deviceOnDisconnect.remove(rxdevice)
@@ -466,7 +468,7 @@ class GattServerConnectionImpl @Inject constructor(
         return Single.fromCallable {
             val characteristic = serverState.getCharacteristic(ch)
             setupNotifications(characteristic, indications, true, device)
-        }.flatMapCompletable { completable -> completable }
+        }.flatMapCompletable { completable -> completable.ignoreElements() }
     }
 
     private fun setupNotificationsDelay(
@@ -507,7 +509,7 @@ class GattServerConnectionImpl @Inject constructor(
         return Single.fromCallable {
             val characteristic = serverState.getCharacteristic(ch)
             setupNotifications(characteristic, notifications, false, device)
-        }.flatMapCompletable { completable -> completable }
+        }.flatMapCompletable { completable -> completable.ignoreElements() }
     }
 
     override fun setupNotifications(
@@ -515,43 +517,47 @@ class GattServerConnectionImpl @Inject constructor(
         notifications: Flowable<ByteArray>,
         isIndication: Boolean,
         device: RxBleDevice
-    ): Completable {
-        return Completable.defer(Callable {
+    ): Flowable<ByteArray> {
+        return Flowable.defer{
             Log.v("setupNotifictions: " + characteristic.uuid)
             val clientconfig = characteristic.getDescriptor(CLIENT_CONFIG)
-                ?: return@Callable Completable.error(IllegalStateException("notification failed"))
+                ?: return@defer Flowable.error(IllegalStateException("notification failed"))
             notifications
-                .delay<Int> {
+                .delay<ByteArray> {
                     setupNotificationsDelay(clientconfig, characteristic, isIndication)
                         .toFlowable()
                 }
-                .zipWith(
-                    getOnNotification()
-                        .toFlowable(BackpressureStrategy.BUFFER)
-                        .mergeWith(Flowable.just(BluetoothGatt.GATT_SUCCESS))
-                ) { bytes, notif ->
-                    Log.v("bytes ${bytes.size}")
-                    when (notif) {
-                        BluetoothGatt.GATT_SUCCESS -> {
-                            try {
+                .concatMapSingle { bytes ->
+                    Log.v("processing bytes length: " + bytes.size)
+                    try {
+                        getOnNotification()
+                            .mergeWith(Completable.fromAction {
                                 characteristic.value = bytes
                                 gattServer.get().notifyCharacteristicChanged(
                                     device.bluetoothDevice,
                                     characteristic,
                                     isIndication
                                 )
-                                Flowable.just(notif)
-                            } catch (exc: SecurityException) {
-                                Flowable.error(exc)
+                            })
+                            .firstOrError()
+                            .flatMapCompletable { integer ->
+                                Log.v("notification result: $integer")
+                                if (integer != BluetoothGatt.GATT_SUCCESS) {
+                                    Completable.error(IllegalStateException("notification failed $integer"))
+                                } else {
+                                    Completable.complete()
+                                }
                             }
-                        }
-                        else -> Flowable.error(IllegalStateException("notification failed $notif"))
+                            .toSingleDefault(bytes)
+
+                    } catch (exc: SecurityException) {
+                       Single.error(exc)
                     }
+
                 }
-                .flatMap { f -> f }
-                .ignoreElements()
+
                 .doOnComplete { Log.v("notifications completed!") }
-        })
+        }
     }
 
     private fun <T> withDisconnectionHandling(output: Output<T>): Observable<T> {
