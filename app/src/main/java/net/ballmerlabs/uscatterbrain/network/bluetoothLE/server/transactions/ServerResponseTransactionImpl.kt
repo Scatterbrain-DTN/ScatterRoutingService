@@ -16,6 +16,7 @@ class ServerResponseTransactionImpl @Inject constructor(
         override val remoteDevice: RxBleDevice,
         private val config: ServerTransactionSubcomponent.TransactionConfig,
         private val server: Provider<BluetoothGattServer>,
+        @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val scheduler: Scheduler
 ): ServerResponseTransaction {
     override val requestID: Int
         get() = config.requestID
@@ -38,6 +39,6 @@ class ServerResponseTransactionImpl @Inject constructor(
             } catch (exc: SecurityException) {
                 throw exc
             }
-        }
+        }.subscribeOn(scheduler)
     }
 }

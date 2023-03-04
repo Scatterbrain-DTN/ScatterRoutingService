@@ -12,7 +12,6 @@ import androidx.room.Room
 import com.polidea.rxandroidble2.RxBleClient
 import dagger.*
 import io.reactivex.Scheduler
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.RoutingServiceModule
 import net.ballmerlabs.uscatterbrain.db.*
@@ -36,12 +35,12 @@ val Context.dataStore by preferencesDataStore(name = RouterPreferences.PREF_NAME
 interface RoutingServiceComponent {
     object NamedSchedulers {
         const val DATABASE = "executor_database"
-        const val BLE_CLIENT = "scheduler-ble-client"
-        const val BLE_CALLBACKS = "ble-callbacks"
-        const val BLE_SERVER = "scheduler-ble-server"
-        const val IO = "network-io"
-        const val COMPUTATION = "computation"
-        const val MAIN_THREAD = "mainthread"
+        const val BLE_CLIENT = "scheduler-ble-client-"
+        const val BLE_CALLBACKS = "ble-server-callbacks"
+        const val BLE_SERVER = "scheduler-ble-server-"
+        const val IO = "network-io-2"
+        const val COMPUTATION = "computation-2"
+        const val MAIN_THREAD = "themainthread"
     }
 
     @Component.Builder
@@ -201,14 +200,14 @@ interface RoutingServiceComponent {
             fun providesBleCallbacksScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BLE_CALLBACKS))
             }
-
             @Provides
             @JvmStatic
             @Singleton
-            @Named(NamedSchedulers.MAIN_THREAD)
+            @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD)
             fun providesMainThreadScheduler(): Scheduler {
-                return AndroidSchedulers.mainThread()
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("fakemain"))
             }
+
 
             @Provides
             @JvmStatic

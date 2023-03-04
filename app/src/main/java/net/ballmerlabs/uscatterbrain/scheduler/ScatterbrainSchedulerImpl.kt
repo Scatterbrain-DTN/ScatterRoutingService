@@ -92,6 +92,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         state.shouldScan = true
         val disp = advertiser.startAdvertise()
             .andThen(server.startServer())
+            .timeout(10, TimeUnit.SECONDS)
             .subscribe(
             {
              LOG.v("started advertise")

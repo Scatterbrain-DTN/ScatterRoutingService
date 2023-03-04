@@ -54,7 +54,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
     @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.WIFI_READ) private val readScheduler: Scheduler,
     @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.WIFI_WRITE) private val writeScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) private val mainThread: Scheduler,
     private val channel: WifiP2pManager.Channel,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
@@ -329,7 +328,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         }.doOnError { err ->
             err.printStackTrace()
             firebaseWrapper.recordException(err)
-        }.doOnSuccess { LOG.v("connectToGroup success") }
+        }
     }
 
     /*
@@ -376,7 +375,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 firebaseWrapper.recordException(e)
                 return@defer Completable.error(e)
             }
-        }.observeOn(mainThread)
+        }
     }
 
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {
@@ -664,8 +663,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         socket: Socket,
         stream: Flowable<BlockDataStream>
     ): Completable {
-        return stream
-            .concatMapCompletable { blockDataStream ->
+        return stream.concatMapCompletable { blockDataStream ->
             blockDataStream.headerPacket.writeToStream(
                 socket.getOutputStream(),
                 writeScheduler
@@ -691,8 +689,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         stream: Flowable<BlockDataStream>,
         socket: Socket
     ): Completable {
-        return stream
-            .doOnSubscribe { LOG.v("subscribed to BlockDataStream observable") }
+        return stream.doOnSubscribe { LOG.v("subscribed to BlockDataStream observable") }
             .doOnNext { LOG.v("writeBlockData processing BlockDataStream") }
             .concatMapCompletable { blockDataStream ->
                 blockDataStream.headerPacket.writeToStream(

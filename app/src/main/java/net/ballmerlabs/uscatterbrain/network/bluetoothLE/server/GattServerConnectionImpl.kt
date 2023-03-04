@@ -518,7 +518,7 @@ class GattServerConnectionImpl @Inject constructor(
         isIndication: Boolean,
         device: RxBleDevice
     ): Flowable<ByteArray> {
-        return Flowable.defer{
+        return Flowable.defer {
             Log.v("setupNotifictions: " + characteristic.uuid)
             val clientconfig = characteristic.getDescriptor(CLIENT_CONFIG)
                 ?: return@defer Flowable.error(IllegalStateException("notification failed"))
@@ -543,13 +543,12 @@ class GattServerConnectionImpl @Inject constructor(
                             .flatMapCompletable { integer ->
                                 Log.v("notification result: $integer")
                                 if (integer != BluetoothGatt.GATT_SUCCESS) {
-                                    Completable.error(IllegalStateException("notification failed $integer"))
+                                   Completable.error(IllegalStateException("notification failed $integer"))
                                 } else {
                                     Completable.complete()
                                 }
                             }
                             .toSingleDefault(bytes)
-
                     } catch (exc: SecurityException) {
                        Single.error(exc)
                     }

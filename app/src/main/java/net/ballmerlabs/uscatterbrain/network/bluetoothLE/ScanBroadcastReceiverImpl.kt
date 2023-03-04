@@ -68,7 +68,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                     .ignoreElements()
                     .doOnError { err ->
                         err.printStackTrace()
-                        LOG.e("iterate scan result error $err")
+                        LOG.e("process scan result error $err")
                     }
                     .onErrorComplete()
                     .subscribe(

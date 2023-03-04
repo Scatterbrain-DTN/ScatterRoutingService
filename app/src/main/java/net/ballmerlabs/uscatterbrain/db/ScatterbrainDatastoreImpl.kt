@@ -266,9 +266,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun readBody(body: ByteArray, blocksize: Int): Flowable<BlockSequencePacket> {
         return Bytes.from(ByteArrayInputStream(body), blocksize)
             .zipWith(seq) { bytes, seq ->
-                if (bytes.isEmpty()) {
-                    throw IllegalStateException("empty body")
-                }
                 BlockSequencePacket.newBuilder()
                     .setData(ByteString.copyFrom(bytes))
                     .setEnd(seq >= floor(body.size.toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
@@ -289,6 +286,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .toFlowable()
                 .doOnNext { message -> LOG.v("retrieved messages: " + message.size) }
                 .flatMap { source -> Flowable.fromIterable(source) }
+
                 .map { message ->
                     if (message.message.body == null) {
                         BlockDataStream(
@@ -305,7 +303,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     }
                 }
                 .toObservable()
-                .doOnComplete { LOG.v("getTopRandomMessages completed") }
                 .concatWith(Single.just(BlockDataStream.endOfStream()))
         }
     }
@@ -1165,22 +1162,18 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         } else Flowable.fromCallable { FileInputStream(path) }
             .doOnSubscribe { LOG.v("subscribed to readFile") }
             .flatMap {
-                if (path.length() == 0.toLong()) {
-                    Flowable.error(IllegalStateException("file empty"))
-                } else {
-                    Bytes.from(path, blocksize)
-                        .zipWith(seq) { bytes, seqnum ->
-                            BlockSequencePacket.newBuilder()
-                                .setSequenceNumber(seqnum)
-                                .setEnd(
-                                    seqnum >= floor(
-                                        path.length().toDouble() / DEFAULT_BLOCKSIZE.toDouble()
-                                    )
+                Bytes.from(path, blocksize)
+                    .zipWith(seq) { bytes, seqnum ->
+                        BlockSequencePacket.newBuilder()
+                            .setSequenceNumber(seqnum)
+                            .setEnd(
+                                seqnum >= floor(
+                                    path.length().toDouble() / DEFAULT_BLOCKSIZE.toDouble()
                                 )
-                                .setData(ByteString.copyFrom(bytes))
-                                .build()
-                        }.subscribeOn(databaseScheduler)
-                }
+                            )
+                            .setData(ByteString.copyFrom(bytes))
+                            .build()
+                    }.subscribeOn(databaseScheduler)
             }.doOnComplete { LOG.v("readfile completed") }
     }
 
