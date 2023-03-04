@@ -645,32 +645,43 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
-            transactionInProgressRelay.accept(true)
-            LOG.e("initiateOutgoingConnection luid $luid")
-            cachedConnection.connection
-                .firstOrError()
-                .flatMapMaybe { connection ->
-                    val hash = getHashUuid(advertiser.myLuid.get())!!
-                    LOG.v("writing hashed luid $hash")
-                    connection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
-                        .doOnSuccess { res ->
-                            LOG.v("successfully wrote uuid len ${res.size}")
-                        }
-                        .doOnError { e ->
-                            firebase.recordException(e)
-                            LOG.e("failed to write characteristic: $e")
-                        }
-                        .ignoreElement()
-                        .andThen(handleConnection(cachedConnection, cachedConnection.device, luid))
-                        .onErrorComplete()
-                }
-        }
-            .subscribeOn(computeScheduler)
-            .doOnError { err ->
-                LOG.v("error in initiateOutgoingConnection $err")
-                firebase.recordException(err)
-                state.updateDisconnected(luid)
+            if (state.transactionLockIsSelf(luid)) {
+                transactionInProgressRelay.accept(true)
+                LOG.e("initiateOutgoingConnection luid $luid")
+                cachedConnection.connection
+                    .firstOrError()
+                    .flatMapMaybe { connection ->
+                        val hash = getHashUuid(advertiser.myLuid.get())!!
+                        LOG.v("writing hashed luid $hash")
+                        connection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
+                            .doOnSuccess { res ->
+                                LOG.v("successfully wrote uuid len ${res.size}")
+                            }
+                            .doOnError { e ->
+                                firebase.recordException(e)
+                                LOG.e("failed to write characteristic: $e")
+                            }
+                            .ignoreElement()
+                            .andThen(
+                                handleConnection(
+                                    cachedConnection,
+                                    cachedConnection.device,
+                                    luid
+                                )
+                            )
+                            .onErrorComplete()
+                    }
+                    .subscribeOn(computeScheduler)
+                    .doOnError { err ->
+                        LOG.v("error in initiateOutgoingConnection $err")
+                        firebase.recordException(err)
+                        state.updateDisconnected(luid)
+                    }
+            }  else {
+                Maybe.empty()
             }
+        }
+
     }
 
     private fun discoverContinuous(): Observable<ScanResult> {
