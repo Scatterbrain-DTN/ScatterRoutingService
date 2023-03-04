@@ -206,7 +206,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 LOG.e("cry $err")
                 err.printStackTrace()
             }
-            .timeout(7, TimeUnit.SECONDS)
+            .timeout(5, TimeUnit.SECONDS)
             .doOnError { e -> LOG.e("selectProvides error $e") }
             .toSingleDefault(true)
             .onErrorReturnItem(false)
@@ -217,6 +217,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     Single.just(false)
                 }
             }
+            .onErrorReturnItem(false)
+
     }
 
     override fun removeGroup(retries: Int, delay: Int): Completable {

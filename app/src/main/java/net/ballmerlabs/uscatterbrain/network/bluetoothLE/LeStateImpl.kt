@@ -4,6 +4,7 @@ import com.jakewharton.rxrelay2.BehaviorRelay
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
@@ -26,15 +27,18 @@ class LeStateImpl @Inject constructor(
     val factory: ScatterbrainTransactionFactory,
     private val advertiser: Advertiser,
     private val server: Provider<ManagedGattServer>
-): LeState {
-    private val transactionLock:AtomicReference<UUID?> = AtomicReference<UUID?>(null)
+) : LeState {
+    private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
+
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
-    override val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection> = ConcurrentHashMap<UUID, CachedLEConnection>()
+    override val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection> =
+        ConcurrentHashMap<UUID, CachedLEConnection>()
     override val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
+
     // a "channel" is a characteristc that protobuf messages are written to.
-    override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic>
-    = ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic>()
+    override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic> =
+        ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharactersitic>()
     private val LOG by scatterLog()
 
 
@@ -46,7 +50,7 @@ class LeStateImpl @Inject constructor(
     override fun transactionLockAccquire(luid: UUID?): Boolean {
         updateActive(luid)
         return transactionLock.getAndAccumulate(luid) { c, n ->
-            when(c) {
+            when (c) {
                 n -> n
                 null -> n
                 else -> c
@@ -57,7 +61,7 @@ class LeStateImpl @Inject constructor(
     override fun transactionUnlock(luid: UUID): Boolean {
         LOG.e("removing ${transactionLock.get()} $luid")
         return transactionLock.accumulateAndGet(luid) { old, new ->
-            if(old?.equals(new) == true) {
+            if (old?.equals(new) == true) {
                 null
             } else {
                 old
@@ -65,8 +69,8 @@ class LeStateImpl @Inject constructor(
         } == null
     }
 
-   override fun updateActive(uuid: UUID?): Boolean {
-        return if(uuid != null) activeLuids.put(uuid, true) == null else false
+    override fun updateActive(uuid: UUID?): Boolean {
+        return if (uuid != null) activeLuids.put(uuid, true) == null else false
     }
 
     override fun updateActive(scanResult: ScanResult): Boolean {
@@ -131,8 +135,16 @@ class LeStateImpl @Inject constructor(
                 }
             }
 
-        return advertiser.setAdvertisingLuid(getHashUuid(advertiser.myLuid.get()) ?: UUID.randomUUID())
+        return advertiser.setAdvertisingLuid(
+            getHashUuid(advertiser.myLuid.get()) ?: UUID.randomUUID()
+        )
             .andThen(connectSingle)
+    }
+
+    fun retryRefresh(module: BluetoothLEModule, luid: UUID, device: RxBleDevice): Maybe<HandshakeResult> {
+        connectionCache.remove(luid)
+        val c = establishConnectionCached(device ,luid)
+        return c.flatMapMaybe { conn -> module.initiateOutgoingConnection(conn, luid) }
     }
 
     override fun refreshPeers(): Observable<HandshakeResult> {
@@ -141,16 +153,14 @@ class LeStateImpl @Inject constructor(
             .firstOrError()
             .flatMapObservable { b ->
                 if (!b) {
-                    refreshInProgresss.takeUntil { v -> !v }
-                        .flatMap {
-                            val module = factory.transaction().bluetoothLeRadioModule()
-                            Observable.fromIterable(connectionCache.entries)
-                                .concatMapMaybe { v ->
-                                    LOG.v("refreshing peer ${v.key}")
-                                    module.initiateOutgoingConnection(v.value, v.key)
-                                        .onErrorComplete()
-                                }
+                    val module = factory.transaction().bluetoothLeRadioModule()
+                    Observable.fromIterable(connectionCache.entries)
+                        .concatMapMaybe { v ->
+                            LOG.v("refreshing peer ${v.key}")
+                            module.initiateOutgoingConnection(v.value, v.key)
+                                .onErrorResumeNext(retryRefresh(module, v.key, v.value.device))
                         }
+
                 } else {
                     LOG.v("refresh already in progress, skipping")
                     Observable.empty()
@@ -162,7 +172,6 @@ class LeStateImpl @Inject constructor(
     init {
         refreshInProgresss.accept(false)
     }
-
 
 
 }

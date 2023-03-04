@@ -55,11 +55,11 @@ class WifiDirectTest {
         manager = ctx.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val manager = ctx.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         val channel = manager.initialize(ctx, ctx.mainLooper, null)
-        broadcastReceiver = WifiDirectBroadcastReceiverImpl()
-
-        (broadcastReceiver as WifiDirectBroadcastReceiverImpl).manager = manager
-        (broadcastReceiver as WifiDirectBroadcastReceiverImpl).channel = channel
-        (broadcastReceiver as WifiDirectBroadcastReceiverImpl).operationScheduler = scheduler
+        broadcastReceiver = WifiDirectBroadcastReceiverImpl(
+            manager,
+            channel,
+            scheduler
+        )
 
         database = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
             .fallbackToDestructiveMigration()

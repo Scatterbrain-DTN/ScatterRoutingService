@@ -74,7 +74,7 @@ class AdvertiserImpl @Inject constructor(
     override fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
             isAdvertising
-                .firstOrError()
+                .take(1)
                 .flatMapCompletable { v ->
                     if (v.first.isPresent) {
                         awaitAdvertiseDataUpdate()

@@ -1,7 +1,9 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import android.bluetooth.BluetoothGattDescriptor
 import com.google.protobuf.MessageLite
 import com.polidea.rxandroidble2.NotificationSetupMode
+import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Completable
@@ -12,7 +14,9 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.network.*
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.Companion.SERVICE_UUID
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.LockedCharactersitic
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Companion.CLIENT_CONFIG
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.io.InputStream
 import java.util.*
@@ -42,7 +46,17 @@ class CachedLEConnection(
 
     init {
         for (id in channels.keys()) {
-            channelNotifs[id] = InputStreamObserver(4096)
+            val disp = connection.firstOrError()
+                .subscribe { c ->
+                    c.setupIndication(id, NotificationSetupMode.QUICK_SETUP)
+                        .map { obs ->
+                            LOG.v("indication setup")
+                            val o = InputStreamObserver(4096)
+                            channelNotifs[id] = o
+                            obs.subscribe(o)
+                        }.subscribe()
+                }
+            disposable.add(disp)
         }
     }
 
@@ -83,6 +97,7 @@ class CachedLEConnection(
                 c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
                     .map { bytes ->
                         val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
+                        LOG.v("selected channel $uuid")
                         if (!channelNotifs.containsKey(uuid)) {
                             throw IllegalStateException("gatt server returned invalid uuid")
                         }
@@ -103,21 +118,12 @@ class CachedLEConnection(
     ): Single<T> {
         return selectChannel()
             .flatMap { uuid ->
-                connection.firstOrError().flatMap { conn ->
-                    conn.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                        .flatMapSingle { obs ->
-                            LOG.v("indication setup")
-                            val o = InputStreamObserver(4096)
-                            obs.subscribe(o)
-                            ScatterSerializable.parseWrapperFromCRC(
-                                parser,
-                                o as InputStream,
-                                scheduler
-                            )
-                        }
-                        .firstOrError()
-                }
-                    .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
+                val notif = channelNotifs[uuid]!!
+                    ScatterSerializable.parseWrapperFromCRC(
+                        parser,
+                        notif as InputStream,
+                        scheduler
+                    ).timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
             }
     }
 

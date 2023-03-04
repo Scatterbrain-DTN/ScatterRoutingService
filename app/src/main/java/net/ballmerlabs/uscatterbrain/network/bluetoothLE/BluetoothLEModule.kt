@@ -40,14 +40,6 @@ interface BluetoothLEModule {
     fun observeTransactionStatus(): Observable<Boolean>
 
     /**
-     * Similar to observeTransactions(), but enables active discovery before emitting any
-     * HandshakeResults
-     *
-     * @return Observable emitting handshake results
-     */
-    fun discoverForever(): Observable<HandshakeResult>
-
-    /**
      * Clears the list of nearby peers, nearby devices currently in range will
      * be reconnected to if possible
      */
