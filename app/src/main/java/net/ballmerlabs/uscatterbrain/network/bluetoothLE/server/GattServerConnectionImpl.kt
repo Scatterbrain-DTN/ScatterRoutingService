@@ -523,7 +523,7 @@ class GattServerConnectionImpl @Inject constructor(
             val clientconfig = characteristic.getDescriptor(CLIENT_CONFIG)
                 ?: return@defer Flowable.error(IllegalStateException("notification failed"))
             notifications
-                .delay(0, TimeUnit.SECONDS, callbackScheduler)
+                .delay(0, TimeUnit.SECONDS)
                 .delay<ByteArray> {
                     setupNotificationsDelay(clientconfig, characteristic, isIndication)
                         .toFlowable()

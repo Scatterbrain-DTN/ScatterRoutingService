@@ -247,7 +247,7 @@ class AdvertiserImpl @Inject constructor(
             }
         }
         return if (old.compareTo(now) > BluetoothLERadioModuleImpl.LUID_RANDOMIZE_DELAY) {
-            myLuid.set(UUID.randomUUID())
+         //   myLuid.set(UUID.randomUUID())
             true
         } else {
             false

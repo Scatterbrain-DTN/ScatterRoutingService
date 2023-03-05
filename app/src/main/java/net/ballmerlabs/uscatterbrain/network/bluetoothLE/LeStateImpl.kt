@@ -109,7 +109,7 @@ class LeStateImpl @Inject constructor(
                 LOG.e(
                     "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
-                val newconnection = CachedLEConnection(channels, clientScheduler, device)
+                val newconnection = CachedLEConnection(channels, clientScheduler, device, advertiser)
                 val connection = connectionCache[luid]
                 if (connection != null) {
                     connection

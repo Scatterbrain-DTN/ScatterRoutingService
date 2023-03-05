@@ -29,7 +29,8 @@ import java.util.concurrent.TimeUnit
 class CachedLEConnection(
     private val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>,
     private val scheduler: Scheduler,
-    val device: RxBleDevice
+    val device: RxBleDevice,
+    val advertiser: Advertiser
 ) : Disposable {
     private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
@@ -106,14 +107,19 @@ class CachedLEConnection(
                         .flatMapSingle { obs ->
                             LOG.v("indication setup")
                             val o = InputStreamObserver(10000)
-                            obs.subscribe(o)
+                            obs
+                                .doOnNext { b -> LOG.v("client read bytes ${b.size}") }
+                                .subscribe(o)
                             ScatterSerializable.parseWrapperFromCRC(
                                 parser,
                                 o as InputStream,
                                 scheduler
                             )
                         }
+                        .mergeWith(conn.writeCharacteristic(uuid, BluetoothLERadioModuleImpl.uuid2bytes(getHashUuid( advertiser.myLuid.get()))!!)
+                            .ignoreElement())
                         .firstOrError()
+                        .doOnSuccess { p -> LOG.e("cachedNotification read ${p.type}") }
                 }
                     .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
             }

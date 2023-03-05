@@ -244,7 +244,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     TransactionResult.STAGE_LUID,
                     { serverConn ->
                         LOG.v("gatt server luid stage")
-                        serverConn.serverNotify(session.luidStage.selfUnhashedPacket)
+                        serverConn.serverNotify(session.luidStage.selfUnhashedPacket, session.remoteLuid)
                             .doOnError { err -> LOG.e("luid server failed $err") }
                             .toSingleDefault(TransactionResult.empty())
                     },
@@ -285,7 +285,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     TransactionResult.STAGE_ADVERTISE,
                     { serverConn ->
                         LOG.v("gatt server advertise stage")
-                        serverConn.serverNotify(AdvertiseStage.self)
+                        serverConn.serverNotify(AdvertiseStage.self, session.remoteLuid)
                             .toSingleDefault(TransactionResult.empty())
                     },
                     { conn ->
@@ -310,7 +310,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             LOG.v("gatt server election hashed stage ${provides.name}")
                             val packet = session.votingStage.getSelf(true, provides)
                             session.votingStage.addPacket(packet)
-                            serverConn.serverNotify(packet)
+                            serverConn.serverNotify(packet, session.remoteLuid)
                                 .toSingleDefault(TransactionResult.empty())
                         }
                     },
@@ -341,7 +341,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     val packet = session.votingStage.getSelf(false, provides)
                                     packet.tagLuid(luidPacket.luidVal)
                                     session.votingStage.addPacket(packet)
-                                    serverConn.serverNotify(packet)
+                                    serverConn.serverNotify(packet, session.remoteLuid)
                                         .doFinally {
                                             session.votingStage.serverPackets.onComplete()
                                         }
@@ -415,7 +415,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     if (upgradeStage != null) {
                                         val upgradePacket =
                                             bootstrap.toUpgrade(upgradeStage.sessionID)
-                                        serverConn.serverNotify(upgradePacket)
+                                        serverConn.serverNotify(upgradePacket, session.remoteLuid)
                                             .toSingleDefault(
                                                 TransactionResult.of(
                                                     bootstrap,
@@ -469,7 +469,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         datastore.getTopRandomIdentities(
                             preferences.getInt(mContext.getString(R.string.pref_identitycap), 32)!!
                         )
-                            .concatMapCompletable { packet -> serverConn.serverNotify(packet) }
+                            .concatMapCompletable { packet -> serverConn.serverNotify(packet, session.remoteLuid) }
                             .toSingleDefault(TransactionResult.empty())
                     },
                     { conn ->
@@ -496,7 +496,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         datastore.declareHashesPacket
                             .flatMapCompletable { packet ->
                                 LOG.e("declaredhashes packet ${packet.bytes.size}")
-                                serverConn.serverNotify(packet)
+                                serverConn.serverNotify(packet, session.remoteLuid)
                             }
                             .toSingleDefault(TransactionResult.empty())
                     },
@@ -533,9 +533,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     declareHashesPacket
                                 )
                                     .concatMapCompletable { message ->
-                                        serverConn.serverNotify(message.headerPacket)
+                                        serverConn.serverNotify(message.headerPacket, session.remoteLuid)
                                             .andThen(message.sequencePackets.concatMapCompletable { packet ->
-                                                serverConn.serverNotify(packet)
+                                                serverConn.serverNotify(packet, session.remoteLuid)
                                             })
                                     }
                             }.toSingleDefault(TransactionResult.empty())
@@ -761,11 +761,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun sendAck(
         serverConnection: CachedLEServerConnection,
         success: Boolean,
+        luid: UUID,
         message: Throwable? = null
     ): Completable {
         val status = if (success) 0 else -1
         return serverConnection.serverNotify(
-            AckPacket.newBuilder(success).setMessage(message?.message).setStatus(status).build()
+            AckPacket.newBuilder(success).setMessage(message?.message).setStatus(status).build(),
+            luid
         )
     }
 
@@ -779,6 +781,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 managedGattServer.getServer()
                     .toSingle()
                     .flatMapMaybe { connection ->
+                        connection.registerLuid(luid)
                         LOG.v("successfully connected to $luid")
                         val s = LeDeviceSession(
                             device.bluetoothDevice,
@@ -788,7 +791,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             luid
                         )
                         LOG.v("initializing session")
-                        initializeProtocol(s, TransactionResult.STAGE_LUID)
                         initializeProtocol(s, TransactionResult.STAGE_LUID)
                             .doOnError { e -> LOG.e("failed to initialize protocol $e") }
                             .flatMapMaybe { session ->
@@ -845,7 +847,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }
             .concatMapSingle { s -> s }.concatMapSingle { s -> s }
             .concatMapSingle { res ->
-                ackBarrier(serverConnection, clientConnection, res)
+                ackBarrier(serverConnection, clientConnection, res, session.remoteLuid)
             }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
             .doOnNext { transactionResult ->
@@ -902,18 +904,22 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private fun <T> ackBarrier(
         serverConnection: CachedLEServerConnection,
         clientConnection: CachedLEConnection,
-        transactionResult: TransactionResult<T>
+        transactionResult: TransactionResult<T>,
+        luid: UUID
     ): Single<TransactionResult<T>> {
-        LOG.e("ack barrier: ${transactionResult.stage} ${transactionResult.isError} ${transactionResult.err?.message}")
-        val send =
-            sendAck(serverConnection, !transactionResult.isError, transactionResult.err)
-                .onErrorComplete()
-        val await = awaitAck(clientConnection)
+        return Single.defer {
+            LOG.e("ack barrier: ${transactionResult.stage} ${transactionResult.isError} ${transactionResult.err?.message}")
+            val send =
+                sendAck(serverConnection, !transactionResult.isError, luid, transactionResult.err)
+                    .onErrorComplete()
+            val await = awaitAck(clientConnection)
 
-        return Completable.mergeArray(
-            send,
-            await
-        ).toSingleDefault(transactionResult)
+            Completable.mergeArray(
+                send,
+                await
+            ).subscribeOn(operationsScheduler)
+                .toSingleDefault(transactionResult)
+        }
     }
 
     /**

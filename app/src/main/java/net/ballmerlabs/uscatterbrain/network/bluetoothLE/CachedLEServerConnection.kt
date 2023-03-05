@@ -1,11 +1,16 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGatt
+import androidx.room.util.convertByteToUUID
 import com.google.protobuf.MessageLite
 import com.jakewharton.rxrelay2.PublishRelay
+import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
+import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
@@ -14,8 +19,16 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+
+data class QueueItem(
+    val packet: ScatterSerializable<out MessageLite>,
+    val cookie: Int,
+    val luid: UUID
+)
 
 /**
  * Wraps an RxBleServerConnection and provides channel locking and a convenient interface to
@@ -32,14 +45,34 @@ class CachedLEServerConnection(
     val luid: UUID? = null
     private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
-    private val packetQueue = PublishRelay.create<Pair<ScatterSerializable<out MessageLite>, Int>>()
+    private val packetQueue = ConcurrentHashMap<UUID, LinkedBlockingQueue<QueueItem>>()
     private val errorRelay = PublishRelay.create<Throwable>() //TODO: handle errors
     private val cookies = AtomicReference(0)
+    private val cookieCompleteRelay = PublishRelay.create<Int>()
+    private val serverReady = PublishSubject.create<UUID>()
 
     private fun getCookie(): Int {
         return cookies.getAndUpdate { v ->
             Math.floorMod(v + 1, Int.MAX_VALUE)
         }
+    }
+
+
+    fun registerLuid(luid: UUID) {
+        LOG.e("registerting luid $luid")
+        packetQueue[luid] = LinkedBlockingQueue()
+        serverReady.onNext(luid)
+    }
+
+    private fun awaitServerReady(luid: UUID): Completable {
+        return Completable.defer {
+            if (packetQueue.contains(luid)) {
+                Completable.complete()
+            } else {
+                serverReady.takeUntil { p -> p == luid }.ignoreElements()
+            }
+        }
+            .doOnComplete { LOG.e("server ready") }
     }
 
     /**
@@ -67,11 +100,27 @@ class CachedLEServerConnection(
      * @return completable
      */
     fun <T : MessageLite> serverNotify(
-        packet: ScatterSerializable<T>
+        packet: ScatterSerializable<T>,
+        luid: UUID
     ): Completable {
-        val cookie = getCookie()
-        return Completable.fromAction {
-            packetQueue.accept(Pair(packet, cookie))
+        return Completable.defer {
+            LOG.e("serverNotify acccepted ${packet.type}")
+            val cookie = getCookie()
+
+            cookieCompleteRelay.takeUntil { v -> v == cookie }
+                .ignoreElements()
+                .mergeWith(Completable.fromAction {
+                    val queue = packetQueue[luid]!!
+                    queue.put(
+                        QueueItem(
+                            packet = packet,
+                            cookie = cookie,
+                            luid = luid
+                        )
+                    )
+                })
+                .timeout(10, TimeUnit.SECONDS)
+                .doOnComplete { LOG.v("serverNotify COMPLETED for ${packet.type} cookie $cookie") }
         }
 
     }
@@ -93,7 +142,36 @@ class CachedLEServerConnection(
         return disposable.isDisposed
     }
 
+    private fun handleQueueItem(
+        luid: UUID,
+        characteristic: UUID,
+        device: RxBleDevice
+    ): Completable {
+        return Single.fromCallable {
+            packetQueue[luid]!!.remove()
+        }.subscribeOn(ioScheduler)
+            .flatMapCompletable { packet ->
+                LOG.e("serverconnection handling luid $luid")
+                LOG.e("packet ${packet.luid} ${packet.packet.type}")
+                connection.setupNotifications(
+                    characteristic,
+                    packet.packet.writeToStream(
+                        GATT_SIZE,
+                        scheduler
+                    ),
+                    device
+                )
+                    .doOnComplete { LOG.e("notifications complete for ${packet.luid}") }
+                    .doFinally {
+                        if (cookieCompleteRelay.hasObservers()) {
+                            cookieCompleteRelay.accept(packet.cookie)
+                        }
+                    }
+            }
+    }
+
     init {
+        LOG.e("server connection init")
         /*
          * When a client reads from the semaphor characteristic, take the following steps
          * 
@@ -112,11 +190,12 @@ class CachedLEServerConnection(
                 .subscribeOn(ioScheduler)
                 .doOnNext { LOG.v("semaphor read ${channels.size}") }
                 .toFlowable(BackpressureStrategy.BUFFER)
-                .zipWith(packetQueue.toFlowable(BackpressureStrategy.BUFFER)) { req, packet ->
-                    LOG.v("received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet: ${packet.first.type}")
+                .flatMapCompletable { req ->
+
+                    LOG.v("received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet")
                     selectCharacteristic()
                         .flatMapCompletable { characteristic ->
-                            LOG.v("LOCKED characteristic ${characteristic.uuid} packet: ${packet.first.type}")
+                            LOG.v("LOCKED characteristic ${characteristic.uuid}")
 
                             req.sendReply(
                                 BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
@@ -124,16 +203,21 @@ class CachedLEServerConnection(
                             )
                                 .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
                                 .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
-                                .andThen(
-                                    connection.setupNotifications(
-                                        characteristic.uuid,
-                                        packet.first.writeToStream(GATT_SIZE, scheduler),
-                                        req.remoteDevice
-                                    )
-                                )
+                                .mergeWith(connection.getOnCharacteristicWriteRequest(characteristic.uuid)
+                                    .firstOrError()
+                                    .flatMapCompletable { req2 ->
+                                        val uuid =
+                                            BluetoothLERadioModuleImpl.bytes2uuid(req2.value!!)!!
+                                        LOG.e("server got notf uuid $uuid")
+                                        handleQueueItem(
+                                            uuid,
+                                            characteristic.uuid,
+                                            req2.remoteDevice
+                                        )
+                                    })
                                 .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
                                 .doOnComplete {
-                                    LOG.v("indication for packet ${packet.first.type}, ${characteristic.uuid} finished")
+                                    LOG.v("indication for packet, ${characteristic.uuid} finished")
                                 }
                                 .doOnError { err ->
                                     LOG.e("error in gatt server indication $err")
@@ -145,12 +229,11 @@ class CachedLEServerConnection(
                                     characteristic.release()
                                 }
                         }
-                        .doOnError { err ->
-                            LOG.e("error in gatt server selectCharacteristic: $err")
-                        }
-                        .onErrorComplete()
                 }
-                .flatMapCompletable { obs -> obs }
+                .doOnError { err ->
+                    LOG.e("error in gatt server selectCharacteristic: $err")
+                }
+                .onErrorComplete()
                 .subscribeOn(ioScheduler)
                 .subscribe(
                     {
