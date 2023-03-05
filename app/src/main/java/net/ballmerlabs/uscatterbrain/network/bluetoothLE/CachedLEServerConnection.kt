@@ -130,7 +130,6 @@ class CachedLEServerConnection(
                                         packet.first.writeToStream(GATT_SIZE, scheduler),
                                         req.remoteDevice
                                     )
-                                        .subscribeOn(scheduler)
                                 )
                                 .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
                                 .doOnComplete {
@@ -152,6 +151,7 @@ class CachedLEServerConnection(
                         .onErrorComplete()
                 }
                 .flatMapCompletable { obs -> obs }
+                .subscribeOn(ioScheduler)
                 .subscribe(
                     {
                         LOG.e("timing characteristic write handler completed prematurely")

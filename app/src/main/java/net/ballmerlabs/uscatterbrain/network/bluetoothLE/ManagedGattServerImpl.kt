@@ -27,7 +27,7 @@ import javax.inject.Singleton
 
 @Singleton
 class ManagedGattServerImpl @Inject constructor(
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS) private val serverScheduler: Scheduler,
     private val newServer: GattServer,
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
     private val advertiser: Advertiser,

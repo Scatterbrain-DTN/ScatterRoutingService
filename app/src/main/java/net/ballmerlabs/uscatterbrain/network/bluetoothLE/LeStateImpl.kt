@@ -23,7 +23,7 @@ import javax.inject.Singleton
 
 @Singleton
 class LeStateImpl @Inject constructor(
-    @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.IO) private val clientScheduler: Scheduler,
     val factory: ScatterbrainTransactionFactory,
     private val advertiser: Advertiser,
     private val server: Provider<ManagedGattServer>
@@ -109,7 +109,7 @@ class LeStateImpl @Inject constructor(
                 LOG.e(
                     "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
-                val newconnection = CachedLEConnection(channels, operationsScheduler, device)
+                val newconnection = CachedLEConnection(channels, clientScheduler, device)
                 val connection = connectionCache[luid]
                 if (connection != null) {
                     connection
