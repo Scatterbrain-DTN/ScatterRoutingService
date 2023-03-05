@@ -247,7 +247,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnCharacteristicWriteRequest(char)
+                connection.getEvents().filter { c -> c.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onCharacteristicWriteRequest(
@@ -273,7 +273,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnCharacteristicReadRequest(char)
+                connection.getEvents().filter { c -> c.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onCharacteristicReadRequest(
@@ -301,7 +301,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnDescriptorWriteRequest(char, des)
+                connection.getEvents().filter { c -> c.uuid == des && c.characteristic.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onDescriptorWriteRequest(
@@ -330,7 +330,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnDescriptorReadRequest(char, des)
+                connection.getEvents().filter { c -> c.uuid == des && c.characteristic.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onDescriptorReadRequest(

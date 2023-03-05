@@ -60,7 +60,7 @@ class CachedLEServerConnection(
 
     fun registerLuid(luid: UUID) {
         LOG.e("registerting luid $luid")
-        packetQueue[luid] = LinkedBlockingQueue()
+        packetQueue.putIfAbsent(luid, LinkedBlockingQueue())
         serverReady.onNext(luid)
     }
 
@@ -109,7 +109,8 @@ class CachedLEServerConnection(
 
             cookieCompleteRelay.takeUntil { v -> v == cookie }
                 .ignoreElements()
-                .mergeWith(Completable.fromAction {
+                .timeout(30, TimeUnit.SECONDS)
+                .doOnSubscribe {
                     val queue = packetQueue[luid]!!
                     queue.put(
                         QueueItem(
@@ -118,8 +119,7 @@ class CachedLEServerConnection(
                             luid = luid
                         )
                     )
-                })
-                .timeout(10, TimeUnit.SECONDS)
+                }
                 .doOnComplete { LOG.v("serverNotify COMPLETED for ${packet.type} cookie $cookie") }
         }
 
@@ -148,7 +148,8 @@ class CachedLEServerConnection(
         device: RxBleDevice
     ): Completable {
         return Single.fromCallable {
-            packetQueue[luid]!!.remove()
+            registerLuid(luid)
+            packetQueue[luid]!!.poll(30, TimeUnit.SECONDS)
         }.subscribeOn(ioScheduler)
             .flatMapCompletable { packet ->
                 LOG.e("serverconnection handling luid $luid")
@@ -157,7 +158,7 @@ class CachedLEServerConnection(
                     characteristic,
                     packet.packet.writeToStream(
                         GATT_SIZE,
-                        scheduler
+                        ioScheduler
                     ),
                     device
                 )
@@ -184,63 +185,52 @@ class CachedLEServerConnection(
          * the adapter can only service one packet per channel
          */
         val d =
-            connection.getOnCharacteristicReadRequest(
-                BluetoothLERadioModuleImpl.UUID_SEMAPHOR
+            connection.getEvents(
             )
                 .subscribeOn(ioScheduler)
                 .doOnNext { LOG.v("semaphor read ${channels.size}") }
-                .toFlowable(BackpressureStrategy.BUFFER)
                 .flatMapCompletable { req ->
-
-                    LOG.v("received UUID_SEMAPHOR write ${req.remoteDevice.macAddress} packet")
-                    selectCharacteristic()
-                        .flatMapCompletable { characteristic ->
-                            LOG.v("LOCKED characteristic ${characteristic.uuid}")
-
-                            req.sendReply(
-                                BluetoothLERadioModuleImpl.uuid2bytes(characteristic.uuid),
-                                BluetoothGatt.GATT_SUCCESS
-                            )
-                                .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
-                                .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
-                                .mergeWith(connection.getOnCharacteristicWriteRequest(characteristic.uuid)
-                                    .firstOrError()
-                                    .flatMapCompletable { req2 ->
-                                        val uuid =
-                                            BluetoothLERadioModuleImpl.bytes2uuid(req2.value!!)!!
-                                        LOG.e("server got notf uuid $uuid")
-                                        handleQueueItem(
-                                            uuid,
-                                            characteristic.uuid,
-                                            req2.remoteDevice
+                    when (req.operation) {
+                        GattServerConnection.Operation.CHARACTERISTIC_READ -> {
+                            val res = when (req.uuid) {
+                                BluetoothLERadioModuleImpl.UUID_SEMAPHOR -> {
+                                    selectCharacteristic().flatMapCompletable { characteristic ->
+                                        req.sendReply(
+                                            BluetoothLERadioModuleImpl.uuid2bytes(
+                                                characteristic.uuid
+                                            ), BluetoothGatt.GATT_SUCCESS
                                         )
-                                    })
-                                .doOnError { err -> LOG.e("characteristic ${characteristic.uuid} err: $err") }
-                                .doOnComplete {
-                                    LOG.v("indication for packet, ${characteristic.uuid} finished")
+                                    }
                                 }
-                                .doOnError { err ->
-                                    LOG.e("error in gatt server indication $err")
-                                    errorRelay.accept(err)
-                                }
-                                .onErrorComplete()
-                                .doFinally {
-                                    LOG.v("releasing locked characteristic ${characteristic.uuid}")
-                                    characteristic.release()
-                                }
+                                else -> Completable.complete()
+
+                            }
+                            res
                         }
-                }
-                .doOnError { err ->
-                    LOG.e("error in gatt server selectCharacteristic: $err")
-                }
-                .onErrorComplete()
-                .subscribeOn(ioScheduler)
-                .subscribe(
-                    {
-                        LOG.e("timing characteristic write handler completed prematurely")
-                    },
-                    { err -> LOG.e("timing characteristic handler error: $err") }
-                )
+                        GattServerConnection.Operation.CHARACTERISTIC_WRITE -> {
+                            req.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                                .andThen(Completable.defer {
+                                    for (lock in channels.values) {
+                                        if (lock.isLocked() && lock.uuid == req.uuid) {
+                                            val luid =
+                                                BluetoothLERadioModuleImpl.bytes2uuid(req.value)!!
+                                            LOG.e("server got notf uuid $luid")
+                                            return@defer handleQueueItem(
+                                                luid,
+                                                lock.uuid,
+                                                req.remoteDevice
+                                            ).doFinally {
+                                                lock.release()
+                                            }
+                                        }
+                                    }
+                                    Completable.complete()
+                                })
+
+                        }
+                        else -> Completable.complete()
+                    }
+                }.subscribe()
         disposable.add(d)
     }
 }

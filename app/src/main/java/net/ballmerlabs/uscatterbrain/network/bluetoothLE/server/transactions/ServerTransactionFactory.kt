@@ -1,6 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions
 
+import android.bluetooth.BluetoothGattCharacteristic
 import com.polidea.rxandroidble2.RxBleDevice
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import java.util.*
 
 interface ServerTransactionFactory {
@@ -9,7 +11,9 @@ interface ServerTransactionFactory {
             requestID: Int,
             offset: Int,
             device: RxBleDevice,
-            characteristic: UUID
+            uuid: UUID,
+            characteristic: BluetoothGattCharacteristic,
+            operation: GattServerConnection.Operation
     ): ServerResponseTransaction
 
     fun prepareNotificationSetupTransaction(
