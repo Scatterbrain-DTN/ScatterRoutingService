@@ -102,7 +102,7 @@ class CachedLEConnection(
         return selectChannel()
             .flatMap { uuid ->
                 connection.firstOrError().flatMap { conn ->
-                    conn.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                    conn.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
                         .flatMapSingle { obs ->
                             LOG.v("indication setup")
                             val o = InputStreamObserver(10000)

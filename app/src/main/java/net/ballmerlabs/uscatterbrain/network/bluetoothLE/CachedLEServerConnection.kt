@@ -125,7 +125,7 @@ class CachedLEServerConnection(
                                 .doOnComplete { LOG.v("successfully ACKed ${characteristic.uuid} start indications") }
                                 .doOnError { err -> LOG.e("error ACKing ${characteristic.uuid} start indication: $err") }
                                 .andThen(
-                                    connection.setupIndication(
+                                    connection.setupNotifications(
                                         characteristic.uuid,
                                         packet.first.writeToStream(GATT_SIZE, scheduler),
                                         req.remoteDevice
