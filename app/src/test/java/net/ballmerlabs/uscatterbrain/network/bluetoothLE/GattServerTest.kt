@@ -23,6 +23,7 @@ import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.FakeGattServerConnectionSubcomponent
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.AckPacket
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
@@ -60,7 +61,8 @@ class GattServerTest {
     }
 
 
-    private val scheduler = Schedulers.single()
+    private val scheduler = RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-single"))
+    private val ioScheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test-io"))
 
     private lateinit var disposable: CompositeDisposable
 
@@ -407,7 +409,7 @@ class GattServerTest {
                     .timeout(10, TimeUnit.SECONDS)
                     .doOnNext { b -> println("new bytes $b") }
 
-            ScatterSerializable.parseWrapperFromCRC(parser, notif, Schedulers.io())
+            ScatterSerializable.parseWrapperFromCRC(parser, notif, ioScheduler)
                 .timeout(9, TimeUnit.SECONDS)
         }
     }

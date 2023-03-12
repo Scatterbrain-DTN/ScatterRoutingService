@@ -795,7 +795,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             BlockHeaderPacket.parser(),
             socket.getInputStream(),
             readScheduler
-        ).timeout(5,TimeUnit.SECONDS)
+        ).timeout(15,TimeUnit.SECONDS)
             .doOnSuccess { header -> LOG.v("seme reading header ${header.userFilename}") }
             .flatMap { header ->
                 if (header.isEndOfStream) {
@@ -807,7 +807,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             BlockSequencePacket.parser(),
                             socket.getInputStream(),
                             readScheduler
-                        ).timeout(5, TimeUnit.SECONDS)
+                        ).timeout(16, TimeUnit.SECONDS)
                             .repeat()
                             .takeUntil { p -> p.isEnd }
                             .doOnNext { packet ->

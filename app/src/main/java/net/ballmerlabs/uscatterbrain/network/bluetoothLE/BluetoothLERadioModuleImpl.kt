@@ -91,7 +91,6 @@ data class Optional<T>(
 class BluetoothLERadioModuleImpl @Inject constructor(
     private val mContext: Context,
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val computeScheduler: Scheduler,
     private val mClient: RxBleClient,
     private val wifiDirectRadioModule: WifiDirectRadioModule,
     private val datastore: ScatterbrainDatastore,
@@ -673,7 +672,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             )
                             .onErrorComplete()
                     }
-                    .subscribeOn(computeScheduler)
                     .doOnError { err ->
                         LOG.v("error in initiateOutgoingConnection $err")
                         firebase.recordException(err)
@@ -686,20 +684,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     }
 
-    private fun discoverContinuous(): Observable<ScanResult> {
-        return mClient.scanBleDevices(
-            ScanSettings.Builder()
-                .setScanMode(parseScanMode())
-                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                .setShouldCheckLocationServicesState(false)
-                .setLegacy(true)
-                .build(),
-            ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(SERVICE_UUID))
-                .build()
-        )
-    }
-
     override fun observeTransactionStatus(): Observable<Boolean> {
         return transactionInProgressRelay.delay(0, TimeUnit.SECONDS, operationsScheduler)
     }
@@ -710,7 +694,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun awaitTransaction(): Completable {
         return Completable.mergeArray(
             transactionCompleteRelay.firstOrError().ignoreElement(),
-            transactionErrorRelay.flatMapCompletable { error -> Completable.error(error) }
+            transactionErrorRelay.firstOrError().flatMapCompletable { error -> Completable.error(error) }
         )
     }
 
@@ -737,7 +721,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return Completable.defer {
             if (shouldRemove) {
                 wifiDirectRadioModule.removeGroup()
-                    .subscribeOn(computeScheduler)
                     .doOnError { err ->
                         LOG.e("failed to cleanup wifi direct group after termination")
                         firebase.recordException(err)

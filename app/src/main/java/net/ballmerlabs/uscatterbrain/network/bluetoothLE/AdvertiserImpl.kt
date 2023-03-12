@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertisingSet
@@ -63,6 +64,10 @@ class AdvertiserImpl @Inject constructor(
         override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
             advertisingDataUpdated.onNext(status)
         }
+
+        override fun onAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) {
+            advertisingDataUpdated.onNext(status)
+        }
     }
 
     override fun setAdvertisingLuid(): Completable {
@@ -80,10 +85,11 @@ class AdvertiserImpl @Inject constructor(
                         awaitAdvertiseDataUpdate()
                             .doOnSubscribe {
                                 try {
-                                    v.first.item?.setScanResponseData(
+                                    v.first.item?.setAdvertisingData(
                                         AdvertiseData.Builder()
                                             .setIncludeDeviceName(false)
                                             .setIncludeTxPowerLevel(false)
+                                            .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
                                             .addServiceData(ParcelUuid(luid), byteArrayOf(5))
                                             .build()
                                     )
@@ -119,10 +125,11 @@ class AdvertiserImpl @Inject constructor(
                         awaitAdvertiseDataUpdate()
                             .doOnSubscribe {
                                 try {
-                                    v.first.item?.setScanResponseData(
+                                    v.first.item?.setAdvertisingData(
                                         AdvertiseData.Builder()
                                             .setIncludeDeviceName(false)
                                             .setIncludeTxPowerLevel(false)
+                                            .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
                                             .build()
                                     )
                                 } catch (exc: SecurityException) {
@@ -181,36 +188,28 @@ class AdvertiserImpl @Inject constructor(
                     Completable.fromAction {
                         LOG.v("Starting LE advertise")
                         val settings = AdvertisingSetParameters.Builder()
-                            .setConnectable(true)
-                            .setScannable(true)
                             .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                            .setLegacyMode(true)
+                            .setLegacyMode(false)
+                            .setConnectable(true)
+                            .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
                             .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                             .build()
-                        val serviceData = AdvertiseData.Builder()
+                        val serviceDataBuilder = AdvertiseData.Builder()
                             .setIncludeDeviceName(false)
                             .setIncludeTxPowerLevel(false)
                             .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
-                            .build()
 
-                        val responsedata = if (luid != null) {
-                            AdvertiseData.Builder()
-                                .setIncludeDeviceName(false)
-                                .setIncludeTxPowerLevel(false)
-                                .addServiceData(ParcelUuid(luid), byteArrayOf(5))
-                                .build()
+                        val serviceData = if (luid != null) {
+                          serviceDataBuilder.addServiceData(ParcelUuid(luid), byteArrayOf(5)).build()
                         } else {
-                            AdvertiseData.Builder()
-                                .setIncludeDeviceName(false)
-                                .setIncludeTxPowerLevel(false)
-                                .build()
+                          serviceDataBuilder.build()
                         }
 
                         try {
                             manager.adapter.bluetoothLeAdvertiser.startAdvertisingSet(
                                 settings,
                                 serviceData,
-                                responsedata,
+                                null,
                                 null,
                                 null,
                                 advertiseSetCallback
@@ -246,12 +245,7 @@ class AdvertiserImpl @Inject constructor(
                 old
             }
         }
-        return if (old.compareTo(now) > BluetoothLERadioModuleImpl.LUID_RANDOMIZE_DELAY) {
-         //   myLuid.set(UUID.randomUUID())
-            true
-        } else {
-            false
-        }
+        return old.compareTo(now) > BluetoothLERadioModuleImpl.LUID_RANDOMIZE_DELAY
     }
 
     init {
