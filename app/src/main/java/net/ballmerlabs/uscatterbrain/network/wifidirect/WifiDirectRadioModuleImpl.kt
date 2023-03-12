@@ -710,6 +710,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     )
                     .andThen(datastore.incrementShareCount(blockDataStream.headerPacket))
             }
+            .doOnComplete { LOG.v("writeBlockDataUke completed") }
     }
 
     /*
@@ -721,7 +722,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             BlockHeaderPacket.parser(),
             socket.getInputStream(),
             readScheduler
-        )
+        ).timeout(5, TimeUnit.SECONDS)
             .doOnSuccess { header -> LOG.v("uke reading header ${header.userFilename}") }
             .flatMap { headerPacket ->
                 if (headerPacket.isEndOfStream) {
@@ -733,7 +734,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             BlockSequencePacket.parser(),
                             socket.getInputStream(),
                             readScheduler,
-                        )
+                        ).timeout(5, TimeUnit.SECONDS)
                             .repeat()
                             .takeUntil { p -> p.isEnd }
                             .doOnNext { packet ->
@@ -752,6 +753,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
             .doOnError { e -> LOG.e("uke: error when reading message: $e") }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
+            .doOnSuccess { LOG.v("readBlockDataUke completed") }
 
     }
 
@@ -766,7 +768,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             BlockHeaderPacket.parser(),
             socket.getInputStream(),
             readScheduler
-        )
+        ).timeout(5,TimeUnit.SECONDS)
             .doOnSuccess { header -> LOG.v("seme reading header ${header.userFilename}") }
             .flatMap { header ->
                 if (header.isEndOfStream) {
@@ -778,7 +780,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             BlockSequencePacket.parser(),
                             socket.getInputStream(),
                             readScheduler
-                        )
+                        ).timeout(5, TimeUnit.SECONDS)
                             .repeat()
                             .takeUntil { p -> p.isEnd }
                             .doOnNext { packet ->
@@ -787,7 +789,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .doOnComplete { LOG.v("seme complete read sequence packets") },
                         datastore.cacheDir
                     )
-                    datastore.insertMessage(m).andThen(m.await()).subscribeOn(operationsScheduler)
+                    datastore.insertMessage(m).andThen(m.await())
                         .toSingleDefault(1)
                 }
             }

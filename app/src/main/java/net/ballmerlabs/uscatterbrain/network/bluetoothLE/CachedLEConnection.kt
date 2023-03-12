@@ -4,8 +4,10 @@ import com.google.protobuf.MessageLite
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
+import com.polidea.rxandroidble2.exceptions.BleDisconnectedException
 import io.reactivex.Completable
 import io.reactivex.Observable
+import io.reactivex.ObservableSource
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
@@ -54,7 +56,9 @@ class CachedLEConnection(
             .doOnError { err ->
                 LOG.e("raw connection error: $err")
             }
+            .onErrorResumeNext(onDisconnect().toObservable())
             .doOnComplete { LOG.e("raw connection completed") }
+            .concatWith(Observable.error(IllegalStateException("server connection completed")))
             .subscribe(connection)
     }
 

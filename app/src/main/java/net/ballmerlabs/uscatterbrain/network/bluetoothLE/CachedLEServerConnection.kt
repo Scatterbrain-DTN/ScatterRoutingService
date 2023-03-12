@@ -155,19 +155,18 @@ class CachedLEServerConnection(
         device: RxBleDevice
     ): Completable {
         return Single.fromCallable {
-            registerLuid(luid).poll(30, TimeUnit.SECONDS)
+            registerLuid(luid).poll(20, TimeUnit.SECONDS)
         }.subscribeOn(ioScheduler)
             .flatMapCompletable { packet ->
-                LOG.e("serverconnection handling luid $luid")
-                LOG.e("packet ${packet.luid} ${packet.packet.type}")
+                LOG.e("packet $luid ${packet.luid} ${packet.packet.type}")
                 connection.setupNotifications(
                     characteristic,
                     packet.packet.writeToStream(
                         GATT_SIZE,
-                        ioScheduler
+                        scheduler
                     ),
                     device
-                )
+                ).subscribeOn(ioScheduler)
                     .doOnComplete { LOG.e("notifications complete for ${packet.luid}") }
                     .doFinally {
                         if (cookieCompleteRelay.hasObservers()) {
