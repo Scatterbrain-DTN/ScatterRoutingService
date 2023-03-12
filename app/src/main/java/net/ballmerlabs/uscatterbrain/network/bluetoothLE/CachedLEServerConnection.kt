@@ -58,10 +58,17 @@ class CachedLEServerConnection(
     }
 
 
-    fun registerLuid(luid: UUID) {
+    private fun registerLuid(luid: UUID): LinkedBlockingQueue<QueueItem> {
         LOG.e("registerting luid $luid")
-        packetQueue.putIfAbsent(luid, LinkedBlockingQueue())
+        val q = packetQueue.compute(luid) { k, v ->
+            when (v) {
+                null -> LinkedBlockingQueue()
+                else -> v
+            }
+
+        }
         serverReady.onNext(luid)
+        return q!!
     }
 
     private fun awaitServerReady(luid: UUID): Completable {
@@ -111,7 +118,7 @@ class CachedLEServerConnection(
                 .ignoreElements()
                 .timeout(30, TimeUnit.SECONDS)
                 .doOnSubscribe {
-                    val queue = packetQueue[luid]!!
+                    val queue = registerLuid(luid)
                     queue.put(
                         QueueItem(
                             packet = packet,
@@ -148,8 +155,7 @@ class CachedLEServerConnection(
         device: RxBleDevice
     ): Completable {
         return Single.fromCallable {
-            registerLuid(luid)
-            packetQueue[luid]!!.poll(30, TimeUnit.SECONDS)
+            registerLuid(luid).poll(30, TimeUnit.SECONDS)
         }.subscribeOn(ioScheduler)
             .flatMapCompletable { packet ->
                 LOG.e("serverconnection handling luid $luid")
@@ -229,8 +235,17 @@ class CachedLEServerConnection(
 
                         }
                         else -> Completable.complete()
+                    }.onErrorComplete()
+                }
+                .repeat()
+                .retry()
+                .subscribe(
+                    { LOG.e("server handler prematurely completed. GHAA") },
+                    { err ->
+                        LOG.e("server handler ended with error $err")
+                        err.printStackTrace()
                     }
-                }.subscribe()
+                )
         disposable.add(d)
     }
 }

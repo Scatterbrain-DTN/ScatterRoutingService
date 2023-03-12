@@ -105,14 +105,14 @@ class LeStateImpl @Inject constructor(
         luid: UUID
     ): Single<CachedLEConnection> {
         val connectSingle =
-            Single.fromCallable {
+            Single.defer {
                 LOG.e(
                     "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
                 val newconnection = CachedLEConnection(channels, clientScheduler, device, advertiser)
                 val connection = connectionCache[luid]
                 if (connection != null) {
-                    connection
+                    Single.just(connection)
                 } else {
                     val rawConnection = device.establishConnection(false)
                         .doOnError { connectionCache.remove(luid) }
@@ -131,7 +131,7 @@ class LeStateImpl @Inject constructor(
                     }
                     newconnection.subscribeConnection(rawConnection)
                     connectionCache.putIfAbsent(luid, newconnection)
-                    newconnection
+                    newconnection.connection.firstOrError().map { newconnection }
                 }
             }
 

@@ -781,7 +781,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 managedGattServer.getServer()
                     .toSingle()
                     .flatMapMaybe { connection ->
-                        connection.registerLuid(luid)
                         LOG.v("successfully connected to $luid")
                         val s = LeDeviceSession(
                             device.bluetoothDevice,

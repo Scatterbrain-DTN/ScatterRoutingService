@@ -55,7 +55,6 @@ class CachedLEConnection(
                 LOG.e("raw connection error: $err")
             }
             .doOnComplete { LOG.e("raw connection completed") }
-            .onErrorResumeNext(onDisconnect().toObservable())
             .subscribe(connection)
     }
 
@@ -107,13 +106,9 @@ class CachedLEConnection(
                             conn.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
                                 .flatMapSingle { obs ->
                                     LOG.v("indication setup")
-                                    val o = InputStreamObserver(10000)
-                                    obs
-                                        .doOnNext { b -> LOG.v("client read bytes ${b.size}") }
-                                        .subscribe(o)
                                     ScatterSerializable.parseWrapperFromCRC(
                                         parser,
-                                        o as InputStream,
+                                        obs,
                                         scheduler
                                     )
                                 }
