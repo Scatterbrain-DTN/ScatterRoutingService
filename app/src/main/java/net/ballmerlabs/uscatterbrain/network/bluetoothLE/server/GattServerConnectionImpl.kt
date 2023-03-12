@@ -33,6 +33,7 @@ import javax.inject.Provider
 @GattServerConnectionScope
 class GattServerConnectionImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS) private val callbackScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
     private val serverState: ServerState,
     private val client: RxBleClient,
     private val bluetoothManager: BluetoothManager,
@@ -357,7 +358,7 @@ class GattServerConnectionImpl @Inject constructor(
      * Does NOT emit errors even if status != GATT_SUCCESS.
      */
     override fun getOnConnectionStateChange(): Observable<Pair<RxBleDevice, RxBleConnectionState>> {
-        return connectionStatePublishRelay.delay(0, TimeUnit.SECONDS, callbackScheduler)
+        return connectionStatePublishRelay
     }
 
 
@@ -393,7 +394,6 @@ class GattServerConnectionImpl @Inject constructor(
                     System.arraycopy(second, 0, both, first.size, second.size)
                     both
                 }
-                .subscribeOn(callbackScheduler)
                 .toSingle()
                 .subscribe(output.out)
             characteristicMultiIndex.put(requestid, output)
@@ -415,7 +415,6 @@ class GattServerConnectionImpl @Inject constructor(
                     System.arraycopy(second, 0, both, first.size, second.size)
                     both
                 }
-                .subscribeOn(callbackScheduler)
                 .toSingle()
                 .subscribe(output.out)
             descriptorMultiIndex.put(requestid, output)
@@ -431,7 +430,7 @@ class GattServerConnectionImpl @Inject constructor(
                 if (output != null) {
                     output.valueRelay.onComplete()
                     characteristicMultiIndex.remove(integer)
-                    return@Function output.out.delay(0, TimeUnit.SECONDS, callbackScheduler)
+                    return@Function output.out
                 }
                 Single.never()
             })
@@ -444,7 +443,7 @@ class GattServerConnectionImpl @Inject constructor(
                 if (output != null) {
                     output.valueRelay.onComplete()
                     characteristicMultiIndex.remove(integer)
-                    return@Function output.out.delay(0, TimeUnit.SECONDS, callbackScheduler)
+                    return@Function output.out
                 }
                 Single.never()
             })
@@ -522,6 +521,7 @@ class GattServerConnectionImpl @Inject constructor(
             val clientconfig = characteristic.getDescriptor(CLIENT_CONFIG)
                 ?: return@defer Flowable.error(IllegalStateException("notification failed"))
             notifications
+                .delay(0, TimeUnit.SECONDS, serverScheduler)
                 .delay<ByteArray> {
                     setupNotificationsDelay(clientconfig, characteristic, isIndication)
                         .toFlowable()

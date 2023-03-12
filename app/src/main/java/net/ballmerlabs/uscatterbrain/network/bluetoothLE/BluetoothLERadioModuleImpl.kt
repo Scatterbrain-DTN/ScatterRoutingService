@@ -438,21 +438,23 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 .doOnSuccess { p -> LOG.v("client handshake received upgrade packet ${p.metadata.size}") }
                                 .doOnError { err -> LOG.e("error while receiving upgrade packet: $err") }
                                 .map { upgradePacket ->
-                                    if (upgradePacket.provides == AdvertisePacket.Provides.WIFIP2P) {
-                                        val request = WifiDirectBootstrapRequest.create(
-                                            upgradePacket,
-                                            ConnectionRole.ROLE_SEME,
-                                            bootstrapRequestProvider.get(),
-                                            if (wifiManager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-                                        )
-                                        TransactionResult.of(
-                                            request,
-                                            TransactionResult.STAGE_TERMINATE,
-                                        )
-                                    } else {
-                                        TransactionResult.err(
-                                            IllegalStateException("invalid provides ${upgradePacket.provides}")
-                                        )
+                                    when(upgradePacket.provides) {
+                                        AdvertisePacket.Provides.WIFIP2P -> {
+                                            val request = WifiDirectBootstrapRequest.create(
+                                                upgradePacket,
+                                                ConnectionRole.ROLE_SEME,
+                                                bootstrapRequestProvider.get(),
+                                                if (wifiManager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+                                            )
+                                            TransactionResult.of(
+                                                request,
+                                                TransactionResult.STAGE_TERMINATE,
+                                            )
+                                        }
+                                        AdvertisePacket.Provides.BLE -> TransactionResult.of(TransactionResult.STAGE_IDENTITY)
+                                        else -> TransactionResult.err(
+                                                IllegalStateException("invalid provides ${upgradePacket.provides}")
+                                            )
                                     }
                                 }
                         } else {

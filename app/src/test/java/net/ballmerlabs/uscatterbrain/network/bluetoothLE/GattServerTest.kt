@@ -400,7 +400,7 @@ class GattServerTest {
             val notif= connection.setupNotifications(
                     characteristic,
                     Flowable.just(packets)
-                        .flatMap { packet -> packet.writeToStream(GATT_SIZE, Schedulers.io()) },
+                        .flatMap { packet -> packet.writeToStream(GATT_SIZE, scheduler) },
                     isIndication,
                     device
                 )
