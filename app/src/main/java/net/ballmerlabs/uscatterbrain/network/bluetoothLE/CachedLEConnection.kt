@@ -107,18 +107,23 @@ class CachedLEConnection(
         return selectChannel()
             .flatMap { uuid ->
                 connection.firstOrError().flatMap { conn ->
+                    conn.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
+                        .flatMap { obs ->
+                            LOG.v("indication setup")
+                            ScatterSerializable.parseWrapperFromCRC(
+                                parser,
+                                obs,
+                                scheduler
+                            ).toObservable()
+                                .mergeWith(
+                                    conn.writeCharacteristic(
+                                        uuid,
+                                        BluetoothLERadioModuleImpl.uuid2bytes(getHashUuid(luid))!!
+                                    ).ignoreElement()
+                                )
 
-                            conn.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
-                                .flatMapSingle { obs ->
-                                    LOG.v("indication setup")
-                                    ScatterSerializable.parseWrapperFromCRC(
-                                        parser,
-                                        obs,
-                                        scheduler
-                                    )
-                                }
-                                .mergeWith( conn.writeCharacteristic(uuid, BluetoothLERadioModuleImpl.uuid2bytes(getHashUuid(luid))!!).ignoreElement())
-                                .firstOrError()
+                        }
+                        .firstOrError()
 
                 }
 
