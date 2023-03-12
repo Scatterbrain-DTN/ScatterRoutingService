@@ -23,6 +23,7 @@ import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.FakeGattServerConnectionSubcomponent
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.AckPacket
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
@@ -60,7 +61,7 @@ class GattServerTest {
     }
 
 
-    private val scheduler = Schedulers.single()
+    private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test"))
 
     private lateinit var disposable: CompositeDisposable
 
@@ -247,7 +248,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnCharacteristicWriteRequest(char)
+                connection.getEvents().filter { c -> c.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onCharacteristicWriteRequest(
@@ -273,7 +274,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnCharacteristicReadRequest(char)
+                connection.getEvents().filter { c -> c.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onCharacteristicReadRequest(
@@ -301,7 +302,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnDescriptorWriteRequest(char, des)
+                connection.getEvents().filter { c -> c.uuid == des && c.characteristic.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onDescriptorWriteRequest(
@@ -330,7 +331,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnDescriptorReadRequest(char, des)
+                connection.getEvents().filter { c -> c.uuid == des && c.characteristic.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onDescriptorReadRequest(
@@ -399,16 +400,13 @@ class GattServerTest {
             )
             val notif= connection.setupNotifications(
                     characteristic,
-                    Flowable.just(packets)
-                        .flatMap { packet -> packet.writeToStream(GATT_SIZE, Schedulers.io()) },
+                    packets.writeToStream(GATT_SIZE, scheduler),
                     isIndication,
                     device
                 )
-                    .timeout(10, TimeUnit.SECONDS)
                     .doOnNext { b -> println("new bytes $b") }
 
-            ScatterSerializable.parseWrapperFromCRC(parser, notif, Schedulers.io())
-                .timeout(9, TimeUnit.SECONDS)
+            ScatterSerializable.parseWrapperFromCRC(parser, notif, scheduler)
         }
     }
 

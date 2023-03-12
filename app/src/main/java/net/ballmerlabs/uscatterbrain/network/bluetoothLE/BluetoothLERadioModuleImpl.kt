@@ -245,7 +245,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { serverConn ->
                         LOG.v("gatt server luid stage")
                         serverConn.serverNotify(session.luidStage.selfUnhashedPacket, session.remoteLuid)
-                            .doOnError { err -> LOG.e("luid server failed $err") }
+                            .doOnError { err ->
+                                LOG.e("luid server failed $err")
+                                err.printStackTrace()
+                            }
                             .toSingleDefault(TransactionResult.empty())
                     },
                     { conn ->
@@ -614,29 +617,34 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         bleDevice: RxBleDevice
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
-            state.establishConnectionCached(bleDevice, remoteUuid)
-                .flatMapMaybe { cached ->
-                    cached.connection
-                        .firstOrError()
-                        .flatMapMaybe { raw ->
-                            LOG.v("attempting to read hello characteristic")
-                            raw.readCharacteristic(UUID_HELLO)
-                                .flatMapMaybe { luid ->
-                                    val luidUuid = bytes2uuid(luid)!!
-                                    if (state.transactionLockIsSelf(luidUuid)) {
-                                        LOG.v("read remote luid from GATT $luidUuid")
-                                        initiateOutgoingConnection(
-                                            cached,
-                                            luidUuid
-                                        ).onErrorComplete()
-                                    } else {
-                                        Maybe.empty()
+            if (state.transactionLockAccquire(remoteUuid)) {
+                state.establishConnectionCached(bleDevice, remoteUuid)
+                    .flatMapMaybe { cached ->
+                        cached.connection
+                            .firstOrError()
+                            .flatMapMaybe { raw ->
+                                LOG.v("attempting to read hello characteristic")
+                                raw.readCharacteristic(UUID_HELLO)
+                                    .flatMapMaybe { luid ->
+                                        val luidUuid = bytes2uuid(luid)!!
+                                        if (state.transactionLockIsSelf(luidUuid)) {
+                                            LOG.v("read remote luid from GATT $luidUuid")
+                                            initiateOutgoingConnection(
+                                                cached,
+                                                luidUuid
+                                            ).onErrorComplete()
+                                        } else {
+                                            Maybe.empty()
+                                        }
                                     }
-                                }
-                                .onErrorComplete()
-                        }
-                }
+                                    .onErrorComplete()
+                            }
+                    }
+            } else {
+                Maybe.empty()
+            }
         }
+
     }
 
 
@@ -680,22 +688,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }  else {
                 Maybe.empty()
             }
-        }
+        }.doOnError { err -> LOG.e("initateOutgoingConnection error $err") }
 
-    }
-
-    private fun discoverContinuous(): Observable<ScanResult> {
-        return mClient.scanBleDevices(
-            ScanSettings.Builder()
-                .setScanMode(parseScanMode())
-                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                .setShouldCheckLocationServicesState(false)
-                .setLegacy(true)
-                .build(),
-            ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(SERVICE_UUID))
-                .build()
-        )
     }
 
     override fun observeTransactionStatus(): Observable<Boolean> {
@@ -777,11 +771,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
-            if (state.transactionLockAccquire(luid)) {
+            if (state.transactionLockIsSelf(luid)) {
                 managedGattServer.getServer()
-                    .toSingle()
-                    .flatMapMaybe { connection ->
-                        connection.registerLuid(luid)
+                    .flatMap { connection ->
                         LOG.v("successfully connected to $luid")
                         val s = LeDeviceSession(
                             device.bluetoothDevice,
@@ -810,7 +802,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }.doOnError { e ->
             firebase.recordException(e)
             e.printStackTrace()
-            state.updateDisconnected(luid)
+          //  state.updateDisconnected(luid)
         }.onErrorComplete()
     }
 
@@ -927,19 +919,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      * exclusive access to channel characteristics
      */
     class LockedCharacteristic(
-        @get:Synchronized
         val characteristic: BluetoothGattCharacteristic,
         val channel: Int,
     ) {
         private val lockState = AtomicBoolean()
-        private fun asUnlocked(): OwnedCharacteristic {
+        fun asUnlocked(): OwnedCharacteristic {
             return OwnedCharacteristic(this)
         }
 
         val uuid: UUID
             get() = characteristic.uuid
 
-        @Synchronized
         fun lock(): OwnedCharacteristic? {
             val lock = lockState.getAndSet(true)
             return if (!lock) {
@@ -953,7 +943,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             return lockState.get()
         }
 
-        @Synchronized
         fun release() {
             lockState.set(false)
         }

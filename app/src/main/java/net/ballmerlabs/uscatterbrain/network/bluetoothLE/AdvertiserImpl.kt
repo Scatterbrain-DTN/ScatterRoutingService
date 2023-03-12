@@ -107,7 +107,7 @@ class AdvertiserImpl @Inject constructor(
                 else
                     Completable.error(IllegalStateException("failed to set advertising data"))
             }
-            .subscribeOn(scheduler)
+            .onErrorComplete()
     }
 
     override fun removeLuid(): Completable {

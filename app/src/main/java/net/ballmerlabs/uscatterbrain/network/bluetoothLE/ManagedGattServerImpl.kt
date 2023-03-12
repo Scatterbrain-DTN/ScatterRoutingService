@@ -42,7 +42,8 @@ class ManagedGattServerImpl @Inject constructor(
 
 
     private fun helloRead(serverConnection: GattServerConnection): Completable {
-        return serverConnection.getOnCharacteristicReadRequest(BluetoothLERadioModuleImpl.UUID_HELLO)
+        return serverConnection.getEvents()
+            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO }
             .subscribeOn(operationsScheduler)
             .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
             .flatMapCompletable { trans ->
@@ -70,14 +71,15 @@ class ManagedGattServerImpl @Inject constructor(
         s?.second?.dispose()
     }
 
-    private fun helloWrite(serverConnection: GattServerConnection): Observable<HandshakeResult> {
-        return serverConnection.getOnCharacteristicWriteRequest(BluetoothLERadioModuleImpl.UUID_HELLO)
+    private fun helloWrite(serverConnection: CachedLEServerConnection): Observable<HandshakeResult> {
+        return serverConnection.connection.getEvents()
+            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO }
             .subscribeOn(operationsScheduler)
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
-                if(state.transactionLockIsSelf(luid)) {
-                    serverConnection.setOnDisconnect(trans.remoteDevice) {
+                if (state.transactionLockAccquire(luid)) {
+                    serverConnection.connection.setOnDisconnect(trans.remoteDevice) {
                         LOG.e("server onDisconnect $luid")
                         state.updateDisconnected(luid)
                         if (state.connectionCache.isEmpty()) {
@@ -99,7 +101,7 @@ class ManagedGattServerImpl @Inject constructor(
                         .doOnError { err ->
                             LOG.e("error in handleConnection $err")
                             firebase.recordException(err)
-                         //   state.updateDisconnected(luid)
+                            //   state.updateDisconnected(luid)
                         }
                 } else {
                     trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
@@ -171,7 +173,7 @@ class ManagedGattServerImpl @Inject constructor(
                         firebaseWrapper = firebase
                     )
 
-                    val write = helloWrite(connectionRaw)
+                    val write = helloWrite(s)
                     val read = helloRead(connectionRaw)
 
                     val disp = write.mergeWith(read)

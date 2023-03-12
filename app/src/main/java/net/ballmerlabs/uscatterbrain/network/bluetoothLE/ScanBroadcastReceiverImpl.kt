@@ -66,10 +66,6 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                         }
                     }
                     .ignoreElements()
-                    .doOnError { err ->
-                        err.printStackTrace()
-                        LOG.e("process scan result error $err")
-                    }
                     .onErrorComplete()
                     .subscribe(
                         { LOG.v("client transaction complete") },

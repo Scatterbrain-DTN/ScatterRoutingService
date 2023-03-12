@@ -1,10 +1,12 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.bluetooth.BluetoothGattCharacteristic
 import com.polidea.rxandroidble2.RxBleDevice
 import dagger.Binds
 import dagger.BindsInstance
 import dagger.Module
 import dagger.Subcomponent
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.NotificationSetupTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.NotificationSetupTransactionImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction
@@ -18,7 +20,9 @@ interface ServerTransactionSubcomponent {
     data class TransactionConfig(
         var value: ByteArray? = null,
         var requestID: Int,
-        var offset: Int
+        var offset: Int,
+        var operation: GattServerConnection.Operation,
+        var characteristic: BluetoothGattCharacteristic
         ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true

@@ -141,7 +141,7 @@ class LeStateImpl @Inject constructor(
             .andThen(connectSingle)
     }
 
-    fun retryRefresh(module: BluetoothLEModule, luid: UUID, device: RxBleDevice): Maybe<HandshakeResult> {
+    private fun retryRefresh(module: BluetoothLEModule, luid: UUID, device: RxBleDevice): Maybe<HandshakeResult> {
         connectionCache.remove(luid)
         val c = establishConnectionCached(device ,luid)
         return c.flatMapMaybe { conn -> module.initiateOutgoingConnection(conn, luid) }

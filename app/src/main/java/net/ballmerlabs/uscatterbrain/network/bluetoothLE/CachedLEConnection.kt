@@ -53,10 +53,9 @@ class CachedLEConnection(
         }
             .doOnError { err ->
                 LOG.e("raw connection error: $err")
-                onDisconnect().subscribeOn(scheduler).blockingAwait()
             }
             .doOnComplete { LOG.e("raw connection completed") }
-            .concatWith(onDisconnect())
+            .onErrorResumeNext(onDisconnect().toObservable())
             .subscribe(connection)
     }
 
@@ -103,23 +102,21 @@ class CachedLEConnection(
         return selectChannel()
             .flatMap { uuid ->
                 connection.firstOrError().flatMap { conn ->
-                    conn.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
-                        .flatMapSingle { obs ->
-                            LOG.v("indication setup")
-                            val o = InputStreamObserver(10000)
-                            obs
-                                .doOnNext { b -> LOG.v("client read bytes ${b.size}") }
-                                .subscribe(o)
-                            ScatterSerializable.parseWrapperFromCRC(
-                                parser,
-                                o as InputStream,
-                                scheduler
-                            )
+                    conn.writeCharacteristic(uuid, BluetoothLERadioModuleImpl.uuid2bytes(getHashUuid( advertiser.myLuid.get()))!!)
+                        .flatMap {
+                            conn.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
+                                .flatMapSingle { obs ->
+                                    LOG.v("indication setup")
+
+                                    ScatterSerializable.parseWrapperFromCRC(
+                                        parser,
+                                       obs.doOnNext { b -> LOG.v("client read ${b.size}") },
+                                        scheduler
+                                    )
+                                }
+                                .firstOrError()
+                                .doOnSuccess { p -> LOG.e("cachedNotification read ${p.type}") }
                         }
-                        .mergeWith(conn.writeCharacteristic(uuid, BluetoothLERadioModuleImpl.uuid2bytes(getHashUuid( advertiser.myLuid.get()))!!)
-                            .ignoreElement())
-                        .firstOrError()
-                        .doOnSuccess { p -> LOG.e("cachedNotification read ${p.type}") }
                 }
                     .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
             }

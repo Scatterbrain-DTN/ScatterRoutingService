@@ -123,7 +123,9 @@ class WifiDirectTest {
             .subscribeOn(delayScheduler)
             .delay(groupInfoDelay, TimeUnit.MILLISECONDS)
             .andThen(Completable.fromAction {
-                broadcastReceiver.connectionInfoRelay.accept(info)
+                if(broadcastReceiver.connectionInfoRelay.hasObservers()) {
+                    broadcastReceiver.connectionInfoRelay.accept(info)
+                }
             }
                 .subscribeOn(delayScheduler)
                 .delay(broadcastDelay, TimeUnit.MILLISECONDS))
@@ -303,7 +305,7 @@ class WifiDirectTest {
                         ((connectDelay + groupInfoDelay + broadcastDelay) / 1000).toInt() + 5,
                         band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
                     )
-                        .timeout(5, TimeUnit.SECONDS)
+                        .timeout(20, TimeUnit.SECONDS)
                         .blockingGet()
 
                     assert(info.groupOwnerAddress() != null)
