@@ -216,7 +216,7 @@ abstract class ScatterSerializable<T : MessageLite>(
         ): Single<T> {
             return Single.just(observable)
                     .map { obs ->
-                        val subscriber = InputStreamObserver(4096) //TODO: optimize buffer size
+                        val subscriber = InputStreamObserver(1*1024*512) //TODO: optimize buffer size
                         obs.subscribe(subscriber)
                         val message = parseFromCRC(parser.parser, subscriber)
                         T::class.java.getConstructor(V::class.java).newInstance(message)

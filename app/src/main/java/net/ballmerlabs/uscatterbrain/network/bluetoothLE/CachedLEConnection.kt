@@ -102,12 +102,13 @@ class CachedLEConnection(
     private inline fun <reified T : ScatterSerializable<R>, reified R : MessageLite> cachedNotification(
         parser: ScatterSerializable.Companion.Parser<R, T>
     ): Single<T> {
+        val luid = advertiser.myLuid.get()
+        LOG.v("client reading luid $luid")
         return selectChannel()
             .flatMap { uuid ->
                 connection.firstOrError().flatMap { conn ->
-                    conn.writeCharacteristic(uuid, BluetoothLERadioModuleImpl.uuid2bytes(getHashUuid( advertiser.myLuid.get()))!!)
-                        .flatMap {
-                            conn.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
+
+                            conn.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
                                 .flatMapSingle { obs ->
                                     LOG.v("indication setup")
                                     ScatterSerializable.parseWrapperFromCRC(
@@ -116,12 +117,12 @@ class CachedLEConnection(
                                         scheduler
                                     )
                                 }
+                                .mergeWith( conn.writeCharacteristic(uuid, BluetoothLERadioModuleImpl.uuid2bytes(getHashUuid(luid))!!).ignoreElement())
                                 .firstOrError()
-                                .doOnSuccess { p -> LOG.e("cachedNotification read ${p.type}") }
-                        }
+
                 }
-                    .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS, scheduler)
-            }
+
+            }.timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
     }
 
     /**

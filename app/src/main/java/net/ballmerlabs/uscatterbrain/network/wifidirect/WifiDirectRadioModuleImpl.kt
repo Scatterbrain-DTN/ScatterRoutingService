@@ -394,7 +394,18 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     //transfer declare hashes packet as UKE
     private fun declareHashesUke(socket: Socket): Single<DeclareHashesPacket> {
         LOG.v("declareHashesUke")
-        return declareHashesSeme(socket)
+        return datastore.declareHashesPacket
+            .flatMap { declareHashesPacket ->
+                declareHashesPacket.writeToStream(
+                    socket.getOutputStream(),
+                    writeScheduler
+                ).andThen(
+                ScatterSerializable.parseWrapperFromCRC(
+                    DeclareHashesPacket.parser(),
+                    socket.getInputStream(),
+                    readScheduler
+                ))
+            }
     }
 
     //transfer declare hashes packet as SEME
@@ -408,7 +419,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     readScheduler
                 )
                     .toObservable()
-                    .mergeWith(
+                    .concatWith(
                         declareHashesPacket.writeToStream(
                             socket.getOutputStream(),
                             writeScheduler
@@ -423,7 +434,26 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         packets: Flowable<RoutingMetadataPacket>,
         socket: Socket
     ): Observable<RoutingMetadataPacket> {
-        return routingMetadataSeme(socket, packets)
+        return Observable.just(socket)
+            .flatMap { sock ->
+                packets.concatMapCompletable { p ->
+                    p.writeToStream(sock.getOutputStream(), writeScheduler)
+                }.andThen(
+                    ScatterSerializable.parseWrapperFromCRC(
+                    RoutingMetadataPacket.parser(),
+                    sock.getInputStream(),
+                    readScheduler
+                )
+                    .toObservable()
+                    .repeat()
+                    .takeWhile { routingMetadataPacket ->
+                        val end = !routingMetadataPacket.isEmpty
+                        if (!end) {
+                            LOG.v("routingMetadata seme end of stream")
+                        }
+                        end
+                    })
+            }.timeout(10, TimeUnit.SECONDS, operationsScheduler)
     }
 
     //transfer routing metadata packet as SEME
@@ -447,7 +477,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                         end
                     } //TODO: timeout here
-                    .mergeWith(packets.concatMapCompletable { p ->
+                    .concatWith(packets.concatMapCompletable { p ->
                         p.writeToStream(sock.getOutputStream(), writeScheduler)
                     })
             }
@@ -558,7 +588,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     .flatMap { declareHashesPacket ->
                                         readBlockDataUke(socket)
                                             .toObservable()
-                                            .mergeWith(
+                                            .concatWith(
                                                 writeBlockDataUke(
                                                     datastore.getTopRandomMessages(
                                                         preferences.getInt(
@@ -625,18 +655,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         declareHashesSeme(socket)
                                             .doOnSuccess { LOG.v("received declare hashes packet seme") }
                                             .flatMapObservable { declareHashesPacket ->
-                                                readBlockDataSeme(socket)
-                                                    .toObservable()
-                                                    .mergeWith(
-                                                        writeBlockDataSeme(
-                                                            socket,
-                                                            datastore.getTopRandomMessages(
-                                                                32,
-                                                                declareHashesPacket
-                                                            )
-                                                                .toFlowable(BackpressureStrategy.BUFFER)
-                                                        ).toObservable()
+                                                writeBlockDataSeme(
+                                                    socket,
+                                                    datastore.getTopRandomMessages(
+                                                        32,
+                                                        declareHashesPacket
                                                     )
+                                                        .toFlowable(BackpressureStrategy.BUFFER)
+                                                ).andThen(readBlockDataSeme(socket)
+                                                    .toObservable())
                                             }
                                             .reduce(stats) { obj, st -> obj.from(st) }
                                     }

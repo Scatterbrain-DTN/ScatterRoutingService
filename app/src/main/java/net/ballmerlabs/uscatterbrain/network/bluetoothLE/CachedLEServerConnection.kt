@@ -159,7 +159,7 @@ class CachedLEServerConnection(
         }.subscribeOn(ioScheduler)
             .flatMapCompletable { packet ->
                 LOG.e("packet $luid ${packet.luid} ${packet.packet.type}")
-                connection.setupNotifications(
+                connection.setupIndication(
                     characteristic,
                     packet.packet.writeToStream(
                         GATT_SIZE,

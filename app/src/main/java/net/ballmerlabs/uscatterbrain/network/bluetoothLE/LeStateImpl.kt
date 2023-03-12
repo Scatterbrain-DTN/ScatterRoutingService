@@ -119,6 +119,8 @@ class LeStateImpl @Inject constructor(
                         .doOnNext {
                             LOG.d("established cached connection to ${device.macAddress}")
                         }
+                    newconnection.subscribeConnection(rawConnection)
+                    connectionCache.putIfAbsent(luid, newconnection)
 
                     newconnection.setOnDisconnect {
                         LOG.e("client onDisconnect $luid")
@@ -129,9 +131,7 @@ class LeStateImpl @Inject constructor(
                             Completable.complete()
                         }
                     }
-                    newconnection.subscribeConnection(rawConnection)
-                    connectionCache.putIfAbsent(luid, newconnection)
-                    newconnection.connection.firstOrError().map { newconnection }
+                    newconnection.connection.map { newconnection }.firstOrError()
                 }
             }
 
