@@ -192,6 +192,7 @@ class AdvertiserImpl @Inject constructor(
                             .setLegacyMode(false)
                             .setConnectable(true)
                             .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
+                            .setSecondaryPhy(BluetoothDevice.PHY_LE_2M)
                             .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                             .build()
                         val serviceDataBuilder = AdvertiseData.Builder()

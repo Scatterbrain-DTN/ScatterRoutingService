@@ -118,6 +118,7 @@ abstract class ScatterSerializable<T : MessageLite>(
     fun writeToStream(os: OutputStream, scheduler: Scheduler): Completable {
         return Completable.fromAction { writeToStreamBlocking(os) }
             .subscribeOn(scheduler)
+            .observeOn(scheduler)
 
     }
 
@@ -130,6 +131,7 @@ abstract class ScatterSerializable<T : MessageLite>(
     fun writeToStream(fragsize: Int, scheduler: Scheduler): Flowable<ByteArray> {
         return Bytes.from(ByteArrayInputStream(bytes), fragsize)
             .subscribeOn(scheduler)
+            .observeOn(scheduler)
 
     }
 
@@ -196,6 +198,7 @@ abstract class ScatterSerializable<T : MessageLite>(
                         T::class.java.getConstructor(V::class.java).newInstance(message)
                     }
                 .subscribeOn(scheduler)
+                .observeOn(scheduler)
 
         }
 
@@ -222,6 +225,7 @@ abstract class ScatterSerializable<T : MessageLite>(
                         T::class.java.getConstructor(V::class.java).newInstance(message)
                     }
                 .subscribeOn(scheduler)
+                .observeOn(scheduler)
 
         }
 

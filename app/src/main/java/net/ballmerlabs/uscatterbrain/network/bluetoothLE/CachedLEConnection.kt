@@ -112,7 +112,9 @@ class CachedLEConnection(
                             LOG.v("indication setup")
                             ScatterSerializable.parseWrapperFromCRC(
                                 parser,
-                                obs,
+                                obs
+                                    .doOnNext { b -> LOG.v("read bytes ${b.size}") }
+                                    .doOnComplete { LOG.v("notifications completed client") },
                                 scheduler
                             ).toObservable()
                                 .mergeWith(

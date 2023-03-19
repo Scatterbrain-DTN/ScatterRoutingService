@@ -73,6 +73,7 @@ interface GattServerConnection: Disposable {
 
     fun setOnDisconnect(func: (device: RxBleDevice) -> Unit)
 
+    fun getMtu(): Int
     fun setOnDisconnect(device: RxBleDevice, func: () -> Unit)
 
     open class Output<T> {

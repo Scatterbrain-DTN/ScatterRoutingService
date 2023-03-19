@@ -87,7 +87,7 @@ interface BluetoothLEModule {
     }
 
     companion object {
-        const val GATT_SIZE = 20
-        const val TIMEOUT = 20
+        const val GATT_SIZE = 19
+        const val TIMEOUT = 31
     }
 }

@@ -23,6 +23,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.floor
+import kotlin.math.max
 
 data class QueueItem(
     val packet: ScatterSerializable<out MessageLite>,
@@ -155,14 +157,15 @@ class CachedLEServerConnection(
         device: RxBleDevice
     ): Completable {
         return Single.fromCallable {
-            registerLuid(luid).poll(20, TimeUnit.SECONDS)
+            registerLuid(luid).poll(33, TimeUnit.SECONDS)
         }.subscribeOn(ioScheduler)
             .flatMapCompletable { packet ->
-                LOG.e("packet $luid ${packet.luid} ${packet.packet.type}")
+                val mtu = max(GATT_SIZE,(floor(connection.getMtu()*0.90) -3).toInt())
+                LOG.e("packet $luid ${packet.luid} ${packet.packet.type} with mtu $mtu")
                 connection.setupNotifications(
                     characteristic,
                     packet.packet.writeToStream(
-                        GATT_SIZE,
+                        mtu,
                         scheduler
                     ),
                     device
@@ -174,6 +177,8 @@ class CachedLEServerConnection(
                         }
                     }
             }
+            .doOnError{ err -> LOG.e("handleQueueItem error $err") }
+            .onErrorComplete()
     }
 
     init {

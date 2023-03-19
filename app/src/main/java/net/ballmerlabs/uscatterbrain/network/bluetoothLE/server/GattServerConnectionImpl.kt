@@ -26,6 +26,7 @@ import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.Flow
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
@@ -43,7 +44,7 @@ class GattServerConnectionImpl @Inject constructor(
 ) : GattServerConnection {
     private val Log by scatterLog()
     private val compositeDisposable = CompositeDisposable()
-
+    private val currentMtu = AtomicInteger(20)
     private var onDisconnect: (device: RxBleDevice) -> Unit = {}
 
     private val deviceOnDisconnect = mutableMapOf<RxBleDevice, () -> Unit>()
@@ -328,6 +329,8 @@ class GattServerConnectionImpl @Inject constructor(
 
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
             super.onMtuChanged(device, mtu)
+            Log.e("mtu changed: $mtu")
+            currentMtu.set(mtu)
             if (getChangedMtuOutput().valueRelay.hasObservers()) {
                 getChangedMtuOutput().valueRelay.onNext(mtu)
             }
@@ -447,6 +450,10 @@ class GattServerConnectionImpl @Inject constructor(
                 }
                 Single.never()
             })
+    }
+
+    override fun getMtu(): Int {
+        return currentMtu.get()
     }
 
     override fun resetDescriptorMap() {
