@@ -532,6 +532,7 @@ class GattServerConnectionImpl @Inject constructor(
                     setupNotificationsDelay(clientconfig, characteristic, isIndication)
                         .toFlowable()
                 }
+                .delay(0, TimeUnit.SECONDS, serverScheduler)
                 .concatMapSingle { bytes ->
                     Log.v("processing bytes length: " + bytes.size)
                     try {
@@ -573,26 +574,31 @@ class GattServerConnectionImpl @Inject constructor(
 
     override fun getOnMtuChanged(): Observable<Int> {
         return withDisconnectionHandling(getChangedMtuOutput())
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun observeDisconnect(): Observable<RxBleDevice> {
         return connectionStatePublishRelay
             .filter { pair -> pair.second == RxBleConnectionState.DISCONNECTED }
             .map { pair -> pair.first }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun observeConnect(): Observable<RxBleDevice> {
         return connectionStatePublishRelay
             .filter { pair -> pair.second == RxBleConnectionState.CONNECTED }
             .map { pair -> pair.first }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun getEvents(): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(events)
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun getOnNotification(): Observable<Int> {
         return notificationPublishRelay.valueRelay
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun disconnect(device: RxBleDevice): Completable {

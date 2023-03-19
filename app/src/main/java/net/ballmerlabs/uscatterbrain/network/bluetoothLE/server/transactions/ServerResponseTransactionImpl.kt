@@ -47,6 +47,6 @@ class ServerResponseTransactionImpl @Inject constructor(
             } catch (exc: SecurityException) {
                 throw exc
             }
-        }.subscribeOn(scheduler)
+        }
     }
 }

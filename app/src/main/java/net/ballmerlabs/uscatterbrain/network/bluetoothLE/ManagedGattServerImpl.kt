@@ -27,7 +27,6 @@ import javax.inject.Singleton
 
 @Singleton
 class ManagedGattServerImpl @Inject constructor(
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS) private val serverScheduler: Scheduler,
     private val newServer: GattServer,
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
     private val advertiser: Advertiser,
@@ -157,7 +156,6 @@ class ManagedGattServerImpl @Inject constructor(
          * they are handled here.
          */
         return newServer.openServer(config)
-            .subscribeOn(serverScheduler)
             .doOnSubscribe { LOG.v("gatt server subscribed") }
             .doOnError { e ->
                 LOG.e("failed to open server: $e")
@@ -168,7 +166,7 @@ class ManagedGattServerImpl @Inject constructor(
                     val s = CachedLEServerConnection(
                         connectionRaw,
                         state.channels,
-                        scheduler = serverScheduler,
+                        scheduler = operationsScheduler,
                         ioScheduler = operationsScheduler,
                         firebaseWrapper = firebase
                     )
