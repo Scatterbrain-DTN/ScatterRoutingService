@@ -166,7 +166,7 @@ class CachedLEServerConnection(
                     characteristic,
                     packet.packet.writeToStream(
                         mtu,
-                        scheduler
+                        ioScheduler
                     ),
                     device
                 ).subscribeOn(ioScheduler)

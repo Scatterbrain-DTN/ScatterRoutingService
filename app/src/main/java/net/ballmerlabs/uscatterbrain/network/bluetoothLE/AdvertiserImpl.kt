@@ -194,7 +194,7 @@ class AdvertiserImpl @Inject constructor(
                             .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                             .build()
                         val serviceDataBuilder = AdvertiseData.Builder()
-                            .setIncludeDeviceName(false)
+                            .setIncludeDeviceName(true)
                             .setIncludeTxPowerLevel(false)
                             .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
 
