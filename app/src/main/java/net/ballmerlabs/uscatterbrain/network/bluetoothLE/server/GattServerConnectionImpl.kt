@@ -573,26 +573,22 @@ class GattServerConnectionImpl @Inject constructor(
 
     override fun getOnMtuChanged(): Observable<Int> {
         return withDisconnectionHandling(getChangedMtuOutput())
-            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun observeDisconnect(): Observable<RxBleDevice> {
         return connectionStatePublishRelay
             .filter { pair -> pair.second == RxBleConnectionState.DISCONNECTED }
             .map { pair -> pair.first }
-            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun observeConnect(): Observable<RxBleDevice> {
         return connectionStatePublishRelay
             .filter { pair -> pair.second == RxBleConnectionState.CONNECTED }
             .map { pair -> pair.first }
-            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun getEvents(): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(events)
-            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun getOnNotification(): Observable<Int> {
