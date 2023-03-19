@@ -58,7 +58,7 @@ class CachedLEConnection(
             }
             .onErrorResumeNext(onDisconnect().toObservable())
             .doOnComplete { LOG.e("raw connection completed") }
-            .concatWith(Observable.error(IllegalStateException("server connection completed")))
+            .concatWith(Observable.error(IllegalStateException("client connection completed")))
             .subscribe(connection)
     }
 

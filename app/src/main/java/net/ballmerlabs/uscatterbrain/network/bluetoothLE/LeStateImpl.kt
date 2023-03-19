@@ -48,7 +48,6 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun transactionLockAccquire(luid: UUID?): Boolean {
-        updateActive(luid)
         return transactionLock.getAndAccumulate(luid) { c, n ->
             when (c) {
                 n -> n
@@ -106,6 +105,7 @@ class LeStateImpl @Inject constructor(
     ): Single<CachedLEConnection> {
         val connectSingle =
             Single.defer {
+                updateActive(luid)
                 LOG.e(
                     "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
                 )
