@@ -177,8 +177,6 @@ class LeStateImpl @Inject constructor(
     ): Single<ScatterbrainTransactionSubcomponent> {
         val connectSingle =
             Single.defer {
-                updateActive(luid)
-
                 val connection = connectionCache[luid]
                 if (connection != null) {
                     LOG.e("establishing cached connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
@@ -195,7 +193,7 @@ class LeStateImpl @Inject constructor(
                     val newconnection = factory.transaction(device)
                     newconnection.connection().subscribeConnection(rawConnection)
                     connectionCache.putIfAbsent(luid, newconnection)
-
+                  //  updateActive(luid)
                     newconnection.connection().setOnDisconnect {
                         LOG.e("client onDisconnect $luid")
                         updateDisconnected(luid)

@@ -42,14 +42,6 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
     private val LOG by scatterLog()
 
     private fun handle(context: Context, intent: Intent) {
-        if (!state.shouldScan) {
-            client.backgroundScanner.stopBackgroundBleScan(
-                ScanBroadcastReceiver.newPendingIntent(
-                    context
-                )
-            )
-            return
-        }
         val result = client.backgroundScanner.onScanResultReceived(intent)
         try {
             if (result.all { r -> leState.shouldConnect(r) }) {
@@ -60,10 +52,12 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                         .concatMapMaybe { r ->
                             val luid = leState.getAdvertisedLuid(r)
                             if (luid != null && leState.shouldConnect(r)) {
+                                leState.updateActive(luid)
                                 leState.processScanResult(luid, r.bleDevice)
                                     .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
                                     .doOnError { err ->
                                         err.printStackTrace()
+                                        leState.activeLuids.remove(luid)
                                         LOG.e("process scan result error $err")
                                     }
                             } else {
