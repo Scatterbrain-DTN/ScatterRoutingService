@@ -34,6 +34,7 @@ class IdentityPacket(packet: ScatterProto.Identity) :
         get() = packet.end
 
     private fun initHash(): ByteArray? {
+        val pubkey = pubkey ?: return null
         return if (isEnd) {
             null
         } else {
@@ -42,7 +43,7 @@ class IdentityPacket(packet: ScatterProto.Identity) :
                     fingeprint,
                     fingeprint.size,
                     pubkey,
-                    pubkey!!.size.toLong(),
+                    pubkey.size.toLong(),
                     null,
                     0
             )

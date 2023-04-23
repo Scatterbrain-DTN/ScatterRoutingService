@@ -8,5 +8,7 @@ interface ManagedGattServer {
     fun disconnect(device: RxBleDevice?)
     fun startServer(): Completable
     fun stopServer()
+
+    fun getServerSync(): CachedLEServerConnection?
     fun getServer(): Maybe<CachedLEServerConnection>
 }

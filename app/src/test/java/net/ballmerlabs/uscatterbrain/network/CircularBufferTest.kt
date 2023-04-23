@@ -47,7 +47,7 @@ class CircularBufferTest {
             complete.set(true)
         }
         try {
-            thread.join(100)
+            thread.join(1000)
             assert(!complete.get())
             assert(written.get())
         } catch (timeout: TimeoutException) {
@@ -106,8 +106,8 @@ class CircularBufferTest {
     fun readBeforeWriteWorks() {
         val written = AtomicBoolean(false)
         val started = AtomicBoolean(false)
-        val callback = InputStreamObserver(256)
-        val validate = Random.nextBytes(10)
+        val callback = InputStreamFlowableSubscriber(256)
+        val validate = Random.nextBytes(255)
         val thread = thread(start = true) {
             started.set(true)
             Thread.sleep(2000)
@@ -115,14 +115,20 @@ class CircularBufferTest {
             written.set(true)
         }
         try {
-            val bytes = ByteArray(10)
+            val bytes = ByteArray(255)
             assert(!written.get())
             callback.read(bytes)
             assert(started.get())
             thread.join(4000)
             assert(written.get())
+            val vs = org.bouncycastle.util.encoders.Hex.toHexString(validate)
+            val bs = org.bouncycastle.util.encoders.Hex.toHexString(bytes)
+            println(vs)
+            println(bs)
+            assert(bytes.contentEquals(validate))
         } catch (timeout: TimeoutException) {
-            assert(true)
+            timeout.printStackTrace()
+            assert(false)
         }
     }
 }

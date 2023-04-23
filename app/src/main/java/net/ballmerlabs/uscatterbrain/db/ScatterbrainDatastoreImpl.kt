@@ -303,6 +303,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     }
                 }
                 .toObservable()
+                .doOnError { err ->
+                    LOG.e("getTopRandomMessages error $err")
+                }
+                .onErrorReturnItem(BlockDataStream.endOfStream())
                 .concatWith(Single.just(BlockDataStream.endOfStream()))
         }
     }
@@ -661,7 +665,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override val declareHashesPacket: Single<DeclareHashesPacket>
         get() = mDatastore.scatterMessageDao().getTopHashes(
-            preferences.getInt(ctx.getString(R.string.pref_declarehashescap), 512)!!
+            preferences.getInt(ctx.getString(R.string.pref_declarehashescap), 128)!!
         )
             .subscribeOn(databaseScheduler)
             .doOnSuccess { p -> LOG.v("retrieved declareHashesPacket from datastore: " + p.size) }

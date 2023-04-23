@@ -14,32 +14,6 @@ interface BluetoothLEModule {
     fun stopDiscover()
 
     /**
-     * Returns a completable that completes when the current transaction is finished or emits an error
-     * on a fatal failure to complete the transaction
-     * @return Completable
-     */
-    fun awaitTransaction(): Completable
-
-    /**
-     * Returns an observable that emits a HandshakeResult for every completed transaction.
-     * onError should only be called if this transport module is unable to complete future
-     * transactions
-     *
-     * if this transport module is not actively discovering or advertising, the observable
-     * will not emit any values and no attempt at enabling disovery or advertisement will be made
-     * @return Observable emitting handshake results
-     */
-    fun observeCompletedTransactions(): Observable<HandshakeResult>
-
-    /**
-     * Returns an observable that emits a boolean, true if a transaction is in progress and false
-     * if it has ended (completed or failed)
-     *
-     * @return Observable
-     */
-    fun observeTransactionStatus(): Observable<Boolean>
-
-    /**
      * Clears the list of nearby peers, nearby devices currently in range will
      * be reconnected to if possible
      */
@@ -53,22 +27,11 @@ interface BluetoothLEModule {
     fun removeWifiDirectGroup(shouldRemove: Boolean): Completable
 
 
-
-    /**
-     * Handle an existing scan result
-     * @param scanResult scan result
-     * @return maybe for transaction
-     */
-    fun processScanResult(remoteUuid: UUID, bleDevice: RxBleDevice): Maybe<HandshakeResult>
-
     fun handleConnection(
-        clientConnection: CachedLEConnection,
-        device: RxBleDevice,
         luid: UUID
     ): Maybe<HandshakeResult>
 
     fun initiateOutgoingConnection(
-        cachedConnection: CachedLEConnection,
         luid: UUID
     ): Maybe<HandshakeResult>
 
@@ -87,7 +50,7 @@ interface BluetoothLEModule {
     }
 
     companion object {
-        const val GATT_SIZE = 20
-        const val TIMEOUT = 20
+        const val GATT_SIZE = 19
+        const val TIMEOUT = 200
     }
 }

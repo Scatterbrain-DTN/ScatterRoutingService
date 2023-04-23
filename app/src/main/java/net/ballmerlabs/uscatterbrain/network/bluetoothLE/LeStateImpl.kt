@@ -8,13 +8,19 @@ import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
+import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
+import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
+import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
+import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
@@ -26,14 +32,17 @@ class LeStateImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val clientScheduler: Scheduler,
     val factory: ScatterbrainTransactionFactory,
     private val advertiser: Advertiser,
-    private val server: Provider<ManagedGattServer>
+    private val server: Provider<ManagedGattServer>,
+    private val scheduler: Provider<ScatterbrainScheduler>
 ) : LeState {
     private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
+    private val transactionInProgress: AtomicInteger = AtomicInteger(0)
+    private val wifiLock: BehaviorSubject<Boolean> = BehaviorSubject.create()
 
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
-    override val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection> =
-        ConcurrentHashMap<UUID, CachedLEConnection>()
+    override val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> =
+        ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>()
     override val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
 
     // a "channel" is a characteristc that protobuf messages are written to.
@@ -41,21 +50,50 @@ class LeStateImpl @Inject constructor(
         ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>()
     private val LOG by scatterLog()
 
+    override fun awaitWifi(): Completable {
+        return wifiLock
+            .takeUntil { v -> !v }.ignoreElements().doOnComplete { wifiLock.onNext(true) }
+    }
+
+    override fun setWifi(lock: Boolean) {
+        wifiLock.onNext(lock)
+    }
 
     override fun transactionLockIsSelf(luid: UUID?): Boolean {
         val lock = transactionLock.get()
         return lock == luid || lock == null
     }
 
+
+    override fun startTransaction(): Int {
+        val t = transactionInProgress.incrementAndGet()
+       // scheduler.get().pauseScan()
+        return t
+    }
+
+    override fun stopTransaction(): Int {
+        val t = transactionInProgress.updateAndGet { v -> when(v) {
+            0 -> 0
+            else -> v-1
+        } }
+        if (t == 0) {
+            //scheduler.get().unpauseScan()
+        }
+        return t
+    }
+
     override fun transactionLockAccquire(luid: UUID?): Boolean {
-        updateActive(luid)
-        return transactionLock.getAndAccumulate(luid) { c, n ->
+        val lock = transactionLock.getAndAccumulate(luid) { c, n ->
             when (c) {
                 n -> n
                 null -> n
                 else -> c
             }
         } == null
+        if (lock) {
+          //  scheduler.get().pauseScan()
+        }
+        return lock
     }
 
     override fun transactionUnlock(luid: UUID): Boolean {
@@ -77,13 +115,20 @@ class LeStateImpl @Inject constructor(
         return updateActive(getAdvertisedLuid(scanResult))
     }
 
-    @Synchronized
     override fun updateDisconnected(luid: UUID) {
         LOG.e("updateDisconnected $luid")
-        activeLuids.remove(luid)
         val c = connectionCache.remove(luid)
         transactionLock.set(null)
-        c?.dispose()
+        c?.connection()?.dispose()
+        val device = c?.device()
+        if (device != null) {
+            server.get()?.getServerSync()?.disconnect(device)
+            server.get()?.getServerSync()?.unlockLuid(luid)
+        }
+    }
+
+    override fun updateGone(luid: UUID) {
+        activeLuids.remove(luid)
     }
 
     override fun shouldConnect(res: ScanResult): Boolean {
@@ -91,6 +136,32 @@ class LeStateImpl @Inject constructor(
         return advertisingLuid != null
                 && !activeLuids.containsKey(advertisingLuid)
     }
+
+    override fun processScanResult(
+        remoteUuid: UUID,
+        device: RxBleDevice
+    ): Maybe<HandshakeResult> {
+        return Maybe.defer {
+            establishConnectionCached(device, remoteUuid)
+                .flatMapMaybe { cached ->
+                    cached.connection().connection
+                        .firstOrError()
+                        .flatMapMaybe { raw ->
+                            LOG.v("attempting to read hello characteristic")
+                            raw.readCharacteristic(BluetoothLERadioModuleImpl.UUID_HELLO)
+                                .flatMapMaybe { luid ->
+                                    val luidUuid = BluetoothLERadioModuleImpl.bytes2uuid(luid)!!
+                                    LOG.v("read remote luid from GATT $luidUuid")
+                                    cached.bluetoothLeRadioModule().initiateOutgoingConnection(
+                                        luidUuid
+                                    ).onErrorComplete()
+                                }
+                                .onErrorComplete()
+                        }
+                }
+        }
+    }
+
 
     override fun getAdvertisedLuid(scanResult: ScanResult): UUID? {
         return when (scanResult.scanRecord.serviceData.keys.size) {
@@ -103,35 +174,45 @@ class LeStateImpl @Inject constructor(
     override fun establishConnectionCached(
         device: RxBleDevice,
         luid: UUID
-    ): Single<CachedLEConnection> {
+    ): Single<ScatterbrainTransactionSubcomponent> {
         val connectSingle =
-            Single.fromCallable {
-                LOG.e(
-                    "establishing cached connection to ${device.macAddress}, $luid, ${connectionCache.size} devices connected"
-                )
-                val newconnection = CachedLEConnection(channels, clientScheduler, device, advertiser)
+            Single.defer {
+                updateActive(luid)
+
                 val connection = connectionCache[luid]
                 if (connection != null) {
-                    connection
+                    LOG.e("establishing cached connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
+                    Single.just(connection)
                 } else {
-                    val rawConnection = device.establishConnection(false)
+                    LOG.e("establishing NEW connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
+                    val rawConnection = retryDelay(device.establishConnection(false), 5, 1)
+                        .subscribeOn(clientScheduler)
+                        .flatMapSingle { c -> c.requestMtu(512).ignoreElement().toSingleDefault(c) }
                         .doOnError { connectionCache.remove(luid) }
                         .doOnNext {
-                            LOG.d("established cached connection to ${device.macAddress}")
+                            LOG.d("now connected ${device.macAddress}")
                         }
+                    val newconnection = factory.transaction(device)
+                    newconnection.connection().subscribeConnection(rawConnection)
+                    connectionCache.putIfAbsent(luid, newconnection)
 
-                    newconnection.setOnDisconnect {
+                    newconnection.connection().setOnDisconnect {
                         LOG.e("client onDisconnect $luid")
                         updateDisconnected(luid)
                         if (connectionCache.isEmpty()) {
-                            advertiser.removeLuid()
+                           // LOG.e("connectionCache empty, removing luid")
+                           // advertiser.removeLuid()
+                            Completable.complete()
                         } else {
                             Completable.complete()
-                        }
+                        }.andThen(server.get().getServer().flatMapCompletable { s ->
+                            s.unlockLuid(luid)
+                            s.disconnect(device)
+                            Completable.complete()
+                        })
+
                     }
-                    newconnection.subscribeConnection(rawConnection)
-                    connectionCache.putIfAbsent(luid, newconnection)
-                    newconnection
+                    newconnection.connection().connection.map { newconnection }.firstOrError()
                 }
             }
 
@@ -140,37 +221,17 @@ class LeStateImpl @Inject constructor(
         )
             .andThen(connectSingle)
     }
-
-    fun retryRefresh(module: BluetoothLEModule, luid: UUID, device: RxBleDevice): Maybe<HandshakeResult> {
-        connectionCache.remove(luid)
-        val c = establishConnectionCached(device ,luid)
-        return c.flatMapMaybe { conn -> module.initiateOutgoingConnection(conn, luid) }
-    }
-
-    override fun refreshPeers(): Observable<HandshakeResult> {
-        LOG.v("refreshPeers called")
-        return refreshInProgresss
-            .firstOrError()
-            .flatMapObservable { b ->
-                if (!b) {
-                    val module = factory.transaction().bluetoothLeRadioModule()
-                    Observable.fromIterable(connectionCache.entries)
-                        .concatMapMaybe { v ->
-                            LOG.v("refreshing peer ${v.key}")
-                            module.initiateOutgoingConnection(v.value, v.key)
-                                .onErrorResumeNext(retryRefresh(module, v.key, v.value.device))
-                        }
-
-                } else {
-                    LOG.v("refresh already in progress, skipping")
-                    Observable.empty()
-                }
-            }
+    override fun refreshPeers(): Completable {
+        return Completable.fromAction {
+            LOG.v("refreshPeers called")
+            activeLuids.clear()
+        }
     }
 
 
     init {
         refreshInProgresss.accept(false)
+        wifiLock.onNext(false)
     }
 
 

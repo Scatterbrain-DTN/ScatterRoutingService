@@ -67,6 +67,27 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         context.sendBroadcast(intent, ScatterbrainApi.PERMISSION_ACCESS)
     }
 
+    override fun pauseScan() {
+        LOG.e("pausing scan")
+        client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
+    }
+
+    override fun unpauseScan() {
+        LOG.e("unpausing scan")
+        client.backgroundScanner.scanBleDeviceInBackground(
+            pendingIntent,
+            ScanSettings.Builder()
+                .setScanMode(SCAN_MODE_LOW_POWER)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .setShouldCheckLocationServicesState(true)
+                .setLegacy(false)
+                .build(),
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
+                .build()
+        )
+    }
+
     /*
     * we should always hold a wakelock directly after the adapter wakes up the device
     * when a scatterbrain uuid is detected. The adapter is responsible for waking up the device
@@ -89,6 +110,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             broadcastRouterState(RouterState.DISCOVERING)
             return
         }
+        client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
+        server.stopServer()
         state.shouldScan = true
         val disp = advertiser.startAdvertise()
             .andThen(server.startServer())
@@ -101,8 +124,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                     ScanSettings.Builder()
                         .setScanMode(SCAN_MODE_LOW_POWER)
                         .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .setShouldCheckLocationServicesState(false)
-                        .setLegacy(true)
+                        .setShouldCheckLocationServicesState(true)
+                        .setLegacy(false)
                         .build(),
                     ScanFilter.Builder()
                         .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))

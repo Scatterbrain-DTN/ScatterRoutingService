@@ -311,7 +311,6 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     override fun refreshPeers(): Completable {
         return leState.refreshPeers()
-            .ignoreElements()
             .timeout(
                 prefs.getLong(
                     context.getString(R.string.pref_transactiontimeout),

@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGatt
-import android.bluetooth.BluetoothGattService
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.Timeout
 import io.reactivex.Completable
@@ -27,9 +26,9 @@ import javax.inject.Singleton
 
 @Singleton
 class ManagedGattServerImpl @Inject constructor(
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CALLBACKS) private val serverScheduler: Scheduler,
     private val newServer: GattServer,
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
     private val advertiser: Advertiser,
     private val state: LeState,
     private val builder: ScatterbrainTransactionSubcomponent.Builder,
@@ -42,7 +41,8 @@ class ManagedGattServerImpl @Inject constructor(
 
 
     private fun helloRead(serverConnection: GattServerConnection): Completable {
-        return serverConnection.getOnCharacteristicReadRequest(BluetoothLERadioModuleImpl.UUID_HELLO)
+        return serverConnection.getEvents()
+            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO }
             .subscribeOn(operationsScheduler)
             .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
             .flatMapCompletable { trans ->
@@ -51,11 +51,14 @@ class ManagedGattServerImpl @Inject constructor(
                 trans.sendReply(
                     BluetoothLERadioModuleImpl.uuid2bytes(luid),
                     BluetoothGatt.GATT_SUCCESS
-                )
+                ).onErrorComplete()
             }
             .doOnError { err ->
                 LOG.e("error in hello characteristic read: $err")
             }.onErrorComplete()
+            .repeat()
+            .retry()
+
     }
 
     override fun disconnect(device: RxBleDevice?) {
@@ -70,41 +73,32 @@ class ManagedGattServerImpl @Inject constructor(
         s?.second?.dispose()
     }
 
-    private fun helloWrite(serverConnection: GattServerConnection): Observable<HandshakeResult> {
-        return serverConnection.getOnCharacteristicWriteRequest(BluetoothLERadioModuleImpl.UUID_HELLO)
+    private fun helloWrite(serverConnection: CachedLEServerConnection): Observable<HandshakeResult> {
+        return serverConnection.connection.getEvents()
+            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO }
             .subscribeOn(operationsScheduler)
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
-                if(state.transactionLockIsSelf(luid)) {
-                    serverConnection.setOnDisconnect(trans.remoteDevice) {
-                        LOG.e("server onDisconnect $luid")
-                        state.updateDisconnected(luid)
-                        if (state.connectionCache.isEmpty()) {
-                            advertiser.removeLuid().blockingAwait()
-                        }
-                    }
-                    LOG.e("server handling luid $luid")
-                    LOG.e("transaction NOT locked, continuing")
-                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                        .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
-                        .flatMapMaybe { connection ->
-                            val t = builder.build()!!.bluetoothLeRadioModule()
-                            t.handleConnection(
-                                connection,
-                                trans.remoteDevice,
-                                luid
-                            )
-                        }
-                        .doOnError { err ->
-                            LOG.e("error in handleConnection $err")
-                            firebase.recordException(err)
-                         //   state.updateDisconnected(luid)
-                        }
-                } else {
-                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
-                        .toMaybe()
+                serverConnection.connection.setOnDisconnect(trans.remoteDevice) {
+                    LOG.e("server onDisconnect $luid")
+                    state.updateDisconnected(luid)
+                    serverConnection.disconnect(trans.remoteDevice)
+                    serverConnection.unlockLuid(luid)
                 }
+                LOG.e("server handling luid $luid")
+                LOG.e("transaction NOT locked, continuing")
+                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                    .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
+                    .flatMapMaybe { connection ->
+                        connection.bluetoothLeRadioModule().handleConnection(luid)
+                    }
+                    .onErrorComplete()
+                    .doOnError { err ->
+                        LOG.e("error in handleConnection $err")
+                        firebase.recordException(err)
+                        //   state.updateDisconnected(luid)
+                    }
 
             }
             .onErrorReturnItem(
@@ -114,10 +108,16 @@ class ManagedGattServerImpl @Inject constructor(
                     HandshakeResult.TransactionStatus.STATUS_FAIL
                 )
             )
+            .repeat()
+            .retry()
             .doOnError { e ->
                 LOG.e("failed to read hello characteristic: $e")
             }
             .doOnNext { t -> LOG.v("transactionResult ${t.success}") }
+    }
+
+    override fun getServerSync(): CachedLEServerConnection? {
+        return server.get()?.first
     }
 
     /**
@@ -155,7 +155,6 @@ class ManagedGattServerImpl @Inject constructor(
          * they are handled here.
          */
         return newServer.openServer(config)
-            .subscribeOn(serverScheduler)
             .doOnSubscribe { LOG.v("gatt server subscribed") }
             .doOnError { e ->
                 LOG.e("failed to open server: $e")
@@ -166,12 +165,12 @@ class ManagedGattServerImpl @Inject constructor(
                     val s = CachedLEServerConnection(
                         connectionRaw,
                         state.channels,
-                        scheduler = serverScheduler,
+                        scheduler = operationsScheduler,
                         ioScheduler = operationsScheduler,
                         firebaseWrapper = firebase
                     )
 
-                    val write = helloWrite(connectionRaw)
+                    val write = helloWrite(s)
                     val read = helloRead(connectionRaw)
 
                     val disp = write.mergeWith(read)

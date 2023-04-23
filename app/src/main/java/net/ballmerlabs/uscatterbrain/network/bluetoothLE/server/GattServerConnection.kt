@@ -21,14 +21,6 @@ interface GattServerConnection: Disposable {
 
     val gattServerCallback: BluetoothGattServerCallback
 
-    fun getReadCharacteristicOutput(): Output<GattServerTransaction<UUID>>
-
-    fun getWriteCharacteristicOutput(): Output<GattServerTransaction<UUID>>
-
-    fun getReadDescriptorOutput(): Output<GattServerTransaction<BluetoothGattDescriptor>>
-
-    fun getWriteDescriptorOutput(): Output<GattServerTransaction<BluetoothGattDescriptor>>
-
     fun getNotificationPublishRelay(): Output<Int>
 
     fun getChangedMtuOutput(): Output<Int>
@@ -51,24 +43,6 @@ interface GattServerConnection: Disposable {
 
     fun initializeServer(config: ServerConfig): Completable
 
-    fun prepareDescriptorTransaction(
-            descriptor: BluetoothGattDescriptor,
-            requestID: Int,
-            offset: Int,
-            device: RxBleDevice,
-            valueRelay: PublishSubject<GattServerTransaction<BluetoothGattDescriptor>>,
-            value: ByteArray?
-    )
-
-    fun prepareCharacteristicTransaction(
-            descriptor: BluetoothGattCharacteristic,
-            requestID: Int,
-            offset: Int,
-            device: RxBleDevice,
-            valueRelay: PublishSubject<GattServerTransaction<UUID>>,
-            value: ByteArray?
-    )
-
     fun blindAck(
             requestID: Int,
             status: Int,
@@ -89,13 +63,7 @@ interface GattServerConnection: Disposable {
 
     fun getOnMtuChanged(): Observable<Int>
 
-    fun getOnCharacteristicReadRequest(characteristic: UUID): Observable<ServerResponseTransaction>
-
-    fun getOnDescriptorWriteRequest(characteristic: UUID, descriptor: UUID): Observable<ServerResponseTransaction>
-
-    fun getOnCharacteristicWriteRequest(characteristic: UUID): Observable<ServerResponseTransaction>
-
-    fun getOnDescriptorReadRequest(characteristic: UUID, descriptor: UUID): Observable<ServerResponseTransaction>
+    fun getEvents(): Observable<ServerResponseTransaction>
 
     fun disconnect(device: RxBleDevice): Completable
 
@@ -105,6 +73,7 @@ interface GattServerConnection: Disposable {
 
     fun setOnDisconnect(func: (device: RxBleDevice) -> Unit)
 
+    fun getMtu(): Int
     fun setOnDisconnect(device: RxBleDevice, func: () -> Unit)
 
     open class Output<T> {
@@ -123,6 +92,12 @@ interface GattServerConnection: Disposable {
             valueRelay.onComplete()
         }
 
+    }
+    enum class Operation {
+        CHARACTERISTIC_READ,
+        CHARACTERISTIC_WRITE,
+        DESCRIPTOR_READ,
+        DESCRIPTOR_WRITE
     }
 
     companion object {

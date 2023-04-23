@@ -2,14 +2,17 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.scan.ScanResult
+import io.reactivex.Completable
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 interface LeState {
-    val connectionCache: ConcurrentHashMap<UUID, CachedLEConnection>
+    val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>
     val activeLuids: ConcurrentHashMap<UUID, Boolean>
     // a "channel" is a characteristc that protobuf messages are written to.
     val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>
@@ -19,10 +22,18 @@ interface LeState {
     fun establishConnectionCached(
         device: RxBleDevice,
         luid: UUID
-    ): Single<CachedLEConnection>
+    ): Single<ScatterbrainTransactionSubcomponent>
 
     fun getAdvertisedLuid(scanResult: ScanResult): UUID?
 
+    fun updateGone(luid: UUID)
+    fun startTransaction(): Int
+
+    fun awaitWifi(): Completable
+
+    fun setWifi(lock: Boolean)
+
+    fun stopTransaction(): Int
     fun updateActive(uuid: UUID?): Boolean
 
     fun updateActive(scanResult: ScanResult): Boolean
@@ -31,7 +42,12 @@ interface LeState {
 
     fun transactionLockAccquire(luid: UUID?): Boolean
     fun transactionUnlock(luid: UUID): Boolean
-
+    /**
+     * Handle an existing scan result
+     * @param scanResult scan result
+     * @return maybe for transaction
+     */
+    fun processScanResult(remoteUuid: UUID, device: RxBleDevice): Maybe<HandshakeResult>
     fun updateDisconnected(luid: UUID)
 
     /**
@@ -41,5 +57,5 @@ interface LeState {
      * refresh is complete
      * @returns Observable emitting handshake results
      */
-    fun refreshPeers(): Observable<HandshakeResult>
+    fun refreshPeers(): Completable
 }

@@ -10,6 +10,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.Hash
 import com.goterl.lazysodium.interfaces.Sign
+import io.reactivex.Completable
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.getGlobalHash
@@ -48,12 +49,12 @@ class ProtocolUnitTest {
         onComplete: (packet: T) -> Unit
     ) {
         onComplete(input)
-        val buf = InputStreamFlowableSubscriber(blocksize*1024)
-        for (x in 1..blocksize) {
-            val obs = input.writeToStream(x, writeScheduler)
-            obs.subscribe(buf)
-        }
+        val buf = InputStreamFlowableSubscriber(blocksize*8888)
 
+            for (x in 1..blocksize) {
+                val obs = input.writeToStream(x, writeScheduler)
+                obs.subscribe(buf)
+            }
         for (x in 1..blocksize) {
             val packet = ScatterSerializable.parseWrapperFromCRC(
                 parser,
@@ -63,7 +64,7 @@ class ProtocolUnitTest {
             onComplete(packet)
         }
         val stream = ByteArrayOutputStream()
-        input.writeToStream(stream, scheduler).timeout(6, TimeUnit.SECONDS).blockingAwait()
+        input.writeToStream(stream,writeScheduler).timeout(6, TimeUnit.SECONDS).blockingAwait()
         val streamPacket = ScatterSerializable.parseWrapperFromCRC(
             parser,
             ByteArrayInputStream(stream.toByteArray()),

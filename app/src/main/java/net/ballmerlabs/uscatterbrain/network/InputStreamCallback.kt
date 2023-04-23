@@ -35,7 +35,6 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
         }
     }
 
-
     fun size(): Int {
         return buf.size()
     }

@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothDevice
 import android.util.Pair
+import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
@@ -38,7 +39,7 @@ typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionRe
  * @property remoteLuid local identifier of remote device
  */
 class LeDeviceSession(
-    val device: BluetoothDevice,
+    val device: RxBleDevice,
     luid: UUID,
     val client: CachedLEConnection,
     val server: CachedLEServerConnection,
