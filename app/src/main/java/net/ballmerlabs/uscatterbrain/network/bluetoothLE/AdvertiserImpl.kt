@@ -10,6 +10,7 @@ import android.content.Context
 import android.os.ParcelUuid
 import io.reactivex.Completable
 import io.reactivex.Scheduler
+import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
@@ -17,6 +18,7 @@ import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
@@ -28,10 +30,14 @@ class AdvertiserImpl @Inject constructor(
     val context: Context,
     private val manager: BluetoothManager,
     private val firebase: FirebaseWrapper,
-    @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION)
+    @Named(RoutingServiceComponent.NamedSchedulers.IO)
     private val scheduler: Scheduler,
     private val state: Provider<LeState>
 ) : Advertiser {
+
+    companion object {
+        const val LUID_REMOVE_MINUTES: Long = 10
+    }
 
     private val LOG by scatterLog()
     private val advertisingLock = AtomicReference(false)
@@ -41,6 +47,7 @@ class AdvertiserImpl @Inject constructor(
     // luid is a temporary unique identifier used for a single transaction.
     override val myLuid: AtomicReference<UUID> = AtomicReference(UUID.randomUUID())
     private val lastLuidRandomize = AtomicReference(Date())
+    private val luidRemoveTimer = AtomicReference<Disposable>()
 
 
     // map advertising state to rxjava2
@@ -72,14 +79,30 @@ class AdvertiserImpl @Inject constructor(
         }
     }
 
+    private fun setLuidRemove(time: Long, timeUnit: TimeUnit) {
+        val timer = Completable.timer(time, timeUnit, scheduler)
+            .andThen(Completable.defer {
+                removeLuid()
+            })
+            .subscribe(
+                { LOG.v("removed luid after delay") },
+                { err -> LOG.e("failed to remove luid $err") }
+            )
+        val old = luidRemoveTimer.getAndSet(timer)
+        old?.dispose()
+    }
+
     override fun setAdvertisingLuid(): Completable {
-        val currentLuid = getHashUuid(myLuid.get()) ?: UUID.randomUUID()
-        return setAdvertisingLuid(currentLuid)
-            .subscribeOn(scheduler)
+        return Completable.defer {
+            val currentLuid = getHashUuid(myLuid.get()) ?: UUID.randomUUID()
+            setAdvertisingLuid(currentLuid)
+                .subscribeOn(scheduler)
+        }
     }
 
     override fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
+            setLuidRemove(LUID_REMOVE_MINUTES, TimeUnit.MINUTES)
             isAdvertising
                 .firstOrError()
                 .flatMapCompletable { v ->
@@ -134,6 +157,7 @@ class AdvertiserImpl @Inject constructor(
                                             .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
                                             .build()
                                     )
+                                    myLuid.set(UUID.randomUUID())
                                 } catch (exc: SecurityException) {
                                     throw exc
                                 }
@@ -173,7 +197,6 @@ class AdvertiserImpl @Inject constructor(
                     Completable.complete()
                 }
             }
-
     }
 
     /**
@@ -200,9 +223,10 @@ class AdvertiserImpl @Inject constructor(
                             .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
 
                         val serviceData = if (luid != null) {
-                          serviceDataBuilder.addServiceData(ParcelUuid(luid), byteArrayOf(5)).build()
+                            serviceDataBuilder.addServiceData(ParcelUuid(luid), byteArrayOf(5))
+                                .build()
                         } else {
-                          serviceDataBuilder.build()
+                            serviceDataBuilder.build()
                         }
 
                         try {

@@ -44,6 +44,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
     private fun handle(context: Context, intent: Intent) {
         val result = client.backgroundScanner.onScanResultReceived(intent)
         try {
+            advertiser.randomizeLuidIfOld()
             if (result.all { r -> leState.shouldConnect(r) }) {
                 if (!state.connectLock.getAndSet(true)) {
                     // scatterbrainScheduler.pauseScan()

@@ -167,7 +167,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                     globalDisposable.getAndSet(null)?.dispose()
                     broadcastRouterState(RouterState.OFFLINE)
                 },
-                { err -> LOG.e("failed to stop advertise ") }
+                { err -> LOG.e("failed to stop advertise $err") }
             )
         }
         return lock
