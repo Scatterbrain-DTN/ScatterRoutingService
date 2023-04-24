@@ -74,7 +74,6 @@ class RoutingServiceBackendImpl @Inject constructor(
      *
      */
     @SuppressLint("PackageManagerGetSignatures")
-    @Synchronized
     @Throws(RemoteException::class)
     private fun verifyCallingSig(acl: ACL, callingPackageName: String): Completable {
         return Completable.fromAction {

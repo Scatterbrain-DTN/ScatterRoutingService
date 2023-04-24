@@ -103,15 +103,13 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             wakeLock.release()
     }
 
-    @Synchronized
     override fun start() {
         val discovering = discoveryLock.getAndSet(true)
         if (discovering) {
             broadcastRouterState(RouterState.DISCOVERING)
             return
         }
-        client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
-        server.stopServer()
+        unpauseScan()
         state.shouldScan = true
         val disp = advertiser.startAdvertise()
             .andThen(server.startServer())
@@ -119,18 +117,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             .subscribe(
             {
              LOG.v("started advertise")
-                client.backgroundScanner.scanBleDeviceInBackground(
-                    pendingIntent,
-                    ScanSettings.Builder()
-                        .setScanMode(SCAN_MODE_LOW_POWER)
-                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .setShouldCheckLocationServicesState(true)
-                        .setLegacy(false)
-                        .build(),
-                    ScanFilter.Builder()
-                        .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
-                        .build()
-                )
                 broadcastRouterState(RouterState.DISCOVERING)
                 isAdvertising = true
             },
@@ -146,7 +132,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     }
 
-    @Synchronized
     override fun stop(): Boolean {
         LOG.e("stop")
         val lock = discoveryLock.getAndSet(false)

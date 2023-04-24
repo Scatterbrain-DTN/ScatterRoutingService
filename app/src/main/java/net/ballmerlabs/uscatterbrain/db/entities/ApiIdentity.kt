@@ -78,7 +78,6 @@ open class ApiIdentity protected constructor(val builder: Builder) {
          * @param secretkey the secretkey
          * @return the boolean
          */
-        @Synchronized
         private fun signEd25519(secretkey: ByteArray): Boolean {
             if (secretkey.size != Sign.SECRETKEYBYTES) return false
             val messagebytes = sumBytes()

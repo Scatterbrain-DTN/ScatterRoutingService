@@ -14,7 +14,6 @@ class RoutingMetadataPacket(packet: RoutingMetadata):
         ScatterSerializable<RoutingMetadata>(packet) {
     private val metadataMap = HashMap<UUID, ByteArray>()
 
-    @Synchronized
     private fun addMap(`val`: Map<String, ByteString>) {
         metadataMap.clear()
         for ((key, value) in `val`) {
@@ -22,7 +21,6 @@ class RoutingMetadataPacket(packet: RoutingMetadata):
         }
     }
 
-    @get:Synchronized
     private val map: Map<String, ByteString>
         get() {
             val result: MutableMap<String, ByteString> = HashMap()

@@ -158,7 +158,7 @@ class LeStateImpl @Inject constructor(
                                 }
                                 .onErrorComplete()
                         }
-                }
+                }.subscribeOn(clientScheduler)
         }
     }
 
@@ -185,7 +185,7 @@ class LeStateImpl @Inject constructor(
                     LOG.e("establishing NEW connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
                     val rawConnection = retryDelay(device.establishConnection(false), 5, 1)
                         .subscribeOn(clientScheduler)
-                        .flatMapSingle { c -> c.requestMtu(512).ignoreElement().toSingleDefault(c) }
+                        .flatMapSingle { c -> c.requestMtu(128).ignoreElement().toSingleDefault(c) }
                         .doOnError { connectionCache.remove(luid) }
                         .doOnNext {
                             LOG.d("now connected ${device.macAddress}")

@@ -727,7 +727,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     res
                 }
                 else ->  v
-            }
+            }.subscribeOn(operationsScheduler)
         }
     }
 
@@ -759,7 +759,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     val clientResult = client(clientConnection)
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
-                    Single.zip(serverResult, clientResult) { s, c -> s.merge(c) }
+                    Single.zip(serverResult, clientResult) { s, c -> s.merge(c).subscribeOn(operationsScheduler) }
                 }
             }
             .flatMapSingle { s -> s.flatMap { s -> s } }
@@ -774,7 +774,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
             }
             .takeUntil { result -> result.stage == TransactionResult.STAGE_TERMINATE }
-            .flatMapMaybe { result ->
+            .concatMapMaybe { result ->
                 if (result.item != null) {
                     LOG.e("boostrapping wifip2p")
                     bootstrapWifiP2p(result.item)

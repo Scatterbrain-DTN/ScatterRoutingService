@@ -618,7 +618,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     Single.error(IllegalStateException("invalid role"))
                 }
             }
-        }
+        }.subscribeOn(operationsScheduler)
 
         return leState.awaitWifi().andThen(s).doFinally { leState.setWifi(false) }
     }
