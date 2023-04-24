@@ -273,59 +273,17 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int
     ): Single<WifiDirectInfo> {
         return Single.defer {
-            val subject = SingleSubject.create<WifiDirectInfo>()
-
-            val infoListener = WifiP2pManager.ConnectionInfoListener { info ->
-                subject.onSuccess(wifiDirectInfo(info))
-            }
-
-            val groupListener = WifiP2pManager.GroupInfoListener { group ->
-                LOG.v("groupInfo retrieved")
-                try {
-                if (group != null && !group.isGroupOwner && group.passphrase.equals(passphrase) &&
-                    group.networkName.equals(name)
-                ) {
-                    LOG.v("requesting connection info")
-                    mManager.requestConnectionInfo(channel, infoListener)
-                } else {
-                    val builder = infoComponentProvider.get()
-                    val fakeConfig = builder.fakeWifiP2pConfig(
-                        WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
-                            passphrase = passphrase,
-                            networkName = name,
-                            band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-                        )
-                    ).build()!!.fakeWifiP2pConfig()
-
-                    retryDelay(
-                        removeGroup().doOnSubscribe { LOG.v("removeGroup subscribed") }
-                            .doOnComplete { LOG.v("removeGroup completed") }
-                            .andThen(initiateConnection(fakeConfig.asConfig())),
-                        20,
-                        5
-                    )
-                        .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
-                        .subscribe(subject)
-
-                }
-                } catch (exc: Exception) {
-                    exc.printStackTrace()
-                    LOG.e("exception: $exc")
-                }
-            }
-            try {
-                mManager.requestGroupInfo(channel, groupListener)
-            } catch (exc: Exception) {
-                LOG.e("failed to requestGroupInfo: $exc")
-                firebaseWrapper.recordException(exc)
-                exc.printStackTrace()
-                subject.onError(exc)
-            } catch (exc: SecurityException) {
-                LOG.e("needs fine location permission")
-                firebaseWrapper.recordException(exc)
-                subject.onError(exc)
-            }
-            subject
+            val builder = infoComponentProvider.get()
+            val fakeConfig = builder.fakeWifiP2pConfig(
+                WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
+                    passphrase = passphrase,
+                    networkName = name,
+                    band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+                )
+            ).build()!!.fakeWifiP2pConfig()
+            //TODO: potentially remove group here?
+          removeGroup().andThen(initiateConnection(fakeConfig.asConfig())
+                .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") }))
 
         }.doOnError { err ->
             err.printStackTrace()
@@ -497,6 +455,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     private fun awaitConnection(timeout: Int): Single<WifiDirectInfo> {
         return mBroadcastReceiver.observeConnectionInfo()
+            .doOnNext { v -> LOG.v("awaiting wifidirect connection ${v.isGroupOwner()} ${v.groupOwnerAddress()}") }
             .takeUntil { info -> !info.isGroupOwner() && info.groupOwnerAddress() != null }
             .lastOrError()
             .timeout(timeout.toLong(), TimeUnit.SECONDS, operationsScheduler)

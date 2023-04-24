@@ -622,7 +622,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     firebase.recordException(err)
                     state.updateDisconnected(luid)
                 }
-        }
+        }.subscribeOn(operationsScheduler)
 
     }
 
@@ -705,7 +705,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         luid,
                                         device
                                     )
-                                }
+                                }.subscribeOn(operationsScheduler)
                                 .doFinally { sessionCounter.decrementAndGet()}
                         }.doFinally {
                             val t = state.stopTransaction()
