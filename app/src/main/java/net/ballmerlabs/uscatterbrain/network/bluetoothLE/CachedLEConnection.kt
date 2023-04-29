@@ -58,9 +58,8 @@ class CachedLEConnection @Inject constructor(
             .doOnError { err ->
                 LOG.e("raw connection error: $err")
             }
-            .onErrorResumeNext(onDisconnect().toObservable())
             .doOnComplete { LOG.e("raw connection completed") }
-            .concatWith(Observable.error(IllegalStateException("client connection completed")))
+            .onErrorResumeNext{ err: Throwable -> onDisconnect().andThen(Observable.error(err)) }
             .subscribe(connection)
     }
 

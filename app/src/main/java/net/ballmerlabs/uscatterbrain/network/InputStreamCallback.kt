@@ -84,7 +84,7 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
 
 
     override fun close() {
-        closed = true
+      //  closed = true
         blockingEmptyLock.release()
         disposable?.dispose()
     }

@@ -51,13 +51,10 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                         .distinct { v -> leState.getAdvertisedLuid(v) }
                         .concatMapMaybe { r ->
                             val luid = leState.getAdvertisedLuid(r)
-                            if (luid != null && leState.shouldConnect(r)) {
-                                leState.updateActive(luid)
+                            if (luid != null && leState.updateActive(luid)) {
                                 leState.processScanResult(luid, r.bleDevice)
                                     .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
                                     .doOnError { err ->
-                                        err.printStackTrace()
-                                        leState.activeLuids.remove(luid)
                                         LOG.e("process scan result error $err")
                                     }
                             } else {

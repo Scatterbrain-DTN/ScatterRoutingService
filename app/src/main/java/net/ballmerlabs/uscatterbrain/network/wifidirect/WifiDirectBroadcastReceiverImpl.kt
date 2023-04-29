@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.NetworkInfo
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pInfo
@@ -38,10 +39,6 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private val deviceListSubject = BehaviorSubject.create<WifiP2pDeviceList>().toSerialized()
     private val p2pStateSubject = BehaviorSubject.create<P2pState>().toSerialized()
     private val mListener = PeerListListener { value: WifiP2pDeviceList -> deviceListSubject.onNext(value) }
-    private val mConnectionInfoListener = ConnectionInfoListener { value ->
-        connectionSubject.onNext(value)
-        LOG.v("retrieved WifiP2pInfo: ${value.groupFormed} ${value.isGroupOwner}")
-    }
 
     private fun p2pStateChangedAction(intent: Intent) {
         LOG.v("WIFI_P2P_STATE_CHANGED_ACTION")
@@ -60,10 +57,15 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
         manager.requestPeers(channel, mListener)
     }
 
-    private fun connectionChangedAction() {
+    private fun connectionChangedAction(intent: Intent) {
         // Connection state changed!
         LOG.v("WIFI_P2P_CONNECTION_CHANGED_ACTION")
-        manager.requestConnectionInfo(channel, mConnectionInfoListener)
+        val info = intent.getParcelableExtra<WifiP2pInfo>(EXTRA_WIFI_P2P_INFO)
+        val network = intent.getParcelableExtra<NetworkInfo>(EXTRA_NETWORK_INFO)
+        LOG.v( "wifi connected? ${network?.isConnected}")
+        if (info != null) {
+            connectionSubject.onNext(info)
+        }
     }
 
     private fun thisDeviceChangedAction(intent: Intent) {
@@ -80,7 +82,7 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
         when(val action = intent.action) {
             WIFI_P2P_STATE_CHANGED_ACTION -> p2pStateChangedAction(intent)
             WIFI_P2P_PEERS_CHANGED_ACTION -> peersChangedAction(context)
-            WIFI_P2P_CONNECTION_CHANGED_ACTION -> connectionChangedAction()
+            WIFI_P2P_CONNECTION_CHANGED_ACTION -> connectionChangedAction(intent)
             WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> thisDeviceChangedAction(intent)
             else -> LOG.v("unhandled wifi p2p action $action")
         }

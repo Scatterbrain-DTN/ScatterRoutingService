@@ -13,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap
 
 interface LeState {
     val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>
-    val activeLuids: ConcurrentHashMap<UUID, Boolean>
     // a "channel" is a characteristc that protobuf messages are written to.
     val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>
 

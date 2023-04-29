@@ -532,6 +532,7 @@ class GattServerConnectionImpl @Inject constructor(
                     setupNotificationsDelay(clientconfig, characteristic, isIndication)
                         .toFlowable()
                 }
+                .delay(0, TimeUnit.SECONDS, callbackScheduler)
                 .concatMapSingle { bytes ->
                     Log.v("processing bytes length: " + bytes.size)
                     try {

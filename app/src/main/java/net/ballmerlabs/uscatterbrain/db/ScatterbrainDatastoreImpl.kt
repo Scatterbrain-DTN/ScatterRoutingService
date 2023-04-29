@@ -215,11 +215,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 }
                 .subscribeOn(databaseScheduler)
         }
+
+            .onErrorResumeNext { discardStream(stream) }
             .doOnError { err ->
                 LOG.e("error inserting messsage $err")
-                err.printStackTrace()
             }
-            .onErrorResumeNext { discardStream(stream) }
     }
 
     /**
@@ -256,11 +256,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         }.subscribeOn(databaseScheduler)
                 }
             }
+            .onErrorResumeNext { discardStream(stream) }
             .doOnError { err ->
                 LOG.e("error inserting messsage $err")
-                err.printStackTrace()
             }
-            .onErrorResumeNext { discardStream(stream) }
     }
 
     override fun readBody(body: ByteArray, blocksize: Int): Flowable<BlockSequencePacket> {

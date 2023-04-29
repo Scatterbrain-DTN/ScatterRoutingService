@@ -99,8 +99,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             LibsodiumInterface.sodium.randombytes_buf(pass, pass.size)
                             val base64pass = android.util.Base64.encodeToString(
                                 pass,
-                                android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE
+                                android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
                             )
+                            LOG.e("createGroup with band $band")
                             val fakeConfig = builder.fakeWifiP2pConfig(
                                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
                                     passphrase = base64pass,
@@ -114,7 +115,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                     }
                     .doOnError { err -> LOG.e("createGroup error: $err") }
-                    .takeUntil { wifiP2pInfo -> (wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner()) }
+                    .takeUntil { wifiP2pInfo ->
+                        wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner() && wifiP2pInfo.groupOwnerAddress() != null
+                    }
                     .ignoreElements()
                     .doOnComplete { LOG.v("createGroup return success") }
                     .andThen(subject)
@@ -185,7 +188,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 passphrase = groupInfo.passphrase,
                                 name = groupInfo.networkName,
                                 role = ConnectionRole.ROLE_UKE,
-                                band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+                                band = band
                             )
                         ).build()!!.wifiBootstrapRequest()
                 }
@@ -244,7 +247,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
                 .andThen(mBroadcastReceiver.observeConnectionInfo()
                     .doOnError { err -> LOG.e("removeGroup error: $err") }
-                    .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed() }
+                    .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed() and !wifiP2pInfo.isGroupOwner() }
                     .ignoreElements()
                     .doOnComplete { LOG.v("removeGroup return success") }
                 )
@@ -536,7 +539,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         }
                                         .flatMap { v -> ackBarrier(socket).toSingleDefault(v) }
                                 }
-                        }
+                        }.subscribeOn(operationsScheduler)
                 }
 
                 upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
@@ -552,7 +555,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     )
                         .flatMap { info ->
                             LOG.v("establishing outgoing socket")
-                            socketProvider.getSocket(info.groupOwnerAddress()!!, SCATTERBRAIN_PORT)
+                            retryDelay(socketProvider.getSocket(info.groupOwnerAddress()!!, SCATTERBRAIN_PORT), 5, 1)
                                 .flatMap { socket ->
                                     LOG.v("socket established, connected to server")
                                     routingMetadataSeme(
@@ -611,6 +614,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                         .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
                         .doOnSubscribe { LOG.v("subscribed to writeBlockData") }
+                        .subscribeOn(operationsScheduler)
 
                 }
 
@@ -618,9 +622,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     Single.error(IllegalStateException("invalid role"))
                 }
             }
-        }.subscribeOn(operationsScheduler)
+        }
 
-        return leState.awaitWifi().andThen(s).doFinally { leState.setWifi(false) }
+        return leState.awaitWifi().andThen(s.doFinally { leState.setWifi(false) })
     }
 
     /*

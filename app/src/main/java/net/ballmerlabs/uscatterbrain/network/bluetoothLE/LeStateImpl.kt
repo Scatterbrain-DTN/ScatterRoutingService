@@ -43,7 +43,7 @@ class LeStateImpl @Inject constructor(
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
     override val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> =
         ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>()
-    override val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
+    private val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
 
     // a "channel" is a characteristc that protobuf messages are written to.
     override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic> =
@@ -119,12 +119,12 @@ class LeStateImpl @Inject constructor(
         LOG.e("updateDisconnected $luid")
         val c = connectionCache.remove(luid)
         transactionLock.set(null)
-        c?.connection()?.dispose()
         val device = c?.device()
         if (device != null) {
             server.get()?.getServerSync()?.disconnect(device)
             server.get()?.getServerSync()?.unlockLuid(luid)
         }
+        c?.connection()?.dispose()
     }
 
     override fun updateGone(luid: UUID) {
@@ -184,9 +184,8 @@ class LeStateImpl @Inject constructor(
                 } else {
                     LOG.e("establishing NEW connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
                     val rawConnection = retryDelay(device.establishConnection(false), 5, 1)
-                        .subscribeOn(clientScheduler)
-                        .flatMapSingle { c -> c.requestMtu(128).ignoreElement().toSingleDefault(c) }
-                        .doOnError { connectionCache.remove(luid) }
+             //           .flatMapSingle { c -> c.requestMtu(128).ignoreElement().toSingleDefault(c) }
+                        .doFinally { connectionCache.remove(luid) }
                         .doOnNext {
                             LOG.d("now connected ${device.macAddress}")
                         }
@@ -214,9 +213,7 @@ class LeStateImpl @Inject constructor(
                 }
             }
 
-        return advertiser.setAdvertisingLuid(
-            getHashUuid(advertiser.myLuid.get()) ?: UUID.randomUUID()
-        )
+        return advertiser.setAdvertisingLuid()
             .andThen(connectSingle)
     }
     override fun refreshPeers(): Completable {

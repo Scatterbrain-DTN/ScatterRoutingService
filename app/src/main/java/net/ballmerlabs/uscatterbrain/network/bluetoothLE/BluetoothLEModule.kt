@@ -14,12 +14,6 @@ interface BluetoothLEModule {
     fun stopDiscover()
 
     /**
-     * Clears the list of nearby peers, nearby devices currently in range will
-     * be reconnected to if possible
-     */
-    fun clearPeers()
-
-    /**
      * Removes the current wifi direct group if it exists
      * @param shouldRemove do nothing if false (what?)
      * @return completable
@@ -51,6 +45,6 @@ interface BluetoothLEModule {
 
     companion object {
         const val GATT_SIZE = 19
-        const val TIMEOUT = 200
+        const val TIMEOUT = 150
     }
 }

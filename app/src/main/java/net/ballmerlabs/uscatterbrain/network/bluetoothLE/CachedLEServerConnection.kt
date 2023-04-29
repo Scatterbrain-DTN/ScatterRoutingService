@@ -123,10 +123,7 @@ class CachedLEServerConnection(
                                         }
                                     }
                             }
-                            .doOnError { err ->
-                                LOG.e("server notification error for $luid $err")
-                            }
-                            .doOnComplete { LOG.e("server notification completed, this is a problem") },
+                            .doOnError { err -> LOG.e("server notification error for $luid $err") },
                         device
                     )
                         .subscribeOn(ioScheduler)

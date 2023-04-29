@@ -95,8 +95,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val broadcastReceiverState: BroadcastReceiverState,
     private val wifiManager: WifiManager,
     private val connection: CachedLEConnection,
-    private val device: RxBleDevice,
-    private val sbScheduler: Provider<ScatterbrainScheduler>
+    private val device: RxBleDevice
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
 
@@ -161,10 +160,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("scan mode lower power")
                 ScanSettings.SCAN_MODE_LOW_POWER
             }
+
             mContext.getString(R.string.powersave_opportunistic) -> {
                 LOG.e("scan mode opportunistic")
                 ScanSettings.SCAN_MODE_OPPORTUNISTIC
             }
+
             else -> {
                 -1 //scan disabled
             }
@@ -239,7 +240,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 session.luidStage.verifyPackets()
                                     .doOnComplete {
                                         LOG.v("successfully verified luid packet")
-                                        session.luidMap[session.device.macAddress] = luidPacket.luidVal
+                                        session.luidMap[session.device.macAddress] =
+                                            luidPacket.luidVal
                                     } //TODO: stop this
                             }
                             .toSingleDefault(
@@ -261,7 +263,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     TransactionResult.STAGE_ADVERTISE,
                     { serverConn ->
                         LOG.v("gatt server advertise stage")
-                        serverConn.serverNotify(AdvertiseStage.self, session.remoteLuid, session.device)
+                        serverConn.serverNotify(
+                            AdvertiseStage.self,
+                            session.remoteLuid,
+                            session.device
+                        )
                             .toSingleDefault(TransactionResult.empty())
                     },
                     { conn ->
@@ -317,7 +323,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     val packet = session.votingStage.getSelf(false, provides)
                                     packet.tagLuid(luidPacket.luidVal)
                                     session.votingStage.addPacket(packet)
-                                    serverConn.serverNotify(packet, session.remoteLuid, session.device)
+                                    serverConn.serverNotify(
+                                        packet,
+                                        session.remoteLuid,
+                                        session.device
+                                    )
                                         .doFinally {
                                             session.votingStage.serverPackets.onComplete()
                                         }
@@ -354,6 +364,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             TransactionResult.STAGE_SUSPEND
                                         )
                                     }
+
                                     AdvertisePacket.Provides.BLE -> {
                                         LOG.e("fallback: bootstrap BLE")
                                         //we should do everything in BLE. slowwwww ;(
@@ -361,6 +372,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             TransactionResult.STAGE_IDENTITY
                                         )
                                     }
+
                                     AdvertisePacket.Provides.WIFIP2P ->
                                         TransactionResult.of(
                                             TransactionResult.STAGE_UPGRADE
@@ -391,7 +403,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     if (upgradeStage != null) {
                                         val upgradePacket =
                                             bootstrap.toUpgrade(upgradeStage.sessionID)
-                                        serverConn.serverNotify(upgradePacket, session.remoteLuid, session.device)
+                                        serverConn.serverNotify(
+                                            upgradePacket,
+                                            session.remoteLuid,
+                                            session.device
+                                        )
                                             .toSingleDefault(
                                                 TransactionResult.of(
                                                     bootstrap,
@@ -427,9 +443,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 TransactionResult.STAGE_TERMINATE,
                                             )
                                         }
+
                                         AdvertisePacket.Provides.BLE -> TransactionResult.of(
                                             TransactionResult.STAGE_IDENTITY
                                         )
+
                                         else -> TransactionResult.err(
                                             IllegalStateException("invalid provides ${upgradePacket.provides}")
                                         )
@@ -525,7 +543,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             session.device
                                         )
                                             .andThen(message.sequencePackets.concatMapCompletable { packet ->
-                                                serverConn.serverNotify(packet, session.remoteLuid, session.device)
+                                                serverConn.serverNotify(
+                                                    packet,
+                                                    session.remoteLuid,
+                                                    session.device
+                                                )
                                             })
                                     }
                             }.toSingleDefault(TransactionResult.empty())
@@ -551,7 +573,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 end
                             }
                             .concatMapSingle { m ->
-                                datastore.insertMessage(m).andThen(m.await()).toSingleDefault(0)
+                                datastore.insertMessage(m).andThen(m.await())
+                                    .toSingleDefault(0)
                             }
                             .reduce { a, b -> a + b }
                             .toSingle(0)
@@ -583,47 +606,35 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }
     }
 
-    override fun clearPeers() {
-        LOG.e("clearPeers")
-        state.connectionCache.values.forEach { c ->
-            c.connection().dispose()
-        }
-        state.activeLuids.clear()
-        state.connectionCache.clear()
-    }
-
 
     override fun initiateOutgoingConnection(
         luid: UUID
     ): Maybe<HandshakeResult> {
-        return Maybe.defer {
-            connection.connection
-                .firstOrError()
-                .flatMapMaybe { serverConnection ->
-                    LOG.e("initiateOutgoingConnection luid $luid")
-                    val hash = getHashUuid(advertiser.myLuid.get())!!
-                    LOG.v("writing hashed luid $hash")
-                    serverConnection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
-                        .doOnSuccess { res ->
-                            LOG.v("successfully wrote uuid len ${res.size}")
-                        }
-                        .doOnError { e ->
-                            firebase.recordException(e)
-                            LOG.e("failed to write characteristic: $e")
-                        }
-                        .ignoreElement()
-                        .andThen(
-                            handleConnection(luid)
-                        )
-                        .onErrorComplete()
-                }
-                .doOnError { err ->
-                    LOG.v("error in initiateOutgoingConnection $err")
-                    firebase.recordException(err)
-                    state.updateDisconnected(luid)
-                }
-        }.subscribeOn(operationsScheduler)
-
+        return connection.connection
+            .firstOrError()
+            .flatMapMaybe { serverConnection ->
+                LOG.e("initiateOutgoingConnection luid $luid")
+                val hash = getHashUuid(advertiser.myLuid.get())!!
+                LOG.v("writing hashed luid $hash")
+                serverConnection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
+                    .doOnSuccess { res ->
+                        LOG.v("successfully wrote uuid len ${res.size}")
+                    }
+                    .doOnError { e ->
+                        firebase.recordException(e)
+                        LOG.e("failed to write characteristic: $e")
+                    }
+                    .ignoreElement()
+                    .andThen(
+                        handleConnection(luid)
+                    )
+                    .onErrorComplete()
+            }
+            .doOnError { err ->
+                LOG.v("error in initiateOutgoingConnection $err")
+                firebase.recordException(err)
+                state.updateDisconnected(luid)
+            }
     }
 
     /**
@@ -677,12 +688,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID
     ): Maybe<HandshakeResult> {
         return ongoingTransaction.updateAndGet { v ->
-            when(v) {
+            when (v) {
                 null -> {
                     val res = MaybeSubject.create<HandshakeResult>()
                     val obs = managedGattServer.getServer()
                         .toSingle()
-                        .flatMapMaybe { serverConnection->
+                        .flatMapMaybe { serverConnection ->
                             val t = state.startTransaction()
                             LOG.v("successfully connected to $luid, transactions: $t")
                             val s = LeDeviceSession(
@@ -705,8 +716,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         luid,
                                         device
                                     )
-                                }.subscribeOn(operationsScheduler)
-                                .doFinally { sessionCounter.decrementAndGet()}
+                                }
+                                .doFinally { sessionCounter.decrementAndGet() }
                         }.doFinally {
                             val t = state.stopTransaction()
                             LOG.v("transaction completed, $t remaining")
@@ -726,8 +737,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     obs.subscribe(res)
                     res
                 }
-                else ->  v
-            }.subscribeOn(operationsScheduler)
+
+                else -> v
+            }
         }
     }
 
@@ -759,10 +771,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     val clientResult = client(clientConnection)
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
-                    Single.zip(serverResult, clientResult) { s, c -> s.merge(c).subscribeOn(operationsScheduler) }
-                }
+                    Single.zip(serverResult, clientResult) { s, c ->
+                        s.merge(c).subscribeOn(operationsScheduler)
+                    }
+                }.flatMap { s ->
+                    s.flatMap{ s -> s }.subscribeOn(operationsScheduler)
+                }.subscribeOn(operationsScheduler)
             }
-            .flatMapSingle { s -> s.flatMap { s -> s } }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
             .doOnNext { transactionResult ->
                 if (session.stage == TransactionResult.STAGE_SUSPEND) {
@@ -776,7 +791,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .takeUntil { result -> result.stage == TransactionResult.STAGE_TERMINATE }
             .concatMapMaybe { result ->
                 if (result.item != null) {
-                    LOG.e("boostrapping wifip2p")
+                    LOG.e("bootstrapping wifip2p")
                     bootstrapWifiP2p(result.item)
                         .doFinally { session.unlock() }
                         .toMaybe()
@@ -804,7 +819,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
-                state.updateDisconnected(luid)
+                // state.updateDisconnected(luid)
                 broadcastReceiverState.dispose()
             }
     }
@@ -820,7 +835,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return Single.defer {
             LOG.e("ack barrier: ${transactionResult.stage} ${transactionResult.isError} ${transactionResult.err?.message}")
             val send =
-                sendAck(serverConnection, !transactionResult.isError, luid, device, transactionResult.err)
+                sendAck(
+                    serverConnection,
+                    !transactionResult.isError,
+                    luid,
+                    device,
+                    transactionResult.err
+                )
                     .onErrorComplete()
             val await = awaitAck(clientConnection)
 

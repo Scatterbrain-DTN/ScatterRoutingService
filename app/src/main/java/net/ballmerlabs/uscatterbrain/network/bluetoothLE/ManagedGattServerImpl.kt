@@ -42,7 +42,7 @@ class ManagedGattServerImpl @Inject constructor(
 
     private fun helloRead(serverConnection: GattServerConnection): Completable {
         return serverConnection.getEvents()
-            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO }
+            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO && p.operation == GattServerConnection.Operation.CHARACTERISTIC_READ}
             .subscribeOn(operationsScheduler)
             .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
             .flatMapCompletable { trans ->
@@ -75,11 +75,12 @@ class ManagedGattServerImpl @Inject constructor(
 
     private fun helloWrite(serverConnection: CachedLEServerConnection): Observable<HandshakeResult> {
         return serverConnection.connection.getEvents()
-            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO }
+            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO && p.operation == GattServerConnection.Operation.CHARACTERISTIC_WRITE }
             .subscribeOn(operationsScheduler)
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
+                state.updateActive(luid)
                 serverConnection.connection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
                     state.updateDisconnected(luid)

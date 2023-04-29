@@ -87,7 +87,7 @@ class AdvertiserImpl @Inject constructor(
                         awaitAdvertiseDataUpdate()
                             .mergeWith(Completable.fromAction {
                                 try {
-                                    v.first.item?.setAdvertisingData(
+                                    v.first.item!!.setAdvertisingData(
                                         AdvertiseData.Builder()
                                             .setIncludeDeviceName(true)
                                             .setIncludeTxPowerLevel(false)
@@ -143,7 +143,7 @@ class AdvertiserImpl @Inject constructor(
                     }
                 }
         }
-            .doOnComplete { LOG.v("successfully removed luid: remaining luids: ${state.get().activeLuids.size}") }
+            .doOnComplete { LOG.v("successfully removed luid") }
     }
 
     /**

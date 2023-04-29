@@ -144,11 +144,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                     leState.connectionCache.forEach { c ->
                         leState.updateDisconnected(c.key)
                     }
-                    leState.activeLuids.forEach { c ->
-                        leState.updateDisconnected(c.key)
-                    }
                     leState.connectionCache.clear()
-                    leState.activeLuids.clear()
                     globalDisposable.getAndSet(null)?.dispose()
                     broadcastRouterState(RouterState.OFFLINE)
                 },

@@ -38,7 +38,7 @@ class FakeWifiP2pConfigImpl @Inject constructor(
         @Named(WifiDirectInfoSubcomponent.BAND) var suggestedband: Int
 ) : FakeWifiP2pConfig {
 
-   var groupOwnerBand: Int = GROUP_OWNER_BAND_2GHZ
+   var groupOwnerBand: Int = suggestedband
 
     var netId: Int = NETWORK_ID_PERSISTENT
     var groupownerIntent: Int = GROUP_OWNER_INTENT_AUTO
