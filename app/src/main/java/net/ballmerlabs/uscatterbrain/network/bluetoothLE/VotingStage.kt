@@ -4,6 +4,7 @@ import com.goterl.lazysodium.interfaces.GenericHash
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket
@@ -11,6 +12,7 @@ import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
 import java.util.*
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * the voting stage handles the logic for the leader election algorithm which determines
@@ -23,15 +25,17 @@ class VotingStage : LeDeviceSession.Stage {
     private val hashedPackets = ArrayList<ElectLeaderPacket>()
     private val unhashedPackets = ArrayList<ElectLeaderPacket>()
     private var tiebreaker = UUID.randomUUID()
+    val stale = AtomicBoolean()
+    private val completeObs = BehaviorSubject.create<Boolean>()
     fun getSelf(hashed: Boolean, provides: AdvertisePacket.Provides): ElectLeaderPacket {
         val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder()
         if (hashed) {
             builder.enableHashing()
         }
         return builder
-                .setProvides(provides)
-                .setTiebreaker(tiebreaker)
-                .build()
+            .setProvides(provides)
+            .setTiebreaker(tiebreaker)
+            .build()
     }
 
     override fun reset() {
@@ -50,6 +54,7 @@ class VotingStage : LeDeviceSession.Stage {
         } else {
             unhashedPackets.add(packet)
         }
+        completeObs.onNext(hashedPackets.size == unhashedPackets.size)
     }
 
     /**
@@ -65,6 +70,7 @@ class VotingStage : LeDeviceSession.Stage {
      * or by executing a downgrade attack by forcing devices into a less secure transport
      */
     private fun selectLeader(): ElectLeaderPacket {
+        stale.set(true)
         var `val` = BigInteger.ONE
         for (packet in unhashedPackets) {
             val newval = BigInteger(ElectLeaderPacket.uuidToBytes(packet.tieBreak))
@@ -72,12 +78,12 @@ class VotingStage : LeDeviceSession.Stage {
         }
         val hash = ByteArray(GenericHash.BYTES)
         LibsodiumInterface.sodium.crypto_generichash(
-                hash,
-                hash.size,
-                `val`.toByteArray(),
-                `val`.toByteArray().size.toLong(),
-                null,
-                0
+            hash,
+            hash.size,
+            `val`.toByteArray(),
+            `val`.toByteArray().size.toLong(),
+            null,
+            0
         )
         var compare = BigInteger(hash)
         var ret: ElectLeaderPacket? = null
@@ -128,22 +134,23 @@ class VotingStage : LeDeviceSession.Stage {
      * @return completable
      */
     fun verifyPackets(): Completable {
-        return Completable.defer {
-            if (hashedPackets.size != unhashedPackets.size) {
-                Completable.error(IllegalStateException("size conflict hashed: ${hashedPackets.size} unhashed: ${unhashedPackets.size}"))
-            } else Observable.zip(
-                Observable.fromIterable(hashedPackets),
-                Observable.fromIterable(unhashedPackets)
-            ) { obj, packet -> obj.verifyHash(packet) }
-                .flatMap { bool ->
-                    if (!bool) {
-                        Observable.error(java.lang.IllegalStateException("failed to verify hash"))
-                    } else {
-                        Observable.just(true)
+        return completeObs.takeWhile { p -> !p }.ignoreElements().andThen(
+            Completable.defer {
+                if (hashedPackets.size != unhashedPackets.size) {
+                    Completable.error(IllegalStateException("size conflict hashed: ${hashedPackets.size} unhashed: ${unhashedPackets.size}"))
+                } else Observable.zip(
+                    Observable.fromIterable(hashedPackets),
+                    Observable.fromIterable(unhashedPackets)
+                ) { obj, packet -> obj.verifyHash(packet) }
+                    .flatMap { bool ->
+                        if (!bool) {
+                            Observable.error(java.lang.IllegalStateException("failed to verify hash"))
+                        } else {
+                            Observable.just(true)
+                        }
                     }
-                }
-                .ignoreElements()
-        }
+                    .ignoreElements()
+            })
     }
 
     /**

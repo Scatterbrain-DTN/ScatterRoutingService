@@ -624,7 +624,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
         }
 
-        return leState.awaitWifi().andThen(s.doFinally { leState.setWifi(false) })
+        return s
     }
 
     /*

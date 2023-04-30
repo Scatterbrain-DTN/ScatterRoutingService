@@ -14,8 +14,10 @@ import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
 
-class ServerSocketSingle(private val socket: ServerSocket): Single<ServerSocketSingle.SocketConnection>(){
+class ServerSocketSingle(private val socket: ServerSocket) :
+    Single<ServerSocketSingle.SocketConnection>() {
     private val LOG by scatterLog()
+
     class SocketConnection(val socket: Socket)
 
     /**
@@ -28,7 +30,7 @@ class ServerSocketSingle(private val socket: ServerSocket): Single<ServerSocketS
             val sock = socket.accept()
             SocketConnection(socket = sock)
         }
-                .doOnError { err -> LOG.e("error on socket accept: $err") }
+            .doOnError { err -> LOG.e("error on socket accept: $err") }
     }
 
     override fun subscribeActual(observer: SingleObserver<in SocketConnection>) {
@@ -42,24 +44,24 @@ class ServerSocketSingle(private val socket: ServerSocket): Single<ServerSocketS
  */
 @Singleton
 class ServerSocketManagerImpl @Inject constructor(
-        private val firebaseWrapper: FirebaseWrapper,
-        @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler
-        ) : ServerSocketManager {
+    private val firebaseWrapper: FirebaseWrapper,
+    @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler
+) : ServerSocketManager {
     private val LOG by scatterLog()
     private val serverSocket = retryDelay(
-            Single.fromCallable {
-                ServerSocket(SCATTERBRAIN_PORT)
-            }.cache(),
-            1
+        Single.fromCallable {
+            ServerSocket(SCATTERBRAIN_PORT)
+        }.subscribeOn(operationsScheduler).cache(),
+        1
     ).doOnError { err -> firebaseWrapper.recordException(err) }
 
     override fun getServerSocket(): Single<Socket> {
         LOG.v("called getServerSocket")
         return serverSocket.flatMap { socket ->
             ServerSocketSingle(socket)
-                    .subscribeOn(operationsScheduler)
-                    .map { conn -> conn.socket }
-                    .doOnSuccess { LOG.v("accepted server socket") }
+                .subscribeOn(operationsScheduler)
+                .map { conn -> conn.socket }
+                .doOnSuccess { LOG.v("accepted server socket") }
         }
     }
 }

@@ -23,14 +23,11 @@ interface LeState {
         luid: UUID
     ): Single<ScatterbrainTransactionSubcomponent>
 
+    fun getVotingState(): Single<VotingStage>
     fun getAdvertisedLuid(scanResult: ScanResult): UUID?
 
     fun updateGone(luid: UUID)
     fun startTransaction(): Int
-
-    fun awaitWifi(): Completable
-
-    fun setWifi(lock: Boolean)
 
     fun stopTransaction(): Int
     fun updateActive(uuid: UUID?): Boolean

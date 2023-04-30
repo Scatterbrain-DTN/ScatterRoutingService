@@ -37,7 +37,7 @@ class LeStateImpl @Inject constructor(
 ) : LeState {
     private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
     private val transactionInProgress: AtomicInteger = AtomicInteger(0)
-    private val wifiLock: BehaviorSubject<Boolean> = BehaviorSubject.create()
+    private val votingUpdate = BehaviorSubject.create<AtomicReference<VotingStage>>()
 
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
@@ -45,20 +45,14 @@ class LeStateImpl @Inject constructor(
         ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>()
     private val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
 
-    // a "channel" is a characteristc that protobuf messages are written to.
+    // a "channel" is a characteristic that protobuf messages are written to.
     override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic> =
         ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>()
     private val LOG by scatterLog()
 
-    override fun awaitWifi(): Completable {
-        return wifiLock
-            .takeUntil { v -> !v }.ignoreElements().doOnComplete { wifiLock.onNext(true) }
+    override fun getVotingState(): Single<VotingStage> {
+        return votingUpdate.takeUntil { v -> !v.get().stale.get() }.map { v -> v.get() }.firstOrError()
     }
-
-    override fun setWifi(lock: Boolean) {
-        wifiLock.onNext(lock)
-    }
-
     override fun transactionLockIsSelf(luid: UUID?): Boolean {
         val lock = transactionLock.get()
         return lock == luid || lock == null
@@ -66,9 +60,7 @@ class LeStateImpl @Inject constructor(
 
 
     override fun startTransaction(): Int {
-        val t = transactionInProgress.incrementAndGet()
-       // scheduler.get().pauseScan()
-        return t
+        return transactionInProgress.incrementAndGet()
     }
 
     override fun stopTransaction(): Int {
@@ -77,7 +69,7 @@ class LeStateImpl @Inject constructor(
             else -> v-1
         } }
         if (t == 0) {
-            //scheduler.get().unpauseScan()
+           votingUpdate.map { v -> v.set(VotingStage()) }.ignoreElements().blockingAwait()
         }
         return t
     }
@@ -184,6 +176,7 @@ class LeStateImpl @Inject constructor(
                 } else {
                     LOG.e("establishing NEW connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
                     val rawConnection = retryDelay(device.establishConnection(false), 5, 1)
+                        .subscribeOn(clientScheduler)
              //           .flatMapSingle { c -> c.requestMtu(128).ignoreElement().toSingleDefault(c) }
                         .doFinally { connectionCache.remove(luid) }
                         .doOnNext {
@@ -226,7 +219,7 @@ class LeStateImpl @Inject constructor(
 
     init {
         refreshInProgresss.accept(false)
-        wifiLock.onNext(false)
+        votingUpdate.onNext(AtomicReference(VotingStage()))
     }
 
 
