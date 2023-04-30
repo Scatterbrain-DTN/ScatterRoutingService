@@ -783,11 +783,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
                     Single.zip(serverResult, clientResult) { s, c ->
-                        s.merge(c).subscribeOn(operationsScheduler)
+                        s.merge(c)
                     }
                 }.flatMap { s ->
                     s.flatMap{ s -> s }
-                }.subscribeOn(operationsScheduler)
+                }
             }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
             .doOnNext { transactionResult ->

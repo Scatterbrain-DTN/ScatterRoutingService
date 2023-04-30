@@ -212,7 +212,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 err.printStackTrace()
             }
             .timeout(5, TimeUnit.SECONDS)
-            .doOnError { e -> LOG.e("selectProvides error $e") }
             .toSingleDefault(true)
             .onErrorReturnItem(false)
             .flatMap { v ->
@@ -281,7 +280,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
                     passphrase = passphrase,
                     networkName = name,
-                    band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+                    band = band
                 )
             ).build()!!.fakeWifiP2pConfig()
             //TODO: potentially remove group here?
