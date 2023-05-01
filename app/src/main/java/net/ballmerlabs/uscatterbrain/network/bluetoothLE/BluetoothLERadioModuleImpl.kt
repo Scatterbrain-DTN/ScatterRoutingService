@@ -289,13 +289,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     TransactionResult.STAGE_ELECTION_HASHED,
                     { serverConn ->
                         selectProvides().flatMap { provides ->
-                            state.getVotingState().flatMap { voting ->
+
                                 LOG.v("gatt server election hashed stage ${provides.name}")
-                                val packet = voting.getSelf(true, provides)
-                                voting.addPacket(packet)
+                                val packet = session.votingStage.getSelf(true, provides, state.getForceUke())
+                                session.votingStage.addPacket(packet)
                                 serverConn.serverNotify(packet, session.remoteLuid, session.device)
                                     .toSingleDefault(TransactionResult.empty())
-                            }
                         }
                     },
                     { conn ->
@@ -303,11 +302,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         conn.readElectLeader()
                             .doOnSuccess { p -> LOG.v("client handshake received hashed election packet ${p.provides}") }
                             .doOnError { err -> LOG.e("error while receiving election packet: $err") }
-                            .flatMap { electLeaderPacket ->
-                                state.getVotingState().map { voting ->
-                                    voting.addPacket(electLeaderPacket)
+                            .map { electLeaderPacket ->
+                                    session.votingStage.addPacket(electLeaderPacket)
                                     TransactionResult.of(TransactionResult.STAGE_ELECTION)
-                                }
                             }
 
                     })
@@ -323,20 +320,18 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         Single.just(session.luidStage.selfUnhashedPacket)
                             .flatMap { luidPacket ->
                                 selectProvides().flatMapCompletable { provides ->
-                                    state.getVotingState().flatMapCompletable { voting ->
                                         LOG.v("server sending unhashed provides $provides")
-                                        val packet = voting.getSelf(false, provides)
+                                        val packet = session.votingStage.getSelf(false, provides, state.getForceUke())
                                         packet.tagLuid(luidPacket.luidVal)
-                                        voting.addPacket(packet)
+                                        session.votingStage.addPacket(packet)
                                         serverConn.serverNotify(
                                             packet,
                                             session.remoteLuid,
                                             session.device
                                         )
                                             .doFinally {
-                                                voting.serverPackets.onComplete()
+                                               session.votingStage.serverPackets.onComplete()
                                             }
-                                    }
                                 }
                                     .doOnError { err -> LOG.e("election server error $err") }
                                     .toSingleDefault(TransactionResult.empty())
@@ -344,22 +339,23 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     },
                     { conn ->
                         LOG.v("gatt client election stage")
-                       state.getVotingState().flatMap { voting ->
                            conn.readElectLeader()
                                .flatMapCompletable { electLeaderPacket ->
                                    LOG.v("gatt client received elect leader packet")
                                    electLeaderPacket.tagLuid(session.luidMap[session.device.macAddress])
-                                   voting.addPacket(electLeaderPacket)
-                                   voting.serverPackets.andThen(voting.verifyPackets())
+                                   session.votingStage.addPacket(electLeaderPacket)
+                                   session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
                                }
-                               .andThen(voting.determineUpgrade())
+                               .andThen(session.votingStage.determineUpgrade())
                                .map { provides ->
                                    LOG.v("election received provides: $provides")
-                                   val role: ConnectionRole =
-                                       if (voting.selectSeme() == session.luidStage.selfUnhashed) {
-                                           ConnectionRole.ROLE_SEME
-                                       } else {
+                                   val role =
+                                       if (session.votingStage.selectUke() == session.luidStage.selfUnhashed) {
+                                           state.setForceUke(true)
                                            ConnectionRole.ROLE_UKE
+                                       } else {
+                                           state.setForceUke(false)
+                                           ConnectionRole.ROLE_SEME
                                        }
                                    LOG.v("selected role: $role")
                                    session.role = role
@@ -388,7 +384,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                }
                                .doOnError { err -> LOG.e("error while receiving packet: $err") }
                                .doOnSuccess { result -> LOG.v("client handshake received election result ${result.stage}") }
-                       }
                     })
 
                 /*

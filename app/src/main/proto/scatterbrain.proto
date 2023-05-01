@@ -70,6 +70,7 @@ message ElectLeader {
         bytes salt = 1;
         uint32 provides = 2;
         UUID tiebreaker_val = 3;
+        bool force = 4;
     }
     oneof val {
         Body val_body = 1;

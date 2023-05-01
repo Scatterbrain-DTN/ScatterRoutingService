@@ -20,6 +20,7 @@ import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -33,12 +34,10 @@ class LeStateImpl @Inject constructor(
     val factory: ScatterbrainTransactionFactory,
     private val advertiser: Advertiser,
     private val server: Provider<ManagedGattServer>,
-    private val scheduler: Provider<ScatterbrainScheduler>
 ) : LeState {
     private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
     private val transactionInProgress: AtomicInteger = AtomicInteger(0)
-    private val votingUpdate = BehaviorSubject.create<AtomicReference<VotingStage>>()
-
+    private val forceUke = AtomicBoolean(false)
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
     override val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> =
@@ -50,28 +49,28 @@ class LeStateImpl @Inject constructor(
         ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>()
     private val LOG by scatterLog()
 
-    override fun getVotingState(): Single<VotingStage> {
-        return votingUpdate.takeUntil { v -> !v.get().stale.get() }.map { v -> v.get() }.firstOrError()
-    }
     override fun transactionLockIsSelf(luid: UUID?): Boolean {
         val lock = transactionLock.get()
         return lock == luid || lock == null
     }
 
+    override fun setForceUke(force: Boolean) {
+        forceUke.set(force)
+    }
+
+    override fun getForceUke(): Boolean {
+        return forceUke.get()
+    }
 
     override fun startTransaction(): Int {
         return transactionInProgress.incrementAndGet()
     }
 
     override fun stopTransaction(): Int {
-        val t = transactionInProgress.updateAndGet { v -> when(v) {
+        return transactionInProgress.updateAndGet { v -> when(v) {
             0 -> 0
             else -> v-1
         } }
-        if (t == 0) {
-           votingUpdate.map { v -> v.set(VotingStage()) }.ignoreElements().blockingAwait()
-        }
-        return t
     }
 
     override fun transactionLockAccquire(luid: UUID?): Boolean {
@@ -219,7 +218,6 @@ class LeStateImpl @Inject constructor(
 
     init {
         refreshInProgresss.accept(false)
-        votingUpdate.onNext(AtomicReference(VotingStage()))
     }
 
 

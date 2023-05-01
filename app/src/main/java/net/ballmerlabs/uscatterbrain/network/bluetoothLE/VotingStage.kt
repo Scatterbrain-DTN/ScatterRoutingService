@@ -26,8 +26,7 @@ class VotingStage : LeDeviceSession.Stage {
     private val unhashedPackets = ArrayList<ElectLeaderPacket>()
     private var tiebreaker = UUID.randomUUID()
     val stale = AtomicBoolean()
-    private val completeObs = BehaviorSubject.create<Boolean>()
-    fun getSelf(hashed: Boolean, provides: AdvertisePacket.Provides): ElectLeaderPacket {
+    fun getSelf(hashed: Boolean, provides: AdvertisePacket.Provides, force: Boolean): ElectLeaderPacket {
         val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder()
         if (hashed) {
             builder.enableHashing()
@@ -54,7 +53,6 @@ class VotingStage : LeDeviceSession.Stage {
         } else {
             unhashedPackets.add(packet)
         }
-        completeObs.onNext(hashedPackets.size == unhashedPackets.size)
     }
 
     /**
@@ -87,29 +85,32 @@ class VotingStage : LeDeviceSession.Stage {
         )
         var compare = BigInteger(hash)
         var ret: ElectLeaderPacket? = null
-        for (packet in unhashedPackets) {
-            val uuid = packet.luid
-            if (uuid != null) {
-                val c = BigInteger(ElectLeaderPacket.uuidToBytes(uuid))
-                if (c.abs() < compare.abs()) {
-                    ret = packet
-                    compare = c
+        val forces = unhashedPackets.filter { p -> p.force }
+        when(forces.size) {
+            1 -> ret = forces[0]
+            else -> {
+                for (packet in unhashedPackets) {
+                    val uuid = packet.luid
+                    if (uuid != null) {
+                        val c = BigInteger(ElectLeaderPacket.uuidToBytes(uuid))
+                        if (c.abs() < compare.abs()) {
+                            ret = packet
+                            compare = c
+                        }
+                    } else {
+                        LOG.w("luid tag was null in tiebreak")
+                    }
                 }
-            } else {
-                LOG.w("luid tag was null in tiebreak")
             }
         }
+
         if (ret == null) {
             throw MiracleException()
         }
         return ret
     }
 
-    private fun tieBreak(): AdvertisePacket.Provides {
-        return selectLeader().provides
-    }
-
-    fun selectSeme(): UUID? {
+    fun selectUke(): UUID? {
         return selectLeader().luid
     }
 
@@ -134,8 +135,7 @@ class VotingStage : LeDeviceSession.Stage {
      * @return completable
      */
     fun verifyPackets(): Completable {
-        return completeObs.takeWhile { p -> !p }.ignoreElements().andThen(
-            Completable.defer {
+        return Completable.defer {
                 if (hashedPackets.size != unhashedPackets.size) {
                     Completable.error(IllegalStateException("size conflict hashed: ${hashedPackets.size} unhashed: ${unhashedPackets.size}"))
                 } else Observable.zip(
@@ -150,7 +150,7 @@ class VotingStage : LeDeviceSession.Stage {
                         }
                     }
                     .ignoreElements()
-            })
+            }
     }
 
     /**

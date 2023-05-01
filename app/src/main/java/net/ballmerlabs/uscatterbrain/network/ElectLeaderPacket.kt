@@ -72,6 +72,9 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
     val hash: ByteArray
         get() = packet.valHash.toByteArray()
 
+    val force: Boolean
+        get() = packet.valBody.force
+
     data class Builder(
             var enableHashing: Boolean = false,
             var hashVal: ByteString? = null,

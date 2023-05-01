@@ -23,8 +23,11 @@ interface LeState {
         luid: UUID
     ): Single<ScatterbrainTransactionSubcomponent>
 
-    fun getVotingState(): Single<VotingStage>
     fun getAdvertisedLuid(scanResult: ScanResult): UUID?
+
+    fun setForceUke(force: Boolean)
+
+    fun getForceUke(): Boolean
 
     fun updateGone(luid: UUID)
     fun startTransaction(): Int
