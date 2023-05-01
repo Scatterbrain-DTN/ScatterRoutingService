@@ -83,9 +83,7 @@ class WifiDirectTest {
     @Throws(TimeoutException::class)
     fun createGroupTest() {
         assert(
-            radioModule.createGroup(
-                if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-            ).timeout(20, TimeUnit.SECONDS)
+            radioModule.createGroup().timeout(20, TimeUnit.SECONDS)
                 .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
         )
     }
@@ -95,9 +93,7 @@ class WifiDirectTest {
     fun multipleCreateGroup() {
         for (x in 0..5) {
             assert(
-                radioModule.createGroup(
-                    if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-                )
+                radioModule.createGroup()
                     .timeout(20, TimeUnit.SECONDS)
                     .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
             )
@@ -123,9 +119,7 @@ class WifiDirectTest {
     @Test
     @Throws(TimeoutException::class)
     fun wifiDirectIsUsableAfterCreate() {
-        val res = radioModule.createGroup(
-            if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-        ).timeout(10, TimeUnit.SECONDS).blockingGet()
+        val res = radioModule.createGroup().timeout(10, TimeUnit.SECONDS).blockingGet()
         assert(radioModule.wifiDirectIsUsable().timeout(20, TimeUnit.SECONDS).blockingGet())
     }
 
@@ -137,9 +131,7 @@ class WifiDirectTest {
                 .timeout(10, TimeUnit.SECONDS)
                 .blockingAwait()
             assert(
-                radioModule.createGroup(
-                    if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-                )
+                radioModule.createGroup()
                     .timeout(10, TimeUnit.SECONDS)
                     .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
             )

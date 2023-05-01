@@ -71,6 +71,7 @@ message ElectLeader {
         uint32 provides = 2;
         UUID tiebreaker_val = 3;
         bool force = 4;
+        int32 band = 5;
     }
     oneof val {
         Body val_body = 1;

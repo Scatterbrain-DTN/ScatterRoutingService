@@ -397,9 +397,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("gatt server upgrade stage")
                         if (session.role == ConnectionRole.ROLE_UKE) {
                             LOG.e("upgrade role UKE")
-                            wifiDirectRadioModule.createGroup(
-                                if (wifiManager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-                            )
+                            wifiDirectRadioModule.createGroup(wifiDirectRadioModule.getBand())
                                 .timeout(20, TimeUnit.SECONDS)
                                 .flatMap { bootstrap ->
                                     val upgradeStage = session.upgradeStage
@@ -439,7 +437,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 upgradePacket,
                                                 ConnectionRole.ROLE_SEME,
                                                 bootstrapRequestProvider.get(),
-                                                if (wifiManager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+                                                wifiDirectRadioModule.getBand()
                                             )
                                             TransactionResult.of(
                                                 request,
@@ -778,11 +776,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
                     Single.zip(serverResult, clientResult) { s, c ->
-                        s.merge(c)
+                        s.merge(c).subscribeOn(operationsScheduler)
                     }
                 }.flatMap { s ->
-                    s.flatMap{ s -> s }
-                }
+                    s.flatMap{ s -> s }.subscribeOn(operationsScheduler)
+                }.subscribeOn(operationsScheduler)
             }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
             .doOnNext { transactionResult ->

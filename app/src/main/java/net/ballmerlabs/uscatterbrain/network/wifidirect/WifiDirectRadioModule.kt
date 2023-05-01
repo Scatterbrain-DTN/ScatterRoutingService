@@ -16,6 +16,8 @@ import java.io.File
  * dagger2 interface for WifiDirectRadioModule
  */
 interface WifiDirectRadioModule {
+    fun getBand(): Int
+
     /**
      * Connects to an existing wifi direct group manually
      * @param name group name. MUST start with DIRECT-*

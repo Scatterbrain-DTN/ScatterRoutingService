@@ -67,8 +67,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
-    private fun createGroupSingle(band: Int): Completable {
+    private fun createGroupSingle(): Completable {
         return Completable.defer {
+            val band = getBand()
             val subject = CompletableSubject.create()
             try {
                 val listener = object : WifiP2pManager.ActionListener {
@@ -178,7 +179,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         val ret = Single.defer {
             LOG.v("createGroup")
 
-            createGroupSingle(band)
+            createGroupSingle()
                 .andThen(requestGroupInfo().toSingle())
                 .map { groupInfo ->
                     LOG.v("got groupInfo")
@@ -202,9 +203,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
-        return createGroup(
-            if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-        )
+        return createGroup(getBand())
             .ignoreElement()
             .andThen(removeGroup(retries = 9, delay = 1))
             .doOnError { err ->
@@ -284,13 +283,22 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 )
             ).build()!!.fakeWifiP2pConfig()
             //TODO: potentially remove group here?
-          removeGroup().andThen(initiateConnection(fakeConfig.asConfig())
-                .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") }))
+            removeGroup().andThen(initiateConnection(fakeConfig.asConfig())
+                .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
+            )
 
         }.doOnError { err ->
             err.printStackTrace()
             firebaseWrapper.recordException(err)
         }
+    }
+
+    override fun getBand(): Int {
+        return FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+        return if (manager.is5GHzBandSupported)
+            FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ
+        else
+            FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
     }
 
     /*
@@ -554,7 +562,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     )
                         .flatMap { info ->
                             LOG.v("establishing outgoing socket")
-                            retryDelay(socketProvider.getSocket(info.groupOwnerAddress()!!, SCATTERBRAIN_PORT), 5, 1)
+                            retryDelay(
+                                socketProvider.getSocket(
+                                    info.groupOwnerAddress()!!,
+                                    SCATTERBRAIN_PORT
+                                ), 5, 1
+                            )
                                 .flatMap { socket ->
                                     LOG.v("socket established, connected to server")
                                     routingMetadataSeme(
@@ -781,12 +794,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 WifiP2pManager.BUSY -> {
                     "Busy"
                 }
+
                 WifiP2pManager.ERROR -> {
                     "Error"
                 }
+
                 WifiP2pManager.P2P_UNSUPPORTED -> {
                     "P2p unsupported"
                 }
+
                 else -> {
                     "Unknown code: $reason"
                 }
