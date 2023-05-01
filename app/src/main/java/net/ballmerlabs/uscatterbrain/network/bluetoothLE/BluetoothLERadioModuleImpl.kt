@@ -599,8 +599,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     /* attempt to bootstrap to wifi direct using upgrade packet (gatt client version) */
-    private fun bootstrapWifiP2p(bootstrapRequest: BootstrapRequest): Single<HandshakeResult> {
-        return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest)
+    private fun bootstrapWifiP2p(bootstrapRequest: BootstrapRequest, luid: UUID): Single<HandshakeResult> {
+        return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest, luid)
             .doOnError { err ->
                 LOG.e("wifi p2p upgrade failed: $err")
                 err.printStackTrace()
@@ -796,7 +796,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .concatMapMaybe { result ->
                 if (result.item != null) {
                     LOG.e("bootstrapping wifip2p")
-                    bootstrapWifiP2p(result.item)
+                    bootstrapWifiP2p(result.item, luid)
                         .doFinally { session.unlock() }
                         .toMaybe()
                 } else {

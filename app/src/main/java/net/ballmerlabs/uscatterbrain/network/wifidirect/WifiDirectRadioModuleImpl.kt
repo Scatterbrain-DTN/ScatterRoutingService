@@ -15,7 +15,9 @@ import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.*
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
@@ -27,6 +29,7 @@ import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.Socket
 import java.util.Base64
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
@@ -63,7 +66,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val serverSocketManager: ServerSocketManager,
     private val socketProvider: SocketProvider,
     private val manager: WifiManager,
-    private val leState: LeState
+    private val advertiser: Advertiser
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
@@ -481,7 +484,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      * @param upgradeRequest BootstrapRequest containing group name and PSK
      * @return single returning HandshakeResult with transaction stats
      */
-    override fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest): Single<HandshakeResult> {
+    override fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest, luid: UUID): Single<HandshakeResult> {
         val s = Single.defer {
             LOG.v(
                 "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
@@ -491,7 +494,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             when {
                 upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                         == ConnectionRole.ROLE_UKE -> {
-                    serverSocketManager.getServerSocket()
+                    serverSocketManager.getServerSocket(luid)
                         .subscribeOn(operationsScheduler)
                         .doOnError { err ->
                             LOG.e("failed to get server socket: $err")
@@ -565,7 +568,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             retryDelay(
                                 socketProvider.getSocket(
                                     info.groupOwnerAddress()!!,
-                                    SCATTERBRAIN_PORT
+                                    SCATTERBRAIN_PORT,
+                                    getHashUuid(advertiser.myLuid.get())!!
                                 ), 5, 1
                             )
                                 .flatMap { socket ->
@@ -624,7 +628,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         .flatMap { v -> ackBarrier(socket).toSingleDefault(v) }
                                 }
                         }
-                        .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
+                   //     .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
                         .doOnSubscribe { LOG.v("subscribed to writeBlockData") }
                         .subscribeOn(operationsScheduler)
 

@@ -5,6 +5,7 @@ import io.reactivex.Flowable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.uscatterbrain.ScatterProto.UUID
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
@@ -33,7 +34,7 @@ interface WifiDirectRadioModule {
      * @param upgradeRequest bootstrap request generated with WifiDirectBootstrapRequest
      * @return Single emitting handshake result with transaction stats
      */
-    fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest): Single<HandshakeResult>
+    fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest, luid: java.util.UUID): Single<HandshakeResult>
 
     /**
      * Manually creates a wifi direct group, autogenerating the username/passphrase and

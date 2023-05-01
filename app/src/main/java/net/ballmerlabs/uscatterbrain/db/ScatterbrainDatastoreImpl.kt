@@ -240,7 +240,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 Flowable.just(packet.data)
                             } else {
                                 LOG.e("invalid hash")
-                                Flowable.error(SecurityException("failed to verify hash"))
+                                Flowable.empty()
                             }
                         }
                         .reduce { obj, other -> obj + other }
