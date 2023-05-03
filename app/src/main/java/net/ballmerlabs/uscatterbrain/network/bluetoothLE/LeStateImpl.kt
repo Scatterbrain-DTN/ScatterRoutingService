@@ -128,6 +128,10 @@ class LeStateImpl @Inject constructor(
                 && !activeLuids.containsKey(advertisingLuid)
     }
 
+    override fun activeCount(): Int {
+        return activeLuids.size
+    }
+
     override fun processScanResult(
         remoteUuid: UUID,
         device: RxBleDevice

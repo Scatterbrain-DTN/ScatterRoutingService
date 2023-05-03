@@ -94,9 +94,7 @@ class CachedLEConnection @Inject constructor(
                                         c.writeCharacteristic(
                                             uuid,
                                             BluetoothLERadioModuleImpl.uuid2bytes(
-                                                getHashUuid(
-                                                    advertiser.myLuid.get()
-                                                )
+                                                advertiser.getHashLuid()
                                             )!!
                                         ).ignoreElement().onErrorComplete()
                                     )

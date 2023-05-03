@@ -39,9 +39,17 @@ class AdvertiserImpl @Inject constructor(
     private val advertisingDataUpdated = PublishSubject.create<Int>()
 
     // luid is a temporary unique identifier used for a single transaction.
-    override val myLuid: AtomicReference<UUID> = AtomicReference(UUID.randomUUID())
+    private val myLuid: AtomicReference<UUID> = AtomicReference(UUID.randomUUID())
     private val lastLuidRandomize = AtomicReference(Date())
 
+
+    override fun getHashLuid(): UUID {
+        return getHashUuid(myLuid.get())!!
+    }
+
+    override fun getRawLuid(): UUID {
+        return myLuid.get()
+    }
 
     // map advertising state to rxjava2
     private val advertiseSetCallback = object : AdvertisingSetCallback() {
@@ -73,7 +81,7 @@ class AdvertiserImpl @Inject constructor(
     }
 
     override fun setAdvertisingLuid(): Completable {
-        val currentLuid = getHashUuid(myLuid.get()) ?: UUID.randomUUID()
+        val currentLuid = getHashLuid()
         return setAdvertisingLuid(currentLuid)
             .subscribeOn(scheduler)
     }

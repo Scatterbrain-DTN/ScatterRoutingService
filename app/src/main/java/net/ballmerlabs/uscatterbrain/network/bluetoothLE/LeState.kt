@@ -18,6 +18,8 @@ interface LeState {
 
     fun shouldConnect(res: ScanResult): Boolean
 
+    fun activeCount(): Int
+
     fun establishConnectionCached(
         device: RxBleDevice,
         luid: UUID

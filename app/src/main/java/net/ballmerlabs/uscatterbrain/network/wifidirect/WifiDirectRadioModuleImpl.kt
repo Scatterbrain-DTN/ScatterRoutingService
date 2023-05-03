@@ -179,30 +179,24 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      * create a wifi direct group with this device as the owner
      */
     override fun createGroup(band: Int): Single<WifiDirectBootstrapRequest> {
-        val ret = Single.defer {
-            LOG.v("createGroup")
+        val ret = requestGroupInfo()
+            .switchIfEmpty(
+                createGroupSingle()
+                    .andThen(requestGroupInfo().toSingle())
+            ).map { groupInfo ->
+                LOG.v("got groupInfo")
+                bootstrapRequestProvider.get()
+                    .wifiDirectArgs(
+                        BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                            passphrase = groupInfo.passphrase,
+                            name = groupInfo.networkName,
+                            role = ConnectionRole.ROLE_UKE,
+                            band = band
+                        )
+                    ).build()!!.wifiBootstrapRequest()
+            }
 
-            createGroupSingle()
-                .andThen(requestGroupInfo().toSingle())
-                .map { groupInfo ->
-                    LOG.v("got groupInfo")
-                    bootstrapRequestProvider.get()
-                        .wifiDirectArgs(
-                            BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                                passphrase = groupInfo.passphrase,
-                                name = groupInfo.networkName,
-                                role = ConnectionRole.ROLE_UKE,
-                                band = band
-                            )
-                        ).build()!!.wifiBootstrapRequest()
-                }
-        }.doOnError { err ->
-            LOG.e("$err")
-            firebaseWrapper.recordException(err)
-        }
-
-        return removeGroup(retries = 9, delay = 1)
-            .andThen(retryDelay(ret, 5, 1))
+        return retryDelay(ret, 5, 1)
     }
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
@@ -286,8 +280,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 )
             ).build()!!.fakeWifiP2pConfig()
             //TODO: potentially remove group here?
-            removeGroup().andThen(initiateConnection(fakeConfig.asConfig())
-                .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
+            removeGroup().andThen(
+                initiateConnection(fakeConfig.asConfig())
+                    .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
             )
 
         }.doOnError { err ->
@@ -484,7 +479,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      * @param upgradeRequest BootstrapRequest containing group name and PSK
      * @return single returning HandshakeResult with transaction stats
      */
-    override fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest, luid: UUID): Single<HandshakeResult> {
+    override fun bootstrapFromUpgrade(
+        upgradeRequest: BootstrapRequest,
+        luid: UUID
+    ): Single<HandshakeResult> {
         val s = Single.defer {
             LOG.v(
                 "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
@@ -569,7 +567,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 socketProvider.getSocket(
                                     info.groupOwnerAddress()!!,
                                     SCATTERBRAIN_PORT,
-                                    getHashUuid(advertiser.myLuid.get())!!
+                                    advertiser.getHashLuid()
                                 ), 5, 1
                             )
                                 .flatMap { socket ->
@@ -628,7 +626,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         .flatMap { v -> ackBarrier(socket).toSingleDefault(v) }
                                 }
                         }
-                   //     .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
+                        //     .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
                         .doOnSubscribe { LOG.v("subscribed to writeBlockData") }
                         .subscribeOn(operationsScheduler)
 

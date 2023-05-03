@@ -6,7 +6,9 @@ import java.util.concurrent.atomic.AtomicReference
 
 interface Advertiser {
 
-    val myLuid: AtomicReference<UUID>
+    fun getRawLuid(): UUID
+
+    fun getHashLuid(): UUID
 
     /**
      * Stats LE advertise on scatterbrain UUID

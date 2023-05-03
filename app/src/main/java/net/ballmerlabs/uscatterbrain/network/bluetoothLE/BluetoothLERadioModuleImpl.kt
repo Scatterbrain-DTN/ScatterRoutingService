@@ -615,7 +615,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .firstOrError()
             .flatMapMaybe { serverConnection ->
                 LOG.e("initiateOutgoingConnection luid $luid")
-                val hash = getHashUuid(advertiser.myLuid.get())!!
+                val hash = advertiser.getHashLuid()
                 LOG.v("writing hashed luid $hash")
                 serverConnection.writeCharacteristic(UUID_HELLO, uuid2bytes(hash)!!)
                     .doOnSuccess { res ->
@@ -699,7 +699,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             LOG.v("successfully connected to $luid, transactions: $t")
                             val s = LeDeviceSession(
                                 device,
-                                advertiser.myLuid.get(),
+                                advertiser.getRawLuid(),
                                 connection,
                                 serverConnection,
                                 luid

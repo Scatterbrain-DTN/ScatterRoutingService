@@ -48,7 +48,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                 if (!state.connectLock.getAndSet(true)) {
                     // scatterbrainScheduler.pauseScan()
                     val size = result.map { sc -> sc.bleDevice.macAddress }.distinct().size
-                    LOG.e("scan found devices $size")
+                    LOG.e("scan found devices $size with activeLuids ${leState.activeCount()}")
                     val disp = Observable.fromIterable(result)
                         .distinct { v -> leState.getAdvertisedLuid(v) }
                         .concatMapMaybe { r ->

@@ -46,7 +46,7 @@ class ManagedGattServerImpl @Inject constructor(
             .subscribeOn(operationsScheduler)
             .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
             .flatMapCompletable { trans ->
-                val luid = getHashUuid(advertiser.myLuid.get())
+                val luid = advertiser.getHashLuid()
                 LOG.v("hello characteristic read, replying with luid $luid")
                 trans.sendReply(
                     BluetoothLERadioModuleImpl.uuid2bytes(luid),
@@ -87,11 +87,12 @@ class ManagedGattServerImpl @Inject constructor(
                     serverConnection.disconnect(trans.remoteDevice)
                     serverConnection.unlockLuid(luid)
                 }
-                LOG.e("server handling luid $luid")
-                LOG.e("transaction NOT locked, continuing")
+                LOG.v("server handling luid $luid")
+                LOG.v("transaction NOT locked, continuing")
                 trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
                     .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
                     .flatMapMaybe { connection ->
+                        LOG.e("this is a reverse connection")
                         connection.bluetoothLeRadioModule().handleConnection(luid)
                     }
                     .onErrorComplete()
