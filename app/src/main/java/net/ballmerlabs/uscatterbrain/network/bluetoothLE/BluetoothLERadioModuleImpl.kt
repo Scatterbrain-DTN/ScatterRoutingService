@@ -397,28 +397,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("gatt server upgrade stage")
                         if (session.role == ConnectionRole.ROLE_UKE) {
                             LOG.e("upgrade role UKE")
-                            wifiDirectRadioModule.createGroup(wifiDirectRadioModule.getBand())
-                                .timeout(20, TimeUnit.SECONDS)
-                                .flatMap { bootstrap ->
-                                    val upgradeStage = session.upgradeStage
-                                    if (upgradeStage != null) {
-                                        val upgradePacket =
-                                            bootstrap.toUpgrade(upgradeStage.sessionID)
-                                        serverConn.serverNotify(
-                                            upgradePacket,
-                                            session.remoteLuid,
-                                            session.device
-                                        )
-                                            .toSingleDefault(
-                                                TransactionResult.of(
-                                                    bootstrap,
-                                                    TransactionResult.STAGE_TERMINATE
-                                                )
-                                            )
-                                    } else {
-                                        Single.error(IllegalStateException("upgrade stage not set while bootstrapping ${session.remoteLuid}"))
-                                    }
-                                }
+                            wifiDirectRadioModule.bootstrapUke(wifiDirectRadioModule.getBand()) { bootstrapReq ->
+                                serverConn.serverNotify(
+                                    bootstrapReq.toUpgrade(session.upgradeStage!!.sessionID),
+                                    session.remoteLuid,
+                                    session.device
+                                )
+                            }.ignoreElement()
+                                .toSingleDefault(
+                                    TransactionResult.of(TransactionResult.STAGE_TERMINATE)
+                                )
+
                         } else {
                             Single.just(TransactionResult.empty())
                         }
@@ -430,28 +419,33 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             conn.readUpgrade()
                                 .doOnSuccess { p -> LOG.v("client handshake received upgrade packet ${p.metadata.size}") }
                                 .doOnError { err -> LOG.e("error while receiving upgrade packet: $err") }
-                                .map { upgradePacket ->
+                                .flatMap { upgradePacket ->
                                     when (upgradePacket.provides) {
                                         AdvertisePacket.Provides.WIFIP2P -> {
+
                                             val request = WifiDirectBootstrapRequest.create(
                                                 upgradePacket,
                                                 ConnectionRole.ROLE_SEME,
                                                 bootstrapRequestProvider.get(),
                                                 wifiDirectRadioModule.getBand()
                                             )
+
+                                            wifiDirectRadioModule.bootstrapSeme(request.name, request.passphrase, request.band, request.port)
+                                                .map {
                                             TransactionResult.of(
                                                 request,
                                                 TransactionResult.STAGE_TERMINATE,
                                             )
+                                                }
                                         }
 
-                                        AdvertisePacket.Provides.BLE -> TransactionResult.of(
+                                        AdvertisePacket.Provides.BLE ->Single.just(TransactionResult.of(
                                             TransactionResult.STAGE_IDENTITY
-                                        )
+                                        ))
 
-                                        else -> TransactionResult.err(
+                                        else -> Single.just(TransactionResult.err(
                                             IllegalStateException("invalid provides ${upgradePacket.provides}")
-                                        )
+                                        ))
                                     }
                                 }
                         } else {
@@ -599,8 +593,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     /* attempt to bootstrap to wifi direct using upgrade packet (gatt client version) */
-    private fun bootstrapWifiP2p(bootstrapRequest: BootstrapRequest, luid: UUID): Single<HandshakeResult> {
-        return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest, luid)
+    private fun bootstrapWifiP2p(
+        bootstrapRequest: BootstrapRequest,
+        luid: UUID,
+        bootstrap: (WifiDirectBootstrapRequest) -> Completable
+    ): Single<HandshakeResult> {
+        return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest, luid, bootstrap)
             .doOnError { err ->
                 LOG.e("wifi p2p upgrade failed: $err")
                 err.printStackTrace()
@@ -793,27 +791,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
             }
             .takeUntil { result -> result.stage == TransactionResult.STAGE_TERMINATE }
-            .concatMapMaybe { result ->
-                if (result.item != null) {
-                    LOG.e("bootstrapping wifip2p")
-                    bootstrapWifiP2p(result.item, luid)
-                        .doFinally { session.unlock() }
-                        .toMaybe()
-                } else {
-                    LOG.e("skipping bootstrap")
-                    //TODO: record bluetooth LE handshakes
-                    session.unlock()
-                    Maybe.empty()
-                }
-            }
-            .defaultIfEmpty(
-                HandshakeResult(
-                    0,
-                    0,
-                    HandshakeResult.TransactionStatus.STATUS_SUCCESS
-                )
-            )
-            .lastOrError()
+            .doOnNext { session.unlock() }
+            .ignoreElements()
+            .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
             .toMaybe()
             .doOnError { err ->
                 LOG.e("session ${session.remoteLuid} ended with error $err")

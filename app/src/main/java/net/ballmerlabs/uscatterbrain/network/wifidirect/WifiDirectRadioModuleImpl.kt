@@ -21,7 +21,6 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
-import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager.Companion.SCATTERBRAIN_PORT
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
@@ -175,33 +174,43 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .doOnError { err -> firebaseWrapper.recordException(err) }
     }
 
+    fun createGroupDryRun(): Completable {
+        return requestGroupInfo()
+            .switchIfEmpty(
+                createGroupSingle()
+                    .andThen(requestGroupInfo().toSingle())
+            ).ignoreElement()
+    }
+
     /**
      * create a wifi direct group with this device as the owner
      */
-    override fun createGroup(band: Int): Single<WifiDirectBootstrapRequest> {
+    override fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<Socket> {
         val ret = requestGroupInfo()
             .switchIfEmpty(
                 createGroupSingle()
                     .andThen(requestGroupInfo().toSingle())
-            ).map { groupInfo ->
+            ).zipWith(serverSocketManager.getServerSocket()) { groupInfo, serverSocket ->
                 LOG.v("got groupInfo")
-                bootstrapRequestProvider.get()
+                val request = bootstrapRequestProvider.get()
                     .wifiDirectArgs(
                         BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
                             passphrase = groupInfo.passphrase,
                             name = groupInfo.networkName,
                             role = ConnectionRole.ROLE_UKE,
-                            band = band
+                            band = band,
+                            port = serverSocket.port
                         )
                     ).build()!!.wifiBootstrapRequest()
-            }
+                bootstrap(request).subscribeOn(operationsScheduler).toSingleDefault(serverSocket.socket)
+            }.flatMap { v -> v.flatMap { s -> s } }
+            .subscribeOn(operationsScheduler)
 
         return retryDelay(ret, 5, 1)
     }
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
-        return createGroup(getBand())
-            .ignoreElement()
+        return createGroupDryRun()
             .andThen(removeGroup(retries = 9, delay = 1))
             .doOnError { err ->
                 LOG.e("cry $err")
@@ -471,6 +480,145 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .doOnError { err -> LOG.e("connect to group failed: $err") }
     }
 
+    override fun bootstrapUke(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<HandshakeResult> {
+        return createGroup(band, bootstrap)
+            .subscribeOn(operationsScheduler)
+            .doOnError { err ->
+                LOG.e("failed to get server socket: $err")
+                firebaseWrapper.recordException(err)
+            }
+            .doOnSuccess { LOG.v("got serversocket") }
+            .flatMap { socket ->
+                routingMetadataUke(
+                    Flowable.just(
+                        RoutingMetadataPacket.newBuilder().setEmpty().build()
+                    ),
+                    socket
+                )
+                    .ignoreElements()
+                    .andThen(
+                        identityPacketUke(datastore.getTopRandomIdentities(20), socket)
+                            .reduce(
+                                ArrayList()
+                            ) { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
+                                list.add(packet)
+                                list
+                            }.flatMap { p: ArrayList<IdentityPacket> ->
+                                datastore.insertIdentityPacket(p).toSingleDefault(
+                                    HandshakeResult(
+                                        p.size,
+                                        0,
+                                        HandshakeResult.TransactionStatus.STATUS_SUCCESS
+                                    )
+                                )
+                            }
+                    ).flatMap { stats ->
+                        declareHashesUke(socket)
+                            .doOnSuccess {
+                                LOG.v("received declare hashes packet uke")
+                            }
+                            .flatMap { declareHashesPacket ->
+                                readBlockDataUke(socket)
+                                    .toObservable()
+                                    .mergeWith(
+                                        writeBlockDataUke(
+                                            datastore.getTopRandomMessages(
+                                                preferences.getInt(
+                                                    mContext.getString(R.string.pref_blockdatacap),
+                                                    100
+                                                )!!,
+                                                declareHashesPacket
+                                            ).toFlowable(BackpressureStrategy.BUFFER),
+                                            socket
+                                        ).toObservable()
+                                    )
+                                    .reduce(stats) { obj, stats -> obj.from(stats) }
+                            }
+                            .flatMap { v -> ackBarrier(socket).toSingleDefault(v) }
+                    }
+            }.subscribeOn(operationsScheduler)
+    }
+
+    override fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int) : Single<HandshakeResult> {
+        return      retryDelay(
+            connectToGroup(
+               name,
+                passphrase,
+                120,
+               band
+                    .toInt()
+            ), 10, 5
+        )
+            .flatMap { info ->
+                LOG.v("establishing outgoing socket")
+                retryDelay(
+                    socketProvider.getSocket(
+                        info.groupOwnerAddress()!!,
+                        port,
+                        advertiser.getHashLuid()
+                    ), 5, 1
+                )
+                    .flatMap { socket ->
+                        LOG.v("socket established, connected to server")
+                        routingMetadataSeme(
+                            socket,
+                            Flowable.just(
+                                RoutingMetadataPacket.newBuilder().setEmpty().build()
+                            )
+                        )
+                            .ignoreElements()
+                            .andThen(
+                                identityPacketSeme(
+                                    socket,
+                                    datastore.getTopRandomIdentities(
+                                        preferences.getInt(
+                                            mContext.getString(R.string.pref_identitycap),
+                                            200
+                                        )!!
+                                    )
+                                )
+                            )
+                            .reduce(ArrayList()) { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
+                                list.add(packet)
+                                list
+                            }
+                            .flatMap { p ->
+                                LOG.v("inserting identity packet seme")
+                                datastore.insertIdentityPacket(p).toSingleDefault(
+                                    HandshakeResult(
+                                        p.size,
+                                        0,
+                                        HandshakeResult.TransactionStatus.STATUS_SUCCESS
+                                    )
+                                )
+                            }
+                            .flatMap { stats ->
+                                declareHashesSeme(socket)
+                                    .doOnSuccess { LOG.v("received declare hashes packet seme") }
+                                    .flatMapObservable { declareHashesPacket ->
+                                        readBlockDataSeme(socket)
+                                            .toObservable()
+                                            .mergeWith(
+                                                writeBlockDataSeme(
+                                                    socket,
+                                                    datastore.getTopRandomMessages(
+                                                        32,
+                                                        declareHashesPacket
+                                                    )
+                                                        .toFlowable(BackpressureStrategy.BUFFER)
+                                                ).toObservable()
+                                            )
+                                    }
+                                    .reduce(stats) { obj, st -> obj.from(st) }
+                            }
+                            .flatMap { v -> ackBarrier(socket).toSingleDefault(v) }
+                    }
+            }
+            //     .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
+            .doOnSubscribe { LOG.v("subscribed to writeBlockData") }
+            .subscribeOn(operationsScheduler)
+    }
+
     /**
      * begin data transfer using a bootstrap request from another transport module
      *
@@ -481,7 +629,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     override fun bootstrapFromUpgrade(
         upgradeRequest: BootstrapRequest,
-        luid: UUID
+        luid: UUID,
+        bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Single<HandshakeResult> {
         val s = Single.defer {
             LOG.v(
@@ -492,144 +641,16 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             when {
                 upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                         == ConnectionRole.ROLE_UKE -> {
-                    serverSocketManager.getServerSocket(luid)
-                        .subscribeOn(operationsScheduler)
-                        .doOnError { err ->
-                            LOG.e("failed to get server socket: $err")
-                            firebaseWrapper.recordException(err)
-                        }
-                        .doOnSuccess { LOG.v("got serversocket") }
-                        .flatMap { socket ->
-                            routingMetadataUke(
-                                Flowable.just(
-                                    RoutingMetadataPacket.newBuilder().setEmpty().build()
-                                ),
-                                socket
-                            )
-                                .ignoreElements()
-                                .andThen(
-                                    identityPacketUke(datastore.getTopRandomIdentities(20), socket)
-                                        .reduce(
-                                            ArrayList()
-                                        ) { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
-                                            list.add(packet)
-                                            list
-                                        }.flatMap { p: ArrayList<IdentityPacket> ->
-                                            datastore.insertIdentityPacket(p).toSingleDefault(
-                                                HandshakeResult(
-                                                    p.size,
-                                                    0,
-                                                    HandshakeResult.TransactionStatus.STATUS_SUCCESS
-                                                )
-                                            )
-                                        }
-                                ).flatMap { stats ->
-                                    declareHashesUke(socket)
-                                        .doOnSuccess {
-                                            LOG.v("received declare hashes packet uke")
-                                        }
-                                        .flatMap { declareHashesPacket ->
-                                            readBlockDataUke(socket)
-                                                .toObservable()
-                                                .mergeWith(
-                                                    writeBlockDataUke(
-                                                        datastore.getTopRandomMessages(
-                                                            preferences.getInt(
-                                                                mContext.getString(R.string.pref_blockdatacap),
-                                                                100
-                                                            )!!,
-                                                            declareHashesPacket
-                                                        ).toFlowable(BackpressureStrategy.BUFFER),
-                                                        socket
-                                                    ).toObservable()
-                                                )
-                                                .reduce(stats) { obj, stats -> obj.from(stats) }
-                                        }
-                                        .flatMap { v -> ackBarrier(socket).toSingleDefault(v) }
-                                }
-                        }.subscribeOn(operationsScheduler)
+                        bootstrapUke(upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt(), bootstrap)
                 }
 
                 upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                         == ConnectionRole.ROLE_SEME -> {
-                    retryDelay(
-                        connectToGroup(
-                            upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME),
-                            upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE),
-                            120,
-                            upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND)
-                                .toInt()
-                        ), 10, 5
-                    )
-                        .flatMap { info ->
-                            LOG.v("establishing outgoing socket")
-                            retryDelay(
-                                socketProvider.getSocket(
-                                    info.groupOwnerAddress()!!,
-                                    SCATTERBRAIN_PORT,
-                                    advertiser.getHashLuid()
-                                ), 5, 1
-                            )
-                                .flatMap { socket ->
-                                    LOG.v("socket established, connected to server")
-                                    routingMetadataSeme(
-                                        socket,
-                                        Flowable.just(
-                                            RoutingMetadataPacket.newBuilder().setEmpty().build()
-                                        )
-                                    )
-                                        .ignoreElements()
-                                        .andThen(
-                                            identityPacketSeme(
-                                                socket,
-                                                datastore.getTopRandomIdentities(
-                                                    preferences.getInt(
-                                                        mContext.getString(R.string.pref_identitycap),
-                                                        200
-                                                    )!!
-                                                )
-                                            )
-                                        )
-                                        .reduce(ArrayList()) { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
-                                            list.add(packet)
-                                            list
-                                        }
-                                        .flatMap { p ->
-                                            LOG.v("inserting identity packet seme")
-                                            datastore.insertIdentityPacket(p).toSingleDefault(
-                                                HandshakeResult(
-                                                    p.size,
-                                                    0,
-                                                    HandshakeResult.TransactionStatus.STATUS_SUCCESS
-                                                )
-                                            )
-                                        }
-                                        .flatMap { stats ->
-                                            declareHashesSeme(socket)
-                                                .doOnSuccess { LOG.v("received declare hashes packet seme") }
-                                                .flatMapObservable { declareHashesPacket ->
-                                                    readBlockDataSeme(socket)
-                                                        .toObservable()
-                                                        .mergeWith(
-                                                            writeBlockDataSeme(
-                                                                socket,
-                                                                datastore.getTopRandomMessages(
-                                                                    32,
-                                                                    declareHashesPacket
-                                                                )
-                                                                    .toFlowable(BackpressureStrategy.BUFFER)
-                                                            ).toObservable()
-                                                        )
-                                                }
-                                                .reduce(stats) { obj, st -> obj.from(st) }
-                                        }
-                                        .flatMap { v -> ackBarrier(socket).toSingleDefault(v) }
-                                }
-                        }
-                        //     .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
-                        .doOnSubscribe { LOG.v("subscribed to writeBlockData") }
-                        .subscribeOn(operationsScheduler)
-
+                    val name =  upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
+                    val passphrase = upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
+                    val band = upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt()
+                    val port = upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PORT).toInt()
+                    bootstrapSeme(name, passphrase, band, port)
                 }
 
                 else -> {

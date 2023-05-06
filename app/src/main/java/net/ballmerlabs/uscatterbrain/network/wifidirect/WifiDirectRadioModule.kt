@@ -12,12 +12,16 @@ import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import java.io.File
+import java.net.Socket
 
 /**
  * dagger2 interface for WifiDirectRadioModule
  */
 interface WifiDirectRadioModule {
     fun getBand(): Int
+
+    fun bootstrapUke(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<HandshakeResult>
+    fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int) : Single<HandshakeResult>
 
     /**
      * Connects to an existing wifi direct group manually
@@ -34,14 +38,18 @@ interface WifiDirectRadioModule {
      * @param upgradeRequest bootstrap request generated with WifiDirectBootstrapRequest
      * @return Single emitting handshake result with transaction stats
      */
-    fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest, luid: java.util.UUID): Single<HandshakeResult>
+    fun bootstrapFromUpgrade(
+        upgradeRequest: BootstrapRequest,
+        luid: java.util.UUID,
+        bootstrap: (WifiDirectBootstrapRequest) -> Completable
+    ): Single<HandshakeResult>
 
     /**
      * Manually creates a wifi direct group, autogenerating the username/passphrase and
      * returning them as a BootstrapRequest
      * @return WifiDirectBootstrapRequest
      */
-    fun createGroup(band: Int): Single<WifiDirectBootstrapRequest>
+    fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<Socket>
 
     /**
      * Removes an existing wifi direct group if it exists
