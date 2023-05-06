@@ -515,7 +515,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     .reduce(stats) { obj, stats -> obj.from(stats) }
                             }
                             .flatMap { v -> ackBarrier(socket.socket).toSingleDefault(v) }
-                    }
+                    }.doFinally { socket.dispose() }
             }.subscribeOn(operationsScheduler)
     }
 
