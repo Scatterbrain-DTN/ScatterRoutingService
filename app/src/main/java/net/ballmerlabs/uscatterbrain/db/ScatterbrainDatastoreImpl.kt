@@ -586,14 +586,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .filter { i -> !i.isEnd }
             .doOnNext { id -> LOG.v("inserting identity: ${id.fingerprint}") }
             .flatMap { i ->
-                if (i.isEnd || i.isEmpty()) {
-                    Observable.never()
+                if (i.isEnd || i.isEmpty() || i.pubkey == null || i.uuid == null) {
+                    Observable.empty()
                 } else {
                     val id = KeylessIdentity(
                         i.name,
-                        i.pubkey!!,
+                        i.pubkey,
                         i.getSig(),
-                        i.uuid!!,
+                        i.uuid,
                         null
 
                     )

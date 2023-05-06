@@ -49,7 +49,7 @@ interface WifiDirectRadioModule {
      * returning them as a BootstrapRequest
      * @return WifiDirectBootstrapRequest
      */
-    fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<Socket>
+    fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<DisposableSocket>
 
     /**
      * Removes an existing wifi direct group if it exists

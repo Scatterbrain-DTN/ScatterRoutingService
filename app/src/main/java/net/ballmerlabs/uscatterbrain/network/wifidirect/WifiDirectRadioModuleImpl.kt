@@ -154,7 +154,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .doOnError { err -> firebaseWrapper.recordException(err) }
     }
 
-    fun createGroupDryRun(): Completable {
+    private fun createGroupDryRun(): Completable {
         return requestGroupInfo()
             .switchIfEmpty(
                 createGroupSingle()
@@ -165,7 +165,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     /**
      * create a wifi direct group with this device as the owner
      */
-    override fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<Socket> {
+    override fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<DisposableSocket> {
         val ret = requestGroupInfo()
             .switchIfEmpty(
                 createGroupSingle()
@@ -473,11 +473,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     Flowable.just(
                         RoutingMetadataPacket.newBuilder().setEmpty().build()
                     ),
-                    socket
+                    socket.socket
                 )
                     .ignoreElements()
                     .andThen(
-                        identityPacketUke(datastore.getTopRandomIdentities(20), socket)
+                        identityPacketUke(datastore.getTopRandomIdentities(20), socket.socket)
                             .reduce(
                                 ArrayList()
                             ) { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
@@ -493,12 +493,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 )
                             }
                     ).flatMap { stats ->
-                        declareHashesUke(socket)
+                        declareHashesUke(socket.socket)
                             .doOnSuccess {
                                 LOG.v("received declare hashes packet uke")
                             }
                             .flatMap { declareHashesPacket ->
-                                readBlockDataUke(socket)
+                                readBlockDataUke(socket.socket)
                                     .toObservable()
                                     .mergeWith(
                                         writeBlockDataUke(
@@ -509,12 +509,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                                 )!!,
                                                 declareHashesPacket
                                             ).toFlowable(BackpressureStrategy.BUFFER),
-                                            socket
+                                            socket.socket
                                         ).toObservable()
                                     )
                                     .reduce(stats) { obj, stats -> obj.from(stats) }
                             }
-                            .flatMap { v -> ackBarrier(socket).toSingleDefault(v) }
+                            .flatMap { v -> ackBarrier(socket.socket).toSingleDefault(v) }
                     }
             }.subscribeOn(operationsScheduler)
     }

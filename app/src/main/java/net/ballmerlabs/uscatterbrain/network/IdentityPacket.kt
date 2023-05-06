@@ -53,9 +53,9 @@ class IdentityPacket(packet: ScatterProto.Identity) :
 
     private val hash: ByteArray? = initHash()
 
-    val uuid: UUID? = if (isEnd) null else hashAsUUID(hash!!)
+    val uuid: UUID? = if (isEnd || hash == null) null else hashAsUUID(hash)
 
-    val fingerprint: String? = if(isEnd) null else LibsodiumInterface.base64enc(hash!!)
+    val fingerprint: String? = if(isEnd || hash == null) null else LibsodiumInterface.base64enc(hash)
 
     private fun sumBytes(): ByteString? {
         var result = ByteString.EMPTY
