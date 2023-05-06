@@ -95,27 +95,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
                 mBroadcastReceiver.observeConnectionInfo()
                     .mergeWith(Completable.fromAction {
-
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            val builder = infoComponentProvider.get()
-                            val pass = ByteArray(8)
-                            LibsodiumInterface.sodium.randombytes_buf(pass, pass.size)
-                            val base64pass = android.util.Base64.encodeToString(
-                                pass,
-                                android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
-                            )
-                            LOG.e("createGroup with band $band")
-                            val fakeConfig = builder.fakeWifiP2pConfig(
-                                WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
-                                    passphrase = base64pass,
-                                    networkName = "DIRECT-scatterbrain",
-                                    band = band
-                                )
-                            ).build()!!.fakeWifiP2pConfig()
-                            mManager.createGroup(channel, fakeConfig.asConfig(), listener)
-                        } else {
-                            mManager.createGroup(channel, listener)
-                        }
+                        mManager.createGroup(channel, listener)
                     })
                     .doOnError { err -> LOG.e("createGroup error: $err") }
                     .takeUntil { wifiP2pInfo ->
