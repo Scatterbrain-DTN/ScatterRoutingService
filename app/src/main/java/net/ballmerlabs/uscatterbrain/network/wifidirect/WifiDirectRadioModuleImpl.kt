@@ -95,7 +95,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
                 }
                 mBroadcastReceiver.observeConnectionInfo()
-                    .doOnSubscribe {
+                    .mergeWith(Completable.fromAction {
 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             val builder = infoComponentProvider.get()
@@ -117,7 +117,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         } else {
                             mManager.createGroup(channel, listener)
                         }
-                    }
+                    })
                     .doOnError { err -> LOG.e("createGroup error: $err") }
                     .takeUntil { wifiP2pInfo ->
                         wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner() && wifiP2pInfo.groupOwnerAddress() != null
@@ -237,9 +237,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
             }
 
-            subject.doOnSubscribe {
+            subject.mergeWith(Completable.fromAction {
                 mManager.removeGroup(channel, actionListener)
-            }
+            })
                 .andThen(mBroadcastReceiver.observeConnectionInfo()
                     .doOnError { err -> LOG.e("removeGroup error: $err") }
                     .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed() and !wifiP2pInfo.isGroupOwner() }
