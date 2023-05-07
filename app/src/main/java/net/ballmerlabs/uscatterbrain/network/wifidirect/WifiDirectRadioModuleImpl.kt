@@ -165,7 +165,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      * create a wifi direct group with this device as the owner
      */
     override fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<DisposableSocket> {
-        val ret = requestGroupInfo()
+        return requestGroupInfo()
             .switchIfEmpty(
                 createGroupSingle()
                     .andThen(requestGroupInfo().toSingle())
@@ -184,8 +184,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 bootstrap(request).subscribeOn(operationsScheduler).toSingleDefault(serverSocket.socket)
             }.flatMap { v -> v.flatMap { s -> s } }
             .subscribeOn(operationsScheduler)
-
-        return retryDelay(ret, 5, 1)
     }
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
