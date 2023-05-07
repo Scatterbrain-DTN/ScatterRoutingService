@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.RemoteException
+import com.akaita.java.rxjava2debug.RxJava2Debug
 import com.goterl.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
@@ -57,9 +58,10 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     init {
         LOG.e("initializing backend")
+        RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain", "net.ballmerlabs.scatterroutingservice"))
         RxJavaPlugins.setErrorHandler { e: Throwable ->
             LOG.e("received an unhandled exception: $e")
-            e.printStackTrace()
+            RxJava2Debug.getEnhancedStackTrace(e).printStackTrace()
         }
         // RxBleLOG.setLogLevel(RxBleLOG.VERBOSE)
     }

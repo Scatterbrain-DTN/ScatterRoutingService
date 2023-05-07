@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.akaita.java.rxjava2debug.RxJava2Debug
 import com.polidea.rxandroidble2.RxBleClient
 import io.reactivex.Maybe
 import io.reactivex.Observable
@@ -51,7 +52,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                     LOG.e("scan found devices $size with activeLuids ${leState.activeCount()}")
                     val disp = Observable.fromIterable(result)
                         .distinct { v -> leState.getAdvertisedLuid(v) }
-                        .concatMapMaybe { r ->
+                        .flatMapMaybe { r ->
                             val luid = leState.getAdvertisedLuid(r)
                             if (luid != null && leState.updateActive(luid)) {
                                 leState.processScanResult(luid, r.bleDevice)
@@ -65,7 +66,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                         }
                         .ignoreElements()
                         .doOnError { err ->
-                            err.printStackTrace()
+                            RxJava2Debug.getEnhancedStackTrace(err).printStackTrace()
                             LOG.e("process scan result error $err")
                         }
                         .onErrorComplete()

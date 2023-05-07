@@ -98,6 +98,8 @@ dependencies {
     // (see https://github.com/ReactiveX/RxJava/releases for latest 3.x.x version)
     implementation("androidx.security:security-crypto:1.1.0-alpha05")
 
+    implementation 'com.akaita.java:rxjava2-debug:1.4.0'
+
     //reflect for logging
     implementation 'org.jetbrains.kotlin:kotlin-reflect:1.7.20'
 

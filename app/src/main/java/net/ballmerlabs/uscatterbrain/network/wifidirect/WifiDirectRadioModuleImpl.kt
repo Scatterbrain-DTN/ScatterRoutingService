@@ -71,7 +71,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private fun createGroupSingle(): Completable {
         return Completable.defer {
-            val band = getBand()
             val subject = CompletableSubject.create()
             try {
                 val listener = object : WifiP2pManager.ActionListener {
@@ -149,7 +148,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
             subject
         }
-            .doOnSuccess { LOG.v("got groupinfo") }
+            .doOnSuccess { LOG.v("got groupinfo on request") }
             .doOnComplete { LOG.v("requestGroupInfo completed") }
             .doOnError { err -> firebaseWrapper.recordException(err) }
     }
@@ -191,7 +190,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
         return createGroupDryRun()
-            .andThen(removeGroup(retries = 9, delay = 1))
             .doOnError { err ->
                 LOG.e("cry $err")
                 err.printStackTrace()
@@ -199,15 +197,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .timeout(5, TimeUnit.SECONDS)
             .toSingleDefault(true)
             .onErrorReturnItem(false)
-            .flatMap { v ->
-                if (v) {
-                    removeGroup(retries = 9, delay = 1).toSingleDefault(true)
-                } else {
-                    Single.just(false)
-                }
-            }
-            .onErrorReturnItem(false)
-
     }
 
     override fun removeGroup(retries: Int, delay: Int): Completable {
@@ -520,15 +509,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int) : Single<HandshakeResult> {
-        return      retryDelay(
-            connectToGroup(
+        return connectToGroup(
                name,
                 passphrase,
-                120,
-               band
-                    .toInt()
-            ), 10, 5
-        )
+                35,
+                band
+            )
             .flatMap { info ->
                 LOG.v("establishing outgoing socket")
                 retryDelay(
@@ -536,7 +522,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         info.groupOwnerAddress()!!,
                         port,
                         advertiser.getHashLuid()
-                    ), 5, 1
+                    ), 30, 5
                 )
                     .flatMap { socket ->
                         LOG.v("socket established, connected to server")

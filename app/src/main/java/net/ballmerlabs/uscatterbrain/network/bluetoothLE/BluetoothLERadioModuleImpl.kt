@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.le.*
 import android.content.Context
 import android.net.wifi.WifiManager
+import com.akaita.java.rxjava2debug.RxJava2Debug
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.scan.ScanSettings
 import io.reactivex.*
@@ -228,6 +229,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { conn ->
                         LOG.v("gatt client luid stage")
                         conn.readLuid()
+                            .timeout(15, TimeUnit.SECONDS)
                             .doOnSuccess { luidPacket ->
                                 LOG.v("client handshake received unhashed luid packet: " + luidPacket.luidVal)
                                 session.luidStage.setPacket(luidPacket)
@@ -732,7 +734,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             firebase.recordException(e)
                             e.printStackTrace()
                             //state.updateDisconnected(luid)
-                        }.onErrorComplete()
+                        }
                     obs.subscribe(res)
                     res
                 }
@@ -797,7 +799,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .toMaybe()
             .doOnError { err ->
                 LOG.e("session ${session.remoteLuid} ended with error $err")
-                err.printStackTrace()
+                RxJava2Debug.getEnhancedStackTrace(err).printStackTrace()
                 firebase.recordException(err)
             }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))

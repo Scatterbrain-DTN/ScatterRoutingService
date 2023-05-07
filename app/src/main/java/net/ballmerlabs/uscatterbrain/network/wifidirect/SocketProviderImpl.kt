@@ -4,6 +4,7 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.protoUUIDfromUUID
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.InetAddress
 import java.net.Socket
 import java.util.UUID
@@ -15,13 +16,10 @@ import javax.inject.Singleton
 class SocketProviderImpl @Inject constructor(
         @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler
 ): SocketProvider {
+    private val LOG by scatterLog()
     override fun getSocket(address: InetAddress, port: Int, luid: UUID): Single<Socket> {
         return Single.fromCallable { Socket(address, port) }
-            .map { s ->
-                val l = protoUUIDfromUUID(luid)
-                l.writeDelimitedTo(s.getOutputStream())
-                s
-            }
                 .subscribeOn(operationsScheduler)
+            .doOnError { err -> LOG.e("getSocket error $err") }
     }
 }
