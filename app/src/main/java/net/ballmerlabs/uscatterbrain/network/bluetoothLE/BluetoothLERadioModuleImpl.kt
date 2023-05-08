@@ -229,7 +229,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { conn ->
                         LOG.v("gatt client luid stage")
                         conn.readLuid()
-                            .timeout(15, TimeUnit.SECONDS)
+                            .timeout(35, TimeUnit.SECONDS)
                             .doOnSuccess { luidPacket ->
                                 LOG.v("client handshake received unhashed luid packet: " + luidPacket.luidVal)
                                 session.luidStage.setPacket(luidPacket)
@@ -593,20 +593,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 session
             }
     }
-
-    /* attempt to bootstrap to wifi direct using upgrade packet (gatt client version) */
-    private fun bootstrapWifiP2p(
-        bootstrapRequest: BootstrapRequest,
-        luid: UUID,
-        bootstrap: (WifiDirectBootstrapRequest) -> Completable
-    ): Single<HandshakeResult> {
-        return wifiDirectRadioModule.bootstrapFromUpgrade(bootstrapRequest, luid, bootstrap)
-            .doOnError { err ->
-                LOG.e("wifi p2p upgrade failed: $err")
-                err.printStackTrace()
-            }
-    }
-
 
     override fun initiateOutgoingConnection(
         luid: UUID

@@ -30,7 +30,7 @@ class ServerSocketManagerImpl @Inject constructor(
                         socket = socket.accept(),
                         serverSocket = socket
                     )
-                }
+                }.doOnSuccess { LOG.e("socket ACCEPTED!") }
                     .subscribeOn(operationsScheduler),
                 port = socket.localPort,
             )

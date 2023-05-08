@@ -8,7 +8,7 @@ import java.util.UUID
 
 data class DisposableSocket(
     val socket: Socket,
-    val serverSocket: ServerSocket
+    val serverSocket: ServerSocket,
 ): Disposable {
     override fun dispose() {
         socket.close()

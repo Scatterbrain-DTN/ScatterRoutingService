@@ -169,20 +169,24 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .switchIfEmpty(
                 createGroupSingle()
                     .andThen(requestGroupInfo().toSingle())
-            ).zipWith(serverSocketManager.getServerSocket()) { groupInfo, serverSocket ->
+            ).flatMap { groupInfo ->
                 LOG.v("got groupInfo")
-                val request = bootstrapRequestProvider.get()
-                    .wifiDirectArgs(
-                        BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                            passphrase = groupInfo.passphrase,
-                            name = groupInfo.networkName,
-                            role = ConnectionRole.ROLE_UKE,
-                            band = band,
-                            port = serverSocket.port
-                        )
-                    ).build()!!.wifiBootstrapRequest()
-                bootstrap(request).subscribeOn(operationsScheduler).toSingleDefault(serverSocket.socket)
-            }.flatMap { v -> v.flatMap { s -> s } }
+                serverSocketManager.getServerSocket().flatMap { serverSocket ->
+                    LOG.v("got socket ${serverSocket.port}")
+                    val request = bootstrapRequestProvider.get()
+                        .wifiDirectArgs(
+                            BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                                passphrase = groupInfo.passphrase,
+                                name = groupInfo.networkName,
+                                role = ConnectionRole.ROLE_UKE,
+                                band = band,
+                                port = serverSocket.port
+                            )
+                        ).build()!!.wifiBootstrapRequest()
+                    bootstrap(request).subscribeOn(operationsScheduler)
+                        .toSingleDefault(serverSocket.socket)
+                }
+            }.flatMap { v -> v }.subscribeOn(operationsScheduler)
             .subscribeOn(operationsScheduler)
     }
 
@@ -510,7 +514,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return connectToGroup(
                name,
                 passphrase,
-                35,
+                60,
                 band
             )
             .flatMap { info ->
