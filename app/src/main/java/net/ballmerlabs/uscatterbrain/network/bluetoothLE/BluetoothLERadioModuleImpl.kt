@@ -608,8 +608,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("successfully wrote uuid len ${res.size}")
                     }
                     .doOnError { e ->
-                        firebase.recordException(e)
-                        LOG.e("failed to write characteristic: $e")
+                        LOG.e("failed to write characteristic: $e. This is probably just a lock")
                     }
                     .ignoreElement()
                     .andThen(

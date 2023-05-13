@@ -51,7 +51,7 @@ class LeStateImpl @Inject constructor(
 
     override fun transactionLockIsSelf(luid: UUID?): Boolean {
         val lock = transactionLock.get()
-        return lock == luid || lock == null
+        return lock != null && lock == luid
     }
 
     override fun setForceUke(force: Boolean) {
@@ -80,11 +80,8 @@ class LeStateImpl @Inject constructor(
                 null -> n
                 else -> c
             }
-        } == null
-        if (lock) {
-          //  scheduler.get().pauseScan()
         }
-        return lock
+        return lock == null || lock != luid
     }
 
     override fun transactionUnlock(luid: UUID): Boolean {

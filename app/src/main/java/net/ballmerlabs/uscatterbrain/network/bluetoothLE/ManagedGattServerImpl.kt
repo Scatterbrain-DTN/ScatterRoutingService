@@ -80,27 +80,32 @@ class ManagedGattServerImpl @Inject constructor(
             .flatMapMaybe { trans ->
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
-                state.updateActive(luid)
-                serverConnection.connection.setOnDisconnect(trans.remoteDevice) {
-                    LOG.e("server onDisconnect $luid")
-                    state.updateDisconnected(luid)
-                    serverConnection.disconnect(trans.remoteDevice)
-                    serverConnection.unlockLuid(luid)
+                if(state.transactionLockAccquire (luid)) {
+                    state.updateActive(luid)
+                    serverConnection.connection.setOnDisconnect(trans.remoteDevice) {
+                        LOG.e("server onDisconnect $luid")
+                        state.updateDisconnected(luid)
+                        serverConnection.disconnect(trans.remoteDevice)
+                        serverConnection.unlockLuid(luid)
+                    }
+                    LOG.v("server handling luid $luid")
+                    LOG.v("transaction NOT locked, continuing")
+                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                        .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
+                        .flatMapMaybe { connection ->
+                            LOG.e("this is a reverse connection")
+                            connection.bluetoothLeRadioModule().handleConnection(luid)
+                        }
+                        .onErrorComplete()
+                        .doFinally { state.transactionUnlock(luid) }
+                        .doOnError { err ->
+                            LOG.e("error in handleConnection $err")
+                            firebase.recordException(err)
+                            //   state.updateDisconnected(luid)
+                        }
+                } else {
+                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE).toMaybe()
                 }
-                LOG.v("server handling luid $luid")
-                LOG.v("transaction NOT locked, continuing")
-                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                    .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
-                    .flatMapMaybe { connection ->
-                        LOG.e("this is a reverse connection")
-                        connection.bluetoothLeRadioModule().handleConnection(luid)
-                    }
-                    .onErrorComplete()
-                    .doOnError { err ->
-                        LOG.e("error in handleConnection $err")
-                        firebase.recordException(err)
-                        //   state.updateDisconnected(luid)
-                    }
 
             }
             .onErrorReturnItem(
