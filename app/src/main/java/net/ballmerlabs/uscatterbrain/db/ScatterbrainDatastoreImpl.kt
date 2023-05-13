@@ -214,10 +214,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     }
                 }
                 .subscribeOn(databaseScheduler)
-        }
-
-            .onErrorResumeNext { discardStream(stream) }
-            .doOnError { err ->
+        }.doOnError { err ->
                 LOG.e("error inserting messsage $err")
             }
     }
@@ -1069,14 +1066,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Single.fromCallable { FileOutputStream(path) }
             .flatMapCompletable { fileOutputStream ->
                 packets
-                    .concatMapCompletable(Function<BlockSequencePacket, CompletableSource> c@{ blockSequencePacket ->
+                    .concatMapCompletable{ blockSequencePacket ->
                         if (!blockSequencePacket.verifyHash(header)) {
-                            Completable.error(IllegalStateException("failed to verify hash"))
+                            packets.ignoreElements()
                         } else {
                             Completable.fromAction { fileOutputStream.write(blockSequencePacket.data) }
                                 .subscribeOn(databaseScheduler)
                         }
-                    })
+                    }
             }
     }
 

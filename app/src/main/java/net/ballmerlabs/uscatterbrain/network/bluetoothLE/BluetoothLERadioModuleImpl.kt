@@ -229,7 +229,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { conn ->
                         LOG.v("gatt client luid stage")
                         conn.readLuid()
-                            .timeout(35, TimeUnit.SECONDS)
+                            .timeout(60, TimeUnit.SECONDS)
                             .doOnSuccess { luidPacket ->
                                 LOG.v("client handshake received unhashed luid packet: " + luidPacket.luidVal)
                                 session.luidStage.setPacket(luidPacket)
