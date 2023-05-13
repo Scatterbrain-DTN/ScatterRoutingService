@@ -171,30 +171,32 @@ class LeStateImpl @Inject constructor(
         luid: UUID
     ): Single<ScatterbrainTransactionSubcomponent> {
         val connectSingle =
-            Single.defer {
+            Single.fromCallable {
                 val connection = connectionCache[luid]
                 if (connection != null) {
                     LOG.e("establishing cached connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
-                    connection.connection().connection.map { connection }.firstOrError()
+                    connection.connection().connection.firstOrError().ignoreElement().toSingleDefault(connection)
                 } else {
                     LOG.e("establishing NEW connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
-                    val rawConnection = device.establishConnection(false)
-                        .subscribeOn(clientScheduler)
-             //           .flatMapSingle { c -> c.requestMtu(128).ignoreElement().toSingleDefault(c) }
+                    val rawConnection = retryDelay(
+                        device.establishConnection(false)
+                            .subscribeOn(clientScheduler), 6, 10
+                    )
+                        //           .flatMapSingle { c -> c.requestMtu(128).ignoreElement().toSingleDefault(c) }
                         .doFinally { connectionCache.remove(luid) }
                         .doOnNext {
                             LOG.d("now connected ${device.macAddress}")
                         }
                     val newconnection = factory.transaction(device)
                     newconnection.connection().subscribeConnection(rawConnection)
-                    connectionCache.putIfAbsent(luid, newconnection)
-                  //  updateActive(luid)
+                    connectionCache[luid] = newconnection
+                    //  updateActive(luid)
                     newconnection.connection().setOnDisconnect {
                         LOG.e("client onDisconnect $luid")
                         updateDisconnected(luid)
                         if (connectionCache.isEmpty()) {
-                           // LOG.e("connectionCache empty, removing luid")
-                           // advertiser.removeLuid()
+                            // LOG.e("connectionCache empty, removing luid")
+                            // advertiser.removeLuid()
                             Completable.complete()
                         } else {
                             Completable.complete()
@@ -205,12 +207,11 @@ class LeStateImpl @Inject constructor(
                         })
 
                     }
-                    newconnection.connection().connection.map { newconnection }.firstOrError()
+                    newconnection.connection().connection.firstOrError().ignoreElement().toSingleDefault(newconnection)
                 }
-            }
+            }.flatMap { c -> c.subscribeOn(clientScheduler) }
 
-        return advertiser.setAdvertisingLuid()
-            .andThen(connectSingle)
+        return connectSingle
     }
     override fun refreshPeers(): Completable {
         return Completable.fromAction {
