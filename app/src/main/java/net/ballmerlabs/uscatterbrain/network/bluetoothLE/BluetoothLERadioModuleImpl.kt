@@ -764,8 +764,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         s.merge(c).subscribeOn(operationsScheduler)
                     }
                 }.flatMap { s ->
-                    s.flatMap{ s -> s }.subscribeOn(operationsScheduler)
-                }.subscribeOn(operationsScheduler)
+                    s.flatMap{ s -> s }
+                }
             }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
             .doOnNext { transactionResult ->

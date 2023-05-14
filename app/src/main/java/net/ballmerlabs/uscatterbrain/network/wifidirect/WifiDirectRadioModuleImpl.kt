@@ -196,7 +196,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 LOG.e("cry $err")
                 err.printStackTrace()
             }
-            .timeout(5, TimeUnit.SECONDS)
+            .timeout(10, TimeUnit.SECONDS)
             .toSingleDefault(true)
             .onErrorReturnItem(false)
     }
@@ -279,11 +279,55 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
     }
 
+    private fun cancelConnection(): Completable {
+       val cancel = Completable.defer {
+            val subject = CompletableSubject.create()
+            try {
+
+                val connectListener = object : WifiP2pManager.ActionListener {
+                    override fun onSuccess() {
+                        LOG.v("canceled wifi direct conneection")
+                        subject.onComplete()
+                    }
+
+                    override fun onFailure(reason: Int) {
+                        LOG.e(
+                            "failed to cancel connection, am v sad. I cry now: " + reasonCodeToString(
+                                reason
+                            )
+                        )
+                        subject.onError(
+                            IllegalStateException(
+                                "failed to cancel connection: " + reasonCodeToString(
+                                    reason
+                                )
+                            )
+                        )
+                    }
+                }
+                try {
+                    mManager.cancelConnect(channel, connectListener)
+                    subject
+                } catch (exc: Exception) {
+                    LOG.e("wifi p2p failed to cancel connect: ${exc.message}")
+                    firebaseWrapper.recordException(exc)
+                    exc.printStackTrace()
+                    Completable.error(exc)
+                }
+            } catch (e: SecurityException) {
+                LOG.e("wifi p2p threw SecurityException $e")
+                firebaseWrapper.recordException(e)
+                return@defer Completable.error(e)
+            }
+        }
+        return retryDelay(cancel, 10, 4)
+    }
+
     /*
      * conect using a wifip2pconfig object
      */
     private fun initiateConnection(config: WifiP2pConfig): Completable {
-        return Completable.defer {
+        val connection = Completable.defer {
             val subject = CompletableSubject.create()
             try {
 
@@ -308,7 +352,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         )
                     }
                 }
-
                 try {
                     mManager.connect(channel, config, connectListener)
                     subject
@@ -324,6 +367,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 return@defer Completable.error(e)
             }
         }
+        return connection
     }
 
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {
@@ -516,7 +560,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 passphrase,
                 60,
                 band
-            )
+            ).subscribeOn(operationsScheduler)
             .flatMap { info ->
                 LOG.v("establishing outgoing socket")
                 retryDelay(
@@ -584,6 +628,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
             //     .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
             .doOnSubscribe { LOG.v("subscribed to writeBlockData") }
+            .onErrorResumeNext { err -> cancelConnection().andThen(Single.error(err)) }
+            .flatMap { v -> cancelConnection().toSingleDefault(v)}
             .subscribeOn(operationsScheduler)
     }
 

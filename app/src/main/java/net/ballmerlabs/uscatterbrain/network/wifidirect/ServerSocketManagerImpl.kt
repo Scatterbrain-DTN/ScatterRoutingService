@@ -31,11 +31,13 @@ class ServerSocketManagerImpl @Inject constructor(
                         serverSocket = socket
                     )
                 }.doOnSuccess { LOG.e("socket ACCEPTED!") }
-                    .subscribeOn(operationsScheduler),
+                    .subscribeOn(operationsScheduler)
+                    .observeOn(operationsScheduler),
                 port = socket.localPort,
             )
         }
             .subscribeOn(operationsScheduler)
+            .observeOn(operationsScheduler)
             .doOnSuccess { LOG.v("accepted server socket") }
             .doOnError { err ->
                 LOG.e("getServerSocket error $err")

@@ -104,7 +104,7 @@ class ManagedGattServerImpl @Inject constructor(
                             //   state.updateDisconnected(luid)
                         }
                 } else {
-                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE).toMaybe()
+                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS).toMaybe()
                 }
 
             }
