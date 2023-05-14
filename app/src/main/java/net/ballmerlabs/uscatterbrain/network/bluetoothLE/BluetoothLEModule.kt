@@ -13,13 +13,6 @@ interface BluetoothLEModule {
      */
     fun stopDiscover()
 
-    /**
-     * Removes the current wifi direct group if it exists
-     * @param shouldRemove do nothing if false (what?)
-     * @return completable
-     */
-    fun removeWifiDirectGroup(shouldRemove: Boolean): Completable
-
 
     fun handleConnection(
         luid: UUID

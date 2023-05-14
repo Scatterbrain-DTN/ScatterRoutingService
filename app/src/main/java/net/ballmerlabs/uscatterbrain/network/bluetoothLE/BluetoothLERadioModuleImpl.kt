@@ -629,20 +629,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun stopDiscover() {
     }
 
-    override fun removeWifiDirectGroup(shouldRemove: Boolean): Completable {
-        return Completable.defer {
-            if (shouldRemove) {
-                wifiDirectRadioModule.removeGroup()
-                    .doOnError { err ->
-                        LOG.e("failed to cleanup wifi direct group after termination")
-                        firebase.recordException(err)
-                    }
-            } else {
-                Completable.complete()
-            }
-        }
-    }
-
     private fun awaitAck(clientConnection: CachedLEConnection): Completable {
         return clientConnection.readAck()
             .flatMapCompletable { ack ->

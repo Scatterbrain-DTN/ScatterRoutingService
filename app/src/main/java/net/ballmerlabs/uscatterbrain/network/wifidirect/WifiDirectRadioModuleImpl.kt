@@ -5,6 +5,7 @@ import android.content.IntentFilter
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pGroup
+import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import io.reactivex.*
@@ -153,6 +154,32 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .doOnError { err -> firebaseWrapper.recordException(err) }
     }
 
+
+    private fun requestConnectionInfo(): Maybe<WifiP2pInfo> {
+        return Maybe.defer {
+            LOG.v("requestConnectionInfo")
+            val subject = MaybeSubject.create<WifiP2pInfo>()
+            val listener = WifiP2pManager.ConnectionInfoListener { connectionInfo ->
+                if (connectionInfo == null) {
+                    subject.onComplete()
+                } else {
+                    subject.onSuccess(connectionInfo)
+                }
+            }
+
+            try {
+                mManager.requestConnectionInfo(channel, listener)
+            } catch (exc: SecurityException) {
+                firebaseWrapper.recordException(exc)
+                subject.onError(exc)
+            }
+            subject
+        }.doOnSuccess { LOG.v("got connectionInfo") }
+            .doOnError { err -> firebaseWrapper.recordException(err) }
+            .doOnComplete { LOG.e("empty connectionInfo") }
+
+    }
+
     private fun createGroupDryRun(): Completable {
         return requestGroupInfo()
             .switchIfEmpty(
@@ -250,7 +277,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         timeout: Int,
         band: Int
     ): Single<WifiDirectInfo> {
-        return Single.defer {
+        val connection =  Single.defer {
             val builder = infoComponentProvider.get()
             val fakeConfig = builder.fakeWifiP2pConfig(
                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
@@ -260,15 +287,20 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 )
             ).build()!!.fakeWifiP2pConfig()
             //TODO: potentially remove group here?
-            requestGroupInfo().flatMapCompletable { removeGroup() }.andThen(
-                initiateConnection(fakeConfig.asConfig())
-                    .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
-            )
+            initiateConnection(fakeConfig.asConfig())
+                .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
 
         }.doOnError { err ->
             err.printStackTrace()
             firebaseWrapper.recordException(err)
         }
+        return requestConnectionInfo().flatMap { info ->
+            if (info.isGroupOwner || info.groupFormed) {
+                removeGroup().andThen(connection.toMaybe())
+            } else {
+                connection.toMaybe()
+            }
+        }.switchIfEmpty(connection)
     }
 
     override fun getBand(): Int {
@@ -367,7 +399,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 return@defer Completable.error(e)
             }
         }
-        return connection
+        return retryDelay(connection, 7, 1)
     }
 
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {
