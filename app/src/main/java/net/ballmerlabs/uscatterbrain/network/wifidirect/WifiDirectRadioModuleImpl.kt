@@ -260,7 +260,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 )
             ).build()!!.fakeWifiP2pConfig()
             //TODO: potentially remove group here?
-            removeGroup().andThen(
+            requestGroupInfo().flatMapCompletable { removeGroup() }.andThen(
                 initiateConnection(fakeConfig.asConfig())
                     .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
             )
@@ -628,8 +628,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
             //     .flatMap { v -> removeGroup(10, 1).toSingleDefault(v) }
             .doOnSubscribe { LOG.v("subscribed to writeBlockData") }
-            .onErrorResumeNext { err -> cancelConnection().andThen(Single.error(err)) }
-            .flatMap { v -> cancelConnection().toSingleDefault(v)}
             .subscribeOn(operationsScheduler)
     }
 
