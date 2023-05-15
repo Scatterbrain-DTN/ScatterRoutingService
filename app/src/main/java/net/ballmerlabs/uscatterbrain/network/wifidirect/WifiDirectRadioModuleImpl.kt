@@ -191,7 +191,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     /**
      * create a wifi direct group with this device as the owner
      */
-    override fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<DisposableSocket> {
+    override fun createGroup(
+        band: Int,
+        bootstrap: (WifiDirectBootstrapRequest) -> Completable
+    ): Single<DisposableSocket> {
         return requestGroupInfo()
             .switchIfEmpty(
                 createGroupSingle()
@@ -210,10 +213,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 port = serverSocket.port
                             )
                         ).build()!!.wifiBootstrapRequest()
-                    bootstrap(request).subscribeOn(operationsScheduler)
-                        .toSingleDefault(serverSocket.socket)
+                    serverSocket.socket.toObservable().mergeWith(
+                        bootstrap(request).subscribeOn(operationsScheduler).toObservable()
+                    ).firstOrError()
                 }
-            }.flatMap { v -> v }.subscribeOn(operationsScheduler)
+            }
             .subscribeOn(operationsScheduler)
     }
 
@@ -277,7 +281,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         timeout: Int,
         band: Int
     ): Single<WifiDirectInfo> {
-        val connection =  Single.defer {
+        val connection = Single.defer {
             val builder = infoComponentProvider.get()
             val fakeConfig = builder.fakeWifiP2pConfig(
                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
@@ -295,7 +299,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             firebaseWrapper.recordException(err)
         }
         return requestConnectionInfo().flatMap { info ->
-            if (info.isGroupOwner || info.groupFormed) {
+            if (info.isGroupOwner) {
                 removeGroup().andThen(connection.toMaybe())
             } else {
                 connection.toMaybe()
@@ -312,7 +316,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     private fun cancelConnection(): Completable {
-       val cancel = Completable.defer {
+        val cancel = Completable.defer {
             val subject = CompletableSubject.create()
             try {
 
@@ -527,7 +531,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .doOnError { err -> LOG.e("connect to group failed: $err") }
     }
 
-    override fun bootstrapUke(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<HandshakeResult> {
+    override fun bootstrapUke(
+        band: Int,
+        bootstrap: (WifiDirectBootstrapRequest) -> Completable
+    ): Single<HandshakeResult> {
         return createGroup(band, bootstrap)
             .subscribeOn(operationsScheduler)
             .doOnError { err ->
@@ -582,17 +589,22 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     .reduce(stats) { obj, stats -> obj.from(stats) }
                             }
                             .flatMap { v -> ackBarrier(socket.socket).toSingleDefault(v) }
-                    }.doFinally { socket.dispose() }
+                    }
             }.subscribeOn(operationsScheduler)
     }
 
-    override fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int) : Single<HandshakeResult> {
+    override fun bootstrapSeme(
+        name: String,
+        passphrase: String,
+        band: Int,
+        port: Int
+    ): Single<HandshakeResult> {
         return connectToGroup(
-               name,
-                passphrase,
-                60,
-                band
-            ).subscribeOn(operationsScheduler)
+            name,
+            passphrase,
+            60,
+            band
+        ).subscribeOn(operationsScheduler)
             .flatMap { info ->
                 LOG.v("establishing outgoing socket")
                 retryDelay(
@@ -685,15 +697,21 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             when {
                 upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                         == ConnectionRole.ROLE_UKE -> {
-                        bootstrapUke(upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt(), bootstrap)
+                    bootstrapUke(
+                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt(),
+                        bootstrap
+                    )
                 }
 
                 upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
                         == ConnectionRole.ROLE_SEME -> {
-                    val name =  upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
-                    val passphrase = upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
-                    val band = upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt()
-                    val port = upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PORT).toInt()
+                    val name = upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
+                    val passphrase =
+                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
+                    val band =
+                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt()
+                    val port =
+                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PORT).toInt()
                     bootstrapSeme(name, passphrase, band, port)
                 }
 

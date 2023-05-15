@@ -34,6 +34,7 @@ class VotingStage : LeDeviceSession.Stage {
         return builder
             .setProvides(provides)
             .setTiebreaker(tiebreaker)
+            .setforceUke(force)
             .build()
     }
 
