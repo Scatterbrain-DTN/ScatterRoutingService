@@ -40,4 +40,8 @@ interface WifiDirectBroadcastReceiver {
      * Perform an explicit cast from this object to a regular BroadcastReceiver
      */
     fun asReceiver(): BroadcastReceiver
+
+    fun connectedDevices(): Collection<WifiP2pDevice>
+
+    fun setOnDisconnect(device: WifiP2pDevice, onDisconnect: () -> Unit)
 }

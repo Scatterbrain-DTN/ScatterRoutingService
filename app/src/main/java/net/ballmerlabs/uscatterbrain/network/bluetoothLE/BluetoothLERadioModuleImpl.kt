@@ -402,7 +402,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     session.remoteLuid,
                                     session.device
                                 )
-                            }.ignoreElement()
+                            }.ignoreElements()
                                 .toSingleDefault(
                                     TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                 )
@@ -429,22 +429,41 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 wifiDirectRadioModule.getBand()
                                             )
 
-                                            wifiDirectRadioModule.bootstrapSeme(request.name, request.passphrase, request.band, request.port)
-                                                .map {
-                                            TransactionResult.of(
-                                                request,
-                                                TransactionResult.STAGE_TERMINATE,
+                                            wifiDirectRadioModule.bootstrapSeme(
+                                                request.name,
+                                                request.passphrase,
+                                                request.band,
+                                                request.port
                                             )
+                                                .map {
+                                                    TransactionResult.of(
+                                                        request as BootstrapRequest,
+                                                        TransactionResult.STAGE_TERMINATE,
+                                                    )
                                                 }
                                         }
 
-                                        AdvertisePacket.Provides.BLE ->Single.just(TransactionResult.of(
-                                            TransactionResult.STAGE_IDENTITY
-                                        ))
+                                        AdvertisePacket.Provides.BLE -> Flowable.just(
+                                            TransactionResult.of(
+                                                TransactionResult.STAGE_IDENTITY
+                                            )
+                                        )
 
-                                        else -> Single.just(TransactionResult.err(
-                                            IllegalStateException("invalid provides ${upgradePacket.provides}")
-                                        ))
+                                        else -> Flowable.just(
+                                            TransactionResult.err(
+                                                IllegalStateException("invalid provides ${upgradePacket.provides}")
+                                            )
+                                        )
+                                    }.reduce(
+                                        TransactionResult.empty<BootstrapRequest>()
+                                    ) { first, second ->
+                                        if(first.isError) {
+                                            first
+                                        } else if (second.isError) {
+                                            second
+                                        } else {
+                                            second
+                                        }
                                     }
                                 }
                         } else {

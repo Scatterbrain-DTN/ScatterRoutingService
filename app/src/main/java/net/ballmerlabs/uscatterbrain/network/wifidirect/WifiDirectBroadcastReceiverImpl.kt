@@ -1,21 +1,28 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.NetworkInfo
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.net.wifi.p2p.WifiP2pManager.*
+import androidx.core.app.ActivityCompat
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver.P2pState
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import java.util.AbstractMap.SimpleEntry
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -38,11 +45,30 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private val connectionSubject = BehaviorSubject.create<WifiP2pInfo>().toSerialized()
     private val deviceListSubject = BehaviorSubject.create<WifiP2pDeviceList>().toSerialized()
     private val p2pStateSubject = BehaviorSubject.create<P2pState>().toSerialized()
-    private val mListener = PeerListListener { value: WifiP2pDeviceList -> deviceListSubject.onNext(value) }
+    private val onDisconnects = ConcurrentHashMap<WifiP2pDevice, ()-> Unit>()
+    private val mListener = PeerListListener { value ->
+        peerList.set(value.deviceList)
+        deviceListSubject.onNext(value)
+        value.deviceList.forEach { dev ->
+           val onDisconnect = onDisconnects.remove(dev)
+            if (onDisconnect != null) {
+                onDisconnect()
+            }
+        }
+    }
+    private val peerList = AtomicReference<Collection<WifiP2pDevice>>()
 
+
+    override fun setOnDisconnect(device: WifiP2pDevice, onDisconnect: () -> Unit) {
+        onDisconnects[device] = onDisconnect
+    }
+
+    override fun connectedDevices(): Collection<WifiP2pDevice> {
+        return peerList.get()
+    }
     private fun p2pStateChangedAction(intent: Intent) {
         LOG.v("WIFI_P2P_STATE_CHANGED_ACTION")
-        // Determine if Wifi P2P mode is enabled
+        // Determine if Wifi P2P mode is enabledL
         val state = intent.getIntExtra(EXTRA_WIFI_STATE, -1)
         if (state == WIFI_P2P_STATE_ENABLED) {
             p2pStateSubject.onNext(P2pState.STATE_ENABLED)
@@ -54,6 +80,23 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private fun peersChangedAction(context: Context) {
         // The peer list has changed!
         LOG.v("WIFI_P2P_PEERS_CHANGED_ACTION")
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.NEARBY_WIFI_DEVICES
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return
+        }
         manager.requestPeers(channel, mListener)
     }
 

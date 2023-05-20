@@ -90,7 +90,16 @@ abstract class ScatterSerializable<T : MessageLite>(
         val packet: T
 ) {
     enum class PacketType {
-        TYPE_ACK, TYPE_BLOCKSEQUENCE, TYPE_BLOCKHEADER, TYPE_IDENTITY, TYPE_ADVERTISE, TYPE_UPGRADE, TYPE_ELECT_LEADER, TYPE_LUID, TYPE_DECLARE_HASHES
+        TYPE_ACK,
+        TYPE_BLOCKSEQUENCE,
+        TYPE_BLOCKHEADER,
+        TYPE_IDENTITY,
+        TYPE_ADVERTISE,
+        TYPE_UPGRADE,
+        TYPE_ELECT_LEADER,
+        TYPE_LUID,
+        TYPE_DECLARE_HASHES,
+        TYPE_IP_ANNOUNCE
     }
 
     var luid: UUID? = null

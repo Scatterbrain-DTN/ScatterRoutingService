@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import io.reactivex.Completable
 import io.reactivex.Flowable
+import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -20,8 +21,8 @@ import java.net.Socket
 interface WifiDirectRadioModule {
     fun getBand(): Int
 
-    fun bootstrapUke(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<HandshakeResult>
-    fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int) : Single<HandshakeResult>
+    fun bootstrapUke(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Flowable<HandshakeResult>
+    fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int) : Flowable<HandshakeResult>
 
     /**
      * Connects to an existing wifi direct group manually
@@ -42,14 +43,14 @@ interface WifiDirectRadioModule {
         upgradeRequest: BootstrapRequest,
         luid: java.util.UUID,
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
-    ): Single<HandshakeResult>
+    ): Flowable<HandshakeResult>
 
     /**
      * Manually creates a wifi direct group, autogenerating the username/passphrase and
      * returning them as a BootstrapRequest
      * @return WifiDirectBootstrapRequest
      */
-    fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<DisposableSocket>
+    fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Flowable<DisposableSocket>
 
     /**
      * Removes an existing wifi direct group if it exists
