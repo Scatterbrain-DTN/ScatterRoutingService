@@ -6,13 +6,21 @@ import java.net.InetSocketAddress
 import java.net.SocketAddress
 import java.util.UUID
 
+data class Address (
+    val is_uke: Boolean,
+    val address: InetSocketAddress
+        )
+
 class IpAnnouncePacket(announce: ScatterProto.IpAnnounce) : ScatterSerializable<ScatterProto.IpAnnounce>(announce) {
 
     override val type: PacketType
         get() = PacketType.TYPE_IP_ANNOUNCE
 
-    val addresses: HashMap<UUID, InetSocketAddress> = announce.itemsList.fold(HashMap()) { map, item ->
-        map[protoUUIDtoUUID(item.id)] = InetSocketAddress(item.address, item.port)
+    val addresses: HashMap<UUID, Address> = announce.itemsList.fold(HashMap()) { map, item ->
+        map[protoUUIDtoUUID(item.id)] = Address(
+            address = InetSocketAddress(item.address, item.port),
+            is_uke = item.uke
+        )
         map
     }
 

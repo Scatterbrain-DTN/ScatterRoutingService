@@ -7,6 +7,7 @@ import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import io.reactivex.*
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -64,7 +65,22 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
-    private val connectedPeers = ConcurrentHashMap<InetSocketAddress, UUID>()
+    private val connectedPeers = ConcurrentHashMap<InetSocketAddress, InetSocketAddress>()
+    private val connectedAddressSet = ConcurrentHashMap<InetSocketAddress, UUID>()
+
+    private fun updateConnectedPeers() {
+        connectedPeers.clear()
+        for (v in connectedAddressSet.keys) {
+            for (u in connectedAddressSet.keys) {
+                if (v.address != u.address
+                    && !(connectedPeers.containsKey(v) && connectedPeers.contains(u))
+                    && !(connectedPeers.containsKey(u) && connectedPeers.contains(v))
+                ) {
+                    connectedPeers[v] = u
+                }
+            }
+        }
+    }
 
     private fun createGroupSingle(): Completable {
         return Completable.defer {
@@ -185,11 +201,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
 
-    private fun sendConnectedIps(sock: Socket, selfPort: Int): Single<IpAnnouncePacket> {
+    private fun sendConnectedIps(sock: Socket): Single<IpAnnouncePacket> {
         return Single.defer {
             val builder = IpAnnouncePacket.newBuilder()
-            builder.addAddress(advertiser.getHashLuid(), InetSocketAddress(sock.localAddress, selfPort))
-            connectedPeers.forEach { v -> builder.addAddress(v.value, v.key) }
+            connectedPeers
+                .filter { v -> v.key.address == sock.localAddress }
+                .forEach { v -> builder.addAddress(connectedAddressSet[v.value]!!, v.value) }
             builder.build()
                 .writeToStream(sock.getOutputStream(), writeScheduler)
                 .andThen(
@@ -201,8 +218,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 )
                 .map { p ->
                     p.addresses.forEach { addr ->
-                        connectedPeers[addr.component2()] = addr.component1()
+                        connectedAddressSet[addr.component2().address] = addr.component1()
                     }
+                    updateConnectedPeers()
                     p
                 }
         }
@@ -231,11 +249,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
 
     private fun handshakeSeme(info: WifiDirectInfo, ownerPort: Int, selfPort: Int): Single<IpAnnouncePacket> {
-        return socketProvider.getSocket(
+        return retryDelay(socketProvider.getSocket(
             info.groupOwnerAddress()!!,
             ownerPort,
             advertiser.getHashLuid()
-        )
+        ), 10, 1)
             .flatMap { socket ->
                     sendSelfIp(socket, selfPort)
             }
@@ -247,7 +265,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         ownerPort: Int,
     ): Flowable<HandshakeResult> {
-        return connectToGroup(name, passphrase, 60, band).flatMapPublisher { info ->
+        return retryDelay( connectToGroup(name, passphrase, 60, band), 5, 5).flatMapPublisher { info ->
             serverSocketManager.getServerSocket().flatMapPublisher { socket ->
                 handshakeSeme(info, ownerPort, socket.port).flatMapPublisher { packet ->
                     socket.socket
@@ -255,7 +273,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
                         .flatMapSingle { s -> bootstrapUkeSocket(s.socket) }
                         .mergeWith(Flowable.fromIterable(packet.addresses.values).flatMapSingle { peerAddr ->
-                            socketProvider.getSocket(peerAddr.address, peerAddr.port, advertiser.getHashLuid())
+                            retryDelay( socketProvider.getSocket(peerAddr.address.address, peerAddr.address.port, advertiser.getHashLuid()), 10 ,5)
                                 .flatMap { sock -> bootstrapSemeSocket(sock) }
                         })
 
@@ -290,10 +308,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                         ).build()!!.wifiBootstrapRequest()
                     serverSocket.socket.repeat()
-                        .mergeWith(bootstrap(request))
+                        .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
                         .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
                         .flatMapSingle { sock ->
-                            sendConnectedIps(sock.socket, serverSocket.port).ignoreElement().toSingleDefault(sock)
+                            sendConnectedIps(sock.socket).ignoreElement().toSingleDefault(sock)
                         }
                         .doFinally { connectedPeers.clear() }
                 }
@@ -303,6 +321,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
+        return Single.just(true)
         return createGroupDryRun()
             .doOnError { err ->
                 LOG.e("cry $err")
@@ -372,7 +391,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 )
             ).build()!!.fakeWifiP2pConfig()
             //TODO: potentially remove group here?
-            initiateConnection(fakeConfig.asConfig())
+          initiateConnection(fakeConfig.asConfig())
                 .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
 
         }.doOnError { err ->
@@ -458,7 +477,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         LOG.e(
                             "failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(
                                 reason
-                            )
+                            ) +" " + reason
                         )
                         subject.onError(
                             IllegalStateException(
@@ -481,10 +500,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             } catch (e: SecurityException) {
                 LOG.e("wifi p2p threw SecurityException $e")
                 firebaseWrapper.recordException(e)
-                return@defer Completable.error(e)
+                Completable.error(e)
             }
         }
-        return retryDelay(connection, 7, 1)
+        return connection
     }
 
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {
@@ -748,7 +767,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             passphrase,
             60,
             band
-        ).subscribeOn(operationsScheduler)
+        )
     }
 
     /**
