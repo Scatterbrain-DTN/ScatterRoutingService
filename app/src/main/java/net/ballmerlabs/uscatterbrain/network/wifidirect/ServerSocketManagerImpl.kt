@@ -31,7 +31,6 @@ class ServerSocketManagerImpl @Inject constructor(
         }
             .subscribeOn(operationsScheduler)
             .observeOn(operationsScheduler)
-            .doOnSuccess { LOG.v("accepted server socket") }
             .doOnError { err ->
                 LOG.e("getServerSocket error $err")
                 firebaseWrapper.recordException(err)

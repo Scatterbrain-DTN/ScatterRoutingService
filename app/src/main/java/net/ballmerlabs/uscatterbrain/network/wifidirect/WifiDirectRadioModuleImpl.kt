@@ -22,8 +22,10 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.SocketAddress
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -204,6 +206,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun sendConnectedIps(sock: Socket): Single<IpAnnouncePacket> {
         return Single.defer {
             val builder = IpAnnouncePacket.newBuilder()
+            LOG.e("sendConnectedIps ${connectedPeers.size} ${sock.localAddress}")
+            builder.addAddress(advertiser.getHashLuid(), InetSocketAddress(sock.localAddress, sock.localPort))
             connectedPeers
                 .filter { v -> v.key.address == sock.localAddress }
                 .forEach { v -> builder.addAddress(connectedAddressSet[v.value]!!, v.value) }
@@ -251,7 +255,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun handshakeSeme(
         info: WifiDirectInfo,
         ownerPort: Int,
-        selfPort: Int
+        selfPort: Int,
     ): Single<IpAnnouncePacket> {
         return retryDelay(
             socketProvider.getSocket(
@@ -261,6 +265,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             ), 10, 1
         )
             .flatMap { socket ->
+                LOG.v("seme got send ip socket")
                 sendSelfIp(socket, selfPort)
             }
     }
@@ -275,15 +280,18 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .subscribeOn(operationsScheduler)
             .flatMapPublisher { info ->
                 serverSocketManager.getServerSocket().flatMapPublisher { socket ->
+                    LOG.v("seme listening for inter-seme connections")
                     handshakeSeme(
                         info,
                         ownerPort,
                         socket.socket.localPort
                     ).flatMapPublisher { packet ->
+                        val size = packet.addresses.size.toLong()
+                        LOG.v("seme got ip announce from uke, connected size: $size")
                         socket.accept()
                             .repeat()
-                            .repeat(packet.addresses.size.toLong())
-                            .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                            .repeat(size)
+                          //  .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
                             .flatMapSingle { s -> bootstrapUkeSocket(s.socket) }
                             .mergeWith(
                                 Flowable.fromIterable(packet.addresses.values)
@@ -331,9 +339,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             serverSocket.accept()
                                 .repeat()
                                 .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
-                                //.takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
                                 .flatMapSingle { sock ->
-                                    sendConnectedIps(sock.socket).ignoreElement().toSingleDefault(sock)
+                                    mBroadcastReceiver.observePeers().takeUntil { l -> l.deviceList.isNotEmpty() }.ignoreElements()
+                                        .andThen(
+                                    sendConnectedIps(sock.socket).ignoreElement().toSingleDefault(sock))
                                 }
                                 .doFinally { connectedPeers.clear() }
                         }

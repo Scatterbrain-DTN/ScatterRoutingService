@@ -48,6 +48,7 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private val onDisconnects = ConcurrentHashMap<WifiP2pDevice, ()-> Unit>()
     private val mListener = PeerListListener { value ->
         peerList.set(value.deviceList)
+        LOG.e("peersListener fired: ${peerList.get().size}")
         deviceListSubject.onNext(value)
         value.deviceList.forEach { dev ->
            val onDisconnect = onDisconnects.remove(dev)

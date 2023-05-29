@@ -455,7 +455,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             )
                                         )
                                     }.reduce(
-                                        TransactionResult.empty<BootstrapRequest>()
+                                        TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                     ) { first, second ->
                                         if(first.isError) {
                                             first

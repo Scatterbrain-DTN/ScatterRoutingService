@@ -35,7 +35,7 @@ class IpAnnouncePacket(announce: ScatterProto.IpAnnounce) : ScatterSerializable<
         fun build(): IpAnnouncePacket {
             val inner = addresses.entries.fold(ArrayList<IpAnnounceItem>()) { list, entry ->
                 val item = IpAnnounceItem.newBuilder()
-                    .setAddress(entry.value.address.toString())
+                    .setAddress(entry.value.address.hostAddress)
                     .setPort(entry.value.port)
                     .setId(protoUUIDfromUUID( entry.key))
                     .build()
