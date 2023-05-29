@@ -26,6 +26,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketAddress
+import java.net.SocketException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -302,7 +303,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                         }
                 }
-            }
+            }.concatWith(removeGroup())
     }
 
     /**
@@ -316,6 +317,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             createGroupSingle()
                 .ignoreElement()
                 .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)
+                    .flatMap { v -> mBroadcastReceiver.observeConnectionInfo().takeUntil { i -> i.isGroupOwner() && i.groupFormed() }.ignoreElements().toSingleDefault(v) }
                     .flatMapPublisher { groupInfo ->
                         LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
                         serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
@@ -332,12 +334,24 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 ).build()!!.wifiBootstrapRequest()
                             serverSocket.accept()
                                 .repeat()
+                                .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
+                                .mergeWith(mBroadcastReceiver.observePeers().flatMapCompletable { v ->
+                                    LOG.v("createGroup sees peerlist at ${v.deviceList.size}")
+                                    if (v.deviceList.isEmpty())
+                                        serverSocket.socket.close()
+                                    Completable.complete()
+                                })
+                                .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                                .onErrorResumeNext(Flowable.empty())
                                 .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
                                 .flatMapSingle { sock ->
                                     sendConnectedIps(sock.socket).ignoreElement()
                                         .toSingleDefault(sock)
                                 }
-                                .doFinally { connectedPeers.clear() }
+                                .doFinally {
+                                    LOG.v("uke server complete")
+                                    connectedPeers.clear()
+                                }
                         }
                     }
                 )
