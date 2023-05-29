@@ -30,6 +30,7 @@ import java.net.SocketException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
@@ -68,6 +69,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private val connectedPeers = ConcurrentHashMap<InetSocketAddress, InetSocketAddress>()
     private val connectedAddressSet = ConcurrentHashMap<InetSocketAddress, UUID>()
+    private val createGroupCache = AtomicReference<Flowable<HandshakeResult>?>()
 
     private fun updateConnectedPeers() {
         connectedPeers.clear()
@@ -317,7 +319,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             createGroupSingle()
                 .ignoreElement()
                 .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)
-                    .flatMap { v -> mBroadcastReceiver.observeConnectionInfo().takeUntil { i -> i.isGroupOwner() && i.groupFormed() }.ignoreElements().toSingleDefault(v) }
+                    .flatMap { v -> mBroadcastReceiver.observeConnectionInfo()
+                        .takeUntil { i -> i.isGroupOwner() && i.groupFormed() }
+                        .ignoreElements()
+                        .toSingleDefault(v) }
                     .flatMapPublisher { groupInfo ->
                         LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
                         serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
@@ -334,14 +339,18 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 ).build()!!.wifiBootstrapRequest()
                             serverSocket.accept()
                                 .repeat()
-                                .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
                                 .mergeWith(mBroadcastReceiver.observePeers().flatMapCompletable { v ->
                                     LOG.v("createGroup sees peerlist at ${v.deviceList.size}")
-                                    if (v.deviceList.isEmpty())
-                                        serverSocket.socket.close()
-                                    Completable.complete()
+                                    if (v.deviceList.isEmpty()) {
+                                        removeGroup()
+                                            .doOnComplete { serverSocket.socket.close() }
+                                    }
+                                    else {
+                                        Completable.complete()
+                                    }
                                 })
                                 .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                                .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
                                 .onErrorResumeNext(Flowable.empty())
                                 .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
                                 .flatMapSingle { sock ->
@@ -728,15 +737,24 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<HandshakeResult> {
-        return createGroup(band, bootstrap)
-            .doOnError { err ->
-                LOG.e("failed to get server socket: $err")
-                firebaseWrapper.recordException(err)
+        return createGroupCache.updateAndGet { v ->
+            when (v) {
+                null -> {
+                    createGroup(band, bootstrap)
+                        .doOnError { err ->
+                            LOG.e("failed to get server socket: $err")
+                            firebaseWrapper.recordException(err)
+                        }
+                        .flatMapSingle { socket ->
+                            LOG.e("uke bootstrapping")
+                            bootstrapUkeSocket(socket.socket)
+                        }
+                        .doFinally { createGroupCache.set(null) }
+                }
+                else -> v
             }
-            .flatMapSingle { socket ->
-                LOG.e("uke bootstrapping")
-                bootstrapUkeSocket(socket.socket)
-            }
+        }!!
+
     }
 
     private fun bootstrapSemeSocket(socket: Socket): Single<HandshakeResult> {
