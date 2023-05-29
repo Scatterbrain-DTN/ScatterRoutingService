@@ -342,7 +342,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         .repeat()
                         .mergeWith(mBroadcastReceiver.observePeers().flatMapCompletable { v ->
                             LOG.v("createGroup sees peerlist at ${v.deviceList.size}")
-                            if (v.deviceList.isEmpty()) {
+                            if (v.deviceList.isEmpty() && connectedAddressSet.isEmpty()) {
                                 removeGroup()
                                     .doOnComplete { serverSocket.socket.close() }
                             } else {
@@ -364,7 +364,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
             }
             .doOnComplete { LOG.e("createGroup completed") }
-            .concatWith(removeGroup())
             .subscribeOn(operationsScheduler)
 
     }
