@@ -318,52 +318,51 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<DisposableSocket> {
         return removeGroup().andThen(createGroupSingle().ignoreElement()
+            .andThen(mBroadcastReceiver.observeConnectionInfo()
+                .takeUntil { i -> i.isGroupOwner() && i.groupFormed() }
+                .ignoreElements())
             .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)))
-                    .flatMap { v -> mBroadcastReceiver.observeConnectionInfo()
-                        .takeUntil { i -> i.isGroupOwner() && i.groupFormed() }
-                        .ignoreElements()
-                        .toSingleDefault(v) }
-                    .flatMapPublisher { groupInfo ->
-                        LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
-                        serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
-                            LOG.v("got socket ${serverSocket.socket.localPort}")
-                            val request = bootstrapRequestProvider.get()
-                                .wifiDirectArgs(
-                                    BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                                        passphrase = groupInfo.passphrase,
-                                        name = groupInfo.networkName,
-                                        role = ConnectionRole.ROLE_UKE,
-                                        band = band,
-                                        port = serverSocket.socket.localPort
-                                    )
-                                ).build()!!.wifiBootstrapRequest()
-                            bootstrapRequest.onNext(request)
-                            serverSocket.accept()
-                                .repeat()
-                                .mergeWith(mBroadcastReceiver.observePeers().flatMapCompletable { v ->
-                                    LOG.v("createGroup sees peerlist at ${v.deviceList.size}")
-                                    if (v.deviceList.isEmpty()) {
-                                        removeGroup()
-                                            .doOnComplete { serverSocket.socket.close() }
-                                    }
-                                    else {
-                                        Completable.complete()
-                                    }
-                                })
-                                .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
-                                .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
-                                .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
-                                .onErrorResumeNext(Flowable.empty())
-                                .flatMapSingle { sock ->
-                                    sendConnectedIps(sock.socket).ignoreElement()
-                                        .toSingleDefault(sock)
-                                }
-                                .doFinally {
-                                    LOG.v("uke server complete")
-                                    connectedPeers.clear()
-                                }
+
+            .flatMapPublisher { groupInfo ->
+                LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
+                serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
+                    LOG.v("got socket ${serverSocket.socket.localPort}")
+                    val request = bootstrapRequestProvider.get()
+                        .wifiDirectArgs(
+                            BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                                passphrase = groupInfo.passphrase,
+                                name = groupInfo.networkName,
+                                role = ConnectionRole.ROLE_UKE,
+                                band = band,
+                                port = serverSocket.socket.localPort
+                            )
+                        ).build()!!.wifiBootstrapRequest()
+                    bootstrapRequest.onNext(request)
+                    serverSocket.accept()
+                        .repeat()
+                        .mergeWith(mBroadcastReceiver.observePeers().flatMapCompletable { v ->
+                            LOG.v("createGroup sees peerlist at ${v.deviceList.size}")
+                            if (v.deviceList.isEmpty()) {
+                                removeGroup()
+                                    .doOnComplete { serverSocket.socket.close() }
+                            } else {
+                                Completable.complete()
+                            }
+                        })
+                        .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
+                        .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                        .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
+                        .onErrorResumeNext(Flowable.empty())
+                        .flatMapSingle { sock ->
+                            sendConnectedIps(sock.socket).ignoreElement()
+                                .toSingleDefault(sock)
                         }
-                    }
+                        .doFinally {
+                            LOG.v("uke server complete")
+                            connectedPeers.clear()
+                        }
+                }
+            }
             .doOnComplete { LOG.e("createGroup completed") }
             .concatWith(removeGroup())
             .subscribeOn(operationsScheduler)
@@ -752,7 +751,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                         .doFinally { createGroupCache.set(null) }
                 }
-                else -> v.mergeWith(bootstrapRequest.flatMapCompletable { request -> bootstrap(request).subscribeOn(operationsScheduler) })
+
+                else -> v.mergeWith(bootstrapRequest.flatMapCompletable { request ->
+                    bootstrap(
+                        request
+                    ).subscribeOn(operationsScheduler)
+                })
 
             }
         }!!
