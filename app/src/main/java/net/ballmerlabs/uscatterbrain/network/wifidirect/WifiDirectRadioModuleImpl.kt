@@ -207,7 +207,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return Single.defer {
             val builder = IpAnnouncePacket.newBuilder()
             LOG.e("sendConnectedIps ${connectedPeers.size} ${sock.localAddress}")
-            builder.addAddress(advertiser.getHashLuid(), InetSocketAddress(sock.localAddress, sock.localPort))
+            //    builder.addAddress(advertiser.getHashLuid(), InetSocketAddress(sock.localAddress, sock.localPort))
             connectedPeers
                 .filter { v -> v.key.address == sock.localAddress }
                 .forEach { v -> builder.addAddress(connectedAddressSet[v.value]!!, v.value) }
@@ -227,7 +227,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     updateConnectedPeers()
                     p
                 }
-        }
+        }.doOnSuccess { LOG.e("sendConnectedIps complete") }
     }
 
 
@@ -240,34 +240,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             ScatterSerializable.parseWrapperFromCRC(
                 IpAnnouncePacket.parser(),
                 socket.getInputStream(),
-                readScheduler
+                operationsScheduler
             )
                 .toObservable()
                 .mergeWith(
-                    builder.writeToStream(socket.getOutputStream(), writeScheduler)
+                    builder.writeToStream(socket.getOutputStream(), operationsScheduler)
                 )
                 .firstOrError()
 
         }
-    }
-
-
-    private fun handshakeSeme(
-        info: WifiDirectInfo,
-        ownerPort: Int,
-        selfPort: Int,
-    ): Single<IpAnnouncePacket> {
-        return retryDelay(
-            socketProvider.getSocket(
-                info.groupOwnerAddress()!!,
-                ownerPort,
-                advertiser.getHashLuid()
-            ), 10, 1
-        )
-            .flatMap { socket ->
-                LOG.v("seme got send ip socket")
-                sendSelfIp(socket, selfPort)
-            }
     }
 
     private fun initiateConnectionAndAccept(
@@ -281,32 +262,47 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .flatMapPublisher { info ->
                 serverSocketManager.getServerSocket().flatMapPublisher { socket ->
                     LOG.v("seme listening for inter-seme connections")
-                    handshakeSeme(
-                        info,
-                        ownerPort,
-                        socket.socket.localPort
-                    ).flatMapPublisher { packet ->
-                        val size = packet.addresses.size.toLong()
-                        LOG.v("seme got ip announce from uke, connected size: $size")
-                        socket.accept()
-                            .repeat()
-                            .repeat(size)
-                          //  .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
-                            .flatMapSingle { s -> bootstrapUkeSocket(s.socket) }
-                            .mergeWith(
-                                Flowable.fromIterable(packet.addresses.values)
-                                    .flatMapSingle { peerAddr ->
-                                        retryDelay(
-                                            socketProvider.getSocket(
-                                                peerAddr.address.address,
-                                                peerAddr.address.port,
-                                                advertiser.getHashLuid()
-                                            ), 10, 5
+                    retryDelay(
+                        socketProvider.getSocket(
+                            info.groupOwnerAddress()!!,
+                            ownerPort,
+                            advertiser.getHashLuid()
+                        ), 10, 1
+                    )
+                        .flatMapPublisher { ownerSocket ->
+                            LOG.v("seme got send ip socket: ${ownerSocket.remoteSocketAddress}, ${ownerSocket.port}")
+                            sendSelfIp(ownerSocket, ownerPort)
+                                .flatMapPublisher { packet ->
+                                    val size = packet.addresses.size.toLong()
+                                    LOG.v("seme got ip announce from uke, connected size: $size")
+                                    bootstrapSemeSocket(ownerSocket)
+                                        .toFlowable()
+                                        .concatWith(
+                                            socket.accept()
+                                                .repeat()
+                                                .repeat(size)
+                                                //  .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                                                .flatMapSingle { s -> bootstrapUkeSocket(s.socket) }
+                                                .mergeWith(
+                                                    Flowable.fromIterable(packet.addresses.values)
+                                                        .flatMapSingle { peerAddr ->
+                                                            retryDelay(
+                                                                socketProvider.getSocket(
+                                                                    peerAddr.address.address,
+                                                                    peerAddr.address.port,
+                                                                    advertiser.getHashLuid()
+                                                                ), 10, 5
+                                                            )
+                                                                .flatMap { sock ->
+                                                                    bootstrapSemeSocket(
+                                                                        sock
+                                                                    )
+                                                                }
+                                                        })
                                         )
-                                            .flatMap { sock -> bootstrapSemeSocket(sock) }
-                                    })
+                                }
 
-                    }
+                        }
                 }
             }
     }
@@ -340,9 +336,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 .repeat()
                                 .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
                                 .flatMapSingle { sock ->
-                                    mBroadcastReceiver.observePeers().takeUntil { l -> l.deviceList.isNotEmpty() }.ignoreElements()
-                                        .andThen(
-                                    sendConnectedIps(sock.socket).ignoreElement().toSingleDefault(sock))
+                                    sendConnectedIps(sock.socket).ignoreElement()
+                                        .toSingleDefault(sock)
                                 }
                                 .doFinally { connectedPeers.clear() }
                         }
@@ -727,13 +722,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 firebaseWrapper.recordException(err)
             }
             .flatMapSingle { socket ->
+                LOG.e("uke bootstrapping")
                 bootstrapUkeSocket(socket.socket)
             }
     }
 
     private fun bootstrapSemeSocket(socket: Socket): Single<HandshakeResult> {
         return Single.defer {
-            LOG.v("socket established, connected to server")
             routingMetadataSeme(
                 socket,
                 Flowable.just(
