@@ -53,8 +53,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val datastore: ScatterbrainDatastore,
     private val preferences: RouterPreferences,
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
-    @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.WIFI_READ) private val readScheduler: Scheduler,
-    @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.WIFI_WRITE) private val writeScheduler: Scheduler,
     private val channel: WifiP2pManager.Channel,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
@@ -212,12 +210,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .filter { v -> v.key.address == sock.localAddress }
                 .forEach { v -> builder.addAddress(connectedAddressSet[v.value]!!, v.value) }
             builder.build()
-                .writeToStream(sock.getOutputStream(), writeScheduler)
+                .writeToStream(sock.getOutputStream(), operationsScheduler)
                 .andThen(
                     ScatterSerializable.parseWrapperFromCRC(
                         IpAnnouncePacket.parser(),
                         sock.getInputStream(),
-                        readScheduler
+                        operationsScheduler
                     )
                 )
                 .map { p ->
@@ -538,12 +536,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {
         return AckPacket.newBuilder(success)
             .build()
-            .writeToStream(socket.getOutputStream(), writeScheduler)
+            .writeToStream(socket.getOutputStream(), operationsScheduler)
             .mergeWith(
                 ScatterSerializable.parseWrapperFromCRC(
                     AckPacket.parser(),
                     socket.getInputStream(),
-                    readScheduler
+                    operationsScheduler
                 ).ignoreElement()
             )
     }
@@ -562,13 +560,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 ScatterSerializable.parseWrapperFromCRC(
                     DeclareHashesPacket.parser(),
                     socket.getInputStream(),
-                    readScheduler
+                    operationsScheduler
                 )
                     .toObservable()
                     .mergeWith(
                         declareHashesPacket.writeToStream(
                             socket.getOutputStream(),
-                            writeScheduler
+                            operationsScheduler
                         )
                     )
             }
@@ -593,7 +591,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 ScatterSerializable.parseWrapperFromCRC(
                     RoutingMetadataPacket.parser(),
                     sock.getInputStream(),
-                    readScheduler
+                    operationsScheduler
                 )
                     .toObservable()
                     .repeat()
@@ -605,7 +603,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         end
                     } //TODO: timeout here
                     .mergeWith(packets.concatMapCompletable { p ->
-                        p.writeToStream(sock.getOutputStream(), writeScheduler)
+                        p.writeToStream(sock.getOutputStream(), operationsScheduler)
                     })
             }
     }
@@ -628,7 +626,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 ScatterSerializable.parseWrapperFromCRC(
                     IdentityPacket.parser(),
                     sock.getInputStream(),
-                    readScheduler
+                    operationsScheduler
                 )
                     .toObservable()
                     .repeat()
@@ -640,7 +638,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         end
                     }
                     .mergeWith(packets.concatMapCompletable { p ->
-                        p.writeToStream(sock.getOutputStream(), writeScheduler)
+                        p.writeToStream(sock.getOutputStream(), operationsScheduler)
                             .doOnComplete { LOG.v("wrote single identity packet") }
                     })
             }.doOnComplete { LOG.v("identity packets complete") }
@@ -860,7 +858,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return stream.concatMapCompletable { blockDataStream ->
             blockDataStream.headerPacket.writeToStream(
                 socket.getOutputStream(),
-                writeScheduler
+                operationsScheduler
             )
                 .doOnComplete { LOG.v("wrote headerpacket to client socket") }
                 .andThen(
@@ -869,7 +867,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         .concatMapCompletable { sequencePacket ->
                             sequencePacket.writeToStream(
                                 socket.getOutputStream(),
-                                writeScheduler
+                                operationsScheduler
                             )
                         }
                         .doOnComplete { LOG.v("wrote sequence packets to client socket") }
@@ -888,7 +886,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .concatMapCompletable { blockDataStream ->
                 blockDataStream.headerPacket.writeToStream(
                     socket.getOutputStream(),
-                    writeScheduler
+                    operationsScheduler
                 )
                     .doOnComplete { LOG.v("server wrote header packet") }
                     .andThen(
@@ -897,13 +895,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .concatMapCompletable { blockSequencePacket ->
                                 blockSequencePacket.writeToStream(
                                     socket.getOutputStream(),
-                                    writeScheduler
+                                    operationsScheduler
                                 )
                             }
                             .doOnComplete { LOG.v("server wrote sequence packets") }
                     )
                     .andThen(datastore.incrementShareCount(blockDataStream.headerPacket))
-            }
+            }.doOnComplete { LOG.v("writeBlockDataUke complete") }
     }
 
     /*
@@ -914,7 +912,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return ScatterSerializable.parseWrapperFromCRC(
             BlockHeaderPacket.parser(),
             socket.getInputStream(),
-            readScheduler
+            operationsScheduler
         )
             .doOnSuccess { header -> LOG.v("uke reading header ${header.userFilename}") }
             .flatMap { headerPacket ->
@@ -927,7 +925,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         ScatterSerializable.parseWrapperFromCRC(
                             BlockSequencePacket.parser(),
                             socket.getInputStream(),
-                            readScheduler,
+                            operationsScheduler,
                         )
                             .repeat()
                             .takeUntil { p -> p.isEnd }
@@ -960,7 +958,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return ScatterSerializable.parseWrapperFromCRC(
             BlockHeaderPacket.parser(),
             socket.getInputStream(),
-            readScheduler
+            operationsScheduler
         )
             .doOnSuccess { header -> LOG.v("seme reading header ${header.userFilename}") }
             .flatMap { header ->
@@ -973,7 +971,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         ScatterSerializable.parseWrapperFromCRC(
                             BlockSequencePacket.parser(),
                             socket.getInputStream(),
-                            readScheduler
+                            operationsScheduler
                         )
                             .repeat()
                             .takeUntil { p -> p.isEnd }
