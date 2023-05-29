@@ -8,6 +8,7 @@ import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import io.reactivex.*
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -70,6 +71,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val connectedPeers = ConcurrentHashMap<InetSocketAddress, InetSocketAddress>()
     private val connectedAddressSet = ConcurrentHashMap<InetSocketAddress, UUID>()
     private val createGroupCache = AtomicReference<Flowable<HandshakeResult>?>()
+    private val bootstrapRequest = BehaviorSubject.create<WifiDirectBootstrapRequest>()
 
     private fun updateConnectedPeers() {
         connectedPeers.clear()
@@ -315,10 +317,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<DisposableSocket> {
-        return removeGroup().andThen(
-            createGroupSingle()
-                .ignoreElement()
-                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)
+        return removeGroup().andThen(createGroupSingle().ignoreElement()
+            .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)))
                     .flatMap { v -> mBroadcastReceiver.observeConnectionInfo()
                         .takeUntil { i -> i.isGroupOwner() && i.groupFormed() }
                         .ignoreElements()
@@ -337,6 +337,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         port = serverSocket.socket.localPort
                                     )
                                 ).build()!!.wifiBootstrapRequest()
+                            bootstrapRequest.onNext(request)
                             serverSocket.accept()
                                 .repeat()
                                 .mergeWith(mBroadcastReceiver.observePeers().flatMapCompletable { v ->
@@ -349,10 +350,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         Completable.complete()
                                     }
                                 })
+                                .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
                                 .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
                                 .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
                                 .onErrorResumeNext(Flowable.empty())
-                                .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
                                 .flatMapSingle { sock ->
                                     sendConnectedIps(sock.socket).ignoreElement()
                                         .toSingleDefault(sock)
@@ -363,8 +364,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 }
                         }
                     }
-                )
-        ).doOnComplete { LOG.e("createGroup completed") }
+            .doOnComplete { LOG.e("createGroup completed") }
+            .concatWith(removeGroup())
             .subscribeOn(operationsScheduler)
 
     }
@@ -751,7 +752,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                         .doFinally { createGroupCache.set(null) }
                 }
-                else -> v
+                else -> v.mergeWith(bootstrapRequest.flatMapCompletable { request -> bootstrap(request).subscribeOn(operationsScheduler) })
+
             }
         }!!
 
