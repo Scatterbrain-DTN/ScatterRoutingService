@@ -27,10 +27,6 @@ interface LeState {
 
     fun getAdvertisedLuid(scanResult: ScanResult): UUID?
 
-    fun setForceUke(force: Boolean)
-
-    fun getForceUke(): Boolean
-
     fun updateGone(luid: UUID)
     fun startTransaction(): Int
 

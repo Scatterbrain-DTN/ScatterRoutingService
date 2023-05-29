@@ -33,7 +33,6 @@ class LeStateImpl @Inject constructor(
 ) : LeState {
     private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
     private val transactionInProgress: AtomicInteger = AtomicInteger(0)
-    private val forceUke = AtomicBoolean(false)
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
     override val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> =
@@ -48,14 +47,6 @@ class LeStateImpl @Inject constructor(
     override fun transactionLockIsSelf(luid: UUID?): Boolean {
         val lock = transactionLock.get()
         return lock != null && lock == luid
-    }
-
-    override fun setForceUke(force: Boolean) {
-        forceUke.set(force)
-    }
-
-    override fun getForceUke(): Boolean {
-        return forceUke.get()
     }
 
     override fun startTransaction(): Int {

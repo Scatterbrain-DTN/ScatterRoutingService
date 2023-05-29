@@ -368,6 +368,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     }
 
+    override fun getForceUke(): Boolean {
+        return createGroupCache.get() != null
+    }
+
     override fun wifiDirectIsUsable(): Single<Boolean> {
         return Single.just(true)
         return createGroupDryRun()

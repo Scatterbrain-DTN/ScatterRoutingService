@@ -33,6 +33,8 @@ interface WifiDirectRadioModule {
      */
     fun connectToGroup(name: String, passphrase: String, timeout: Int, band: Int): Single<WifiDirectInfo>
 
+    fun getForceUke(): Boolean
+
     /**
      * performs an automatic handshake with a peer specified by a WifiDirectBootstrapRequest object
      * from another transport module.

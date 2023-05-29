@@ -290,7 +290,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         selectProvides().flatMap { provides ->
 
                                 LOG.v("gatt server election hashed stage ${provides.name}")
-                                val packet = session.votingStage.getSelf(true, provides, state.getForceUke())
+                                val packet = session.votingStage.getSelf(true, provides, wifiDirectRadioModule.getForceUke())
                                 session.votingStage.addPacket(packet)
                                 serverConn.serverNotify(packet, session.remoteLuid, session.device)
                                     .toSingleDefault(TransactionResult.empty())
@@ -320,7 +320,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .flatMap { luidPacket ->
                                 selectProvides().flatMapCompletable { provides ->
                                         LOG.v("server sending unhashed provides $provides")
-                                        val packet = session.votingStage.getSelf(false, provides, state.getForceUke())
+                                        val packet = session.votingStage.getSelf(false, provides, wifiDirectRadioModule.getForceUke())
                                         packet.tagLuid(luidPacket.luidVal)
                                         session.votingStage.addPacket(packet)
                                         serverConn.serverNotify(
@@ -350,10 +350,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                    LOG.v("election received provides: $provides")
                                    val role =
                                        if (session.votingStage.selectUke() == session.luidStage.selfUnhashed) {
-                                           state.setForceUke(true)
                                            ConnectionRole.ROLE_UKE
                                        } else {
-                                           state.setForceUke(false)
                                            ConnectionRole.ROLE_SEME
                                        }
                                    LOG.v("selected role: $role")
