@@ -25,15 +25,8 @@ class ServerSocketManagerImpl @Inject constructor(
             LOG.v("called getServerSocket")
             val socket = ServerSocket(0)
             PortSocket(
-                socket = Single.fromCallable {
-                    DisposableSocket(
-                        socket = socket.accept(),
-                        serverSocket = socket
-                    )
-                }.doOnSuccess { LOG.e("socket ACCEPTED!") }
-                    .subscribeOn(operationsScheduler)
-                    .observeOn(operationsScheduler),
-                port = socket.localPort,
+                socket = socket,
+                scheduler = operationsScheduler
             )
         }
             .subscribeOn(operationsScheduler)

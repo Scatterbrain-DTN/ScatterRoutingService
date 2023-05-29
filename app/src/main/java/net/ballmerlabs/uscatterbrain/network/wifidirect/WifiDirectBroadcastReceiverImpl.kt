@@ -56,7 +56,7 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
             }
         }
     }
-    private val peerList = AtomicReference<Collection<WifiP2pDevice>>()
+    private val peerList = AtomicReference<Collection<WifiP2pDevice>>(setOf())
 
 
     override fun setOnDisconnect(device: WifiP2pDevice, onDisconnect: () -> Unit) {
@@ -80,24 +80,11 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private fun peersChangedAction(context: Context) {
         // The peer list has changed!
         LOG.v("WIFI_P2P_PEERS_CHANGED_ACTION")
-        if (ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.NEARBY_WIFI_DEVICES
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return
+        try {
+            manager.requestPeers(channel, mListener)
+        } catch (exc: SecurityException) {
+            LOG.e("securityException $exc")
         }
-        manager.requestPeers(channel, mListener)
     }
 
     private fun connectionChangedAction(intent: Intent) {

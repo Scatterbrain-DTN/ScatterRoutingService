@@ -18,7 +18,10 @@ class SocketProviderImpl @Inject constructor(
 ): SocketProvider {
     private val LOG by scatterLog()
     override fun getSocket(address: InetAddress, port: Int, luid: UUID): Single<Socket> {
-        return Single.fromCallable { Socket(address, port) }
+        return Single.fromCallable {
+            LOG.v("getSocket $address, $port")
+            Socket(address, port)
+        }
                 .subscribeOn(operationsScheduler)
             .doOnError { err -> LOG.e("getSocket error $err") }
     }

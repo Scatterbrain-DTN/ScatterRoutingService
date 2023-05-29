@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
+import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import java.net.ServerSocket
@@ -19,10 +20,19 @@ data class DisposableSocket(
         return socket.isClosed && serverSocket.isClosed
     }
 }
-data class PortSocket(
-    val port: Int,
-    val socket: Single<DisposableSocket>
-)
+class PortSocket(
+    val socket: ServerSocket,
+    private val scheduler: Scheduler
+) {
+    fun accept(): Single<DisposableSocket> {
+        return Single.fromCallable {
+            DisposableSocket(
+                socket = socket.accept(),
+                serverSocket = socket
+            )
+        }.subscribeOn(scheduler)
+    }
+}
 
 interface ServerSocketManager {
 

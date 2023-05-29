@@ -82,8 +82,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun createGroupSingle(): Completable {
-        return Completable.defer {
+    private fun createGroupSingle(): Single<WifiDirectInfo> {
+        return Single.defer {
             val subject = CompletableSubject.create()
             try {
                 val listener = object : WifiP2pManager.ActionListener {
@@ -105,7 +105,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         )
                     }
                 }
-                mBroadcastReceiver.observeConnectionInfo()
+                subject.andThen(mBroadcastReceiver.observeConnectionInfo())
                     .mergeWith(Completable.fromAction {
                         mManager.createGroup(channel, listener)
                     })
@@ -113,11 +113,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     .takeUntil { wifiP2pInfo ->
                         wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner() && wifiP2pInfo.groupOwnerAddress() != null
                     }
-                    .ignoreElements()
                     .doOnComplete { LOG.v("createGroup return success") }
-                    .andThen(subject)
+                    .firstOrError()
             } catch (exc: SecurityException) {
-                Completable.error(exc)
+                Single.error(exc)
             }
         }
 
@@ -196,7 +195,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return requestGroupInfo()
             .switchIfEmpty(
                 createGroupSingle()
-                    .andThen(requestGroupInfo().toSingle())
+                    .ignoreElement()
+                    .toMaybe()
             ).ignoreElement()
     }
 
@@ -248,14 +248,20 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
 
-    private fun handshakeSeme(info: WifiDirectInfo, ownerPort: Int, selfPort: Int): Single<IpAnnouncePacket> {
-        return retryDelay(socketProvider.getSocket(
-            info.groupOwnerAddress()!!,
-            ownerPort,
-            advertiser.getHashLuid()
-        ), 10, 1)
+    private fun handshakeSeme(
+        info: WifiDirectInfo,
+        ownerPort: Int,
+        selfPort: Int
+    ): Single<IpAnnouncePacket> {
+        return retryDelay(
+            socketProvider.getSocket(
+                info.groupOwnerAddress()!!,
+                ownerPort,
+                advertiser.getHashLuid()
+            ), 10, 1
+        )
             .flatMap { socket ->
-                    sendSelfIp(socket, selfPort)
+                sendSelfIp(socket, selfPort)
             }
     }
 
@@ -265,21 +271,36 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         ownerPort: Int,
     ): Flowable<HandshakeResult> {
-        return retryDelay( connectToGroup(name, passphrase, 60, band), 5, 5).flatMapPublisher { info ->
-            serverSocketManager.getServerSocket().flatMapPublisher { socket ->
-                handshakeSeme(info, ownerPort, socket.port).flatMapPublisher { packet ->
-                    socket.socket
-                        .repeat(packet.addresses.size.toLong())
-                        .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
-                        .flatMapSingle { s -> bootstrapUkeSocket(s.socket) }
-                        .mergeWith(Flowable.fromIterable(packet.addresses.values).flatMapSingle { peerAddr ->
-                            retryDelay( socketProvider.getSocket(peerAddr.address.address, peerAddr.address.port, advertiser.getHashLuid()), 10 ,5)
-                                .flatMap { sock -> bootstrapSemeSocket(sock) }
-                        })
+        return connectToGroup(name, passphrase, 60, band)
+            .subscribeOn(operationsScheduler)
+            .flatMapPublisher { info ->
+                serverSocketManager.getServerSocket().flatMapPublisher { socket ->
+                    handshakeSeme(
+                        info,
+                        ownerPort,
+                        socket.socket.localPort
+                    ).flatMapPublisher { packet ->
+                        socket.accept()
+                            .repeat()
+                            .repeat(packet.addresses.size.toLong())
+                            .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                            .flatMapSingle { s -> bootstrapUkeSocket(s.socket) }
+                            .mergeWith(
+                                Flowable.fromIterable(packet.addresses.values)
+                                    .flatMapSingle { peerAddr ->
+                                        retryDelay(
+                                            socketProvider.getSocket(
+                                                peerAddr.address.address,
+                                                peerAddr.address.port,
+                                                advertiser.getHashLuid()
+                                            ), 10, 5
+                                        )
+                                            .flatMap { sock -> bootstrapSemeSocket(sock) }
+                                    })
 
+                    }
                 }
             }
-        }
     }
 
     /**
@@ -289,33 +310,36 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<DisposableSocket> {
-        return requestGroupInfo()
-            .switchIfEmpty(
-                createGroupSingle()
-                    .andThen(requestGroupInfo().toSingle())
-            ).flatMapPublisher { groupInfo ->
-                LOG.v("got groupInfo")
-                serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
-                    LOG.v("got socket ${serverSocket.port}")
-                    val request = bootstrapRequestProvider.get()
-                        .wifiDirectArgs(
-                            BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                                passphrase = groupInfo.passphrase,
-                                name = groupInfo.networkName,
-                                role = ConnectionRole.ROLE_UKE,
-                                band = band,
-                                port = serverSocket.port
-                            )
-                        ).build()!!.wifiBootstrapRequest()
-                    serverSocket.socket.repeat()
-                        .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
-                        .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
-                        .flatMapSingle { sock ->
-                            sendConnectedIps(sock.socket).ignoreElement().toSingleDefault(sock)
+        return removeGroup().andThen(
+            createGroupSingle()
+                .ignoreElement()
+                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)
+                    .flatMapPublisher { groupInfo ->
+                        LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
+                        serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
+                            LOG.v("got socket ${serverSocket.socket.localPort}")
+                            val request = bootstrapRequestProvider.get()
+                                .wifiDirectArgs(
+                                    BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                                        passphrase = groupInfo.passphrase,
+                                        name = groupInfo.networkName,
+                                        role = ConnectionRole.ROLE_UKE,
+                                        band = band,
+                                        port = serverSocket.socket.localPort
+                                    )
+                                ).build()!!.wifiBootstrapRequest()
+                            serverSocket.accept()
+                                .repeat()
+                                .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
+                                //.takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                                .flatMapSingle { sock ->
+                                    sendConnectedIps(sock.socket).ignoreElement().toSingleDefault(sock)
+                                }
+                                .doFinally { connectedPeers.clear() }
                         }
-                        .doFinally { connectedPeers.clear() }
-                }
-            }
+                    }
+                )
+        ).doOnComplete { LOG.e("createGroup completed") }
             .subscribeOn(operationsScheduler)
 
     }
@@ -391,7 +415,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 )
             ).build()!!.fakeWifiP2pConfig()
             //TODO: potentially remove group here?
-          initiateConnection(fakeConfig.asConfig())
+            initiateConnection(fakeConfig.asConfig())
                 .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
 
         }.doOnError { err ->
@@ -464,6 +488,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     private fun initiateConnection(config: WifiP2pConfig): Completable {
         val connection = Completable.defer {
+            LOG.e("initiateConnection ${config.networkName} ${config.passphrase}")
             val subject = CompletableSubject.create()
             try {
 
@@ -477,7 +502,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         LOG.e(
                             "failed to connect to wifi direct group, am v sad. I cry now: " + reasonCodeToString(
                                 reason
-                            ) +" " + reason
+                            ) + " " + reason
                         )
                         subject.onError(
                             IllegalStateException(
@@ -503,7 +528,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 Completable.error(e)
             }
         }
-        return connection
+        return retryDelay(connection, 10, 5)
     }
 
     private fun ackBarrier(socket: Socket, success: Boolean = true): Completable {
@@ -688,14 +713,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<HandshakeResult> {
         return createGroup(band, bootstrap)
-            .subscribeOn(operationsScheduler)
             .doOnError { err ->
                 LOG.e("failed to get server socket: $err")
                 firebaseWrapper.recordException(err)
             }
             .flatMapSingle { socket ->
                 bootstrapUkeSocket(socket.socket)
-            }.subscribeOn(operationsScheduler)
+            }
     }
 
     private fun bootstrapSemeSocket(socket: Socket): Single<HandshakeResult> {
@@ -765,8 +789,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return initiateConnectionAndAccept(
             name,
             passphrase,
-            60,
-            band
+            band,
+            port
         )
     }
 
