@@ -26,6 +26,7 @@ import javax.inject.Singleton
 @Singleton
 class LeStateImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val clientScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val connectScheduler: Scheduler,
     val factory: ScatterbrainTransactionFactory,
     private val advertiser: Advertiser,
     private val server: Provider<ManagedGattServer>,
@@ -173,7 +174,7 @@ class LeStateImpl @Inject constructor(
                     val rawConnection = retryDelay(
                         device.establishConnection(false)
                             .flatMapSingle { c -> c.requestMtu(512).ignoreElement().toSingleDefault(c) }
-                            .subscribeOn(clientScheduler), 6, 10
+                            .subscribeOn(connectScheduler), 6, 10
                     )
                         .doFinally { connectionCache.remove(luid) }
                         .doOnNext {
