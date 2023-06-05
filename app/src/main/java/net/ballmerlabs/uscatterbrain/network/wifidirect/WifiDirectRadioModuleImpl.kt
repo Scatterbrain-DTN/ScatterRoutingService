@@ -340,15 +340,18 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     bootstrapRequest.onNext(request)
                     serverSocket.accept()
                         .repeat()
-                        .mergeWith(mBroadcastReceiver.observePeers().flatMapCompletable { v ->
-                            LOG.v("createGroup sees peerlist at ${v.deviceList.size}")
-                            if (v.deviceList.isEmpty() && connectedAddressSet.isEmpty()) {
-                                removeGroup()
-                                    .doOnComplete { serverSocket.socket.close() }
-                            } else {
-                                Completable.complete()
+                        .materialize()
+                        .mergeWith(mBroadcastReceiver.observePeers().takeUntil { v ->
+                            LOG.v("createGroup sees peerlist at ${v.deviceList.size} ${connectedAddressSet.size}")
+                            for (peer in connectedAddressSet) {
+                                if (!v.deviceList.map{ v -> v.deviceAddress }.contains(peer.key.address.toString())) {
+                                    LOG.e("peer disconnected, removing")
+                                    connectedAddressSet.remove(peer.key)
+                                }
                             }
-                        })
+                            v.deviceList.isEmpty() && connectedAddressSet.isEmpty()
+                        }.ignoreElements().materialize())
+                        .dematerialize<DisposableSocket>()
                         .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
                         .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
                         .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
