@@ -74,15 +74,15 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
     val hash: ByteArray
         get() = packet.valHash.toByteArray()
 
-    val force: Boolean
-        get() = packet.valBody.force
+    val force: List<UUID>
+        get() = packet.valBody.forceLuidList.map { v -> protoUUIDtoUUID(v) }
 
     data class Builder(
         var enableHashing: Boolean = false,
         var hashVal: ByteString? = null,
         var provides: AdvertisePacket.Provides? = null,
         var tiebreaker: UUID? = null,
-        var forceUke: Boolean = false
+        var forceUke: MutableList<UUID> = mutableListOf()
     ) {
         private val salt: ByteArray = ByteArray(GenericHash.BYTES)
 
@@ -122,8 +122,8 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             this.hashVal = hash
         }
 
-        fun setforceUke(force: Boolean) = apply {
-            this.forceUke = force
+        fun setforceUke(force: List<UUID>) = apply {
+            this.forceUke.addAll(force)
         }
 
         fun build(): ElectLeaderPacket {
@@ -131,14 +131,15 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             return if (enableHashing) {
                 ElectLeaderPacket(ElectLeader.newBuilder().setValHash(hashFromBuilder()).build())
             } else {
+                val builder = ElectLeader.Body.newBuilder()
+                .setSalt(ByteString.copyFrom(salt))
+                    .setProvides(providesToVal(provides!!))
+                    .setTiebreakerVal(protoUUIDfromUUID(tiebreaker!!))
+                    .addAllForceLuid(forceUke.map { v -> protoUUIDfromUUID(v) })
                 ElectLeaderPacket(
                     ElectLeader.newBuilder()
                         .setValBody(
-                            ElectLeader.Body.newBuilder()
-                                .setSalt(ByteString.copyFrom(salt))
-                                .setProvides(providesToVal(provides!!))
-                                .setForce(forceUke)
-                                .setTiebreakerVal(protoUUIDfromUUID(tiebreaker!!))
+                            builder
                                 .build()
                         )
                         .build()

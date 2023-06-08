@@ -289,11 +289,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { serverConn ->
                         selectProvides().flatMap { provides ->
 
-                                LOG.v("gatt server election hashed stage ${provides.name}")
-                                val packet = session.votingStage.getSelf(true, provides, wifiDirectRadioModule.getForceUke())
-                                session.votingStage.addPacket(packet)
-                                serverConn.serverNotify(packet, session.remoteLuid, session.device)
-                                    .toSingleDefault(TransactionResult.empty())
+                            LOG.v("gatt server election hashed stage ${provides.name}")
+                            val packet = session.votingStage.getSelf(
+                                true,
+                                provides,
+                                wifiDirectRadioModule.getUkes()
+                            )
+                            session.votingStage.addPacket(packet)
+                            serverConn.serverNotify(packet, session.remoteLuid, session.device)
+                                .toSingleDefault(TransactionResult.empty())
                         }
                     },
                     { conn ->
@@ -302,8 +306,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .doOnSuccess { p -> LOG.v("client handshake received hashed election packet ${p.provides}") }
                             .doOnError { err -> LOG.e("error while receiving election packet: $err") }
                             .map { electLeaderPacket ->
-                                    session.votingStage.addPacket(electLeaderPacket)
-                                    TransactionResult.of(TransactionResult.STAGE_ELECTION)
+                                session.votingStage.addPacket(electLeaderPacket)
+                                TransactionResult.of(TransactionResult.STAGE_ELECTION)
                             }
 
                     })
@@ -319,18 +323,22 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         Single.just(session.luidStage.selfUnhashedPacket)
                             .flatMap { luidPacket ->
                                 selectProvides().flatMapCompletable { provides ->
-                                        LOG.v("server sending unhashed provides $provides")
-                                        val packet = session.votingStage.getSelf(false, provides, wifiDirectRadioModule.getForceUke())
-                                        packet.tagLuid(luidPacket.luidVal)
-                                        session.votingStage.addPacket(packet)
-                                        serverConn.serverNotify(
-                                            packet,
-                                            session.remoteLuid,
-                                            session.device
-                                        )
-                                            .doFinally {
-                                               session.votingStage.serverPackets.onComplete()
-                                            }
+                                    LOG.v("server sending unhashed provides $provides")
+                                    val packet = session.votingStage.getSelf(
+                                        false,
+                                        provides,
+                                        wifiDirectRadioModule.getUkes()
+                                    )
+                                    packet.tagLuid(luidPacket.luidVal)
+                                    session.votingStage.addPacket(packet)
+                                    serverConn.serverNotify(
+                                        packet,
+                                        session.remoteLuid,
+                                        session.device
+                                    )
+                                        .doFinally {
+                                            session.votingStage.serverPackets.onComplete()
+                                        }
                                 }
                                     .doOnError { err -> LOG.e("election server error $err") }
                                     .toSingleDefault(TransactionResult.empty())
@@ -338,49 +346,69 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     },
                     { conn ->
                         LOG.v("gatt client election stage")
-                           conn.readElectLeader()
-                               .flatMapCompletable { electLeaderPacket ->
-                                   LOG.v("gatt client received elect leader packet")
-                                   electLeaderPacket.tagLuid(session.luidMap[session.device.macAddress])
-                                   session.votingStage.addPacket(electLeaderPacket)
-                                   session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
-                               }
-                               .andThen(session.votingStage.determineUpgrade())
-                               .map { provides ->
-                                   LOG.v("election received provides: $provides")
-                                   val role =
-                                       if (session.votingStage.selectUke() == session.luidStage.selfUnhashed) {
-                                           ConnectionRole.ROLE_UKE
-                                       } else {
-                                           ConnectionRole.ROLE_SEME
-                                       }
-                                   LOG.v("selected role: $role")
-                                   session.role = role
-                                   session.setUpgradeStage(provides)
-                                   when (provides) {
-                                       AdvertisePacket.Provides.INVALID -> {
-                                           LOG.e("received invalid provides")
-                                           TransactionResult.of<BootstrapRequest>(
-                                               TransactionResult.STAGE_SUSPEND
-                                           )
-                                       }
+                        conn.readElectLeader()
+                            .flatMapCompletable { electLeaderPacket ->
+                                LOG.v("gatt client received elect leader packet")
+                                electLeaderPacket.tagLuid(session.luidMap[session.device.macAddress])
+                                session.votingStage.addPacket(electLeaderPacket)
+                                session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
+                            }
+                            .andThen(session.votingStage.determineUpgrade())
+                            .map { provides ->
+                                LOG.v("election received provides: $provides ${session.luidStage.selfUnhashed}")
+                                val ukes = session.votingStage.selectUke()
+                                LOG.v("received ukes size ${ukes.size}")
+                                val role = when (ukes.size) {
+                                    1 -> {
+                                        LOG.v("size 1 ${ukes[0]} ${session.luidStage.selfUnhashed}")
+                                        if (ukes[0] == session.luidStage.selfUnhashed) {
+                                            ConnectionRole.ROLE_UKE
+                                        } else {
+                                            ConnectionRole.ROLE_SEME
+                                        }
+                                    }
 
-                                       AdvertisePacket.Provides.BLE -> {
-                                           LOG.e("fallback: bootstrap BLE")
-                                           //we should do everything in BLE. slowwwww ;(
-                                           TransactionResult.of(
-                                               TransactionResult.STAGE_IDENTITY
-                                           )
-                                       }
+                                    0 -> throw VotingStage.MiracleException()
+                                    else -> {
+                                        val uke = ukes.map { u ->
+                                            LOG.v("adding uke $u")
+                                            wifiDirectRadioModule.addUke(u)
+                                            u
+                                        }.filter { u -> u == session.luidStage.selfUnhashed }
+                                            .size == 1
+                                        if (uke)
+                                            ConnectionRole.ROLE_UKE
+                                        else
+                                            ConnectionRole.ROLE_SEME
+                                    }
+                                }
+                                LOG.v("selected role: $role")
+                                session.role = role
+                                session.setUpgradeStage(provides)
+                                when (provides) {
+                                    AdvertisePacket.Provides.INVALID -> {
+                                        LOG.e("received invalid provides")
+                                        TransactionResult.of<BootstrapRequest>(
+                                            TransactionResult.STAGE_SUSPEND
+                                        )
+                                    }
 
-                                       AdvertisePacket.Provides.WIFIP2P ->
-                                           TransactionResult.of(
-                                               TransactionResult.STAGE_UPGRADE
-                                           )
-                                   }
-                               }
-                               .doOnError { err -> LOG.e("error while receiving packet: $err") }
-                               .doOnSuccess { result -> LOG.v("client handshake received election result ${result.stage}") }
+                                    AdvertisePacket.Provides.BLE -> {
+                                        LOG.e("fallback: bootstrap BLE")
+                                        //we should do everything in BLE. slowwwww ;(
+                                        TransactionResult.of(
+                                            TransactionResult.STAGE_IDENTITY
+                                        )
+                                    }
+
+                                    AdvertisePacket.Provides.WIFIP2P ->
+                                        TransactionResult.of(
+                                            TransactionResult.STAGE_UPGRADE
+                                        )
+                                }
+                            }
+                            .doOnError { err -> LOG.e("error while receiving packet: $err") }
+                            .doOnSuccess { result -> LOG.v("client handshake received election result ${result.stage}") }
                     })
 
                 /*
@@ -455,7 +483,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     }.reduce(
                                         TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                     ) { first, second ->
-                                        if(first.isError) {
+                                        if (first.isError) {
                                             first
                                         } else if (second.isError) {
                                             second
@@ -764,7 +792,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         s.merge(c).subscribeOn(operationsScheduler)
                     }
                 }.flatMap { s ->
-                    s.flatMap{ s -> s }
+                    s.flatMap { s -> s }
                 }
             }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
@@ -780,7 +808,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .takeUntil { result -> result.stage == TransactionResult.STAGE_TERMINATE }
             .doOnNext { session.unlock() }
             .ignoreElements()
-            .toSingleDefault(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+            .toSingleDefault(
+                HandshakeResult(
+                    0,
+                    0,
+                    HandshakeResult.TransactionStatus.STATUS_SUCCESS
+                )
+            )
             .toMaybe()
             .doOnError { err ->
                 LOG.e("session ${session.remoteLuid} ended with error $err")

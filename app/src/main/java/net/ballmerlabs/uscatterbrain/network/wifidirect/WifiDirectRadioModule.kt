@@ -6,7 +6,7 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.uscatterbrain.ScatterProto.UUID
+import java.util.UUID
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
@@ -20,6 +20,10 @@ import java.net.Socket
  */
 interface WifiDirectRadioModule {
     fun getBand(): Int
+
+    fun addUke(uuid: UUID)
+
+    fun getUkes(): List<UUID>
 
     fun bootstrapUke(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Flowable<HandshakeResult>
     fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int) : Flowable<HandshakeResult>

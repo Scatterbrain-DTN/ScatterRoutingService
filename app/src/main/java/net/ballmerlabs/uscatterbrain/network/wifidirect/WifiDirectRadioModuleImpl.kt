@@ -72,6 +72,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val connectedAddressSet = ConcurrentHashMap<InetSocketAddress, UUID>()
     private val createGroupCache = AtomicReference<Flowable<HandshakeResult>?>()
     private val bootstrapRequest = BehaviorSubject.create<WifiDirectBootstrapRequest>()
+    private val ukes = ConcurrentHashMap<UUID, Boolean>()
+
+    override fun addUke(uuid: UUID) {
+        ukes[uuid] = true
+    }
+
+    override fun getUkes(): List<UUID> {
+        return ukes.keys().toList()
+    }
 
     private fun updateConnectedPeers() {
         connectedPeers.clear()
@@ -324,6 +333,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)))
 
             .flatMapPublisher { groupInfo ->
+                ukes.clear()
                 LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
                 serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
                     LOG.v("got socket ${serverSocket.socket.localPort}")
@@ -368,6 +378,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
             .doOnComplete { LOG.e("createGroup completed") }
             .subscribeOn(operationsScheduler)
+            .doFinally { ukes.clear() }
 
     }
 

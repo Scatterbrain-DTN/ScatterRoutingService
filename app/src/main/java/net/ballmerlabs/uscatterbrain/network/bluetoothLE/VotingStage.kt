@@ -26,7 +26,11 @@ class VotingStage : LeDeviceSession.Stage {
     private val unhashedPackets = ArrayList<ElectLeaderPacket>()
     private var tiebreaker = UUID.randomUUID()
     val stale = AtomicBoolean()
-    fun getSelf(hashed: Boolean, provides: AdvertisePacket.Provides, force: Boolean): ElectLeaderPacket {
+    fun getSelf(
+        hashed: Boolean,
+        provides: AdvertisePacket.Provides,
+        force: List<UUID>
+    ): ElectLeaderPacket {
         val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder()
         if (hashed) {
             builder.enableHashing()
@@ -68,7 +72,7 @@ class VotingStage : LeDeviceSession.Stage {
      * they want to (which could allow easier data collection / spying for some transports)
      * or by executing a downgrade attack by forcing devices into a less secure transport
      */
-    private fun selectLeader(): ElectLeaderPacket {
+    private fun selectLeader(): List<UUID> {
         stale.set(true)
         var `val` = BigInteger.ONE
         for (packet in unhashedPackets) {
@@ -85,34 +89,54 @@ class VotingStage : LeDeviceSession.Stage {
             0
         )
         var compare = BigInteger(hash)
-        var ret: ElectLeaderPacket? = null
-        val forces = unhashedPackets.filter { p -> p.force }
-        when(forces.size) {
-            1 -> ret = forces[0]
-            else -> {
+        var ret = mutableListOf<UUID>()
+        val forces = unhashedPackets.flatMap { p -> p.force }
+        when (forces.size) {
+            1 -> ret.addAll(forces)
+            0 -> {
+                var r: UUID? = null
                 for (packet in unhashedPackets) {
                     val uuid = packet.luid
                     if (uuid != null) {
                         val c = BigInteger(ElectLeaderPacket.uuidToBytes(uuid))
                         if (c.abs() < compare.abs()) {
-                            ret = packet
+                            r = uuid
                             compare = c
                         }
                     } else {
                         LOG.w("luid tag was null in tiebreak")
                     }
                 }
+                if (r != null) {
+                    ret.add(r)
+                }
+            }
+
+            else -> {
+                var r: UUID? = null
+                for (packet in forces) {
+                    val c = BigInteger(ElectLeaderPacket.uuidToBytes(packet))
+                    if (c.abs() < compare.abs()) {
+                        r = packet
+                        compare = c
+                    } else {
+                        LOG.w("luid tag was null in tiebreak")
+                    }
+                }
+                if (r != null) {
+                    ret.add(r)
+                }
             }
         }
 
-        if (ret == null) {
+        if (ret.isEmpty()) {
             throw MiracleException()
         }
         return ret
     }
 
-    fun selectUke(): UUID? {
-        return selectLeader().luid
+    fun selectUke(): List<UUID> {
+        return selectLeader()
     }
 
     private fun countVotes(): Single<AdvertisePacket.Provides> {
@@ -137,21 +161,21 @@ class VotingStage : LeDeviceSession.Stage {
      */
     fun verifyPackets(): Completable {
         return Completable.defer {
-                if (hashedPackets.size != unhashedPackets.size) {
-                    Completable.error(IllegalStateException("size conflict hashed: ${hashedPackets.size} unhashed: ${unhashedPackets.size}"))
-                } else Observable.zip(
-                    Observable.fromIterable(hashedPackets),
-                    Observable.fromIterable(unhashedPackets)
-                ) { obj, packet -> obj.verifyHash(packet) }
-                    .flatMap { bool ->
-                        if (!bool) {
-                            Observable.error(java.lang.IllegalStateException("failed to verify hash"))
-                        } else {
-                            Observable.just(true)
-                        }
+            if (hashedPackets.size != unhashedPackets.size) {
+                Completable.error(IllegalStateException("size conflict hashed: ${hashedPackets.size} unhashed: ${unhashedPackets.size}"))
+            } else Observable.zip(
+                Observable.fromIterable(hashedPackets),
+                Observable.fromIterable(unhashedPackets)
+            ) { obj, packet -> obj.verifyHash(packet) }
+                .flatMap { bool ->
+                    if (!bool) {
+                        Observable.error(java.lang.IllegalStateException("failed to verify hash"))
+                    } else {
+                        Observable.just(true)
                     }
-                    .ignoreElements()
-            }
+                }
+                .ignoreElements()
+        }
     }
 
     /**
