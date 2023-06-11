@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pConfig
+import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
@@ -293,7 +294,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                             socket.accept()
                                                 .repeat()
                                                 .repeat(size)
-                                                .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                                                .takeWhile {
+                                                    mBroadcastReceiver.connectedDevices()
+                                                        .isNotEmpty()
+                                                }
                                                 .flatMapSingle { s -> bootstrapUkeSocket(s.socket) }
                                                 .mergeWith(
                                                     Flowable.fromIterable(packet.addresses.values)
@@ -346,43 +350,59 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                         ).build()!!.wifiBootstrapRequest()
                     bootstrapRequest.onNext(request)
-                        serverSocket.accept()
-                            .repeat()
-                            .materialize()
-                            .mergeWith(mBroadcastReceiver.observePeers()
-                                .takeUntil { p -> p.deviceList.isNotEmpty() }
-                                .ignoreElements()
-                                .andThen(mBroadcastReceiver.observePeers().takeUntil { v ->
-                                    LOG.v("createGroup sees peerlist at ${v.deviceList.size} ${connectedAddressSet.size}")
-                                    for (peer in connectedAddressSet) {
-                                        if (!v.deviceList.map { v -> v.deviceAddress }
-                                                .contains(peer.key.address.toString())) {
-                                            LOG.e("peer disconnected, removing")
-                                            connectedAddressSet.remove(peer.key)
-                                        }
+                    serverSocket.accept()
+                        .repeat()
+                        .materialize()
+                        .mergeWith(mBroadcastReceiver.observePeers()
+                            .takeUntil { p -> p.deviceList.isNotEmpty() }
+                            .ignoreElements()
+                            .andThen(
+                                mBroadcastReceiver.observePeers()
+                                    .delay(30, TimeUnit.SECONDS, operationsScheduler)
+                                    .takeUntil { v ->
+                                        val np = isNoPeers(v)
+                                        val newnp = mBroadcastReceiver.connectedDevices()
+                                            .isEmpty()
+                                        LOG.e("checking connected peers: $np, $newnp")
+                                        np && newnp
                                     }
-                                    v.deviceList.isEmpty() && connectedAddressSet.isEmpty()
-                                }.ignoreElements().materialize())
+
                             )
-                            .dematerialize<DisposableSocket>()
-                            .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
-                            .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
-                            .onErrorResumeNext(Flowable.empty())
-                            .flatMapSingle { sock ->
-                                sendConnectedIps(sock.socket).ignoreElement()
-                                    .toSingleDefault(sock)
-                            }
-                            .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
-                            .doFinally {
-                                LOG.v("uke server complete")
-                                connectedPeers.clear()
-                            }
+                            .materialize()
+                            .doOnComplete { LOG.e("Stopping uke server due to no peers") }
+                            .ignoreElements()
+                        )
+                        .dematerialize<DisposableSocket>()
+                        .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
+                        .onErrorResumeNext(Flowable.empty())
+                        .flatMapSingle { sock ->
+                            sendConnectedIps(sock.socket).ignoreElement()
+                                .toSingleDefault(sock)
+                        }
+                        .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
+                        .doFinally {
+                            LOG.v("uke server complete")
+                            connectedPeers.clear()
+                        }
                 }
             }
             .doOnComplete { LOG.e("createGroup completed") }
             .subscribeOn(operationsScheduler)
             .doFinally { ukes.clear() }
 
+    }
+
+
+    private fun isNoPeers(v: WifiP2pDeviceList): Boolean {
+        LOG.v("createGroup sees peerlist at ${v.deviceList.size} ${connectedAddressSet.size}")
+        for (peer in connectedAddressSet) {
+            if (!v.deviceList.map { v -> v.deviceAddress }
+                    .contains(peer.key.address.toString())) {
+                LOG.e("peer disconnected, removing")
+                connectedAddressSet.remove(peer.key)
+            }
+        }
+        return v.deviceList.isEmpty() && connectedAddressSet.isEmpty()
     }
 
     override fun getForceUke(): Boolean {
