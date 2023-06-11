@@ -370,15 +370,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                                     0 -> throw VotingStage.MiracleException()
                                     else -> {
-                                        val uke = ukes.map { u ->
+                                        val seme = ukes.map { u ->
                                             LOG.v("adding uke $u")
                                             wifiDirectRadioModule.addUke(u)
                                             u
                                         }.any { u -> u != session.luidStage.selfUnhashed }
-                                        if (uke)
-                                            ConnectionRole.ROLE_UKE
-                                        else
+                                        if (seme)
                                             ConnectionRole.ROLE_SEME
+                                        else
+                                            ConnectionRole.ROLE_UKE
                                     }
                                 }
                                 LOG.v("selected role: $role")
