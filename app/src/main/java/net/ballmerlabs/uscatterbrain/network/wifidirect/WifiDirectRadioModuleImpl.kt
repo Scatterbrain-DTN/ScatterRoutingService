@@ -326,12 +326,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<DisposableSocket> {
-        return removeGroup().andThen(createGroupSingle().ignoreElement()
-            .andThen(mBroadcastReceiver.observeConnectionInfo()
-                .takeUntil { i -> i.isGroupOwner() && i.groupFormed() }
-                .ignoreElements())
-            .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)))
-
+        return removeGroup().andThen(
+            createGroupSingle().ignoreElement()
+                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1))
+        )
             .flatMapPublisher { groupInfo ->
                 ukes.clear()
                 LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
@@ -348,32 +346,37 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                         ).build()!!.wifiBootstrapRequest()
                     bootstrapRequest.onNext(request)
-                    serverSocket.accept()
-                        .repeat()
-                        .materialize()
-                        .mergeWith(mBroadcastReceiver.observePeers().takeUntil { v ->
-                            LOG.v("createGroup sees peerlist at ${v.deviceList.size} ${connectedAddressSet.size}")
-                            for (peer in connectedAddressSet) {
-                                if (!v.deviceList.map{ v -> v.deviceAddress }.contains(peer.key.address.toString())) {
-                                    LOG.e("peer disconnected, removing")
-                                    connectedAddressSet.remove(peer.key)
-                                }
+                    bootstrap(request).subscribeOn(operationsScheduler)
+                        .andThen(serverSocket.accept()
+                            .repeat()
+                            .materialize()
+                            .mergeWith(mBroadcastReceiver.observePeers()
+                                .takeUntil { p -> p.deviceList.isNotEmpty() }
+                                .ignoreElements()
+                                .andThen(mBroadcastReceiver.observePeers().takeUntil { v ->
+                                    LOG.v("createGroup sees peerlist at ${v.deviceList.size} ${connectedAddressSet.size}")
+                                    for (peer in connectedAddressSet) {
+                                        if (!v.deviceList.map { v -> v.deviceAddress }
+                                                .contains(peer.key.address.toString())) {
+                                            LOG.e("peer disconnected, removing")
+                                            connectedAddressSet.remove(peer.key)
+                                        }
+                                    }
+                                    v.deviceList.isEmpty() && connectedAddressSet.isEmpty()
+                                }.ignoreElements().materialize())
+                            )
+                            .dematerialize<DisposableSocket>()
+                            .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                            .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
+                            .onErrorResumeNext(Flowable.empty())
+                            .flatMapSingle { sock ->
+                                sendConnectedIps(sock.socket).ignoreElement()
+                                    .toSingleDefault(sock)
                             }
-                            v.deviceList.isEmpty() && connectedAddressSet.isEmpty()
-                        }.ignoreElements().materialize())
-                        .dematerialize<DisposableSocket>()
-                        .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
-                        .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
-                        .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
-                        .onErrorResumeNext(Flowable.empty())
-                        .flatMapSingle { sock ->
-                            sendConnectedIps(sock.socket).ignoreElement()
-                                .toSingleDefault(sock)
-                        }
-                        .doFinally {
-                            LOG.v("uke server complete")
-                            connectedPeers.clear()
-                        }
+                            .doFinally {
+                                LOG.v("uke server complete")
+                                connectedPeers.clear()
+                            })
                 }
             }
             .doOnComplete { LOG.e("createGroup completed") }
