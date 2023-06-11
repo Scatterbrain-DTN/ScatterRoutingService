@@ -2,7 +2,8 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
 import android.bluetooth.BluetoothGattService
 import com.polidea.rxandroidble2.Timeout
-import java.util.*
+import java.util.TreeSet
+import java.util.UUID
 
 class ServerConfig(
         private val serviceList: MutableMap<UUID, BluetoothGattService> = HashMap(),

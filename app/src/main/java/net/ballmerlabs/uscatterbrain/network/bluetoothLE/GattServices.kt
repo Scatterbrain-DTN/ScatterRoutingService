@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
-import java.util.*
+import java.util.UUID
 
 // scatterbrain gatt service object
 val gattService =

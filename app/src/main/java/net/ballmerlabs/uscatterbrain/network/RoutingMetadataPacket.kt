@@ -3,7 +3,7 @@ package net.ballmerlabs.uscatterbrain.network
 import com.google.protobuf.ByteString
 import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.RoutingMetadata
-import java.util.*
+import java.util.UUID
 
 /**
  * wrapper class for RoutingMetadata protobuf message

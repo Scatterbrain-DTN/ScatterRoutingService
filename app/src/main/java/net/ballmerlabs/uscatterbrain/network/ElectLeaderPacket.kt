@@ -4,7 +4,7 @@ import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.uscatterbrain.ScatterProto.ElectLeader
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.UUID
 
 /**
  * wrapper class for ElectLeader protobuf message

@@ -79,6 +79,10 @@ interface RoutingServiceComponent {
 
         @Binds
         @Singleton
+        abstract fun bindWifiDirectRadioModule(impl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
+
+        @Binds
+        @Singleton
         abstract fun provideWifiDirectBroadcastReceiver(impl: WifiDirectBroadcastReceiverImpl): WifiDirectBroadcastReceiver
 
         @Binds

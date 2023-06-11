@@ -9,7 +9,8 @@ import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.Verifiable
 import java.io.File
-import java.util.*
+import java.util.Date
+import java.util.UUID
 
 /**
  * helper class representing a relation between a message and its hashes

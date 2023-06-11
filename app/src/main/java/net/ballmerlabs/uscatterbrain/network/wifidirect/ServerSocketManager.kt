@@ -5,7 +5,6 @@ import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import java.net.ServerSocket
 import java.net.Socket
-import java.util.UUID
 
 data class DisposableSocket(
     val socket: Socket,

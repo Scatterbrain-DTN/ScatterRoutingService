@@ -4,7 +4,7 @@ import io.reactivex.Completable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.LuidPacket
-import java.util.*
+import java.util.UUID
 
 /**
  * holds state for the luid stage of the bluetooth LE transport FSM

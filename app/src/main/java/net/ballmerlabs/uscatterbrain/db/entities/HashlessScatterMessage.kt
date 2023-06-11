@@ -1,6 +1,10 @@
 package net.ballmerlabs.uscatterbrain.db.entities
 
-import androidx.room.*
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.PrimaryKey
 import com.google.protobuf.ByteString
 
 /**

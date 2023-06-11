@@ -11,8 +11,6 @@ import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLEConnection
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
 import javax.inject.Named
 
 @ScatterbrainTransactionScope
@@ -35,10 +33,6 @@ interface ScatterbrainTransactionSubcomponent {
     abstract class ScatterbrainTransactionModule {
         @Binds
         @ScatterbrainTransactionScope
-        abstract fun bindWifiDirectRadioModule(impl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
-
-        @Binds
-        @ScatterbrainTransactionScope
         abstract fun bindRadioModuleInternal(impl: BluetoothLERadioModuleImpl): BluetoothLEModule
 
         @Module
@@ -50,6 +44,7 @@ interface ScatterbrainTransactionSubcomponent {
             fun providesWifiReadScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.WIFI_READ))
             }
+
             @Provides
             @JvmStatic
             @ScatterbrainTransactionScope
@@ -61,8 +56,6 @@ interface ScatterbrainTransactionSubcomponent {
         }
     }
 
-
-    fun wifiDirectRadioModule(): WifiDirectRadioModule
     fun bluetoothLeRadioModule(): BluetoothLEModule
 
     fun connection(): CachedLEConnection

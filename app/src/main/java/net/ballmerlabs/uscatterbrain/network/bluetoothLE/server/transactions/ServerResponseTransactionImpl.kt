@@ -7,7 +7,6 @@ import io.reactivex.Completable
 import io.reactivex.Scheduler
 import net.ballmerlabs.uscatterbrain.GattServerTransactionScope
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ServerTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import java.util.UUID

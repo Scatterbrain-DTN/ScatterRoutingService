@@ -4,8 +4,8 @@ import com.google.protobuf.ByteString
 import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.isValidFilename
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
-import java.util.*
-import kotlin.collections.ArrayList
+import java.util.Date
+import java.util.UUID
 
 /**
  * Wrapper class for protocol buffer blockdata message

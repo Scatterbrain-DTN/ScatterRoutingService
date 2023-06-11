@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network
 import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.IpAnnounceItem
 import java.net.InetSocketAddress
-import java.net.SocketAddress
 import java.util.UUID
 
 data class Address (

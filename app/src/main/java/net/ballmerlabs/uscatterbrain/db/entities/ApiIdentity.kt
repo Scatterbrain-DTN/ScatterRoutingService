@@ -9,7 +9,9 @@ import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
-import java.util.*
+import java.util.SortedSet
+import java.util.TreeSet
+import java.util.UUID
 
 /**
  * ApiIdentity is a mutable handle to an identity that allows more privileged

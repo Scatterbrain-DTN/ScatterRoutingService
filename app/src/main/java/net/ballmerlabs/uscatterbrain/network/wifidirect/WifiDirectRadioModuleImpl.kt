@@ -8,10 +8,10 @@ import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import io.reactivex.*
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
+import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
@@ -24,11 +24,8 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.net.SocketAddress
-import java.net.SocketException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -36,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
+import javax.inject.Singleton
 
 /**
  * Transport layer radio module for wifi direct. Currently this module only supports
@@ -50,7 +48,7 @@ import javax.inject.Provider
  *
  * Manually setting the group passphrase requires a very new API level (android 10 or above)
  */
-@ScatterbrainTransactionScope
+@Singleton
 class WifiDirectRadioModuleImpl @Inject constructor(
     private val mManager: WifiP2pManager,
     private val mContext: Context,
@@ -780,7 +778,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return createGroupCache.updateAndGet { v ->
             when (v) {
                 null -> {
-                    createGroup(band, bootstrap)
+                    val subject = PublishSubject.create<HandshakeResult>()
+                    val obs  = createGroup(band, bootstrap)
                         .doOnError { err ->
                             LOG.e("failed to get server socket: $err")
                             firebaseWrapper.recordException(err)
@@ -790,6 +789,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             bootstrapUkeSocket(socket.socket)
                         }
                         .doFinally { createGroupCache.set(null) }
+                    obs.toObservable().subscribe(subject)
+                    subject.toFlowable(BackpressureStrategy.BUFFER)
                 }
 
                 else -> v.mergeWith(bootstrapRequest.flatMapCompletable { request ->

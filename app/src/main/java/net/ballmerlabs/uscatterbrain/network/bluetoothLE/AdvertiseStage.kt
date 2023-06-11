@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
-import java.util.*
 import java.util.concurrent.atomic.AtomicReference
 
 /**

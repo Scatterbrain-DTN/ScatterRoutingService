@@ -1,11 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import com.polidea.rxandroidble2.RxBleDevice
-import io.reactivex.Completable
 import io.reactivex.Maybe
-import io.reactivex.Observable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import java.util.*
+import java.util.UUID
 
 interface BluetoothLEModule {
     /**

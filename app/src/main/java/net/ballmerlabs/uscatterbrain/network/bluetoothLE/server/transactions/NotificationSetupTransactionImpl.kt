@@ -5,7 +5,7 @@ import io.reactivex.Completable
 import io.reactivex.Flowable
 import net.ballmerlabs.uscatterbrain.GattServerTransactionScope
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
-import java.util.*
+import java.util.UUID
 import javax.inject.Inject
 
 @GattServerTransactionScope

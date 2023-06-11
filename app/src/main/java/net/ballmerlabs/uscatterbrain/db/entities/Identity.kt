@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.db.entities
 
 import androidx.room.Embedded
 import androidx.room.Relation
-import java.util.*
+import java.util.UUID
 
 /**
  * class with identity and corresponding relations.

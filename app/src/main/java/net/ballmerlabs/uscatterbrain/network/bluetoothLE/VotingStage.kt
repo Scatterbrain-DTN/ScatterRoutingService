@@ -4,14 +4,13 @@ import com.goterl.lazysodium.interfaces.GenericHash
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
-import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -91,6 +90,7 @@ class VotingStage : LeDeviceSession.Stage {
         var compare = BigInteger(hash)
         var ret = mutableListOf<UUID>()
         val forces = unhashedPackets.flatMap { p -> p.force }
+        LOG.e("voting forces ${forces.size}")
         when (forces.size) {
             1 -> ret.addAll(forces)
             0 -> {

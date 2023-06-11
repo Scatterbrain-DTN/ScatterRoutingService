@@ -1,8 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import io.reactivex.Completable
-import java.util.*
-import java.util.concurrent.atomic.AtomicReference
+import java.util.UUID
 
 interface Advertiser {
 

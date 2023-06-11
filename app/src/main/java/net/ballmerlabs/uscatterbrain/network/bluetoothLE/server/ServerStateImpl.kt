@@ -3,7 +3,8 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import net.ballmerlabs.uscatterbrain.GattServerConnectionScope
-import java.util.*
+import java.util.Arrays
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 

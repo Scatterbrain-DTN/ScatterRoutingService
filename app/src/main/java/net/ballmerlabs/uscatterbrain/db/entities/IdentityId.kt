@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.db.entities
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import java.util.*
+import java.util.UUID
 
 @Entity
 class IdentityId(

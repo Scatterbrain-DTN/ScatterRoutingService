@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.network.protoUUIDfromUUID
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.InetAddress
 import java.net.Socket
