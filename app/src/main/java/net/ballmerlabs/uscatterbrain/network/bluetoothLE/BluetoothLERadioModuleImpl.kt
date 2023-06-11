@@ -374,8 +374,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                             LOG.v("adding uke $u")
                                             wifiDirectRadioModule.addUke(u)
                                             u
-                                        }.filter { u -> u == session.luidStage.selfUnhashed }
-                                            .size == 1
+                                        }.any { u -> u != session.luidStage.selfUnhashed }
                                         if (uke)
                                             ConnectionRole.ROLE_UKE
                                         else
