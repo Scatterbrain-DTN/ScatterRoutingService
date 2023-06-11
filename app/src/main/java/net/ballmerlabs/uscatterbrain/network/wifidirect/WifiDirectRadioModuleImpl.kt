@@ -293,7 +293,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                             socket.accept()
                                                 .repeat()
                                                 .repeat(size)
-                                                //  .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
+                                                .takeWhile { mBroadcastReceiver.connectedDevices().isNotEmpty() }
                                                 .flatMapSingle { s -> bootstrapUkeSocket(s.socket) }
                                                 .mergeWith(
                                                     Flowable.fromIterable(packet.addresses.values)
@@ -346,8 +346,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                         ).build()!!.wifiBootstrapRequest()
                     bootstrapRequest.onNext(request)
-                    bootstrap(request).subscribeOn(operationsScheduler)
-                        .andThen(serverSocket.accept()
+                        serverSocket.accept()
                             .repeat()
                             .materialize()
                             .mergeWith(mBroadcastReceiver.observePeers()
@@ -373,10 +372,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 sendConnectedIps(sock.socket).ignoreElement()
                                     .toSingleDefault(sock)
                             }
+                            .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
                             .doFinally {
                                 LOG.v("uke server complete")
                                 connectedPeers.clear()
-                            })
+                            }
                 }
             }
             .doOnComplete { LOG.e("createGroup completed") }
