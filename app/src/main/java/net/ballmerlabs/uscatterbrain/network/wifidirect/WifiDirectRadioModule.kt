@@ -9,6 +9,7 @@ import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
+import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import java.io.File
 import java.util.UUID
@@ -19,9 +20,8 @@ import java.util.UUID
 interface WifiDirectRadioModule {
     fun getBand(): Int
 
-    fun addUke(uuid: UUID)
-
-    fun getUkes(): List<UUID>
+    fun addUke(uuid: UUID, bootstrap: UpgradePacket)
+    fun getUkes(): Map<UUID, UpgradePacket>
 
     fun bootstrapUke(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Flowable<HandshakeResult>
     fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int) : Flowable<HandshakeResult>

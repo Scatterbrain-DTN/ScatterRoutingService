@@ -65,12 +65,17 @@ message Luid {
     }
 }
 
+message ExtraUke {
+    UUID luid = 1;
+    Upgrade upgrade = 2;
+}
+
 message ElectLeader {
     message Body {
         bytes salt = 1;
         uint32 provides = 2;
         UUID tiebreaker_val = 3;
-        repeated UUID force_luid = 4;
+        repeated ExtraUke force_luid = 4;
         int32 band = 5;
     }
     oneof val {

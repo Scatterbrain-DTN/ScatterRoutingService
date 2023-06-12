@@ -349,6 +349,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         conn.readElectLeader()
                             .flatMapCompletable { electLeaderPacket ->
                                 LOG.v("gatt client received elect leader packet")
+                                electLeaderPacket.force.forEach { v ->
+                                    wifiDirectRadioModule.addUke(v.key, v.value)
+                                }
                                 electLeaderPacket.tagLuid(session.luidMap[session.device.macAddress])
                                 session.votingStage.addPacket(electLeaderPacket)
                                 session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
@@ -361,7 +364,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 val role = when (ukes.size) {
                                     1 -> {
                                         LOG.v("size 1 ${ukes[0]} ${session.luidStage.selfUnhashed}")
-                                        wifiDirectRadioModule.addUke(ukes[0])
                                         if (ukes[0] == session.luidStage.selfUnhashed) {
                                             ConnectionRole.ROLE_UKE
                                         } else {
@@ -373,7 +375,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     else -> {
                                         val uke = ukes.map { u ->
                                             LOG.v("adding uke $u")
-                                            wifiDirectRadioModule.addUke(u)
                                             u
                                         }.any { u -> u != session.luidStage.selfUnhashed }
                                         if (uke)
@@ -423,6 +424,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         if (session.role == ConnectionRole.ROLE_UKE) {
                             LOG.e("upgrade role UKE")
                             wifiDirectRadioModule.bootstrapUke(wifiDirectRadioModule.getBand()) { bootstrapReq ->
+                                LOG.e("uke upgrade callback")
+                                wifiDirectRadioModule.addUke(advertiser.getHashLuid(), bootstrapReq.toUpgrade(
+                                    Random(System.nanoTime()).nextInt()
+                                ))
                                 serverConn.serverNotify(
                                     bootstrapReq.toUpgrade(session.upgradeStage!!.sessionID),
                                     session.remoteLuid,
@@ -434,7 +439,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 )
 
                         } else {
-                            Single.just(TransactionResult.empty())
+                            val uke = wifiDirectRadioModule.getUkes()[session.remoteLuid]
+                            if (uke != null) {
+                                serverConn.serverNotify(uke, session.remoteLuid, session.device)
+                                    .toSingleDefault(TransactionResult.of(TransactionResult.STAGE_TERMINATE))
+                            } else {
+                                Single.just(TransactionResult.empty())
+                            }
                         }
                     },
                     { conn ->
@@ -454,6 +465,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 bootstrapRequestProvider.get(),
                                                 wifiDirectRadioModule.getBand()
                                             )
+
+                                            wifiDirectRadioModule.addUke(session.remoteLuid, request.toUpgrade(
+                                                Random(System.nanoTime()).nextInt()
+                                            ))
 
                                             wifiDirectRadioModule.bootstrapSeme(
                                                 request.name,

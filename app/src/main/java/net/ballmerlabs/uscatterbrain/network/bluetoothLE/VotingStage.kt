@@ -8,6 +8,7 @@ import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
+import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
 import java.util.UUID
@@ -28,7 +29,7 @@ class VotingStage : LeDeviceSession.Stage {
     fun getSelf(
         hashed: Boolean,
         provides: AdvertisePacket.Provides,
-        force: List<UUID>
+        force: Map<UUID, UpgradePacket>
     ): ElectLeaderPacket {
         val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder()
         if (hashed) {
@@ -89,7 +90,7 @@ class VotingStage : LeDeviceSession.Stage {
         )
         var compare = BigInteger(hash)
         var ret = mutableListOf<UUID>()
-        val forces = unhashedPackets.flatMap { p -> p.force }
+        val forces = unhashedPackets.flatMap { p -> p.force.keys }
         LOG.e("voting forces ${forces.size}")
         when (forces.size) {
             1 -> ret.addAll(forces)

@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network
 
 import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.GenericHash
+import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.ElectLeader
 import java.nio.ByteBuffer
 import java.util.UUID
@@ -74,15 +75,18 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
     val hash: ByteArray
         get() = packet.valHash.toByteArray()
 
-    val force: List<UUID>
-        get() = packet.valBody.forceLuidList.map { v -> protoUUIDtoUUID(v) }
+    val force: Map<UUID, UpgradePacket>
+        get() = packet.valBody.forceLuidList.fold(HashMap()) { map, v ->
+            map.put(protoUUIDtoUUID(v.luid), UpgradePacket(v.upgrade))
+            map
+        }
 
     data class Builder(
         var enableHashing: Boolean = false,
         var hashVal: ByteString? = null,
         var provides: AdvertisePacket.Provides? = null,
         var tiebreaker: UUID? = null,
-        var forceUke: MutableList<UUID> = mutableListOf()
+        var forceUke: MutableMap<UUID, UpgradePacket> = mutableMapOf()
     ) {
         private val salt: ByteArray = ByteArray(GenericHash.BYTES)
 
@@ -122,8 +126,8 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             this.hashVal = hash
         }
 
-        fun setforceUke(force: List<UUID>) = apply {
-            this.forceUke.addAll(force)
+        fun setforceUke(force: Map<UUID, UpgradePacket>) = apply {
+            this.forceUke.putAll(force)
         }
 
         fun build(): ElectLeaderPacket {
@@ -135,7 +139,10 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
                 .setSalt(ByteString.copyFrom(salt))
                     .setProvides(providesToVal(provides!!))
                     .setTiebreakerVal(protoUUIDfromUUID(tiebreaker!!))
-                    .addAllForceLuid(forceUke.map { v -> protoUUIDfromUUID(v) })
+                    .addAllForceLuid(forceUke.map { v -> ScatterProto.ExtraUke.newBuilder()
+                        .setLuid(protoUUIDfromUUID(v.key))
+                        .setUpgrade(v.value.packet).build()
+                    })
                 ElectLeaderPacket(
                     ElectLeader.newBuilder()
                         .setValBody(

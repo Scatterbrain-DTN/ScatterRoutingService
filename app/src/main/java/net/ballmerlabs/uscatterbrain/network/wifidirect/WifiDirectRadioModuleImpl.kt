@@ -71,14 +71,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val connectedAddressSet = ConcurrentHashMap<InetSocketAddress, UUID>()
     private val createGroupCache = AtomicReference<Flowable<HandshakeResult>?>()
     private val bootstrapRequest = BehaviorSubject.create<WifiDirectBootstrapRequest>()
-    private val ukes = ConcurrentHashMap<UUID, Boolean>()
+    private val ukes = ConcurrentHashMap<UUID, UpgradePacket>()
 
-    override fun addUke(uuid: UUID) {
-        ukes[uuid] = true
+    override fun addUke(uuid: UUID, bootstrap: UpgradePacket) {
+        ukes[uuid] = bootstrap
     }
 
-    override fun getUkes(): List<UUID> {
-        return ukes.keys().toList()
+    override fun getUkes(): Map<UUID, UpgradePacket> {
+        return ukes.toMap()
     }
 
     private fun updateConnectedPeers() {
@@ -288,7 +288,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     LOG.v("seme got ip announce from uke, connected size: $size")
                                     bootstrapSemeSocket(ownerSocket)
                                         .toFlowable()
-                                        .concatWith(
+                                        .mergeWith(
                                             socket.accept()
                                                 .repeat()
                                                 .repeat(size)
@@ -330,63 +330,65 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Flowable<DisposableSocket> {
         return removeGroup().andThen(
             createGroupSingle().ignoreElement()
-                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1))
-        )
-            .flatMapPublisher { groupInfo ->
-                ukes.clear()
-                LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
-                serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
-                    LOG.v("got socket ${serverSocket.socket.localPort}")
-                    val request = bootstrapRequestProvider.get()
-                        .wifiDirectArgs(
-                            BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                                passphrase = groupInfo.passphrase,
-                                name = groupInfo.networkName,
-                                role = ConnectionRole.ROLE_UKE,
-                                band = band,
-                                port = serverSocket.socket.localPort
-                            )
-                        ).build()!!.wifiBootstrapRequest()
-                    bootstrapRequest.onNext(request)
-                    serverSocket.accept()
-                        .repeat()
-                        .materialize()
-                        .mergeWith(mBroadcastReceiver.observePeers()
-                            .takeUntil { p -> p.deviceList.isNotEmpty() }
-                            .ignoreElements()
-                            .andThen(
-                                mBroadcastReceiver.observePeers()
-                                    .delay(30, TimeUnit.SECONDS, operationsScheduler)
-                                    .takeUntil { v ->
-                                        val np = isNoPeers(v)
-                                        val newnp = mBroadcastReceiver.connectedDevices()
-                                            .isEmpty()
-                                        LOG.e("checking connected peers: $np, $newnp")
-                                        np && newnp
-                                    }
+                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)
+                    .flatMapPublisher { groupInfo ->
+                        ukes.clear()
+                        LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
+                        serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
+                            LOG.v("got socket ${serverSocket.socket.localPort}")
+                            val request = bootstrapRequestProvider.get()
+                                .wifiDirectArgs(
+                                    BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                                        passphrase = groupInfo.passphrase,
+                                        name = groupInfo.networkName,
+                                        role = ConnectionRole.ROLE_UKE,
+                                        band = band,
+                                        port = serverSocket.socket.localPort
+                                    )
+                                ).build()!!.wifiBootstrapRequest()
+                            bootstrapRequest.onNext(request)
+                            serverSocket.accept()
+                                .repeat()
+                                .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
+                                .materialize()
+                                .mergeWith(mBroadcastReceiver.observePeers()
+                                    .takeUntil { p -> p.deviceList.isNotEmpty() }
+                                    .ignoreElements()
+                                    .andThen(
+                                        mBroadcastReceiver.observePeers()
+                                            .delay(30, TimeUnit.SECONDS, operationsScheduler)
+                                            .takeUntil { v ->
+                                                val np = isNoPeers(v)
+                                                val newnp = mBroadcastReceiver.connectedDevices()
+                                                    .isEmpty()
+                                                LOG.e("checking connected peers: $np, $newnp")
+                                                np && newnp
+                                            }
 
-                            )
-                            .materialize()
-                            .doOnComplete { LOG.e("Stopping uke server due to no peers") }
-                            .ignoreElements()
-                        )
-                        .dematerialize<DisposableSocket>()
-                        .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
-                        .onErrorResumeNext(Flowable.empty())
-                        .flatMapSingle { sock ->
-                            sendConnectedIps(sock.socket).ignoreElement()
-                                .toSingleDefault(sock)
+                                    )
+                                    .materialize()
+                                    .doOnComplete { LOG.e("Stopping uke server due to no peers") }
+                                    .ignoreElements()
+                                )
+                                .dematerialize<DisposableSocket>()
+                                .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
+                                .onErrorResumeNext(Flowable.empty())
+                                .flatMapSingle { sock ->
+                                    sendConnectedIps(sock.socket).ignoreElement()
+                                        .toSingleDefault(sock)
+                                }
+                                .doFinally {
+                                    LOG.v("uke server complete")
+                                    connectedPeers.clear()
+                                }
                         }
-                        .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
-                        .doFinally {
-                            LOG.v("uke server complete")
-                            connectedPeers.clear()
-                        }
-                }
-            }
-            .doOnComplete { LOG.e("createGroup completed") }
-            .subscribeOn(operationsScheduler)
-            .doFinally { ukes.clear() }
+                    }
+                    .doOnComplete { LOG.e("createGroup completed") }
+                    .subscribeOn(operationsScheduler)
+                    .doFinally { ukes.clear() }
+                )
+        )
+
 
     }
 
@@ -790,14 +792,19 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                         .doFinally { createGroupCache.set(null) }
                     obs.toObservable().subscribe(subject)
+                    LOG.e("initializing cached request")
                     subject.toFlowable(BackpressureStrategy.BUFFER)
                 }
 
-                else -> v.mergeWith(bootstrapRequest.flatMapCompletable { request ->
-                    bootstrap(
-                        request
-                    ).subscribeOn(operationsScheduler)
-                })
+                else -> {
+                    LOG.e("got cached request initial")
+                    v.mergeWith(bootstrapRequest.flatMapCompletable { request ->
+                        LOG.e("got cached request")
+                        bootstrap(
+                            request
+                        ).subscribeOn(operationsScheduler)
+                    })
+                }
 
             }
         }!!
