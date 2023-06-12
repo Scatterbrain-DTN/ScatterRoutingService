@@ -423,7 +423,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("gatt server upgrade stage")
                         if (session.role == ConnectionRole.ROLE_UKE) {
                             LOG.e("upgrade role UKE")
-                            wifiDirectRadioModule.bootstrapUke(wifiDirectRadioModule.getBand()) { bootstrapReq ->
+                            wifiDirectRadioModule.bootstrapUke(wifiDirectRadioModule.getBand(), session.remoteLuid, advertiser.getHashLuid()) { bootstrapReq ->
                                 LOG.e("uke upgrade callback")
                                 wifiDirectRadioModule.addUke(advertiser.getHashLuid(), bootstrapReq.toUpgrade(
                                     Random(System.nanoTime()).nextInt()
@@ -433,7 +433,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     session.remoteLuid,
                                     session.device
                                 )
-                            }.ignoreElements()
+                            }.ignoreElement()
                                 .toSingleDefault(
                                     TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                 )
@@ -474,7 +474,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 request.name,
                                                 request.passphrase,
                                                 request.band,
-                                                request.port
+                                                request.port,
+                                                advertiser.getHashLuid()
                                             )
                                                 .map {
                                                     TransactionResult.of(

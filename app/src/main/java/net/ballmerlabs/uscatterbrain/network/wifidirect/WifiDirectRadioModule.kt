@@ -23,8 +23,8 @@ interface WifiDirectRadioModule {
     fun addUke(uuid: UUID, bootstrap: UpgradePacket)
     fun getUkes(): Map<UUID, UpgradePacket>
 
-    fun bootstrapUke(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Flowable<HandshakeResult>
-    fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int) : Flowable<HandshakeResult>
+    fun bootstrapUke(band: Int, remoteLuid: UUID, selfLuid: UUID, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<HandshakeResult>
+    fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int, self: UUID) : Flowable<HandshakeResult>
 
     /**
      * Connects to an existing wifi direct group manually
@@ -45,7 +45,8 @@ interface WifiDirectRadioModule {
      */
     fun bootstrapFromUpgrade(
         upgradeRequest: BootstrapRequest,
-        luid: java.util.UUID,
+        remoteLuid: UUID,
+        selfLuid: UUID,
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<HandshakeResult>
 
@@ -54,7 +55,7 @@ interface WifiDirectRadioModule {
      * returning them as a BootstrapRequest
      * @return WifiDirectBootstrapRequest
      */
-    fun createGroup(band: Int, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Flowable<DisposableSocket>
+    fun createGroup(band: Int, remoteLuid: UUID, selfLuid: UUID, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Flowable<Pair<UUID,DisposableSocket>>
 
     /**
      * Removes an existing wifi direct group if it exists

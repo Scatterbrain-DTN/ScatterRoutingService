@@ -15,6 +15,9 @@ class IpAnnouncePacket(announce: ScatterProto.IpAnnounce) : ScatterSerializable<
     override val type: PacketType
         get() = PacketType.TYPE_IP_ANNOUNCE
 
+    val self: UUID
+        get() = protoUUIDtoUUID(packet.self)
+
     val addresses: HashMap<UUID, Address> = announce.itemsList.fold(HashMap()) { map, item ->
         map[protoUUIDtoUUID(item.id)] = Address(
             address = InetSocketAddress(item.address, item.port),
@@ -24,6 +27,7 @@ class IpAnnouncePacket(announce: ScatterProto.IpAnnounce) : ScatterSerializable<
     }
 
     data class Builder(
+        val self: UUID,
          private val addresses: HashMap<UUID, InetSocketAddress> = HashMap()
     ) {
 
@@ -43,6 +47,7 @@ class IpAnnouncePacket(announce: ScatterProto.IpAnnounce) : ScatterSerializable<
             }
 
             val builder = ScatterProto.IpAnnounce.newBuilder()
+                .setSelf(protoUUIDfromUUID(self))
                 .addAllItems(inner)
                 .build()
 
@@ -52,8 +57,8 @@ class IpAnnouncePacket(announce: ScatterProto.IpAnnounce) : ScatterSerializable<
 
     companion object {
         @JvmStatic
-        fun newBuilder(): Builder {
-            return Builder()
+        fun newBuilder(self: UUID): Builder {
+            return Builder(self)
         }
 
         class Parser: ScatterSerializable.Companion.Parser<ScatterProto.IpAnnounce, IpAnnouncePacket>(ScatterProto.IpAnnounce.parser())

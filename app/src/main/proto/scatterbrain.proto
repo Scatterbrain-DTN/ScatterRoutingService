@@ -122,5 +122,6 @@ message IpAnnounceItem {
 }
 
 message IpAnnounce {
-    repeated IpAnnounceItem items = 1;
+    UUID self = 1;
+    repeated IpAnnounceItem items = 2;
 }
