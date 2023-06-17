@@ -73,7 +73,7 @@ class VotingStage : LeDeviceSession.Stage {
      * they want to (which could allow easier data collection / spying for some transports)
      * or by executing a downgrade attack by forcing devices into a less secure transport
      */
-    private fun selectLeader(): List<UUID> {
+    fun selectUke(): List<UUID> {
         stale.set(true)
         var `val` = BigInteger.ONE
         for (packet in unhashedPackets) {
@@ -119,10 +119,6 @@ class VotingStage : LeDeviceSession.Stage {
             throw MiracleException()
         }
         return ret
-    }
-
-    fun selectUke(): List<UUID> {
-        return selectLeader()
     }
 
     private fun countVotes(): Single<AdvertisePacket.Provides> {

@@ -359,7 +359,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     .ignoreElements()
                                     .andThen(
                                         mBroadcastReceiver.observePeers()
-                                            .delay(30, TimeUnit.SECONDS, operationsScheduler)
+                                            .delay(60, TimeUnit.SECONDS, operationsScheduler)
                                             .takeUntil { v ->
                                                 val np = isNoPeers(v)
                                                 val newnp = mBroadcastReceiver.connectedDevices()
