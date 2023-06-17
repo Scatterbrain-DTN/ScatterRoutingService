@@ -290,6 +290,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         selectProvides().flatMap { provides ->
 
                             LOG.v("gatt server election hashed stage ${provides.name}")
+
                             val packet = session.votingStage.getSelf(
                                 true,
                                 provides,
@@ -350,6 +351,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .flatMapCompletable { electLeaderPacket ->
                                 LOG.v("gatt client received elect leader packet")
                                 electLeaderPacket.force.forEach { v ->
+                                    v.value.tagLuid(session.luidMap[session.device.macAddress])
+                                    LOG.v("adding uke ${v.key}")
                                     wifiDirectRadioModule.addUke(v.key, v.value)
                                 }
                                 electLeaderPacket.tagLuid(session.luidMap[session.device.macAddress])
@@ -374,7 +377,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     0 -> throw VotingStage.MiracleException()
                                     else -> {
                                         val uke = ukes.map { u ->
-                                            LOG.v("adding uke $u")
                                             u
                                         }.any { u -> u != session.luidStage.selfUnhashed }
                                         if (uke)
@@ -440,6 +442,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                         } else {
                             val uke = wifiDirectRadioModule.getUkes()[session.remoteLuid]
+                            LOG.w("asking for uke ${session.remoteLuid} $uke")
                             if (uke != null) {
                                 serverConn.serverNotify(uke, session.remoteLuid, session.device)
                                     .toSingleDefault(TransactionResult.of(TransactionResult.STAGE_TERMINATE))
@@ -456,19 +459,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 .doOnSuccess { p -> LOG.v("client handshake received upgrade packet ${p.metadata.size}") }
                                 .doOnError { err -> LOG.e("error while receiving upgrade packet: $err") }
                                 .flatMap { upgradePacket ->
+                                    wifiDirectRadioModule.addUke(session.remoteLuid, upgradePacket)
                                     when (upgradePacket.provides) {
                                         AdvertisePacket.Provides.WIFIP2P -> {
-
                                             val request = WifiDirectBootstrapRequest.create(
                                                 upgradePacket,
                                                 ConnectionRole.ROLE_SEME,
                                                 bootstrapRequestProvider.get(),
                                                 wifiDirectRadioModule.getBand()
                                             )
-
-                                            wifiDirectRadioModule.addUke(session.remoteLuid, request.toUpgrade(
-                                                Random(System.nanoTime()).nextInt()
-                                            ))
 
                                             wifiDirectRadioModule.bootstrapSeme(
                                                 request.name,

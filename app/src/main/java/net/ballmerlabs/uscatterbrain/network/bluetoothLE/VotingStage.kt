@@ -31,6 +31,7 @@ class VotingStage : LeDeviceSession.Stage {
         provides: AdvertisePacket.Provides,
         force: Map<UUID, UpgradePacket>
     ): ElectLeaderPacket {
+        LOG.e("votingStage with forces ${force.size}")
         val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder()
         if (hashed) {
             builder.enableHashing()
@@ -90,10 +91,9 @@ class VotingStage : LeDeviceSession.Stage {
         )
         var compare = BigInteger(hash)
         var ret = mutableListOf<UUID>()
-        val forces = unhashedPackets.flatMap { p -> p.force.keys }
+        val forces = unhashedPackets.flatMap { p -> p.force.entries }
         LOG.e("voting forces ${forces.size}")
         when (forces.size) {
-            1 -> ret.addAll(forces)
             0 -> {
                 var r: UUID? = null
                 for (packet in unhashedPackets) {
@@ -112,22 +112,7 @@ class VotingStage : LeDeviceSession.Stage {
                     ret.add(r)
                 }
             }
-
-            else -> {
-                var r: UUID? = null
-                for (packet in forces) {
-                    val c = BigInteger(ElectLeaderPacket.uuidToBytes(packet))
-                    if (c.abs() < compare.abs()) {
-                        r = packet
-                        compare = c
-                    } else {
-                        LOG.w("luid tag was null in tiebreak")
-                    }
-                }
-                if (r != null) {
-                    ret.add(r)
-                }
-            }
+            else -> ret.addAll(forces.map { v -> v.key })
         }
 
         if (ret.isEmpty()) {
