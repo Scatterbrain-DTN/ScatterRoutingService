@@ -378,11 +378,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     else -> {
                                         val uke = ukes.map { u ->
                                             u
-                                        }.any { u -> u != session.luidStage.selfUnhashed }
+                                        }.all { u -> u != advertiser.getHashLuid() }
                                         if (uke)
-                                            ConnectionRole.ROLE_UKE
-                                        else
                                             ConnectionRole.ROLE_SEME
+                                        else
+                                            ConnectionRole.ROLE_UKE
                                     }
                                 }
                                 LOG.v("selected role: $role")
@@ -437,7 +437,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 )
                             }.ignoreElement()
                                 .toSingleDefault(
-                                    TransactionResult.of(TransactionResult.STAGE_TERMINATE)
+                                    TransactionResult.empty()
                                 )
 
                         } else {
@@ -445,7 +445,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             LOG.w("asking for uke ${session.remoteLuid} $uke")
                             if (uke != null) {
                                 serverConn.serverNotify(uke, session.remoteLuid, session.device)
-                                    .toSingleDefault(TransactionResult.of(TransactionResult.STAGE_TERMINATE))
+                                    .toSingleDefault(TransactionResult.empty())
                             } else {
                                 Single.just(TransactionResult.empty())
                             }
