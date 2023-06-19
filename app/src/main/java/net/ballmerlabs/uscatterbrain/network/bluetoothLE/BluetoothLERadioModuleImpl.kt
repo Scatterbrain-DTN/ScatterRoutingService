@@ -443,10 +443,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         } else {
                             wifiDirectRadioModule.awaitUke()
                                 .doOnSubscribe { LOG.w("awaitUke subscribed") }
-                                .takeUntil { p -> p.first != advertiser.getHashLuid() && wifiDirectRadioModule.getUkes().isNotEmpty() }
-                                .doOnNext { v -> LOG.w("awaitUke $v") }
+                                .takeUntil {  v -> v.first != advertiser.getHashLuid() && wifiDirectRadioModule.getUkes().isNotEmpty() }
+                                .doOnNext { v -> LOG.v("awaitUke not complete $v") }
                                 .lastElement()
-                                .flatMapSingle { uke ->
+                                .timeout(10, TimeUnit.SECONDS, operationsScheduler)
+                                .onErrorComplete()
+                                .doOnSuccess { v -> LOG.w("awaitUke $v") }
+                                .doOnComplete { LOG.w("awaitUke completed") }
+                                .flatMapSingle{ uke ->
                                     serverConn.serverNotify(uke.second, session.remoteLuid, session.device)
                                         .toSingleDefault(TransactionResult.empty())
                                 }

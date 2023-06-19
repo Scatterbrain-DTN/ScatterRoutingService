@@ -325,7 +325,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                         }
                 }
-            }.concatWith(removeGroup())
+            }.concatWith(removeGroup().delay(10, TimeUnit.SECONDS, operationsScheduler))
     }
 
     /**
