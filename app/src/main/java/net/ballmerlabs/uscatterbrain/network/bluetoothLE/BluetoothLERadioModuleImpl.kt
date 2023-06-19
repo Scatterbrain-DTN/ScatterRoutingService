@@ -226,7 +226,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { conn ->
                         LOG.v("gatt client luid stage")
                         conn.readLuid()
-                            .timeout(60, TimeUnit.SECONDS)
+                            .timeout(60, TimeUnit.SECONDS, operationsScheduler)
                             .doOnSuccess { luidPacket ->
                                 LOG.v("client handshake received unhashed luid packet: " + luidPacket.luidVal)
                                 session.luidStage.setPacket(luidPacket)
@@ -443,17 +443,20 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         } else {
                             wifiDirectRadioModule.awaitUke()
                                 .doOnSubscribe { LOG.w("awaitUke subscribed") }
-                                .takeUntil {  v -> v.first != advertiser.getHashLuid() && wifiDirectRadioModule.getUkes().isNotEmpty() }
+                                .takeUntil {  v ->
+                                    v.first != advertiser.getHashLuid() &&
+                                            v.first != session.remoteLuid &&
+                                            wifiDirectRadioModule.getUkes().isNotEmpty()
+                                }
                                 .doOnNext { v -> LOG.v("awaitUke not complete $v") }
                                 .lastElement()
                                 .timeout(10, TimeUnit.SECONDS, operationsScheduler)
-                                .onErrorComplete()
                                 .doOnSuccess { v -> LOG.w("awaitUke $v") }
-                                .doOnComplete { LOG.w("awaitUke completed") }
-                                .flatMapSingle{ uke ->
+                                .doOnError { err -> LOG.w("awaitUke timed out $err") }
+                                .flatMapSingle<TransactionResult<BootstrapRequest>?> { uke ->
                                     serverConn.serverNotify(uke.second, session.remoteLuid, session.device)
                                         .toSingleDefault(TransactionResult.empty())
-                                }
+                                }.onErrorReturnItem(TransactionResult.empty())
                         }
                     },
                     { conn ->

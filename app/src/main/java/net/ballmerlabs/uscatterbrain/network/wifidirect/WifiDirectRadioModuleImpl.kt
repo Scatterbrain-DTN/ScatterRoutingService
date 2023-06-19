@@ -326,6 +326,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                 }
             }.concatWith(removeGroup().delay(10, TimeUnit.SECONDS, operationsScheduler))
+            .doFinally {
+                LOG.w("clearing uke set after seme connection")
+                ukes.clear()
+            }
     }
 
     /**
