@@ -359,7 +359,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             serverSocket.accept()
                                 .repeat()
                                 .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
-                                    /*
+
                                 .materialize()
                                 .mergeWith(mBroadcastReceiver.observePeers()
                                     .takeUntil { p -> p.deviceList.isNotEmpty() }
@@ -382,7 +382,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     .ignoreElements()
                                 )
                                 .dematerialize<DisposableSocket>()
-                                     */
                                 .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
                                 .onErrorResumeNext(Flowable.empty())
                                 .flatMapSingle { sock ->
