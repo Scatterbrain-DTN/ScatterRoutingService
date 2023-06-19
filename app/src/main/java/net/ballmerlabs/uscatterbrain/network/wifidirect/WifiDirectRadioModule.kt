@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import io.reactivex.Completable
 import io.reactivex.Flowable
+import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -34,6 +35,9 @@ interface WifiDirectRadioModule {
      * @return single emitting WifiP2pInfo if connection is successful, called onError if failed or timed out
      */
     fun connectToGroup(name: String, passphrase: String, timeout: Int, band: Int): Single<WifiDirectInfo>
+
+
+    fun awaitUke(): Observable<Pair<UUID, UpgradePacket>>
 
     fun getForceUke(): Boolean
 

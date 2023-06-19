@@ -71,9 +71,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val connectedAddressSet = ConcurrentHashMap<InetSocketAddress, UUID>()
     private val createGroupCache = AtomicReference<Flowable<Pair<UUID, HandshakeResult>>?>()
     private val bootstrapRequest = BehaviorSubject.create<WifiDirectBootstrapRequest>()
+    private val altUke = BehaviorSubject.create<Pair<UUID, UpgradePacket>>()
     private val ukes = ConcurrentHashMap<UUID, UpgradePacket>()
 
+    override fun awaitUke(): Observable<Pair<UUID, UpgradePacket>> {
+        return altUke
+    }
+
     override fun addUke(uuid: UUID, bootstrap: UpgradePacket) {
+        altUke.onNext(Pair(uuid, bootstrap))
         ukes[uuid] = bootstrap
     }
 

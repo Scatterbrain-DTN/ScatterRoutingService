@@ -437,18 +437,19 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 )
                             }.ignoreElement()
                                 .toSingleDefault(
-                                    TransactionResult.empty()
+                                    TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                 )
 
                         } else {
-                            val uke = wifiDirectRadioModule.getUkes()[session.remoteLuid]
-                            LOG.w("asking for uke ${session.remoteLuid} $uke")
-                            if (uke != null) {
-                                serverConn.serverNotify(uke, session.remoteLuid, session.device)
-                                    .toSingleDefault(TransactionResult.empty())
-                            } else {
-                                Single.just(TransactionResult.empty())
-                            }
+                            wifiDirectRadioModule.awaitUke()
+                                .doOnSubscribe { LOG.w("awaitUke subscribed") }
+                                .takeUntil { p -> p.first != advertiser.getHashLuid() && wifiDirectRadioModule.getUkes().isNotEmpty() }
+                                .doOnNext { v -> LOG.w("awaitUke $v") }
+                                .lastElement()
+                                .flatMapSingle { uke ->
+                                    serverConn.serverNotify(uke.second, session.remoteLuid, session.device)
+                                        .toSingleDefault(TransactionResult.empty())
+                                }
                         }
                     },
                     { conn ->
