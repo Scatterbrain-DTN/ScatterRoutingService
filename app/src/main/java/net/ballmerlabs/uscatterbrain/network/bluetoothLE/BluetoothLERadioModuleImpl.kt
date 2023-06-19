@@ -444,13 +444,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             wifiDirectRadioModule.awaitUke()
                                 .doOnSubscribe { LOG.w("awaitUke subscribed") }
                                 .takeUntil {  v ->
-                                    v.first != advertiser.getHashLuid() &&
-                                            v.first != session.remoteLuid &&
-                                            wifiDirectRadioModule.getUkes().isNotEmpty()
+                                    ( v.first != advertiser.getHashLuid() &&
+                                            wifiDirectRadioModule.getUkes().isNotEmpty()) ||
+                                            v.first == session.remoteLuid
                                 }
                                 .doOnNext { v -> LOG.v("awaitUke not complete $v") }
                                 .lastElement()
-                                .timeout(10, TimeUnit.SECONDS, operationsScheduler)
+                                .timeout(50, TimeUnit.SECONDS, operationsScheduler)
                                 .doOnSuccess { v -> LOG.w("awaitUke $v") }
                                 .doOnError { err -> LOG.w("awaitUke timed out $err") }
                                 .flatMapSingle<TransactionResult<BootstrapRequest>?> { uke ->

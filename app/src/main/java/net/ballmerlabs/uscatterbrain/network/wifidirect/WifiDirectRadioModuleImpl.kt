@@ -343,7 +343,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Flowable<Pair<UUID, DisposableSocket>> {
         return removeGroup().andThen(
             createGroupSingle().ignoreElement()
-                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)
+                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)))
                     .flatMapPublisher { groupInfo ->
                         ukes.clear()
                         LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
@@ -400,8 +400,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     .doOnComplete { LOG.e("createGroup completed") }
                     .subscribeOn(operationsScheduler)
                     .doFinally { ukes.clear() }
-                )
-        )
 
 
     }
