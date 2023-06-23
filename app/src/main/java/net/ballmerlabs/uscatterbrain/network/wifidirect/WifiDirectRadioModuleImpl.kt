@@ -12,6 +12,7 @@ import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import io.reactivex.subjects.PublishSubject
+import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
@@ -70,7 +71,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val connectedPeers = ConcurrentHashMap<InetSocketAddress, InetSocketAddress>()
     private val connectedAddressSet = ConcurrentHashMap<InetSocketAddress, UUID>()
     private val createGroupCache = AtomicReference<Flowable<Pair<UUID, HandshakeResult>>?>()
-    private val bootstrapRequest = BehaviorSubject.create<WifiDirectBootstrapRequest>()
+    private val bootstrapRequest = ReplaySubject.create<WifiDirectBootstrapRequest>()
     private val altUke = BehaviorSubject.create<Pair<UUID, UpgradePacket>>()
     private val ukes = ConcurrentHashMap<UUID, UpgradePacket>()
 
@@ -327,8 +328,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
             }.concatWith(removeGroup().delay(10, TimeUnit.SECONDS, operationsScheduler))
             .doFinally {
-                LOG.w("clearing uke set after seme connection")
-                ukes.clear()
+              //  LOG.w("clearing uke set after seme connection")
+            //    ukes.clear()
             }
     }
 
@@ -341,65 +342,68 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         selfLuid: UUID,
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<Pair<UUID, DisposableSocket>> {
-        return removeGroup().andThen(
+        return retryDelay(removeGroup().andThen(
             createGroupSingle().ignoreElement()
-                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)))
-                    .flatMapPublisher { groupInfo ->
-                        ukes.clear()
-                        LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
-                        serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
-                            LOG.v("got socket ${serverSocket.socket.localPort}")
-                            val request = bootstrapRequestProvider.get()
-                                .wifiDirectArgs(
-                                    BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                                        passphrase = groupInfo.passphrase,
-                                        name = groupInfo.networkName,
-                                        role = ConnectionRole.ROLE_UKE,
-                                        band = band,
-                                        port = serverSocket.socket.localPort
-                                    )
-                                ).build()!!.wifiBootstrapRequest()
-                            bootstrapRequest.onNext(request)
-                            serverSocket.accept()
-                                .repeat()
-                                .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
+                .andThen(requestGroupInfo())
+                .timeout(10, TimeUnit.SECONDS)
+        ), 10, 1)
+            .doOnSubscribe { ukes.clear() }
+            .flatMapPublisher { groupInfo ->
+                LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
+                serverSocketManager.getServerSocket().flatMapPublisher { serverSocket ->
+                    LOG.v("got socket ${serverSocket.socket.localPort}")
+                    val request = bootstrapRequestProvider.get()
+                        .wifiDirectArgs(
+                            BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                                passphrase = groupInfo.passphrase,
+                                name = groupInfo.networkName,
+                                role = ConnectionRole.ROLE_UKE,
+                                band = band,
+                                port = serverSocket.socket.localPort
+                            )
+                        ).build()!!.wifiBootstrapRequest()
+                    bootstrapRequest.onNext(request)
+                    serverSocket.accept()
+                        .repeat()
+                        .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
 
-                                .materialize()
-                                .mergeWith(mBroadcastReceiver.observePeers()
-                                    .takeUntil { p -> p.deviceList.isNotEmpty() }
-                                    .ignoreElements()
-                                    .andThen(
-                                        mBroadcastReceiver.observePeers()
-                                            .delay(60, TimeUnit.SECONDS, operationsScheduler)
-                                            .takeUntil { v ->
-                                                val np = isNoPeers(v)
-                                                val newnp = mBroadcastReceiver.connectedDevices()
-                                                    .isEmpty()
-                                                LOG.e("checking connected peers: $np, $newnp")
-                                                np && newnp
-                                            }
+                        .materialize()
+                        .mergeWith(mBroadcastReceiver.observePeers()
+                            .takeUntil { p -> p.deviceList.isNotEmpty() }
+                            .ignoreElements()
+                            .andThen(
+                                mBroadcastReceiver.observePeers()
+                                    .delay(60, TimeUnit.SECONDS, operationsScheduler)
+                                    .takeUntil { v ->
+                                        val np = isNoPeers(v)
+                                        val newnp = mBroadcastReceiver.connectedDevices()
+                                            .isEmpty()
+                                        LOG.e("checking connected peers: $np, $newnp")
+                                        np && newnp
+                                    }
 
-                                    )
-                                    .subscribeOn(operationsScheduler)
-                                    .materialize()
-                                    .doOnComplete { LOG.e("Stopping uke server due to no peers") }
-                                    .ignoreElements()
-                                )
-                                .dematerialize<DisposableSocket>()
-                                .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
-                                .onErrorResumeNext(Flowable.empty())
-                                .flatMapSingle { sock ->
-                                    sendConnectedIps(sock.socket, selfLuid).map { v -> Pair(v.self, sock) }
-                                }
-                                .doFinally {
-                                    LOG.v("uke server complete")
-                                    connectedPeers.clear()
-                                }
+                            )
+                            .subscribeOn(operationsScheduler)
+                            .doOnComplete { LOG.e("Stopping uke server due to no peers") }
+                            .ignoreElements()
+                            .materialize()
+                        )
+                        .dematerialize<DisposableSocket>()
+                        .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
+                        .onErrorResumeNext(Flowable.empty())
+                        .flatMapSingle { sock ->
+                            sendConnectedIps(sock.socket, selfLuid).map { v -> Pair(v.self, sock) }
                         }
-                    }
-                    .doOnComplete { LOG.e("createGroup completed") }
-                    .subscribeOn(operationsScheduler)
-                    .doFinally { ukes.clear() }
+                        .doFinally {
+                            LOG.v("uke server complete")
+                            connectedPeers.clear()
+                        }
+                }
+            }
+            .doOnComplete { LOG.e("createGroup completed") }
+            .subscribeOn(operationsScheduler)
+            .concatWith(removeGroup())
+            .doFinally { ukes.clear() }
 
 
     }
@@ -509,7 +513,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun getBand(): Int {
-        return FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+        return FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
         return if (manager.is5GHzBandSupported)
             FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ
         else
@@ -795,7 +799,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             when (v) {
                 null -> {
                     val subject = PublishSubject.create<Pair<UUID, HandshakeResult>>()
-                    val obs  = createGroup(band, remoteLuid, selfLuid, bootstrap)
+                    val obs = createGroup(band, remoteLuid, selfLuid, bootstrap)
                         .doOnError { err ->
                             LOG.e("failed to get server socket: $err")
                             firebaseWrapper.recordException(err)
@@ -824,7 +828,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
         }!!.doOnNext { v -> LOG.e("handshake result from wifi peer ${v.first}") }
             .filter { v -> v.first == remoteLuid }
-            .map{ v -> v.second }
+            .map { v -> v.second }
             .firstOrError()
 
     }
