@@ -23,7 +23,7 @@ data class TransactionResult<T>(
                 newres.err != null -> Single.error(newres.err)
                 err != null -> Single.error(err)
                 newres.stage == null && stage == null -> Single.error(IllegalStateException("no stage"))
-                newres.item != null && item != null -> Single.error(IllegalStateException("conflicting items"))
+                newres.item != null && item != null && newres.item != item -> Single.error(IllegalStateException("conflicting items"))
                 newres.stage != null && stage != null -> Single.error(IllegalStateException("conflicting stages"))
                 else -> {
                     val newitem = item?:newres.item

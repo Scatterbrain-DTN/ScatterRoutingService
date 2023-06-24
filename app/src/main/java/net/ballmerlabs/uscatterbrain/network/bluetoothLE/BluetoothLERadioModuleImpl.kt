@@ -226,7 +226,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { conn ->
                         LOG.v("gatt client luid stage")
                         conn.readLuid()
-                            .timeout(60, TimeUnit.SECONDS, operationsScheduler)
+                            .timeout(120, TimeUnit.SECONDS, operationsScheduler)
                             .doOnSuccess { luidPacket ->
                                 LOG.v("client handshake received unhashed luid packet: " + luidPacket.luidVal)
                                 session.luidStage.setPacket(luidPacket)
@@ -425,11 +425,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         LOG.v("gatt server upgrade stage")
                         if (session.role == ConnectionRole.ROLE_UKE) {
                             LOG.e("upgrade role UKE")
-                            wifiDirectRadioModule.bootstrapUke(wifiDirectRadioModule.getBand(), session.remoteLuid, advertiser.getHashLuid()) { bootstrapReq ->
+                            wifiDirectRadioModule.bootstrapUke(
+                                wifiDirectRadioModule.getBand(),
+                                session.remoteLuid,
+                                advertiser.getHashLuid()
+                            ) { bootstrapReq ->
                                 LOG.e("uke upgrade callback")
-                                wifiDirectRadioModule.addUke(advertiser.getHashLuid(), bootstrapReq.toUpgrade(
-                                    Random(System.nanoTime()).nextInt()
-                                ))
+                                wifiDirectRadioModule.addUke(
+                                    advertiser.getHashLuid(), bootstrapReq.toUpgrade(
+                                        Random(System.nanoTime()).nextInt()
+                                    )
+                                )
                                 serverConn.serverNotify(
                                     bootstrapReq.toUpgrade(session.upgradeStage!!.sessionID),
                                     session.remoteLuid,
@@ -443,7 +449,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         } else {
                             wifiDirectRadioModule.awaitUke()
                                 .doOnSubscribe { LOG.w("awaitUke subscribed") }
-                                .takeUntil {  v -> v.first != advertiser.getHashLuid() && wifiDirectRadioModule.getUkes().isNotEmpty() }
+                                .takeUntil { v ->
+                                    v.first != advertiser.getHashLuid() && wifiDirectRadioModule.getUkes()
+                                        .isNotEmpty()
+                                }
                                 .doOnNext { v -> LOG.v("awaitUke not complete $v") }
                                 .lastElement()
                                 .doOnSuccess { v -> LOG.w("awaitUke $v") }
@@ -455,7 +464,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         bootstrapRequestProvider.get(),
                                         wifiDirectRadioModule.getBand()
                                     )
-                                    serverConn.serverNotify(uke.second, session.remoteLuid, session.device)
+                                    serverConn.serverNotify(
+                                        uke.second,
+                                        session.remoteLuid,
+                                        session.device
+                                    )
                                         .andThen(wifiDirectRadioModule.bootstrapSeme(
                                             request.name,
                                             request.passphrase,
@@ -468,13 +481,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     request as BootstrapRequest,
                                                     TransactionResult.STAGE_TERMINATE,
                                                 )
-                                            }).reduce(
-                                            TransactionResult.of(TransactionResult.STAGE_TERMINATE)
-                                        ) { first, second ->
+                                            }).reduce(TransactionResult.of(TransactionResult.STAGE_TERMINATE)) { first, second ->
                                             if (first.isError) {
                                                 first
-                                            } else if (second.isError) {
-                                                second
                                             } else {
                                                 second
                                             }
@@ -532,8 +541,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     ) { first, second ->
                                         if (first.isError) {
                                             first
-                                        } else if (second.isError) {
-                                            second
                                         } else {
                                             second
                                         }
