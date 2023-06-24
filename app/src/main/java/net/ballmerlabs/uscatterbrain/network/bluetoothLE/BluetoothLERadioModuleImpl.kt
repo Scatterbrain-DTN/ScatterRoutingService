@@ -443,20 +443,44 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         } else {
                             wifiDirectRadioModule.awaitUke()
                                 .doOnSubscribe { LOG.w("awaitUke subscribed") }
-                                .takeUntil {  v ->
-                                    ( v.first != advertiser.getHashLuid() &&
-                                            wifiDirectRadioModule.getUkes().isNotEmpty()) ||
-                                            v.first == session.remoteLuid
-                                }
+                                .takeUntil {  v -> v.first != advertiser.getHashLuid() && wifiDirectRadioModule.getUkes().isNotEmpty() }
                                 .doOnNext { v -> LOG.v("awaitUke not complete $v") }
                                 .lastElement()
-                                .timeout(50, TimeUnit.SECONDS, operationsScheduler)
                                 .doOnSuccess { v -> LOG.w("awaitUke $v") }
                                 .doOnError { err -> LOG.w("awaitUke timed out $err") }
-                                .flatMapSingle<TransactionResult<BootstrapRequest>?> { uke ->
+                                .flatMapSingle<TransactionResult<BootstrapRequest>> { uke ->
+                                    val request = WifiDirectBootstrapRequest.create(
+                                        uke.second,
+                                        ConnectionRole.ROLE_SEME,
+                                        bootstrapRequestProvider.get(),
+                                        wifiDirectRadioModule.getBand()
+                                    )
                                     serverConn.serverNotify(uke.second, session.remoteLuid, session.device)
-                                        .toSingleDefault(TransactionResult.empty())
-                                }.onErrorReturnItem(TransactionResult.empty())
+                                        .andThen(wifiDirectRadioModule.bootstrapSeme(
+                                            request.name,
+                                            request.passphrase,
+                                            request.band,
+                                            request.port,
+                                            advertiser.getHashLuid()
+                                        )
+                                            .map {
+                                                TransactionResult.of(
+                                                    request as BootstrapRequest,
+                                                    TransactionResult.STAGE_TERMINATE,
+                                                )
+                                            }).reduce(
+                                            TransactionResult.of(TransactionResult.STAGE_TERMINATE)
+                                        ) { first, second ->
+                                            if (first.isError) {
+                                                first
+                                            } else if (second.isError) {
+                                                second
+                                            } else {
+                                                second
+                                            }
+                                        }
+                                }
+                                .onErrorReturnItem(TransactionResult.empty())
                         }
                     },
                     { conn ->

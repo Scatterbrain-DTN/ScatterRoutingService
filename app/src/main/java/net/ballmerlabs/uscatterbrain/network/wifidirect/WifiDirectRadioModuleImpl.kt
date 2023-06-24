@@ -276,7 +276,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         ownerPort: Int,
         self: UUID
     ): Flowable<HandshakeResult> {
-        return connectToGroup(name, passphrase, 60, band)
+        return connectToGroup(name, passphrase, 61, band)
             .subscribeOn(operationsScheduler)
             .flatMapPublisher { info ->
                 serverSocketManager.getServerSocket().flatMapPublisher { socket ->
@@ -346,6 +346,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             createGroupSingle().ignoreElement()
                 .andThen(requestGroupInfo())
                 .timeout(10, TimeUnit.SECONDS)
+                .toSingle()
         ), 10, 1)
             .doOnSubscribe { ukes.clear() }
             .flatMapPublisher { groupInfo ->
@@ -402,7 +403,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
             .doOnComplete { LOG.e("createGroup completed") }
             .subscribeOn(operationsScheduler)
-            .concatWith(removeGroup())
             .doFinally { ukes.clear() }
 
 
@@ -513,6 +513,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun getBand(): Int {
+        LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported}")
         return FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
         return if (manager.is5GHzBandSupported)
             FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ
@@ -809,7 +810,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             bootstrapUkeSocket(socket.second.socket)
                                 .map { v -> Pair(socket.first, v) }
                         }
-                        .doFinally { createGroupCache.set(null) }
+                        .doFinally {
+                            LOG.w("uke completed")
+                            createGroupCache.set(null)
+                        }
                     obs.toObservable().subscribe(subject)
                     LOG.e("initializing cached request")
                     subject.toFlowable(BackpressureStrategy.BUFFER)
