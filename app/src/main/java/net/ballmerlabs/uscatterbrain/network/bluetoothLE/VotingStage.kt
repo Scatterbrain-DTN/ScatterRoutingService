@@ -96,7 +96,6 @@ class VotingStage(private val me: UUID) : LeDeviceSession.Stage {
         val forces =
             unhashedPackets
                 .flatMap { p -> p.force.entries }
-                .filter { v -> v.key != me }
                 .associate { (t, u) -> Pair(t, u) }
         LOG.e("voting forces ${forces.size}")
         when (forces.size) {
