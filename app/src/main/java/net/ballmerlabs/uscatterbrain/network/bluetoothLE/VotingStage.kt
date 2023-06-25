@@ -116,14 +116,16 @@ class VotingStage(private val me: UUID) : LeDeviceSession.Stage {
                     } else {
                         BluetoothLEModule.Role.ROLE_SEME
                     }
-                    //      ret[r] = null
-                    //TODO: what
                 }
             }
 
             else -> {
-                ret.putAll(forces)
-                role = BluetoothLEModule.Role.ROLE_SUPERSEME
+                role = if(forces.keys.contains(me)) {
+                    BluetoothLEModule.Role.ROLE_UKE
+                } else {
+                    ret.putAll(forces)
+                    BluetoothLEModule.Role.ROLE_SUPERSEME
+                }
             }
         }
 
