@@ -431,6 +431,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             }
                             BluetoothLEModule.Role.ROLE_SUPERSEME -> {
                                 Observable.fromIterable(session.role.luids.entries)
+                                    .filter { v -> v.key != session.hashedSelf }
                                     .lastElement()
                                     .doOnSuccess { v -> LOG.w("awaitUke $v") }
                                     .doOnError { err -> LOG.w("awaitUke timed out $err") }

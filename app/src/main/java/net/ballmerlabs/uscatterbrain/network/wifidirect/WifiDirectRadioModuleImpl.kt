@@ -345,7 +345,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Flowable<Pair<UUID, DisposableSocket>> {
         return retryDelay(removeGroup()
                     .andThen(createGroupSingle().ignoreElement())
-                    .andThen(requestGroupInfo().toSingle())
+                    .andThen(retryDelay(requestGroupInfo().toSingle(),10, 1))
             , 10, 1)
             .doOnSubscribe { ukes.clear() }
             .flatMapPublisher { groupInfo ->
