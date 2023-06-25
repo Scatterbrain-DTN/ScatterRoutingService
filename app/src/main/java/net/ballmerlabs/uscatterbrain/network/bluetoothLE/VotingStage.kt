@@ -94,7 +94,10 @@ class VotingStage(private val me: UUID) : LeDeviceSession.Stage {
         var ret = mutableMapOf<UUID, UpgradePacket>()
         var role: BluetoothLEModule.Role? = null
         val forces =
-            unhashedPackets.flatMap { p -> p.force.entries }.associate { (t, u) -> Pair(t, u) }
+            unhashedPackets
+                .flatMap { p -> p.force.entries }
+                .filter { v -> v.key != me }
+                .associate { (t, u) -> Pair(t, u) }
         LOG.e("voting forces ${forces.size}")
         when (forces.size) {
             0 -> {

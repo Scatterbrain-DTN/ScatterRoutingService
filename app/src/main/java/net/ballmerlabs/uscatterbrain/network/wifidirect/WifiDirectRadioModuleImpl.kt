@@ -7,6 +7,7 @@ import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
 import io.reactivex.*
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
@@ -103,7 +104,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun createGroupSingle(): Single<WifiDirectInfo> {
+    private fun createGroupSingle(band: Int): Single<WifiDirectInfo> {
         return Single.defer {
             val subject = CompletableSubject.create()
             try {
@@ -128,7 +129,26 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
                 subject.andThen(mBroadcastReceiver.observeConnectionInfo())
                     .mergeWith(Completable.fromAction {
-                        mManager.createGroup(channel, listener)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            val builder = infoComponentProvider.get()
+                            val pass = ByteArray(8)
+                            LibsodiumInterface.sodium.randombytes_buf(pass, pass.size)
+                            val base64pass = android.util.Base64.encodeToString(
+                                pass,
+                                android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
+                            )
+                            LOG.e("createGroup with band $band")
+                            val fakeConfig = builder.fakeWifiP2pConfig(
+                                WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
+                                    passphrase = base64pass,
+                                    networkName = "DIRECT-scatterbrain",
+                                    band = band
+                                )
+                            ).build()!!.fakeWifiP2pConfig()
+                            mManager.createGroup(channel, fakeConfig.asConfig(), listener)
+                        } else {
+                            mManager.createGroup(channel, listener)
+                        }
                     })
                     .doOnError { err -> LOG.e("createGroup error: $err") }
                     .takeUntil { wifiP2pInfo ->
@@ -212,10 +232,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     }
 
-    private fun createGroupDryRun(): Completable {
+    private fun createGroupDryRun(band: Int): Completable {
         return requestGroupInfo()
             .switchIfEmpty(
-                createGroupSingle()
+                createGroupSingle(band)
                     .ignoreElement()
                     .toMaybe()
             ).ignoreElement()
@@ -329,8 +349,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
             }.concatWith(removeGroup().delay(10, TimeUnit.SECONDS, operationsScheduler))
             .doFinally {
-              //  LOG.w("clearing uke set after seme connection")
-            //    ukes.clear()
+                //  LOG.w("clearing uke set after seme connection")
+                //    ukes.clear()
             }
     }
 
@@ -343,10 +363,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         selfLuid: UUID,
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<Pair<UUID, DisposableSocket>> {
-        return retryDelay(removeGroup()
-                    .andThen(createGroupSingle().ignoreElement())
-                    .andThen(retryDelay(requestGroupInfo().toSingle(),10, 1))
-            , 10, 1)
+        return retryDelay(
+            removeGroup()
+                .andThen(createGroupSingle(band).ignoreElement())
+                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)), 10, 1
+        )
             .doOnSubscribe { ukes.clear() }
             .flatMapPublisher { groupInfo ->
                 LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
@@ -426,7 +447,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
         return Single.just(true)
-        return createGroupDryRun()
+        return createGroupDryRun(getBand())
             .doOnError { err ->
                 LOG.e("cry $err")
                 err.printStackTrace()
@@ -451,16 +472,16 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
 
             }
-
-            subject.mergeWith(Completable.fromAction {
-                mManager.removeGroup(channel, actionListener)
-            })
-                .andThen(mBroadcastReceiver.observeConnectionInfo()
+                mBroadcastReceiver.observeConnectionInfo()
+                    .mergeWith(Completable.fromAction {
+                        mManager.removeGroup(channel, actionListener)
+                    })
+                    .mergeWith(subject)
                     .doOnError { err -> LOG.e("removeGroup error: $err") }
                     .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed() and !wifiP2pInfo.isGroupOwner() }
                     .ignoreElements()
                     .doOnComplete { LOG.v("removeGroup return success") }
-                )
+
 
         }
 
@@ -513,7 +534,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     override fun getBand(): Int {
         LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported}")
-        return FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
+        return FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
         return if (manager.is5GHzBandSupported)
             FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ
         else

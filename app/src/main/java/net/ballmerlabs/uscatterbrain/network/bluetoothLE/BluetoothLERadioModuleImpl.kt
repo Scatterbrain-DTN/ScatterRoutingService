@@ -432,7 +432,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             BluetoothLEModule.Role.ROLE_SUPERSEME -> {
                                 Observable.fromIterable(session.role.luids.entries)
                                     .filter { v -> v.key != session.hashedSelf }
-                                    .lastElement()
+                                    .lastElement() //TODO: handle all
                                     .doOnSuccess { v -> LOG.w("awaitUke $v") }
                                     .doOnError { err -> LOG.w("awaitUke timed out $err") }
                                     .flatMapSingle<TransactionResult<BootstrapRequest>> { uke ->
@@ -468,7 +468,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 }
                                             }
                                     }
-                                    .onErrorReturnItem(TransactionResult.empty())
+                                    .onErrorReturn { err -> TransactionResult.err(err) }
                             }
                             BluetoothLEModule.Role.ROLE_SEME -> {
                                 Single.just(TransactionResult.empty())
@@ -818,7 +818,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return session.observeStage()
             .subscribeOn(operationsScheduler)
             .doOnNext { stage -> LOG.v("handling stage: $stage") }
-            .concatMapSingle {
+            .concatMapMaybe {
                 Single.zip(
                     session.singleClient(),
                     session.singleServer()
@@ -835,8 +835,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Single.zip(serverResult, clientResult) { s, c ->
                         s.merge(c).subscribeOn(operationsScheduler)
                     }
-                }.flatMap { s ->
-                    s.flatMap { s -> s }
+                }.flatMapMaybe { s ->
+                    s.flatMapMaybe { s -> s }
                 }
             }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
