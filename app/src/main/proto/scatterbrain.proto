@@ -82,6 +82,7 @@ message ElectLeader {
         Body val_body = 1;
         bytes val_hash = 2;
     }
+    UUID sender = 3;
 }
 
 // used to request switching to a different physical transport

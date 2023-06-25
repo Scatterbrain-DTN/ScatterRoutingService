@@ -57,6 +57,8 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
         }
     }
 
+    val from: UUID
+        get() = protoUUIDtoUUID(packet.sender)
     val tieBreak: UUID
         get() = UUID(
             packet.valBody.tiebreakerVal.upper,
@@ -82,6 +84,7 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
         }
 
     data class Builder(
+        val sender: UUID,
         var enableHashing: Boolean = false,
         var hashVal: ByteString? = null,
         var provides: AdvertisePacket.Provides? = null,
@@ -145,6 +148,7 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
                     })
                 ElectLeaderPacket(
                     ElectLeader.newBuilder()
+                        .setSender(protoUUIDfromUUID(sender))
                         .setValBody(
                             builder
                                 .build()
@@ -163,8 +167,8 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             return uuidBuffer.array()
         }
 
-        fun newBuilder(): Builder {
-            return Builder()
+        fun newBuilder(sender: UUID): Builder {
+            return Builder(sender)
         }
 
         class Parser :

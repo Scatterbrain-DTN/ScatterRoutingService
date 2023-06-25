@@ -6,6 +6,7 @@ import net.ballmerlabs.uscatterbrain.BootstrapRequestScope
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.UpgradePacket
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import javax.inject.Inject
@@ -23,7 +24,7 @@ import javax.inject.Named
 open class WifiDirectBootstrapRequest : BootstrapRequest {
     val name: String
     val passphrase: String
-    val role: ConnectionRole
+    val role: BluetoothLEModule.Role
     val band: Int
     val port: Int
 
@@ -31,7 +32,7 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
     protected constructor(`in`: Parcel) : super(`in`) {
         name = getStringExtra(KEY_NAME)
         passphrase = getStringExtra(KEY_PASSPHRASE)
-        role = getSerializableExtra(KEY_ROLE) as ConnectionRole
+        role = getSerializableExtra(KEY_ROLE) as BluetoothLEModule.Role
         band = getStringExtra(KEY_BAND).toInt()
         port = getStringExtra(KEY_PORT).toInt()
     }
@@ -58,7 +59,7 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
     protected constructor(
         @Named(BootstrapRequestSubcomponent.PASSPHRASE) passphrase: String,
         @Named(BootstrapRequestSubcomponent.NAME) name: String,
-        role: ConnectionRole,
+        role: BluetoothLEModule.Role,
         extras: Bundle,
         @Named(BootstrapRequestSubcomponent.BAND) band: Int,
         @Named(BootstrapRequestSubcomponent.PORT) port: Int,
@@ -90,7 +91,7 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
          */
         fun create(
             packet: UpgradePacket,
-            role: ConnectionRole,
+            role: BluetoothLEModule.Role,
             builder: BootstrapRequestSubcomponent.Builder,
             band: Int
         ): WifiDirectBootstrapRequest {

@@ -42,12 +42,13 @@ class LeDeviceSession(
     luid: UUID,
     val client: CachedLEConnection,
     val server: CachedLEServerConnection,
-    val remoteLuid: UUID
+    val remoteLuid: UUID,
+    val hashedSelf: UUID
 ) {
     private val LOG by scatterLog()
     val luidStage: LuidStage = LuidStage(luid, remoteLuid) //exchange hashed and unhashed luids
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities
-    val votingStage: VotingStage = VotingStage() //determine if an upgrade takes place
+    val votingStage: VotingStage = VotingStage(hashedSelf) //determine if an upgrade takes place
     var upgradeStage: UpgradeStage? = null //possibly upgrade to new transport
     private val transactionMap =
         ConcurrentHashMap<String, Pair<ClientTransaction, ServerTransaction>>()
@@ -59,7 +60,7 @@ class LeDeviceSession(
             stageChanges.onNext(value)
             field = value
         }
-    var role = ConnectionRole.ROLE_UKE
+    var role = ConnectionRole(role = BluetoothLEModule.Role.ROLE_UKE, luids = mutableMapOf())
     private var declareHashesPacket: DeclareHashesPacket? = DeclareHashesPacket.newBuilder().build()
 
     /**

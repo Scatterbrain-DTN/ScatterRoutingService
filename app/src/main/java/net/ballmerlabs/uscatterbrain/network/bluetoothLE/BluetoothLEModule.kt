@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import io.reactivex.Maybe
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import java.util.UUID
 
 interface BluetoothLEModule {
@@ -21,7 +22,7 @@ interface BluetoothLEModule {
 
     /**
      * role is a generalized concept of "initiator" vs "acceptor"
-     * with "SEME" being an initiator and "UKE" being acceptor
+     * with "SEME" being an initziator and "UKE" being acceptor
      * used for bootstrapping to another transport that may be asymmetric
      * and require some form of symmetry-breaking
      *
@@ -29,9 +30,16 @@ interface BluetoothLEModule {
      *
      * This is decided via the leader election process
      */
-    enum class ConnectionRole {
-        ROLE_UKE, ROLE_SEME
+    enum class Role {
+        ROLE_UKE,
+        ROLE_SEME,
+        ROLE_SUPERSEME
     }
+
+    data class ConnectionRole(
+        val role: Role,
+        val luids: Map<UUID, UpgradePacket>
+    )
 
     companion object {
         const val GATT_SIZE = 19

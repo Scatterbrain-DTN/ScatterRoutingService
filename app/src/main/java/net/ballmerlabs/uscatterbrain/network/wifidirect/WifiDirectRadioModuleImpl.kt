@@ -18,6 +18,7 @@ import net.ballmerlabs.uscatterbrain.*
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
@@ -342,12 +343,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         selfLuid: UUID,
         bootstrap: (WifiDirectBootstrapRequest) -> Completable
     ): Flowable<Pair<UUID, DisposableSocket>> {
-        return retryDelay(removeGroup().andThen(
-            createGroupSingle().ignoreElement()
-                .andThen(requestGroupInfo())
-                .timeout(10, TimeUnit.SECONDS)
-                .toSingle()
-        ), 10, 1)
+        return retryDelay(removeGroup()
+                    .andThen(createGroupSingle().ignoreElement())
+                    .andThen(requestGroupInfo().toSingle())
+            , 10, 1)
             .doOnSubscribe { ukes.clear() }
             .flatMapPublisher { groupInfo ->
                 LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase}")
@@ -358,7 +357,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
                                 passphrase = groupInfo.passphrase,
                                 name = groupInfo.networkName,
-                                role = ConnectionRole.ROLE_UKE,
+                                role = BluetoothLEModule.Role.ROLE_UKE,
                                 band = band,
                                 port = serverSocket.socket.localPort
                             )
@@ -570,7 +569,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     private fun initiateConnection(config: WifiP2pConfig): Completable {
         val connection = Completable.defer {
-            LOG.e("initiateConnection ${config.networkName} ${config.passphrase}")
             val subject = CompletableSubject.create()
             try {
 
@@ -932,7 +930,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             )
             when {
                 upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
-                        == ConnectionRole.ROLE_UKE -> {
+                        == BluetoothLEModule.Role.ROLE_UKE -> {
                     bootstrapUke(
                         upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt(),
                         remoteLuid,
@@ -942,7 +940,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
 
                 upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
-                        == ConnectionRole.ROLE_SEME -> {
+                        == BluetoothLEModule.Role.ROLE_SEME -> {
                     val name = upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
                     val passphrase =
                         upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)

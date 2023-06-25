@@ -294,7 +294,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             val packet = session.votingStage.getSelf(
                                 true,
                                 provides,
-                                wifiDirectRadioModule.getUkes()
+                                wifiDirectRadioModule.getUkes(),
+                                session.hashedSelf
                             )
                             session.votingStage.addPacket(packet)
                             serverConn.serverNotify(packet, session.remoteLuid, session.device)
@@ -328,7 +329,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     val packet = session.votingStage.getSelf(
                                         false,
                                         provides,
-                                        wifiDirectRadioModule.getUkes()
+                                        wifiDirectRadioModule.getUkes(),
+                                        session.hashedSelf
                                     )
                                     packet.tagLuid(luidPacket.luidVal)
                                     session.votingStage.addPacket(packet)
@@ -351,42 +353,21 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .flatMapCompletable { electLeaderPacket ->
                                 LOG.v("gatt client received elect leader packet")
                                 electLeaderPacket.force.forEach { v ->
-                                    v.value.tagLuid(session.luidMap[session.device.macAddress])
                                     LOG.v("adding uke ${v.key}")
                                     wifiDirectRadioModule.addUke(v.key, v.value)
                                 }
-                                electLeaderPacket.tagLuid(session.luidMap[session.device.macAddress])
                                 session.votingStage.addPacket(electLeaderPacket)
                                 session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
                             }
                             .andThen(session.votingStage.determineUpgrade())
                             .map { provides ->
                                 LOG.v("election received provides: $provides ${session.luidStage.selfUnhashed}")
-                                val ukes = session.votingStage.selectUke()
+                                val connectionRole = session.votingStage.selectUke()
+                                val role = connectionRole.role
+                                val ukes = connectionRole.luids
                                 LOG.v("received ukes size ${ukes.size}")
-                                val role = when (ukes.size) {
-                                    1 -> {
-                                        LOG.v("size 1 ${ukes[0]} ${session.luidStage.selfUnhashed}")
-                                        if (ukes[0] == session.luidStage.selfUnhashed) {
-                                            ConnectionRole.ROLE_UKE
-                                        } else {
-                                            ConnectionRole.ROLE_SEME
-                                        }
-                                    }
-
-                                    0 -> throw VotingStage.MiracleException()
-                                    else -> {
-                                        val uke = ukes.map { u ->
-                                            u
-                                        }.all { u -> u != advertiser.getHashLuid() }
-                                        if (uke)
-                                            ConnectionRole.ROLE_SEME
-                                        else
-                                            ConnectionRole.ROLE_UKE
-                                    }
-                                }
                                 LOG.v("selected role: $role")
-                                session.role = role
+                                session.role = connectionRole
                                 session.setUpgradeStage(provides)
                                 when (provides) {
                                     AdvertisePacket.Provides.INVALID -> {
@@ -423,94 +404,49 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     TransactionResult.STAGE_UPGRADE,
                     { serverConn ->
                         LOG.v("gatt server upgrade stage")
-                        if (session.role == ConnectionRole.ROLE_UKE) {
-                            LOG.e("upgrade role UKE")
-                            wifiDirectRadioModule.bootstrapUke(
-                                wifiDirectRadioModule.getBand(),
-                                session.remoteLuid,
-                                advertiser.getHashLuid()
-                            ) { bootstrapReq ->
-                                LOG.e("uke upgrade callback")
-                                wifiDirectRadioModule.addUke(
-                                    advertiser.getHashLuid(), bootstrapReq.toUpgrade(
-                                        Random(System.nanoTime()).nextInt()
-                                    )
-                                )
-                                serverConn.serverNotify(
-                                    bootstrapReq.toUpgrade(session.upgradeStage!!.sessionID),
+                        when(session.role.role) {
+                            BluetoothLEModule.Role.ROLE_UKE -> {
+                                LOG.e("upgrade role UKE")
+                                wifiDirectRadioModule.bootstrapUke(
+                                    wifiDirectRadioModule.getBand(),
                                     session.remoteLuid,
-                                    session.device
-                                )
-                            }.ignoreElement()
-                                .toSingleDefault(
-                                    TransactionResult.of(TransactionResult.STAGE_TERMINATE)
-                                )
-
-                        } else {
-                            wifiDirectRadioModule.awaitUke()
-                                .doOnSubscribe { LOG.w("awaitUke subscribed") }
-                                .takeUntil { v ->
-                                    v.first != advertiser.getHashLuid() && wifiDirectRadioModule.getUkes()
-                                        .isNotEmpty()
-                                }
-                                .doOnNext { v -> LOG.v("awaitUke not complete $v") }
-                                .lastElement()
-                                .doOnSuccess { v -> LOG.w("awaitUke $v") }
-                                .doOnError { err -> LOG.w("awaitUke timed out $err") }
-                                .flatMapSingle<TransactionResult<BootstrapRequest>> { uke ->
-                                    val request = WifiDirectBootstrapRequest.create(
-                                        uke.second,
-                                        ConnectionRole.ROLE_SEME,
-                                        bootstrapRequestProvider.get(),
-                                        wifiDirectRadioModule.getBand()
+                                    advertiser.getHashLuid()
+                                ) { bootstrapReq ->
+                                    LOG.e("uke upgrade callback")
+                                    wifiDirectRadioModule.addUke(
+                                        advertiser.getHashLuid(), bootstrapReq.toUpgrade(
+                                            Random(System.nanoTime()).nextInt()
+                                        )
                                     )
                                     serverConn.serverNotify(
-                                        uke.second,
+                                        bootstrapReq.toUpgrade(session.upgradeStage!!.sessionID),
                                         session.remoteLuid,
                                         session.device
                                     )
-                                        .andThen(wifiDirectRadioModule.bootstrapSeme(
-                                            request.name,
-                                            request.passphrase,
-                                            request.band,
-                                            request.port,
-                                            advertiser.getHashLuid()
-                                        )
-                                            .map {
-                                                TransactionResult.of(
-                                                    request as BootstrapRequest,
-                                                    TransactionResult.STAGE_TERMINATE,
-                                                )
-                                            }).reduce(TransactionResult.of(TransactionResult.STAGE_TERMINATE)) { first, second ->
-                                            if (first.isError) {
-                                                first
-                                            } else {
-                                                second
-                                            }
-                                        }
-                                }
-                                .onErrorReturnItem(TransactionResult.empty())
-                        }
-                    },
-                    { conn ->
-                        LOG.v("gatt client upgrade stage")
-                        if (session.role == ConnectionRole.ROLE_SEME) {
-                            LOG.e("upgrade role SEME")
-                            conn.readUpgrade()
-                                .doOnSuccess { p -> LOG.v("client handshake received upgrade packet ${p.metadata.size}") }
-                                .doOnError { err -> LOG.e("error while receiving upgrade packet: $err") }
-                                .flatMap { upgradePacket ->
-                                    wifiDirectRadioModule.addUke(session.remoteLuid, upgradePacket)
-                                    when (upgradePacket.provides) {
-                                        AdvertisePacket.Provides.WIFIP2P -> {
-                                            val request = WifiDirectBootstrapRequest.create(
-                                                upgradePacket,
-                                                ConnectionRole.ROLE_SEME,
-                                                bootstrapRequestProvider.get(),
-                                                wifiDirectRadioModule.getBand()
-                                            )
+                                }.ignoreElement()
+                                    .toSingleDefault(
+                                        TransactionResult.of(TransactionResult.STAGE_TERMINATE)
+                                    )
 
-                                            wifiDirectRadioModule.bootstrapSeme(
+                            }
+                            BluetoothLEModule.Role.ROLE_SUPERSEME -> {
+                                Observable.fromIterable(session.role.luids.entries)
+                                    .lastElement()
+                                    .doOnSuccess { v -> LOG.w("awaitUke $v") }
+                                    .doOnError { err -> LOG.w("awaitUke timed out $err") }
+                                    .flatMapSingle<TransactionResult<BootstrapRequest>> { uke ->
+                                        val request = WifiDirectBootstrapRequest.create(
+                                            uke.value,
+                                            BluetoothLEModule.Role.ROLE_SEME,
+                                            bootstrapRequestProvider.get(),
+                                            wifiDirectRadioModule.getBand()
+                                        )
+                                        serverConn.serverNotify(
+                                            uke.value,
+                                            session.remoteLuid,
+                                            session.device
+                                        )
+                                            .andThen(wifiDirectRadioModule.bootstrapSeme(
                                                 request.name,
                                                 request.passphrase,
                                                 request.band,
@@ -522,32 +458,84 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         request as BootstrapRequest,
                                                         TransactionResult.STAGE_TERMINATE,
                                                     )
+                                                })
+                                            .reduce(TransactionResult.of(TransactionResult.STAGE_TERMINATE)) { first, second ->
+                                                if (first.isError) {
+                                                    first
+                                                } else {
+                                                    second
                                                 }
-                                        }
-
-                                        AdvertisePacket.Provides.BLE -> Flowable.just(
-                                            TransactionResult.of(
-                                                TransactionResult.STAGE_IDENTITY
-                                            )
+                                            }
+                                    }
+                                    .onErrorReturnItem(TransactionResult.empty())
+                            }
+                            BluetoothLEModule.Role.ROLE_SEME -> {
+                                Single.just(TransactionResult.empty())
+                            }
+                        }
+                    },
+                    { conn ->
+                        LOG.v("gatt client upgrade stage")
+                        when(session.role.role) {
+                            BluetoothLEModule.Role.ROLE_SEME -> {
+                                LOG.e("upgrade role SEME")
+                                conn.readUpgrade()
+                                    .doOnSuccess { p -> LOG.v("client handshake received upgrade packet ${p.metadata.size}") }
+                                    .doOnError { err -> LOG.e("error while receiving upgrade packet: $err") }
+                                    .flatMap { upgradePacket ->
+                                        wifiDirectRadioModule.addUke(
+                                            session.remoteLuid,
+                                            upgradePacket
                                         )
+                                        when (upgradePacket.provides) {
+                                            AdvertisePacket.Provides.WIFIP2P -> {
+                                                val request = WifiDirectBootstrapRequest.create(
+                                                    upgradePacket,
+                                                    BluetoothLEModule.Role.ROLE_SEME,
+                                                    bootstrapRequestProvider.get(),
+                                                    wifiDirectRadioModule.getBand()
+                                                )
 
-                                        else -> Flowable.just(
-                                            TransactionResult.err(
-                                                IllegalStateException("invalid provides ${upgradePacket.provides}")
+                                                wifiDirectRadioModule.bootstrapSeme(
+                                                    request.name,
+                                                    request.passphrase,
+                                                    request.band,
+                                                    request.port,
+                                                    advertiser.getHashLuid()
+                                                )
+                                                    .map {
+                                                        TransactionResult.of(
+                                                            request as BootstrapRequest,
+                                                            TransactionResult.STAGE_TERMINATE,
+                                                        )
+                                                    }
+                                            }
+
+                                            AdvertisePacket.Provides.BLE -> Flowable.just(
+                                                TransactionResult.of(
+                                                    TransactionResult.STAGE_IDENTITY
+                                                )
                                             )
-                                        )
-                                    }.reduce(
-                                        TransactionResult.of(TransactionResult.STAGE_TERMINATE)
-                                    ) { first, second ->
-                                        if (first.isError) {
-                                            first
-                                        } else {
-                                            second
+
+                                            else -> Flowable.just(
+                                                TransactionResult.err(
+                                                    IllegalStateException("invalid provides ${upgradePacket.provides}")
+                                                )
+                                            )
+                                        }.reduce(
+                                            TransactionResult.of(TransactionResult.STAGE_TERMINATE)
+                                        ) { first, second ->
+                                            if (first.isError) {
+                                                first
+                                            } else {
+                                                second
+                                            }
                                         }
                                     }
-                                }
-                        } else {
-                            Single.just(TransactionResult.empty())
+                            }
+                            else -> {
+                                Single.just(TransactionResult.empty())
+                            }
                         }
                     })
 
@@ -769,7 +757,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 advertiser.getRawLuid(),
                                 connection,
                                 serverConnection,
-                                luid
+                                luid,
+                                advertiser.getHashLuid()
                             )
                             val count = sessionCounter.incrementAndGet()
                             LOG.v("initializing session $count")

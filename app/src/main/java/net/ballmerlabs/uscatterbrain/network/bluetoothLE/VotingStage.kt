@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * in a semi-trustless fashion if a transport layer bootstrap is required and, if so,
  * to which transport to switch to.
  */
-class VotingStage : LeDeviceSession.Stage {
+class VotingStage(private val me: UUID) : LeDeviceSession.Stage {
     private val LOG by scatterLog()
     val serverPackets = CompletableSubject.create()
     private val hashedPackets = ArrayList<ElectLeaderPacket>()
@@ -29,10 +29,11 @@ class VotingStage : LeDeviceSession.Stage {
     fun getSelf(
         hashed: Boolean,
         provides: AdvertisePacket.Provides,
-        force: Map<UUID, UpgradePacket>
+        force: Map<UUID, UpgradePacket>,
+        sender: UUID
     ): ElectLeaderPacket {
         LOG.e("votingStage with forces ${force.size}")
-        val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder()
+        val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder(sender)
         if (hashed) {
             builder.enableHashing()
         }
@@ -73,7 +74,7 @@ class VotingStage : LeDeviceSession.Stage {
      * they want to (which could allow easier data collection / spying for some transports)
      * or by executing a downgrade attack by forcing devices into a less secure transport
      */
-    fun selectUke(): List<UUID> {
+    fun selectUke(): BluetoothLEModule.ConnectionRole {
         stale.set(true)
         var `val` = BigInteger.ONE
         for (packet in unhashedPackets) {
@@ -90,35 +91,43 @@ class VotingStage : LeDeviceSession.Stage {
             0
         )
         var compare = BigInteger(hash)
-        var ret = mutableListOf<UUID>()
-        val forces = unhashedPackets.flatMap { p -> p.force.entries }
+        var ret = mutableMapOf<UUID, UpgradePacket>()
+        var role: BluetoothLEModule.Role? = null
+        val forces =
+            unhashedPackets.flatMap { p -> p.force.entries }.associate { (t, u) -> Pair(t, u) }
         LOG.e("voting forces ${forces.size}")
         when (forces.size) {
             0 -> {
                 var r: UUID? = null
                 for (packet in unhashedPackets) {
-                    val uuid = packet.luid
-                    if (uuid != null) {
-                        val c = BigInteger(ElectLeaderPacket.uuidToBytes(uuid))
-                        if (c.abs() < compare.abs()) {
-                            r = uuid
-                            compare = c
-                        }
-                    } else {
-                        LOG.w("luid tag was null in tiebreak")
+                    val uuid = packet.from
+                    val c = BigInteger(ElectLeaderPacket.uuidToBytes(uuid))
+                    if (c.abs() < compare.abs()) {
+                        r = uuid
+                        compare = c
                     }
                 }
                 if (r != null) {
-                    ret.add(r)
+                    role = if (r == me) {
+                        BluetoothLEModule.Role.ROLE_UKE
+                    } else {
+                        BluetoothLEModule.Role.ROLE_SEME
+                    }
+                    //      ret[r] = null
+                    //TODO: what
                 }
             }
-            else -> ret.addAll(forces.map { v -> v.key })
+
+            else -> {
+                ret.putAll(forces)
+                role = BluetoothLEModule.Role.ROLE_SUPERSEME
+            }
         }
 
-        if (ret.isEmpty()) {
+        if (role == null) {
             throw MiracleException()
         }
-        return ret
+        return BluetoothLEModule.ConnectionRole(luids = ret, role = role)
     }
 
     private fun countVotes(): Single<AdvertisePacket.Provides> {

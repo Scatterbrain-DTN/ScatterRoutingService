@@ -25,7 +25,7 @@ interface BootstrapRequestSubcomponent {
     data class WifiDirectBootstrapRequestArgs(
             val name: String,
             val passphrase: String,
-            val role: BluetoothLEModule.ConnectionRole,
+            val role: BluetoothLEModule.Role,
             val band: Int,
             val port: Int
     )
@@ -83,7 +83,7 @@ interface BootstrapRequestSubcomponent {
             @Provides
             @JvmStatic
             @BootstrapRequestScope
-            fun providesRole(args: WifiDirectBootstrapRequestArgs): BluetoothLEModule.ConnectionRole {
+            fun providesRole(args: WifiDirectBootstrapRequestArgs): BluetoothLEModule.Role {
                 return args.role
             }
 
