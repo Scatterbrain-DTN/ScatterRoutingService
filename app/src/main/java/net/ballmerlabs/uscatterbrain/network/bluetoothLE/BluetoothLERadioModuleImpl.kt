@@ -833,11 +833,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
                     Single.zip(serverResult, clientResult) { s, c ->
-                        s.merge(c).subscribeOn(operationsScheduler)
+                        s.merge(c)
                     }
                 }.flatMapMaybe { s ->
-                    s.flatMapMaybe { s -> s }
-                }
+                    s.flatMapMaybe { s -> s.subscribeOn(operationsScheduler) }
+                        .subscribeOn(operationsScheduler)
+                }.subscribeOn(operationsScheduler)
             }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
             .doOnNext { transactionResult ->
@@ -869,7 +870,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 // state.updateDisconnected(luid)
-                broadcastReceiverState.dispose()
+               // broadcastReceiverState.dispose()
             }
     }
 

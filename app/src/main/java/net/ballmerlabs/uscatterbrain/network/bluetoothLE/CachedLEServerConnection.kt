@@ -62,6 +62,7 @@ class CachedLEServerConnection(
     private fun awaitLuidRegistered(luid: UUID): Single<BehaviorSubject<QueueItem>> {
         return Single.defer {
             val item = packetQueue[luid]?.subject
+            LOG.v("awaiting luid registration for luid $luid $item")
             if (item != null) {
                 Single.just(item)
             } else {

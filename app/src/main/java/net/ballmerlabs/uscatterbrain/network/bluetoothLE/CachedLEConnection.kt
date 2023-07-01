@@ -44,6 +44,10 @@ class CachedLEConnection @Inject constructor(
     init {
         selectChannel()
             .doOnNext { b -> LOG.e("client notif bytes ${b.size}") }
+            .doOnError { err -> LOG.e("error in channel notifications $err") }
+            .doFinally { LOG.e("channel notifications for ${device.macAddress} completed") }
+            .onErrorResumeNext{ err: Throwable -> onDisconnect().andThen(Observable.error(err)) }
+            .concatWith(onDisconnect())
             .subscribe(channelNotif)
     }
 
@@ -84,9 +88,10 @@ class CachedLEConnection @Inject constructor(
                         val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
                         LOG.e("client selected channel $uuid")
                         c.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
+                            .subscribeOn(scheduler)
                             .flatMap { obs ->
                                 LOG.e("client notifications setup")
-                                obs.delay(0, TimeUnit.SECONDS,  scheduler)
+                                obs
                                     .mergeWith(
                                         c.writeCharacteristic(
                                             uuid,
@@ -114,6 +119,7 @@ class CachedLEConnection @Inject constructor(
             channelNotif,
             scheduler
         ).timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
+            .doOnSuccess { p  -> LOG.e("parsed packet len ${p.bytes.size}") }
     }
 
     /**

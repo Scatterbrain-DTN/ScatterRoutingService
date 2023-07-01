@@ -83,13 +83,18 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             map
         }
 
+
+    val remove: List<UUID>
+        get() = packet.valBody.removeLuidList.map { v -> protoUUIDtoUUID(v) }
+
     data class Builder(
         val sender: UUID,
         var enableHashing: Boolean = false,
         var hashVal: ByteString? = null,
         var provides: AdvertisePacket.Provides? = null,
         var tiebreaker: UUID? = null,
-        var forceUke: MutableMap<UUID, UpgradePacket> = mutableMapOf()
+        var forceUke: MutableMap<UUID, UpgradePacket> = mutableMapOf(),
+        var remove: MutableList<UUID> = mutableListOf()
     ) {
         private val salt: ByteArray = ByteArray(GenericHash.BYTES)
 
@@ -129,6 +134,10 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             this.hashVal = hash
         }
 
+        fun setRemove(remove: List<UUID>) = apply {
+            this.remove.addAll(remove)
+        }
+
         fun setforceUke(force: Map<UUID, UpgradePacket>) = apply {
             this.forceUke.putAll(force)
         }
@@ -142,6 +151,7 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
                 .setSalt(ByteString.copyFrom(salt))
                     .setProvides(providesToVal(provides!!))
                     .setTiebreakerVal(protoUUIDfromUUID(tiebreaker!!))
+                    .addAllRemoveLuid(this.remove.map { v -> protoUUIDfromUUID(v) })
                     .addAllForceLuid(forceUke.map { v -> ScatterProto.ExtraUke.newBuilder()
                         .setLuid(protoUUIDfromUUID(v.key))
                         .setUpgrade(v.value.packet).build()

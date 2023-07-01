@@ -86,6 +86,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         ukes[uuid] = bootstrap
     }
 
+    override fun removeUke(uuid: UUID) {
+        ukes.remove(uuid)
+    }
+
     override fun getUkes(): Map<UUID, UpgradePacket> {
         return ukes.toMap()
     }

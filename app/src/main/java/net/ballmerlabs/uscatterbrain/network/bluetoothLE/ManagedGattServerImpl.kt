@@ -14,6 +14,7 @@ import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
@@ -30,8 +31,8 @@ class ManagedGattServerImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
     private val advertiser: Advertiser,
     private val state: LeState,
-    private val builder: ScatterbrainTransactionSubcomponent.Builder,
-    private val firebase: FirebaseWrapper
+    private val firebase: FirebaseWrapper,
+    private val radioModule: WifiDirectRadioModule
 ) : ManagedGattServer {
 
     private val server = AtomicReference<Pair<CachedLEServerConnection, Disposable>?>(null)
@@ -86,6 +87,7 @@ class ManagedGattServerImpl @Inject constructor(
                         state.updateDisconnected(luid)
                         serverConnection.disconnect(trans.remoteDevice)
                         serverConnection.unlockLuid(luid)
+                        radioModule.removeUke(luid)
                     }
                     LOG.v("server handling luid $luid")
                     LOG.v("transaction NOT locked, continuing")
@@ -134,6 +136,7 @@ class ManagedGattServerImpl @Inject constructor(
      */
     override fun startServer(): Completable {
         // initialize our channels
+        state.channels.clear()
         makeCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
         makeCharacteristic(BluetoothLERadioModuleImpl.UUID_HELLO)
         for (i in 0 until BluetoothLERadioModuleImpl.NUM_CHANNELS) {

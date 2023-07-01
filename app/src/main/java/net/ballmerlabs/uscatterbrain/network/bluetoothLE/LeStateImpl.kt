@@ -11,6 +11,8 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
+import net.ballmerlabs.uscatterbrain.network.wifidirect.wifiDirectInfo
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
@@ -27,8 +29,8 @@ class LeStateImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val clientScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val connectScheduler: Scheduler,
     val factory: ScatterbrainTransactionFactory,
-    private val advertiser: Advertiser,
     private val server: Provider<ManagedGattServer>,
+    private val radioModule: WifiDirectRadioModule
 ) : LeState {
     private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
     private val transactionInProgress: AtomicInteger = AtomicInteger(0)
@@ -94,11 +96,11 @@ class LeStateImpl @Inject constructor(
         val c = connectionCache.remove(luid)
         transactionLock.set(null)
         val device = c?.device()
+        c?.connection()?.dispose()
         if (device != null) {
             server.get()?.getServerSync()?.disconnect(device)
             server.get()?.getServerSync()?.unlockLuid(luid)
         }
-        c?.connection()?.dispose()
     }
 
     override fun updateGone(luid: UUID) {
@@ -166,7 +168,11 @@ class LeStateImpl @Inject constructor(
                             .subscribeOn(connectScheduler)
                             .observeOn(clientScheduler)
                             .flatMapSingle { c ->
-                                c.requestMtu(512).ignoreElement().toSingleDefault(c)
+                                c.discoverServices()
+                                    .ignoreElement()
+                                    .andThen(c.requestMtu(512))
+                                    .ignoreElement()
+                                    .toSingleDefault(c)
                                            }, 6, 10
                     )
                         .doFinally { connectionCache.remove(luid) }
@@ -180,6 +186,7 @@ class LeStateImpl @Inject constructor(
                     newconnection.connection().setOnDisconnect {
                         LOG.e("client onDisconnect $luid")
                         updateDisconnected(luid)
+                        radioModule.removeUke(luid)
                         if (connectionCache.isEmpty()) {
                             // LOG.e("connectionCache empty, removing luid")
                             // advertiser.removeLuid()

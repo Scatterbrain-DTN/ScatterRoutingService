@@ -144,7 +144,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
             val disp = advertiser.stopAdvertise().subscribe(
                 {
-                    broadcastReceiverState.dispose()
+                    //broadcastReceiverState.dispose()
                     state.shouldScan = false
                     leState.connectionCache.forEach { c ->
                         leState.updateDisconnected(c.key)

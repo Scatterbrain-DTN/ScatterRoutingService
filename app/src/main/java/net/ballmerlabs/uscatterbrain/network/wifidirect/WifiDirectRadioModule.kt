@@ -22,6 +22,8 @@ interface WifiDirectRadioModule {
     fun getBand(): Int
 
     fun addUke(uuid: UUID, bootstrap: UpgradePacket)
+
+    fun removeUke(uuid: UUID)
     fun getUkes(): Map<UUID, UpgradePacket>
 
     fun bootstrapUke(band: Int, remoteLuid: UUID, selfLuid: UUID, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<HandshakeResult>
