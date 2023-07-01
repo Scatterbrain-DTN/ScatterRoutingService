@@ -22,7 +22,7 @@ interface WifiDirectRadioModule {
     fun getBand(): Int
 
     fun addUke(uuid: UUID, bootstrap: UpgradePacket)
-
+    fun setUke(ukes: Map<UUID, UpgradePacket>)
     fun removeUke(uuid: UUID)
     fun getUkes(): Map<UUID, UpgradePacket>
 

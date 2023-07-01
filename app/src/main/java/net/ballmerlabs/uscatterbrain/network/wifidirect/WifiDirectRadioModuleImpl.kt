@@ -82,6 +82,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return altUke
     }
 
+    override fun setUke(ukes: Map<UUID, UpgradePacket>) {
+        this.ukes.clear()
+        this.ukes.putAll(ukes)
+    }
+
     override fun addUke(uuid: UUID, bootstrap: UpgradePacket) {
         altUke.onNext(Pair(uuid, bootstrap))
         ukes[uuid] = bootstrap
@@ -400,7 +405,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .ignoreElements()
                             .andThen(
                                 mBroadcastReceiver.observePeers()
-                                    .delay(60, TimeUnit.SECONDS, operationsScheduler)
+                                    .delay(300, TimeUnit.SECONDS, operationsScheduler)
                                     .takeUntil { v ->
                                         val np = isNoPeers(v)
                                         val newnp = mBroadcastReceiver.connectedDevices()
@@ -486,7 +491,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     })
                     .mergeWith(subject)
                     .doOnError { err -> LOG.e("removeGroup error: $err") }
-                    .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed() and !wifiP2pInfo.isGroupOwner() }
+                    .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed() && !wifiP2pInfo.isGroupOwner() }
                     .ignoreElements()
                     .doOnComplete { LOG.v("removeGroup return success") }
 
@@ -541,11 +546,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun getBand(): Int {
-        LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported}")
-        return if (manager.is5GHzBandSupported)
-            FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
-        else
+        val connected = manager.connectionInfo?.networkId != -1
+        LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported} $connected")
+        return if (manager.is5GHzBandSupported && !connected)
             FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+        else
+            FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
     }
 
     private fun cancelConnection(): Completable {

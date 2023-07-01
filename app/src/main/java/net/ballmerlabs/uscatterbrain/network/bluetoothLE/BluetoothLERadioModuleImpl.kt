@@ -352,10 +352,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         conn.readElectLeader()
                             .flatMapCompletable { electLeaderPacket ->
                                 LOG.v("gatt client received elect leader packet")
-                                electLeaderPacket.force.forEach { v ->
-                                    LOG.v("adding uke ${v.key}")
-                                    wifiDirectRadioModule.addUke(v.key, v.value)
-                                }
+                                wifiDirectRadioModule.setUke(electLeaderPacket.force)
                                 session.votingStage.addPacket(electLeaderPacket)
                                 session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
                             }
@@ -461,7 +458,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     )
                                                 })
                                             .reduce(TransactionResult.of(TransactionResult.STAGE_TERMINATE)) { first, second ->
-                                                if (first.isError) {
+                                                if (first.isError || ! second.isPresent) {
                                                     first
                                                 } else {
                                                     second
@@ -526,7 +523,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         }.reduce(
                                             TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                         ) { first, second ->
-                                            if (first.isError) {
+                                            if (first.isError || ! second.isPresent) {
                                                 first
                                             } else {
                                                 second
