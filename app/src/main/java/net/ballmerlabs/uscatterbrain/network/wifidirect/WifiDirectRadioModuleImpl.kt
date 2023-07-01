@@ -141,7 +141,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     .mergeWith(Completable.fromAction {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             val builder = infoComponentProvider.get()
-                            val pass = ByteArray(16)
+                            val pass = ByteArray(9)
                             LibsodiumInterface.sodium.randombytes_buf(pass, pass.size)
                             val base64pass = android.util.Base64.encodeToString(
                                 pass,
@@ -151,7 +151,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             val fakeConfig = builder.fakeWifiP2pConfig(
                                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
                                     passphrase = base64pass,
-                                    networkName = "DIRECT-scatterbrain",
+                                    networkName = "DIRECT-sb",
                                     band = band
                                 )
                             ).build()!!.fakeWifiP2pConfig()
