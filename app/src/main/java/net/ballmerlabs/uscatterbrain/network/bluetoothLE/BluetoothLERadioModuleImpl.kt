@@ -818,7 +818,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return session.observeStage()
             .subscribeOn(operationsScheduler)
             .doOnNext { stage -> LOG.v("handling stage: $stage") }
-            .concatMapMaybe {
+            .concatMapSingle {
                 Single.zip(
                     session.singleClient(),
                     session.singleServer()
@@ -839,6 +839,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     s.flatMapMaybe { s -> s.subscribeOn(operationsScheduler) }
                         .subscribeOn(operationsScheduler)
                 }.subscribeOn(operationsScheduler)
+                    .toSingle(TransactionResult.of(TransactionResult.STAGE_SUSPEND))
             }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
             .doOnNext { transactionResult ->
@@ -851,7 +852,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 }
             }
             .takeUntil { result -> result.stage == TransactionResult.STAGE_TERMINATE }
-            .doOnNext { session.unlock() }
+            .doOnNext { r ->
+                LOG.w("session unlocked for stage ${r.stage}")
+                session.unlock()
+            }
             .ignoreElements()
             .toSingleDefault(
                 HandshakeResult(
@@ -869,8 +873,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
-                // state.updateDisconnected(luid)
-               // broadcastReceiverState.dispose()
+                state.updateDisconnected(luid)
+                broadcastReceiverState.dispose()
             }
     }
 

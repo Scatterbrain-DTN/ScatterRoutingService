@@ -29,6 +29,7 @@ import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.Random
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -351,7 +352,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                         }
                 }
-            }.concatWith(removeGroup().delay(10, TimeUnit.SECONDS, operationsScheduler))
+            }.concatWith(removeGroup())
             .doFinally {
                 //  LOG.w("clearing uke set after seme connection")
                 //    ukes.clear()
@@ -387,6 +388,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 port = serverSocket.socket.localPort
                             )
                         ).build()!!.wifiBootstrapRequest()
+                    addUke(advertiser.getHashLuid(), request.toUpgrade(Random().nextInt()))
                     bootstrapRequest.onNext(request)
                     serverSocket.accept()
                         .repeat()
@@ -421,13 +423,15 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         }
                         .doFinally {
                             LOG.v("uke server complete")
-                            connectedPeers.clear()
                         }
                 }
             }
             .doOnComplete { LOG.e("createGroup completed") }
             .subscribeOn(operationsScheduler)
-            .doFinally { ukes.clear() }
+            .doFinally {
+                connectedPeers.clear()
+                ukes.clear()
+            }
 
 
     }
@@ -538,9 +542,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     override fun getBand(): Int {
         LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported}")
-        return FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
         return if (manager.is5GHzBandSupported)
-            FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ
+            FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
         else
             FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
     }
