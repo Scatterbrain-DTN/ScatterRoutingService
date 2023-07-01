@@ -352,7 +352,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         conn.readElectLeader()
                             .flatMapCompletable { electLeaderPacket ->
                                 LOG.v("gatt client received elect leader packet")
-                                wifiDirectRadioModule.setUke(electLeaderPacket.force)
+                                electLeaderPacket.force.forEach { v ->
+                                    wifiDirectRadioModule.addUke(v.key, v.value)
+                                }
                                 session.votingStage.addPacket(electLeaderPacket)
                                 session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
                             }
@@ -481,6 +483,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     .doOnSuccess { p -> LOG.v("client handshake received upgrade packet ${p.metadata.size}") }
                                     .doOnError { err -> LOG.e("error while receiving upgrade packet: $err") }
                                     .flatMap { upgradePacket ->
+                                        wifiDirectRadioModule.setUke(mapOf())
                                         wifiDirectRadioModule.addUke(
                                             session.remoteLuid,
                                             upgradePacket

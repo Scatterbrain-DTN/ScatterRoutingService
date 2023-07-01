@@ -141,7 +141,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     .mergeWith(Completable.fromAction {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             val builder = infoComponentProvider.get()
-                            val pass = ByteArray(8)
+                            val pass = ByteArray(16)
                             LibsodiumInterface.sodium.randombytes_buf(pass, pass.size)
                             val base64pass = android.util.Base64.encodeToString(
                                 pass,
@@ -853,7 +853,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                 else -> {
                     LOG.e("got cached request initial")
-                    v.mergeWith(bootstrapRequest.flatMapCompletable { request ->
+                    v.mergeWith(bootstrapRequest
+                        .firstOrError()
+                        .flatMapCompletable { request ->
                         LOG.e("got cached request")
                         bootstrap(
                             request
