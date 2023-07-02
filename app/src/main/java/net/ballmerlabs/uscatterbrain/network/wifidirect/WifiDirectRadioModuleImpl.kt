@@ -9,6 +9,7 @@ import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import io.reactivex.*
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
@@ -25,6 +26,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.getMutex
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.InetSocketAddress
@@ -147,6 +149,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 pass,
                                 android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
                             )
+                            base64pass.replace("-", "b")
                             LOG.e("createGroup with band $band")
                             val fakeConfig = builder.fakeWifiP2pConfig(
                                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
@@ -519,6 +522,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         timeout: Int,
         band: Int
     ): Single<WifiDirectInfo> {
+        val mtx = getMutex("connectToGroup")
         val connection = Single.defer {
             val builder = infoComponentProvider.get()
             val fakeConfig = builder.fakeWifiP2pConfig(
@@ -536,13 +540,17 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             err.printStackTrace()
             firebaseWrapper.recordException(err)
         }
-        return requestConnectionInfo().flatMap { info ->
-            if (info.isGroupOwner) {
-                removeGroup().andThen(connection.toMaybe())
-            } else {
-                connection.toMaybe()
-            }
-        }.switchIfEmpty(connection)
+        return mtx.await().flatMap { m ->
+            requestConnectionInfo().flatMap { info ->
+                if (info.isGroupOwner) {
+                    LOG.w("was group owner when initiating connection, removing group")
+                    removeGroup().andThen(connection.toMaybe())
+                } else {
+                    connection.toMaybe()
+                }
+            }.switchIfEmpty(connection)
+                .doFinally { m.release() }
+        }
     }
 
     override fun getBand(): Int {
@@ -550,8 +558,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported} $connected")
         return if (manager.is5GHzBandSupported && !connected)
             FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-        else
+        else if(manager.is5GHzBandSupported && connected)
             FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
+        else
+            FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
     }
 
     private fun cancelConnection(): Completable {
@@ -641,7 +651,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 firebaseWrapper.recordException(e)
                 Completable.error(e)
             }
-        }
+        }.subscribeOn(AndroidSchedulers.mainThread())
         return retryDelay(connection, 10, 5)
     }
 
@@ -935,6 +945,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         port: Int,
         self: UUID
     ): Flowable<HandshakeResult> {
+        LOG.w("bootstrapSeme $name $passphrase $band")
         return initiateConnectionAndAccept(
             name,
             passphrase,

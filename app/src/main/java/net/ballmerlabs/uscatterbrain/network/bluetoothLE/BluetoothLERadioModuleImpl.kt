@@ -352,10 +352,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         conn.readElectLeader()
                             .flatMapCompletable { electLeaderPacket ->
                                 LOG.v("gatt client received elect leader packet")
+                                /*
                                 electLeaderPacket.force.forEach { v ->
                                     wifiDirectRadioModule.addUke(v.key, v.value)
                                 }
-                                session.votingStage.addPacket(electLeaderPacket)
+
+                                 */
+                                if (!wifiDirectRadioModule.getUkes().containsKey(advertiser.getHashLuid())) {
+                                    session.votingStage.addPacket(electLeaderPacket)
+                                }
                                 session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
                             }
                             .andThen(session.votingStage.determineUpgrade())
@@ -472,7 +477,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             BluetoothLEModule.Role.ROLE_SEME -> {
                                 Single.just(TransactionResult.empty())
                             }
-                        }
+                        }.doFinally { state.votingUnlock() }
                     },
                     { conn ->
                         LOG.v("gatt client upgrade stage")
@@ -873,6 +878,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
+                state.votingUnlock()
                 state.updateDisconnected(luid)
                 broadcastReceiverState.dispose()
             }

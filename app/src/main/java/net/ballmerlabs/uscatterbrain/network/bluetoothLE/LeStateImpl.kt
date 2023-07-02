@@ -7,6 +7,7 @@ import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Scheduler
 import io.reactivex.Single
+import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
@@ -39,6 +40,7 @@ class LeStateImpl @Inject constructor(
     override val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> =
         ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>()
     private val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
+    private val votingLockObs = AtomicReference<CompletableSubject>(null)
 
     // a "channel" is a characteristic that protobuf messages are written to.
     override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic> =
@@ -48,6 +50,23 @@ class LeStateImpl @Inject constructor(
     override fun transactionLockIsSelf(luid: UUID?): Boolean {
         val lock = transactionLock.get()
         return lock != null && lock == luid
+    }
+
+    override fun votingLock(): Completable {
+        return  Completable.defer {
+            votingLockObs.getAndUpdate { v ->
+                when (v) {
+                    null -> CompletableSubject.create()
+                    else -> v
+                }
+            }?:Completable.complete()
+        }.doOnSubscribe { LOG.w("subscribed voting lock") }
+            .doFinally { LOG.w("voting lock complete") }
+    }
+
+    override fun votingUnlock() {
+        val obs = votingLockObs.getAndSet(null)
+        obs?.onComplete()
     }
 
     override fun startTransaction(): Int {
@@ -98,6 +117,7 @@ class LeStateImpl @Inject constructor(
         val device = c?.device()
         c?.connection()?.dispose()
         if (device != null) {
+            server.get()?.disconnect(device)
             server.get()?.getServerSync()?.disconnect(device)
             server.get()?.getServerSync()?.unlockLuid(luid)
         }

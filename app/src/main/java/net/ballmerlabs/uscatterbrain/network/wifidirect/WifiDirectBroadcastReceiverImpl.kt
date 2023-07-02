@@ -115,21 +115,21 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     }
 
     override fun observeP2pState(): Observable<P2pState> {
-        return p2pStateSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
+        return p2pStateSubject
     }
 
     override fun observeThisDevice(): Observable<WifiP2pDevice> {
-        return thisDeviceChangedSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
+        return thisDeviceChangedSubject
     }
 
     override fun observeConnectionInfo(): Observable<WifiDirectInfo> {
         return connectionSubject.
                 map { i -> wifiDirectInfo(i) }
-                .delay(0, TimeUnit.SECONDS, operationScheduler)
+
     }
 
     override fun observePeers(): Observable<WifiP2pDeviceList> {
-        return deviceListSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
+        return deviceListSubject
     }
 
     override fun asReceiver(): BroadcastReceiver {

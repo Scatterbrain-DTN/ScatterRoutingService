@@ -26,6 +26,10 @@ interface LeState {
 
     fun getAdvertisedLuid(scanResult: ScanResult): UUID?
 
+    fun votingLock(): Completable
+
+    fun votingUnlock()
+
     fun updateGone(luid: UUID)
     fun startTransaction(): Int
 
