@@ -117,7 +117,7 @@ class LeStateImpl @Inject constructor(
         val device = c?.device()
         c?.connection()?.dispose()
         if (device != null) {
-            server.get()?.disconnect(device)
+            //server.get()?.disconnect(device)
             server.get()?.getServerSync()?.disconnect(device)
             server.get()?.getServerSync()?.unlockLuid(luid)
         }

@@ -352,15 +352,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         conn.readElectLeader()
                             .flatMapCompletable { electLeaderPacket ->
                                 LOG.v("gatt client received elect leader packet")
-                                /*
                                 electLeaderPacket.force.forEach { v ->
                                     wifiDirectRadioModule.addUke(v.key, v.value)
                                 }
 
-                                 */
-                                if (!wifiDirectRadioModule.getUkes().containsKey(advertiser.getHashLuid())) {
-                                    session.votingStage.addPacket(electLeaderPacket)
-                                }
+                                //if (!wifiDirectRadioModule.getUkes().containsKey(advertiser.getHashLuid())) {
+                                   // wifiDirectRadioModule.setUke(electLeaderPacket.force)
+                          //      }
+
+                                session.votingStage.addPacket(electLeaderPacket)
                                 session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
                             }
                             .andThen(session.votingStage.determineUpgrade())
@@ -434,6 +434,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                             }
                             BluetoothLEModule.Role.ROLE_SUPERSEME -> {
+                                wifiDirectRadioModule.removeUke(advertiser.getHashLuid())
                                 Observable.fromIterable(session.role.luids.entries)
                                     .filter { v -> v.key != session.hashedSelf }
                                     .lastElement() //TODO: handle all
@@ -488,11 +489,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     .doOnSuccess { p -> LOG.v("client handshake received upgrade packet ${p.metadata.size}") }
                                     .doOnError { err -> LOG.e("error while receiving upgrade packet: $err") }
                                     .flatMap { upgradePacket ->
-                                        wifiDirectRadioModule.setUke(mapOf())
                                         wifiDirectRadioModule.addUke(
                                             session.remoteLuid,
                                             upgradePacket
                                         )
+                                        wifiDirectRadioModule.removeUke(advertiser.getHashLuid())
                                         when (upgradePacket.provides) {
                                             AdvertisePacket.Provides.WIFIP2P -> {
                                                 val request = WifiDirectBootstrapRequest.create(

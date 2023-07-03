@@ -149,11 +149,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 pass,
                                 android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
                             )
-                            base64pass.replace("-", "b")
+                            val newpass = base64pass.replace("-", "b")
                             LOG.e("createGroup with band $band")
                             val fakeConfig = builder.fakeWifiP2pConfig(
                                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
-                                    passphrase = base64pass,
+                                    passphrase = newpass,
                                     networkName = "DIRECT-sb",
                                     band = band
                                 )
@@ -365,6 +365,17 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 //  LOG.w("clearing uke set after seme connection")
                 //    ukes.clear()
             }
+    }
+
+    override fun safeShutdownGroup(): Completable {
+        return mBroadcastReceiver.observePeers()
+            .takeUntil { v ->
+                val np = isNoPeers(v)
+                val newnp = mBroadcastReceiver.connectedDevices()
+                    .isEmpty()
+                np && newnp
+            }.ignoreElements()
+            .concatWith(removeGroup())
     }
 
     /**

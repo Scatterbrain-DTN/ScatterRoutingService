@@ -119,13 +119,8 @@ class VotingStage(private val me: UUID) : LeDeviceSession.Stage {
             }
 
             else -> {
-                role = if(forces.keys.contains(me)) {
-                    LOG.w("forces contained own luid. Verdict: UKE")
-                    BluetoothLEModule.Role.ROLE_UKE
-                } else {
-                    ret.putAll(forces)
-                    BluetoothLEModule.Role.ROLE_SUPERSEME
-                }
+                ret.putAll(forces)
+                role = BluetoothLEModule.Role.ROLE_SUPERSEME
             }
         }
 

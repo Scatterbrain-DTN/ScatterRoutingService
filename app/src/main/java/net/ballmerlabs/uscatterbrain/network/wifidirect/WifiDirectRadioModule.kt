@@ -38,6 +38,7 @@ interface WifiDirectRadioModule {
      */
     fun connectToGroup(name: String, passphrase: String, timeout: Int, band: Int): Single<WifiDirectInfo>
 
+    fun safeShutdownGroup(): Completable
 
     fun awaitUke(): Observable<Pair<UUID, UpgradePacket>>
 
