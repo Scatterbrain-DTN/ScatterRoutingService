@@ -18,6 +18,7 @@ import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -28,7 +29,6 @@ import javax.inject.Singleton
 @Singleton
 class LeStateImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.IO) private val clientScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val connectScheduler: Scheduler,
     val factory: ScatterbrainTransactionFactory,
     private val server: Provider<ManagedGattServer>,
     private val radioModule: WifiDirectRadioModule
@@ -117,7 +117,7 @@ class LeStateImpl @Inject constructor(
         val device = c?.device()
         c?.connection()?.dispose()
         if (device != null) {
-            //server.get()?.disconnect(device)
+            server.get()?.disconnect(device)
             server.get()?.getServerSync()?.disconnect(device)
             server.get()?.getServerSync()?.unlockLuid(luid)
         }
@@ -158,7 +158,7 @@ class LeStateImpl @Inject constructor(
                                 }
                                 .onErrorComplete()
                         }
-                }.subscribeOn(clientScheduler)
+                }
         }
     }
 
@@ -180,19 +180,22 @@ class LeStateImpl @Inject constructor(
                 val connection = connectionCache[luid]
                 if (connection != null) {
                     LOG.e("establishing cached connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
-                    connection.connection().connection.firstOrError().ignoreElement().toSingleDefault(connection)
+                    connection.connection().connection
+                        .firstOrError()
+                        .ignoreElement()
+                        .toSingleDefault(connection)
                 } else {
                     LOG.e("establishing NEW connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
-                    val rawConnection = retryDelay(
+                    val rawConnection =
                         device.establishConnection(false)
                             .flatMapSingle { c ->
+                                LOG.w("connection established, discovering services")
                                 c.discoverServices()
                                     .ignoreElement()
-                                    .andThen(c.requestMtu(512))
+                                    .andThen(c.requestMtu(512).doOnSuccess { i -> LOG.w("requested new mtu $i") })
                                     .ignoreElement()
                                     .toSingleDefault(c)
-                                           }, 6, 10
-                    )
+                            }
                         .doFinally { connectionCache.remove(luid) }
                         .doOnNext {
                             LOG.d("now connected ${device.macAddress}")
@@ -220,7 +223,7 @@ class LeStateImpl @Inject constructor(
                     }
                     newconnection.connection().connection.firstOrError().ignoreElement().toSingleDefault(newconnection)
                 }
-            }.flatMap { c -> c.subscribeOn(connectScheduler) }
+            }.flatMap { c -> c }
 
         return connectSingle
     }

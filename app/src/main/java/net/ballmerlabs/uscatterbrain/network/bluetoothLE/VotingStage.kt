@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * in a semi-trustless fashion if a transport layer bootstrap is required and, if so,
  * to which transport to switch to.
  */
-class VotingStage(private val me: UUID) : LeDeviceSession.Stage {
+class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDeviceSession.Stage {
     private val LOG by scatterLog()
     val serverPackets = CompletableSubject.create()
     private val hashedPackets = ArrayList<ElectLeaderPacket>()
@@ -96,6 +96,7 @@ class VotingStage(private val me: UUID) : LeDeviceSession.Stage {
         val forces =
             unhashedPackets
                 .flatMap { p -> p.force.entries }
+                .filter { p -> p.key != me && p.key != remoteLuid}
                 .associate { (t, u) -> Pair(t, u) }
         LOG.e("voting forces ${forces.size}")
         when (forces.size) {

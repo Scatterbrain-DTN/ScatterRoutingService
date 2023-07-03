@@ -662,7 +662,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 firebaseWrapper.recordException(e)
                 Completable.error(e)
             }
-        }.subscribeOn(AndroidSchedulers.mainThread())
+        }
         return retryDelay(connection, 10, 5)
     }
 

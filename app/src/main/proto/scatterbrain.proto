@@ -70,6 +70,13 @@ message ExtraUke {
     Upgrade upgrade = 2;
 }
 
+
+enum Role {
+    UKE = 0;
+    SEME = 1;
+    SUPERSEME = 2;
+}
+
 message ElectLeader {
     message Body {
         bytes salt = 1;
@@ -78,6 +85,7 @@ message ElectLeader {
         repeated ExtraUke force_luid = 4;
         repeated UUID remove_luid = 5;
         int32 band = 6;
+        Role role = 7;
     }
     oneof val {
         Body val_body = 1;

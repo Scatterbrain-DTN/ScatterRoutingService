@@ -48,7 +48,7 @@ class LeDeviceSession(
     private val LOG by scatterLog()
     val luidStage: LuidStage = LuidStage(luid, remoteLuid) //exchange hashed and unhashed luids
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities
-    val votingStage: VotingStage = VotingStage(hashedSelf) //determine if an upgrade takes place
+    val votingStage: VotingStage = VotingStage(hashedSelf, remoteLuid) //determine if an upgrade takes place
     var upgradeStage: UpgradeStage? = null //possibly upgrade to new transport
     private val transactionMap =
         ConcurrentHashMap<String, Pair<ClientTransaction, ServerTransaction>>()
