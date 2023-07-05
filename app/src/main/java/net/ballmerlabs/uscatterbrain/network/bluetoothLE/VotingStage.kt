@@ -5,6 +5,7 @@ import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
+import net.ballmerlabs.uscatterbrain.ScatterProto.Role
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
@@ -30,7 +31,8 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
         hashed: Boolean,
         provides: AdvertisePacket.Provides,
         force: Map<UUID, UpgradePacket>,
-        sender: UUID
+        sender: UUID,
+        role: Role
     ): ElectLeaderPacket {
         LOG.e("votingStage with forces ${force.size}")
         val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder(sender)
@@ -40,6 +42,7 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
         return builder
             .setProvides(provides)
             .setTiebreaker(tiebreaker)
+            .setRole(role)
             .setforceUke(force)
             .build()
     }
@@ -101,20 +104,25 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
         LOG.e("voting forces ${forces.size}")
         when (forces.size) {
             0 -> {
-                var r: UUID? = null
-                for (packet in unhashedPackets) {
-                    val uuid = packet.from
-                    val c = BigInteger(ElectLeaderPacket.uuidToBytes(uuid))
-                    if (c.abs() < compare.abs()) {
-                        r = uuid
-                        compare = c
+                val ukes = unhashedPackets.filter { r -> r.role == Role.UKE}
+                if (ukes.size == 1 && ukes[0].from != me) {
+                    role = BluetoothLEModule.Role.ROLE_SEME
+                } else {
+                    var r: UUID? = null
+                    for (packet in unhashedPackets) {
+                        val uuid = packet.from
+                        val c = BigInteger(ElectLeaderPacket.uuidToBytes(uuid))
+                        if (c.abs() < compare.abs()) {
+                            r = uuid
+                            compare = c
+                        }
                     }
-                }
-                if (r != null) {
-                    role = if (r == me) {
-                        BluetoothLEModule.Role.ROLE_UKE
-                    } else {
-                        BluetoothLEModule.Role.ROLE_SEME
+                    if (r != null) {
+                        role = if (r == me) {
+                            BluetoothLEModule.Role.ROLE_UKE
+                        } else {
+                            BluetoothLEModule.Role.ROLE_SEME
+                        }
                     }
                 }
             }

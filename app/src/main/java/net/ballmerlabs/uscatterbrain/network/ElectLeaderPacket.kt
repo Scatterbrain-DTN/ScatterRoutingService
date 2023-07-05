@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.ElectLeader
+import net.ballmerlabs.uscatterbrain.ScatterProto.Role
 import java.nio.ByteBuffer
 import java.util.UUID
 
@@ -68,6 +69,9 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
     val provides: AdvertisePacket.Provides
         get() = AdvertisePacket.valToProvides(packet.valBody.provides)
 
+    val role: Role
+        get() = packet.valBody.role
+
     override val type: PacketType
         get() = PacketType.TYPE_ELECT_LEADER
 
@@ -79,7 +83,7 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
 
     val force: Map<UUID, UpgradePacket>
         get() = packet.valBody.forceLuidList.fold(HashMap()) { map, v ->
-            map.put(protoUUIDtoUUID(v.luid), UpgradePacket(v.upgrade))
+            map[protoUUIDtoUUID(v.luid)] = UpgradePacket(v.upgrade)
             map
         }
 
@@ -89,6 +93,7 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
 
     data class Builder(
         val sender: UUID,
+        var role: Role = Role.UNRECOGNIZED,
         var enableHashing: Boolean = false,
         var hashVal: ByteString? = null,
         var provides: AdvertisePacket.Provides? = null,
@@ -126,6 +131,10 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             this.provides = provides
         }
 
+        fun setRole(role: Role) = apply {
+            this.role = role
+        }
+
         fun setTiebreaker(tiebreaker: UUID) = apply {
             this.tiebreaker = tiebreaker
         }
@@ -151,6 +160,7 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
                 .setSalt(ByteString.copyFrom(salt))
                     .setProvides(providesToVal(provides!!))
                     .setTiebreakerVal(protoUUIDfromUUID(tiebreaker!!))
+                    .setRole(this.role)
                     .addAllRemoveLuid(this.remove.map { v -> protoUUIDfromUUID(v) })
                     .addAllForceLuid(forceUke.map { v -> ScatterProto.ExtraUke.newBuilder()
                         .setLuid(protoUUIDfromUUID(v.key))

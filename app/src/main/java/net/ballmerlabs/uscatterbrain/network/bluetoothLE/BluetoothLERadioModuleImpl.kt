@@ -295,7 +295,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 true,
                                 provides,
                                 wifiDirectRadioModule.getUkes(),
-                                session.hashedSelf
+                                session.hashedSelf,
+                                if(wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME
                             )
                             session.votingStage.addPacket(packet)
                             serverConn.serverNotify(packet, session.remoteLuid, session.device)
@@ -330,7 +331,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         false,
                                         provides,
                                         wifiDirectRadioModule.getUkes(),
-                                        session.hashedSelf
+                                        session.hashedSelf,
+                                        if(wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME
                                     )
                                     packet.tagLuid(luidPacket.luidVal)
                                     session.votingStage.addPacket(packet)
@@ -880,8 +882,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 state.votingUnlock()
-                state.updateDisconnected(luid)
-                broadcastReceiverState.dispose()
+             //   state.updateDisconnected(luid)
+              //  broadcastReceiverState.dispose()
             }
     }
 

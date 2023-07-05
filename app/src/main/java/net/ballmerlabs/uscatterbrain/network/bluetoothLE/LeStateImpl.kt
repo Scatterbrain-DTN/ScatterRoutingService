@@ -115,12 +115,13 @@ class LeStateImpl @Inject constructor(
         val c = connectionCache.remove(luid)
         transactionLock.set(null)
         val device = c?.device()
-        c?.connection()?.dispose()
         if (device != null) {
             server.get()?.disconnect(device)
             server.get()?.getServerSync()?.disconnect(device)
             server.get()?.getServerSync()?.unlockLuid(luid)
         }
+        c?.connection()?.dispose()
+
     }
 
     override fun updateGone(luid: UUID) {
@@ -186,7 +187,7 @@ class LeStateImpl @Inject constructor(
                         .toSingleDefault(connection)
                 } else {
                     LOG.e("establishing NEW connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
-                    val rawConnection =
+                    val rawConnection = retryDelay(
                         device.establishConnection(false)
                             .flatMapSingle { c ->
                                 LOG.w("connection established, discovering services")
@@ -195,7 +196,7 @@ class LeStateImpl @Inject constructor(
                                     .andThen(c.requestMtu(512).doOnSuccess { i -> LOG.w("requested new mtu $i") })
                                     .ignoreElement()
                                     .toSingleDefault(c)
-                            }
+                            }, 10, 1)
                         .doFinally { connectionCache.remove(luid) }
                         .doOnNext {
                             LOG.d("now connected ${device.macAddress}")

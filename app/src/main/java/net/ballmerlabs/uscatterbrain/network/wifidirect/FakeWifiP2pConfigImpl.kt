@@ -12,7 +12,9 @@ import javax.inject.Inject
 import javax.inject.Named
 
 fun getWpsInfo(): WpsInfo {
-    return WpsInfo()
+    return WpsInfo().apply {
+        setup = WpsInfo.PBC
+    }
 }
 
 /**
@@ -30,11 +32,11 @@ fun getWpsInfo(): WpsInfo {
  */
 @WifiDirectInfoScope
 class FakeWifiP2pConfigImpl @Inject constructor(
-        @Named(WifiDirectInfoSubcomponent.PASSPHRASE) val passphrase: String? = "",
-        @Named(WifiDirectInfoSubcomponent.MAC_ADDRESS) val deviceAddress: String? = "02:00:00:00:00:00",
-        @Named(WifiDirectInfoSubcomponent.NETWORK_NAME) val networkName: String? = "",
-        val wpsInfo: WpsInfo?,
-        @Named(WifiDirectInfoSubcomponent.BAND) var suggestedband: Int
+    @Named(WifiDirectInfoSubcomponent.PASSPHRASE) val passphrase: String? = "",
+    @Named(WifiDirectInfoSubcomponent.MAC_ADDRESS) val deviceAddress: String? = "02:00:00:00:00:00",
+    @Named(WifiDirectInfoSubcomponent.NETWORK_NAME) val networkName: String? = "",
+    val wpsInfo: WpsInfo? = getWpsInfo(),
+    @Named(WifiDirectInfoSubcomponent.BAND) var suggestedband: Int
 ) : FakeWifiP2pConfig {
 
    var groupOwnerBand: Int = suggestedband

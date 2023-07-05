@@ -527,11 +527,11 @@ class GattServerConnectionImpl @Inject constructor(
                     setupNotificationsDelay(clientconfig, characteristic, isIndication)
                         .toFlowable()
                 }
-                .delay(0, TimeUnit.SECONDS, callbackScheduler)
                 .concatMapSingle { bytes ->
                     Log.v("processing bytes length: " + bytes.size)
                     try {
                         getOnNotification()
+                            .delay(0, TimeUnit.SECONDS)
                             .mergeWith(Completable.fromAction {
                                 characteristic.value = bytes
                                 val res = gattServer.get().notifyCharacteristicChanged(
@@ -542,7 +542,7 @@ class GattServerConnectionImpl @Inject constructor(
                                 if (!res) {
                                     throw IllegalStateException("notifyCharacteristicChanged returned false")
                                 }
-                            }.subscribeOn(serverScheduler))
+                            }.subscribeOn(callbackScheduler))
                             .firstOrError()
                             .flatMapCompletable { integer ->
                                 Log.v("notification result: $integer")
