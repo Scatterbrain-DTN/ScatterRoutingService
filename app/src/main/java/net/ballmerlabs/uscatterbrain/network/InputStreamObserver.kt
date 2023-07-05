@@ -28,5 +28,6 @@ class InputStreamObserver(capacity: Int) : InputStreamCallback(capacity), Observ
         }
     }
 
-    override fun onComplete() {}
+    override fun onComplete() {
+    }
 }

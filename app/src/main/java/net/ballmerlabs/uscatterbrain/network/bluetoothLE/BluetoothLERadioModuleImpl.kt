@@ -93,8 +93,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val broadcastReceiverState: BroadcastReceiverState,
     private val wifiManager: WifiManager,
     private val connection: CachedLEConnection,
-    private val device: RxBleDevice
-) : BluetoothLEModule {
+    private val device: RxBleDevice,
+    val factory: ScatterbrainTransactionFactory,
+    ) : BluetoothLEModule {
     private val LOG by scatterLog()
 
     private val sessionCounter = AtomicInteger()
@@ -760,6 +761,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         .toSingle()
                         .flatMapMaybe { serverConnection ->
                             val t = state.startTransaction()
+                            connection.connect()
                             LOG.v("successfully connected to $luid, transactions: $t")
                             val s = LeDeviceSession(
                                 device,
@@ -882,8 +884,19 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 state.votingUnlock()
-             //   state.updateDisconnected(luid)
+              //  state.updateDisconnected(luid)
+                clientConnection.pause()
               //  broadcastReceiverState.dispose()
+                serverConnection.unlockLuid(luid)
+                serverConnection.disconnect(device)
+                /*
+                val newcconnection = factory.transaction(device)
+                newcconnection.connection().connection = clientConnection.connection
+                clientConnection.disconnectCallbacks.forEach { (cb, _) ->
+                    newcconnection.connection().setOnDisconnect(cb)
+                }
+                state.connectionCache[luid] = newcconnection
+                 */
             }
     }
 

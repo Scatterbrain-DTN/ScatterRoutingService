@@ -310,7 +310,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         ownerPort: Int,
         self: UUID
     ): Flowable<HandshakeResult> {
-        return connectToGroup(name, passphrase, 61, band)
+        return connectToGroup(name, passphrase, 161, band)
             .subscribeOn(operationsScheduler)
             .flatMapPublisher { info ->
                 serverSocketManager.getServerSocket().flatMapPublisher { socket ->
@@ -362,7 +362,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
             }.concatWith(removeGroup())
             .doFinally {
-                //  LOG.w("clearing uke set after seme connection")
+                LOG.w("wifi direct client/seme complete")
                 //    ukes.clear()
             }
     }
