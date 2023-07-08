@@ -25,6 +25,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -83,8 +84,8 @@ class WifiDirectTest {
     @Throws(TimeoutException::class)
     fun createGroupTest() {
         assert(
-            radioModule.createGroup(radioModule.getBand()).timeout(20, TimeUnit.SECONDS)
-                .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
+            radioModule.createGroup(radioModule.getBand(), UUID.randomUUID(), UUID.randomUUID()).timeout(20, TimeUnit.SECONDS)
+                .blockingFirst().role == BluetoothLEModule.Role.ROLE_UKE
         )
     }
 
@@ -93,9 +94,9 @@ class WifiDirectTest {
     fun multipleCreateGroup() {
         for (x in 0..5) {
             assert(
-                radioModule.createGroup(radioModule.getBand())
+                radioModule.createGroup(radioModule.getBand(), UUID.randomUUID(), UUID.randomUUID())
                     .timeout(20, TimeUnit.SECONDS)
-                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
+                    .blockingFirst().role == BluetoothLEModule.Role.ROLE_UKE
             )
         }
     }
@@ -119,7 +120,7 @@ class WifiDirectTest {
     @Test
     @Throws(TimeoutException::class)
     fun wifiDirectIsUsableAfterCreate() {
-        val res = radioModule.createGroup(radioModule.getBand()).timeout(10, TimeUnit.SECONDS).blockingGet()
+        val res = radioModule.createGroup(radioModule.getBand(), UUID.randomUUID(), UUID.randomUUID()).timeout(10, TimeUnit.SECONDS).blockingFirst()
         assert(radioModule.wifiDirectIsUsable().timeout(20, TimeUnit.SECONDS).blockingGet())
     }
 
@@ -131,9 +132,9 @@ class WifiDirectTest {
                 .timeout(10, TimeUnit.SECONDS)
                 .blockingAwait()
             assert(
-                radioModule.createGroup(radioModule.getBand())
+                radioModule.createGroup(radioModule.getBand(), UUID.randomUUID(), UUID.randomUUID())
                     .timeout(10, TimeUnit.SECONDS)
-                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
+                    .blockingFirst().role == BluetoothLEModule.Role.ROLE_UKE
             )
         }
     }

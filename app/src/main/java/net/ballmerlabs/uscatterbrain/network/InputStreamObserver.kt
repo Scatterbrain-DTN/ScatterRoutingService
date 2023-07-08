@@ -11,7 +11,7 @@ import java.io.IOException
 class InputStreamObserver(capacity: Int) : InputStreamCallback(capacity), Observer<ByteArray> {
 
     override fun onSubscribe(d: Disposable) {
-        disposable = d
+
     }
 
     override fun onNext(bytes: ByteArray) {

@@ -48,7 +48,15 @@ interface FakeBootstrapRequestSubcomponent : BootstrapRequestSubcomponent {
             @Provides
             @JvmStatic
             @BootstrapRequestScope
-            fun providesRole(args: BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs): BluetoothLEModule.ConnectionRole {
+            @Named(BootstrapRequestSubcomponent.PORT)
+            fun providesPort(): Int {
+                return 9999
+            }
+
+            @Provides
+            @JvmStatic
+            @BootstrapRequestScope
+            fun providesRole(args: BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs): BluetoothLEModule.Role {
                 return args.role
             }
 

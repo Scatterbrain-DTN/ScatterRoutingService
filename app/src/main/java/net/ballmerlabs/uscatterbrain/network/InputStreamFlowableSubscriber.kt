@@ -19,16 +19,6 @@ class InputStreamFlowableSubscriber(capacity: Int) : InputStreamCallback(capacit
     override fun onSubscribe(s: Subscription) {
         s.request(blocksize * 20.toLong())
         subscription = s
-        disposable = object : Disposable {
-            override fun dispose() {
-                this@InputStreamFlowableSubscriber.isDisposed = true
-                s.cancel()
-            }
-
-            override fun isDisposed(): Boolean {
-                return isDisposed
-            }
-        }
     }
 
     override fun onNext(t: ByteArray?) {

@@ -83,6 +83,10 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
+        abstract fun wifiDirectRadioModule(wifiDirectRadioModuleImpl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
+
+        @Binds
+        @Singleton
         abstract fun bindScatterbrainScheduler(impl: ScatterbrainSchedulerImpl): ScatterbrainScheduler
 
         @Binds

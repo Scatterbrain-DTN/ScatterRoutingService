@@ -863,13 +863,12 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         device: RxBleDevice
     ): Maybe<HandshakeResult> {
         return session.observeStage()
-            .subscribeOn(operationsScheduler)
             .doOnNext { stage -> LOG.v("handling stage: $stage") }
             .concatMapSingle {
+                LOG.v("ghaa")
                 Single.zip(
                     session.singleClient(),
                     session.singleServer()
-
                 ) { client, server ->
                     LOG.v("server and client")
                     val serverResult = server(serverConnection)

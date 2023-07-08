@@ -11,6 +11,7 @@ import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLEConnection
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import javax.inject.Named
 
 @ScatterbrainTransactionScope
@@ -58,6 +59,7 @@ interface ScatterbrainTransactionSubcomponent {
 
     fun bluetoothLeRadioModule(): BluetoothLEModule
 
+    fun wifiDirectRadioModule(): WifiDirectRadioModule
     fun connection(): CachedLEConnection
 
 

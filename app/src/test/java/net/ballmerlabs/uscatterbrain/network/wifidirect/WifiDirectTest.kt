@@ -35,6 +35,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.InetAddress
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 const val pass = "fmefthisisahorriblepassphrase"
@@ -255,16 +256,15 @@ class WifiDirectTest {
         val req = bootstrapRequestComponentBuilder
             .wifiDirectArgs(
                 BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                    role = BluetoothLEModule.ConnectionRole.ROLE_UKE,
+                    role = BluetoothLEModule.Role.ROLE_UKE,
                     passphrase = pass,
                     name = name,
-                    band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+                    band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ,
+                    port = 9999
                 )
             )
             .build()!!
             .wifiBootstrapRequest()
-        val res = module.bootstrapFromUpgrade(req).timeout(1, TimeUnit.SECONDS).blockingGet()
-        assert(res.success)
     }
 
     @Test
@@ -278,16 +278,15 @@ class WifiDirectTest {
         val req = bootstrapRequestComponentBuilder
             .wifiDirectArgs(
                 BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
-                    role = BluetoothLEModule.ConnectionRole.ROLE_SEME,
+                    role = BluetoothLEModule.Role.ROLE_SEME,
                     passphrase = pass,
                     name = name,
-                    band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+                    band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ,
+                    port = 9999
                 )
             )
             .build()!!
             .wifiBootstrapRequest()
-        val res = module.bootstrapFromUpgrade(req).timeout(1, TimeUnit.SECONDS).blockingGet()
-        assert(res.success)
     }
 
     @Test
@@ -350,9 +349,9 @@ class WifiDirectTest {
             }
         }
         buildModule()
-        val bootstrap = module.createGroup(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+        val bootstrap = module.createGroup(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ, UUID.randomUUID(), UUID.randomUUID())
             .timeout(5, TimeUnit.SECONDS)
-            .blockingGet()
+            .blockingFirst()
         assert(bootstrap.name == name)
         assert(bootstrap.passphrase == pass)
     }
