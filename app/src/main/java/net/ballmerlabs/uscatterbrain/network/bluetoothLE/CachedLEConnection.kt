@@ -18,7 +18,6 @@ import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -35,32 +34,21 @@ class CachedLEConnection @Inject constructor(
    @Named(RoutingServiceComponent.NamedSchedulers.IO) private val scheduler: Scheduler,
     val device: RxBleDevice,
     val advertiser: Advertiser
-) {
+) : Disposable {
     private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
-    var connection = BehaviorSubject.create<RxBleConnection>()
-    val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
-    private val channelNotif = AtomicReference<InputStreamObserver>(null)
+    val connection = BehaviorSubject.create<RxBleConnection>()
+    private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
+    private val channelNotif = InputStreamObserver(8000)
 
-    fun connect() {
-        channelNotif.getAndUpdate { v ->
-            when (v) {
-                null -> {
-                    val notif = InputStreamObserver(8000)
-                    selectChannel()
-                        .doOnNext { b -> LOG.e("client notif bytes ${b.size}") }
-                        .doOnError { err -> LOG.e("error in channel notifications $err") }
-                        .doFinally { LOG.e("channel notifications for ${device.macAddress} completed") }
-                        .subscribe(notif)
-                    notif
-                }
-                else -> v
-            }
-        }
-    }
-
-    fun pause() {
-        channelNotif.getAndSet(null)?.close()
+    init {
+        selectChannel()
+            .doOnNext { b -> LOG.e("client notif bytes ${b.size}") }
+            .doOnError { err -> LOG.e("error in channel notifications $err") }
+            .doFinally { LOG.e("channel notifications for ${device.macAddress} completed") }
+            .onErrorResumeNext{ err: Throwable -> onDisconnect().andThen(Observable.error(err)) }
+            .concatWith(onDisconnect())
+            .subscribe(channelNotif)
     }
 
     fun subscribeConnection(rawConnection: Observable<RxBleConnection>) {
@@ -128,7 +116,7 @@ class CachedLEConnection @Inject constructor(
     ): Single<T> {
         return ScatterSerializable.parseWrapperFromCRC(
             parser,
-            channelNotif.get(),
+            channelNotif,
             scheduler
         ).timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
             .doOnSuccess { p  -> LOG.e("parsed packet len ${p.bytes.size}") }
@@ -209,7 +197,7 @@ class CachedLEConnection @Inject constructor(
     /**
      * dispose this connection
      */
-    fun dispose() {
+    override fun dispose() {
         LOG.e("CachedLEConnection disposed")
         disposable.dispose()
     }
@@ -217,7 +205,7 @@ class CachedLEConnection @Inject constructor(
     /**
      * returns true if this connection is disposed
      */
-    fun isDisposed(): Boolean {
+    override fun isDisposed(): Boolean {
         return disposable.isDisposed
     }
 }

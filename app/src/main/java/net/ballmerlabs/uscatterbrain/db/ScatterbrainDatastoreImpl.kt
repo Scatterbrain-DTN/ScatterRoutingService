@@ -188,8 +188,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     private fun getMax(): Long {
-        return preferences.getInt(ctx.getString(R.string.pref_sizecap), 4096)!!
-            .toLong() * 1024 * 1024
+        return ((preferences.getInt(ctx.getString(R.string.pref_sizecap), 4096)
+            ?: (4096))).toLong() * 1024 * 1024
     }
 
     /**

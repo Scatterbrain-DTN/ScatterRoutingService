@@ -95,7 +95,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val connection: CachedLEConnection,
     private val device: RxBleDevice,
     val factory: ScatterbrainTransactionFactory,
-    ) : BluetoothLEModule {
+) : BluetoothLEModule {
     private val LOG by scatterLog()
 
     private val sessionCounter = AtomicInteger()
@@ -297,7 +297,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 provides,
                                 wifiDirectRadioModule.getUkes(),
                                 session.hashedSelf,
-                                if(wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME
+                                if (wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME
                             )
                             session.votingStage.addPacket(packet)
                             serverConn.serverNotify(packet, session.remoteLuid, session.device)
@@ -333,7 +333,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         provides,
                                         wifiDirectRadioModule.getUkes(),
                                         session.hashedSelf,
-                                        if(wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME
+                                        if (wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME
                                     )
                                     packet.tagLuid(luidPacket.luidVal)
                                     session.votingStage.addPacket(packet)
@@ -360,8 +360,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 }
 
                                 //if (!wifiDirectRadioModule.getUkes().containsKey(advertiser.getHashLuid())) {
-                                   // wifiDirectRadioModule.setUke(electLeaderPacket.force)
-                          //      }
+                                // wifiDirectRadioModule.setUke(electLeaderPacket.force)
+                                //      }
 
                                 session.votingStage.addPacket(electLeaderPacket)
                                 session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
@@ -374,7 +374,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 val ukes = connectionRole.luids
                                 LOG.v("received ukes size ${ukes.size}")
                                 LOG.v("selected role: $role")
-                                session.role = connectionRole
+                                session.role = if (wifiDirectRadioModule.getForceUke())
+                                    ConnectionRole(
+                                        role = BluetoothLEModule.Role.ROLE_UKE,
+                                        luids = ukes
+                                    )
+                                else
+                                    connectionRole
                                 session.setUpgradeStage(provides)
                                 when (provides) {
                                     AdvertisePacket.Provides.INVALID -> {
@@ -411,14 +417,14 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     TransactionResult.STAGE_UPGRADE,
                     { serverConn ->
                         LOG.v("gatt server upgrade stage")
-                        when(session.role.role) {
+                        when (session.role.role) {
                             BluetoothLEModule.Role.ROLE_UKE -> {
                                 LOG.e("upgrade role UKE")
                                 wifiDirectRadioModule.bootstrapUke(
                                     wifiDirectRadioModule.getBand(),
                                     session.remoteLuid,
                                     advertiser.getHashLuid()
-                                ) { bootstrapReq ->
+                                ).flatMapCompletable { bootstrapReq ->
                                     LOG.e("uke upgrade callback")
                                     wifiDirectRadioModule.addUke(
                                         advertiser.getHashLuid(), bootstrapReq.toUpgrade(
@@ -430,12 +436,13 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         session.remoteLuid,
                                         session.device
                                     )
-                                }.ignoreElement()
+                                }
                                     .toSingleDefault(
                                         TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                     )
 
                             }
+
                             BluetoothLEModule.Role.ROLE_SUPERSEME -> {
                                 wifiDirectRadioModule.removeUke(advertiser.getHashLuid())
                                 Observable.fromIterable(session.role.luids.entries)
@@ -468,16 +475,31 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                         TransactionResult.STAGE_TERMINATE,
                                                     )
                                                 })
-                                            .reduce(TransactionResult.of(TransactionResult.STAGE_TERMINATE)) { first, second ->
-                                                if (first.isError || ! second.isPresent) {
+                                            .reduce<TransactionResult<BootstrapRequest>?>(
+                                                TransactionResult.of(TransactionResult.STAGE_TERMINATE)
+                                            ) { first, second ->
+                                                if (first.isError) {
                                                     first
                                                 } else {
                                                     second
                                                 }
                                             }
+                                            .doOnSuccess { v -> LOG.w("superseme terminating with staging ${v.stage}") }
+                                            .flatMap { v ->
+                                                if (v.isError) {
+                                                    Single.error(v.err!!)
+                                                } else {
+                                                    Single.just(
+                                                        TransactionResult.of(
+                                                            TransactionResult.STAGE_TERMINATE
+                                                        )
+                                                    )
+                                                }
+                                            }
                                     }
                                     .onErrorReturn { err -> TransactionResult.err(err) }
                             }
+
                             BluetoothLEModule.Role.ROLE_SEME -> {
                                 Single.just(TransactionResult.empty())
                             }
@@ -485,7 +507,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     },
                     { conn ->
                         LOG.v("gatt client upgrade stage")
-                        when(session.role.role) {
+                        when (session.role.role) {
                             BluetoothLEModule.Role.ROLE_SEME -> {
                                 LOG.e("upgrade role SEME")
                                 conn.readUpgrade()
@@ -532,17 +554,30 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                     IllegalStateException("invalid provides ${upgradePacket.provides}")
                                                 )
                                             )
-                                        }.reduce(
+                                        }.reduce<TransactionResult<BootstrapRequest>?>(
                                             TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                         ) { first, second ->
-                                            if (first.isError || ! second.isPresent) {
+                                            if (first.isError) {
                                                 first
                                             } else {
                                                 second
                                             }
                                         }
+                                            .doOnSuccess { v -> LOG.w("seme terminating with stage ${v.stage}") }
+                                            .flatMap { v ->
+                                                if (v.isError) {
+                                                    Single.error(v.err!!)
+                                                } else {
+                                                    Single.just(
+                                                        TransactionResult.of(
+                                                            TransactionResult.STAGE_TERMINATE
+                                                        )
+                                                    )
+                                                }
+                                            }
                                     }
                             }
+
                             else -> {
                                 Single.just(TransactionResult.empty())
                             }
@@ -756,12 +791,11 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         return ongoingTransaction.updateAndGet { v ->
             when (v) {
                 null -> {
-                    val res = MaybeSubject.create<HandshakeResult>()
-                    val obs = managedGattServer.getServer()
+                    LOG.w("NEW transaction for $luid")
+                    managedGattServer.getServer()
                         .toSingle()
                         .flatMapMaybe { serverConnection ->
                             val t = state.startTransaction()
-                            connection.connect()
                             LOG.v("successfully connected to $luid, transactions: $t")
                             val s = LeDeviceSession(
                                 device,
@@ -786,10 +820,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                     )
                                 }
                                 .doFinally { sessionCounter.decrementAndGet() }
-                        }.doFinally {
-                            val t = state.stopTransaction()
-                            LOG.v("transaction completed, $t remaining")
-                            ongoingTransaction.set(null)
                         }
                         .doOnDispose {
                             val t = state.stopTransaction()
@@ -802,11 +832,18 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             e.printStackTrace()
                             //state.updateDisconnected(luid)
                         }
-                    obs.subscribe(res)
-                    res
+                        .cache()
+                        .doFinally {
+                            val t = state.stopTransaction()
+                            LOG.w("transaction completed, $t remaining")
+                            ongoingTransaction.set(null)
+                        }
                 }
 
-                else -> v
+                else -> {
+                    LOG.w("cached transaction for $luid")
+                    Maybe.empty()
+                }
             }
         }
     }
@@ -834,21 +871,25 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     session.singleServer()
 
                 ) { client, server ->
+                    LOG.v("server and client")
                     val serverResult = server(serverConnection)
                         .subscribeOn(operationsScheduler)
+                        .doOnError { err -> LOG.e("server error $err") }
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
                     val clientResult = client(clientConnection)
                         .subscribeOn(operationsScheduler)
+                        .doOnError { err -> LOG.e("client error $err") }
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
                     Single.zip(serverResult, clientResult) { s, c ->
                         s.merge(c)
                     }
-                }.flatMapMaybe { s ->
+                }.subscribeOn(operationsScheduler)
+                    .flatMapMaybe { s ->
                     s.flatMapMaybe { s -> s.subscribeOn(operationsScheduler) }
                         .subscribeOn(operationsScheduler)
-                }.subscribeOn(operationsScheduler)
+                }
                     .toSingle(TransactionResult.of(TransactionResult.STAGE_SUSPEND))
             }
             .concatMap { s -> if (s.isError) Observable.error(s.err) else Observable.just(s) }
@@ -884,11 +925,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
                 state.votingUnlock()
-              //  state.updateDisconnected(luid)
-                clientConnection.pause()
-              //  broadcastReceiverState.dispose()
-                serverConnection.unlockLuid(luid)
-                serverConnection.disconnect(device)
+               // state.updateDisconnected(luid)
+                //serverConnection.unlockLuid(luid)
+                //  broadcastReceiverState.dispose()
+                //  serverConnection.disconnect(device)
                 /*
                 val newcconnection = factory.transaction(device)
                 newcconnection.connection().connection = clientConnection.connection

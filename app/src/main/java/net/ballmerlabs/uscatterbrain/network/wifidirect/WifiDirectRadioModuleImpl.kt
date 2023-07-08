@@ -34,12 +34,18 @@ import java.net.Socket
 import java.util.Random
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Flow
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
 import javax.inject.Singleton
+
+data class GroupHandle (
+    val stream: Flowable<Pair<UUID, DisposableSocket>>,
+    val bootstrap: WifiDirectBootstrapRequest
+    )
 
 /**
  * Transport layer radio module for wifi direct. Currently this module only supports
@@ -75,8 +81,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private val connectedPeers = ConcurrentHashMap<InetSocketAddress, InetSocketAddress>()
     private val connectedAddressSet = ConcurrentHashMap<InetSocketAddress, UUID>()
-    private val createGroupCache = AtomicReference<Flowable<Pair<UUID, HandshakeResult>>?>()
-    private val bootstrapRequest = ReplaySubject.create<WifiDirectBootstrapRequest>()
+    private val createGroupCache = AtomicReference<Flowable<WifiDirectBootstrapRequest>>()
     private val altUke = BehaviorSubject.create<Pair<UUID, UpgradePacket>>()
     private val ukes = ConcurrentHashMap<UUID, UpgradePacket>()
 
@@ -385,8 +390,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         remoteLuid: UUID,
         selfLuid: UUID,
-        bootstrap: (WifiDirectBootstrapRequest) -> Completable
-    ): Flowable<Pair<UUID, DisposableSocket>> {
+    ): Flowable<WifiDirectBootstrapRequest> {
         return retryDelay(
             removeGroup()
                 .andThen(createGroupSingle(band).ignoreElement())
@@ -408,18 +412,23 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                         ).build()!!.wifiBootstrapRequest()
                     addUke(advertiser.getHashLuid(), request.toUpgrade(Random().nextInt()))
-                    bootstrapRequest.onNext(request)
                     serverSocket.accept()
                         .repeat()
-                        .mergeWith(bootstrap(request).subscribeOn(operationsScheduler))
-
+                        .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
+                        .flatMapSingle { sock ->
+                            sendConnectedIps(sock.socket, selfLuid).map { v -> Pair(v.self, sock) }
+                        }
+                        .flatMapSingle { socket -> bootstrapUkeSocket(socket.second.socket) }
+                        .flatMap { Flowable.empty<WifiDirectBootstrapRequest>() }
+                        .mergeWith(Flowable.just(request))
+                        .onErrorResumeNext(Flowable.empty())
                         .materialize()
                         .mergeWith(mBroadcastReceiver.observePeers()
                             .takeUntil { p -> p.deviceList.isNotEmpty() }
                             .ignoreElements()
                             .andThen(
                                 mBroadcastReceiver.observePeers()
-                                    .delay(300, TimeUnit.SECONDS, operationsScheduler)
+                                    .delay(100, TimeUnit.SECONDS, operationsScheduler)
                                     .takeUntil { v ->
                                         val np = isNoPeers(v)
                                         val newnp = mBroadcastReceiver.connectedDevices()
@@ -434,12 +443,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .ignoreElements()
                             .materialize()
                         )
-                        .dematerialize<DisposableSocket>()
-                        .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
-                        .onErrorResumeNext(Flowable.empty())
-                        .flatMapSingle { sock ->
-                            sendConnectedIps(sock.socket, selfLuid).map { v -> Pair(v.self, sock) }
-                        }
+                        .dematerialize<WifiDirectBootstrapRequest>()
                         .doFinally {
                             LOG.v("uke server complete")
                         }
@@ -553,7 +557,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         }
         return mtx.await().flatMap { m ->
             requestConnectionInfo().flatMap { info ->
-                if (info.isGroupOwner) {
+                if (info.isGroupOwner || mBroadcastReceiver.connectedDevices().isNotEmpty()) {
                     LOG.w("was group owner when initiating connection, removing group")
                     removeGroup().andThen(connection.toMaybe())
                 } else {
@@ -847,49 +851,31 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         remoteLuid: UUID,
         selfLuid: UUID,
-        bootstrap: (WifiDirectBootstrapRequest) -> Completable
-    ): Single<HandshakeResult> {
+    ): Single<WifiDirectBootstrapRequest> {
         return createGroupCache.updateAndGet { v ->
             when (v) {
                 null -> {
-                    val subject = PublishSubject.create<Pair<UUID, HandshakeResult>>()
-                    val obs = createGroup(band, remoteLuid, selfLuid, bootstrap)
+                    createGroup(band, remoteLuid, selfLuid)
                         .doOnError { err ->
                             LOG.e("failed to get server socket: $err")
                             firebaseWrapper.recordException(err)
-                        }
-                        .flatMapSingle { socket ->
-                            LOG.e("uke bootstrapping")
-                            bootstrapUkeSocket(socket.second.socket)
-                                .map { v -> Pair(socket.first, v) }
                         }
                         .doFinally {
                             LOG.w("uke completed")
                             createGroupCache.set(null)
                         }
-                    obs.toObservable().subscribe(subject)
-                    LOG.e("initializing cached request")
-                    subject.toFlowable(BackpressureStrategy.BUFFER)
+                       .cache()
+
                 }
 
                 else -> {
-                    LOG.e("got cached request initial")
-                    v.mergeWith(bootstrapRequest
-                        .firstOrError()
-                        .flatMapCompletable { request ->
-                        LOG.e("got cached request")
-                        bootstrap(
-                            request
-                        ).subscribeOn(operationsScheduler)
-                    })
+                    LOG.e("got cached request cached")
+                    v
                 }
 
             }
-        }!!.doOnNext { v -> LOG.e("handshake result from wifi peer ${v.first}") }
-            .filter { v -> v.first == remoteLuid }
-            .map { v -> v.second }
-            .firstOrError()
-
+        }.firstOrError()
+            .timeout(45, TimeUnit.SECONDS)
     }
 
     private fun bootstrapSemeSocket(socket: Socket): Single<HandshakeResult> {
@@ -964,58 +950,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             port,
             self
         )
-    }
-
-    /**
-     * begin data transfer using a bootstrap request from another transport module
-     *
-     * NOTE: the protocol behavior for this module is defined here
-     *
-     * @param upgradeRequest BootstrapRequest containing group name and PSK
-     * @return single returning HandshakeResult with transaction stats
-     */
-    override fun bootstrapFromUpgrade(
-        upgradeRequest: BootstrapRequest,
-        remoteLuid: UUID,
-        selfLuid: UUID,
-        bootstrap: (WifiDirectBootstrapRequest) -> Completable
-    ): Flowable<HandshakeResult> {
-        val s = Flowable.defer {
-            LOG.v(
-                "bootstrapFromUpgrade: " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
-                        + " " + upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE) + " "
-                        + upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
-            )
-            when {
-                upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
-                        == BluetoothLEModule.Role.ROLE_UKE -> {
-                    bootstrapUke(
-                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt(),
-                        remoteLuid,
-                        selfLuid,
-                        bootstrap
-                    ).toFlowable()
-                }
-
-                upgradeRequest.getSerializableExtra(WifiDirectBootstrapRequest.KEY_ROLE)
-                        == BluetoothLEModule.Role.ROLE_SEME -> {
-                    val name = upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_NAME)
-                    val passphrase =
-                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PASSPHRASE)
-                    val band =
-                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_BAND).toInt()
-                    val port =
-                        upgradeRequest.getStringExtra(WifiDirectBootstrapRequest.KEY_PORT).toInt()
-                    bootstrapSeme(name, passphrase, band, port, selfLuid)
-                }
-
-                else -> {
-                    Flowable.error(IllegalStateException("invalid role"))
-                }
-            }
-        }
-
-        return s
     }
 
     /*

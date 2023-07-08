@@ -14,6 +14,7 @@ import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.Flow
 
 /**
  * dagger2 interface for WifiDirectRadioModule
@@ -26,7 +27,7 @@ interface WifiDirectRadioModule {
     fun removeUke(uuid: UUID)
     fun getUkes(): Map<UUID, UpgradePacket>
 
-    fun bootstrapUke(band: Int, remoteLuid: UUID, selfLuid: UUID, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Single<HandshakeResult>
+    fun bootstrapUke(band: Int, remoteLuid: UUID, selfLuid: UUID): Single<WifiDirectBootstrapRequest>
     fun bootstrapSeme(name: String, passphrase: String, band: Int, port: Int, self: UUID) : Flowable<HandshakeResult>
 
     /**
@@ -45,24 +46,11 @@ interface WifiDirectRadioModule {
     fun getForceUke(): Boolean
 
     /**
-     * performs an automatic handshake with a peer specified by a WifiDirectBootstrapRequest object
-     * from another transport module.
-     * @param upgradeRequest bootstrap request generated with WifiDirectBootstrapRequest
-     * @return Single emitting handshake result with transaction stats
-     */
-    fun bootstrapFromUpgrade(
-        upgradeRequest: BootstrapRequest,
-        remoteLuid: UUID,
-        selfLuid: UUID,
-        bootstrap: (WifiDirectBootstrapRequest) -> Completable
-    ): Flowable<HandshakeResult>
-
-    /**
      * Manually creates a wifi direct group, autogenerating the username/passphrase and
      * returning them as a BootstrapRequest
      * @return WifiDirectBootstrapRequest
      */
-    fun createGroup(band: Int, remoteLuid: UUID, selfLuid: UUID, bootstrap: (WifiDirectBootstrapRequest) -> Completable): Flowable<Pair<UUID,DisposableSocket>>
+    fun createGroup(band: Int, remoteLuid: UUID, selfLuid: UUID): Flowable<WifiDirectBootstrapRequest>
 
     /**
      * Removes an existing wifi direct group if it exists

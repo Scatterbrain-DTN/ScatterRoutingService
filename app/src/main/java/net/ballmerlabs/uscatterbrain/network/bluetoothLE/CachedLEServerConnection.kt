@@ -103,9 +103,7 @@ class CachedLEServerConnection(
                         subject.toFlowable(BackpressureStrategy.BUFFER)
                             .mergeWith(Completable.fromAction {
                                 LOG.e("server setup notifications")
-                                if (luidRegisteredSubject.hasObservers()) {
-                                    luidRegisteredSubject.onNext(luid)
-                                }
+                                luidRegisteredSubject.onNext(luid)
                             })
                             .flatMap { item ->
                                 LOG.e("packet! ${item.packet.type}")
@@ -124,6 +122,7 @@ class CachedLEServerConnection(
                         .doFinally {
                             characteristic.release()
                         }
+                        .doOnDispose { characteristic.release() }
                         .subscribe(
                             { LOG.e("notification for $luid completed") },
                             { err -> LOG.e("notification for $luid error $err") }

@@ -35,6 +35,7 @@ class LeStateImpl @Inject constructor(
 ) : LeState {
     private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
     private val transactionInProgress: AtomicInteger = AtomicInteger(0)
+
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
     override val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> =
@@ -53,13 +54,13 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun votingLock(): Completable {
-        return  Completable.defer {
+        return Completable.defer {
             votingLockObs.getAndUpdate { v ->
                 when (v) {
                     null -> CompletableSubject.create()
                     else -> v
                 }
-            }?:Completable.complete()
+            } ?: Completable.complete()
         }.doOnSubscribe { LOG.w("subscribed voting lock") }
             .doFinally { LOG.w("voting lock complete") }
     }
@@ -74,10 +75,12 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun stopTransaction(): Int {
-        return transactionInProgress.updateAndGet { v -> when(v) {
-            0 -> 0
-            else -> v-1
-        } }
+        return transactionInProgress.updateAndGet { v ->
+            when (v) {
+                0 -> 0
+                else -> v - 1
+            }
+        }
     }
 
     override fun transactionLockAccquire(luid: UUID?): Boolean {
@@ -111,17 +114,16 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun updateDisconnected(luid: UUID) {
-        LOG.e("updateDisconnected $luid")
         val c = connectionCache.remove(luid)
-        transactionLock.set(null)
+        LOG.e("updateDisconnected $luid ${c?.connection()}")
         val device = c?.device()
         if (device != null) {
-            server.get()?.disconnect(device)
+            //  server.get()?.disconnect(device)
             server.get()?.getServerSync()?.disconnect(device)
             server.get()?.getServerSync()?.unlockLuid(luid)
         }
         c?.connection()?.dispose()
-
+        transactionLock.set(null)
     }
 
     override fun updateGone(luid: UUID) {
@@ -149,14 +151,10 @@ class LeStateImpl @Inject constructor(
                         .firstOrError()
                         .flatMapMaybe { raw ->
                             LOG.v("attempting to read hello characteristic")
-                            raw.readCharacteristic(BluetoothLERadioModuleImpl.UUID_HELLO)
-                                .flatMapMaybe { luid ->
-                                    val luidUuid = BluetoothLERadioModuleImpl.bytes2uuid(luid)!!
-                                    LOG.v("read remote luid from GATT $luidUuid")
-                                    cached.bluetoothLeRadioModule().initiateOutgoingConnection(
-                                        luidUuid
-                                    ).onErrorComplete()
-                                }
+                            LOG.v("read remote luid from GATT $remoteUuid")
+                            cached.bluetoothLeRadioModule().initiateOutgoingConnection(
+                                remoteUuid
+                            ).onErrorComplete()
                                 .onErrorComplete()
                         }
                 }
@@ -193,10 +191,13 @@ class LeStateImpl @Inject constructor(
                                 LOG.w("connection established, discovering services")
                                 c.discoverServices()
                                     .ignoreElement()
-                                    .andThen(c.requestMtu(512).doOnSuccess { i -> LOG.w("requested new mtu $i") })
+                                    .andThen(
+                                        c.requestMtu(512)
+                                            .doOnSuccess { i -> LOG.w("requested new mtu $i") })
                                     .ignoreElement()
                                     .toSingleDefault(c)
-                            }, 10, 1)
+                            }, 10, 1
+                    )
                         .doFinally { connectionCache.remove(luid) }
                         .doOnNext {
                             LOG.d("now connected ${device.macAddress}")
@@ -222,12 +223,14 @@ class LeStateImpl @Inject constructor(
                         })
 
                     }
-                    newconnection.connection().connection.firstOrError().ignoreElement().toSingleDefault(newconnection)
+                    newconnection.connection().connection.firstOrError().ignoreElement()
+                        .toSingleDefault(newconnection)
                 }
             }.flatMap { c -> c }
 
         return connectSingle
     }
+
     override fun refreshPeers(): Completable {
         return Completable.fromAction {
             LOG.v("refreshPeers called")
