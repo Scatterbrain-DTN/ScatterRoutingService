@@ -92,15 +92,18 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     override fun setUke(ukes: Map<UUID, UpgradePacket>) {
         this.ukes.clear()
         this.ukes.putAll(ukes)
+        advertiser.setUkes(ukes).blockingAwait()
     }
 
     override fun addUke(uuid: UUID, bootstrap: UpgradePacket) {
         altUke.onNext(Pair(uuid, bootstrap))
         ukes[uuid] = bootstrap
+        advertiser.setUkes(ukes).blockingAwait()
     }
 
     override fun removeUke(uuid: UUID) {
         ukes.remove(uuid)
+        advertiser.setUkes(ukes).blockingAwait()
     }
 
     override fun getUkes(): Map<UUID, UpgradePacket> {
@@ -315,7 +318,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         ownerPort: Int,
         self: UUID
     ): Flowable<HandshakeResult> {
-        return connectToGroup(name, passphrase, 161, band)
+        return connectToGroup(name, passphrase, 40, band)
             .subscribeOn(operationsScheduler)
             .flatMapPublisher { info ->
                 serverSocketManager.getServerSocket().flatMapPublisher { socket ->
@@ -419,7 +422,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             sendConnectedIps(sock.socket, selfLuid).map { v -> Pair(v.self, sock) }
                         }
                         .flatMapSingle { socket -> bootstrapUkeSocket(socket.second.socket) }
-                        .flatMap { Flowable.empty<WifiDirectBootstrapRequest>() }
+                        .flatMap { Flowable.never<WifiDirectBootstrapRequest>() }
                         .mergeWith(Flowable.just(request))
                         .onErrorResumeNext(Flowable.empty())
                         .materialize()

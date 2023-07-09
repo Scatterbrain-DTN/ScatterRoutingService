@@ -98,7 +98,8 @@ abstract class ScatterSerializable<T : MessageLite>(
         TYPE_ELECT_LEADER,
         TYPE_LUID,
         TYPE_DECLARE_HASHES,
-        TYPE_IP_ANNOUNCE
+        TYPE_IP_ANNOUNCE,
+        TYPE_UKE_ANNOUNCE
     }
 
     var luid: UUID? = null

@@ -1,9 +1,14 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import io.reactivex.Completable
+import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import java.util.UUID
 
 interface Advertiser {
+
+    companion object {
+        val UUID_UKES = UUID.fromString("60ADB073-E522-4EEA-9A2F-EEA59392A683")
+    }
 
     fun getRawLuid(): UUID
 
@@ -41,4 +46,6 @@ interface Advertiser {
     fun randomizeLuidIfOld(): Boolean
 
     fun removeLuid(): Completable
+
+    fun setUkes(ukes: Map<UUID, UpgradePacket>): Completable
 }

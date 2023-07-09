@@ -886,7 +886,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }
                 }.subscribeOn(operationsScheduler)
                     .flatMapMaybe { s ->
-                    s.flatMapMaybe { s -> s.subscribeOn(operationsScheduler) }
+                    s.flatMapMaybe { s -> s
+                        .subscribeOn(operationsScheduler)
+                        .flatMap {  v -> if (v.isError) Maybe.error(v.err!!) else Maybe.just(v) }
+                    }
                         .subscribeOn(operationsScheduler)
                 }
                     .toSingle(TransactionResult.of(TransactionResult.STAGE_SUSPEND))

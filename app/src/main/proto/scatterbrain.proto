@@ -115,6 +115,10 @@ message Identity {
     }
 }
 
+message JustUkes  {
+    repeated ExtraUke ukes = 1;
+}
+
 // arbitrary metadata about the network
 // used for building more complex routing algorithms someday
 message RoutingMetadata {

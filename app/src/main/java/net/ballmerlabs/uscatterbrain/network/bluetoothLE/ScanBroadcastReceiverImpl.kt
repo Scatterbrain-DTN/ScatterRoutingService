@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.ParcelUuid
 import com.akaita.java.rxjava2debug.RxJava2Debug
 import com.polidea.rxandroidble2.RxBleClient
 import io.reactivex.Maybe
@@ -11,6 +12,8 @@ import io.reactivex.Scheduler
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
 import net.ballmerlabs.uscatterbrain.getComponent
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.UUID_UKES
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import javax.inject.Inject
@@ -37,6 +40,9 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
     lateinit var scatterbrainScheduler: ScatterbrainScheduler
 
     @Inject
+    lateinit var wifiDirectRadioModule: WifiDirectRadioModule
+
+    @Inject
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION)
     lateinit var computeScheduler: Scheduler
 
@@ -44,6 +50,12 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
 
     private fun handle(context: Context, intent: Intent) {
         val result = client.backgroundScanner.onScanResultReceived(intent)
+        for (r in result) {
+            val ukes = r.scanRecord.serviceData[ParcelUuid(UUID_UKES)]
+            if (ukes != null) {
+                LOG.w("scanner found remote ukes list ${ukes.size}")
+            }
+        }
         try {
             if (result.all { r -> leState.shouldConnect(r) }) {
                 if (!state.connectLock.getAndSet(true)) {

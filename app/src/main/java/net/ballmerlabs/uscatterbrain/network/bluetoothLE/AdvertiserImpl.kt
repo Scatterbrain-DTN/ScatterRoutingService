@@ -1,17 +1,23 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import android.Manifest
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertisingSet
 import android.bluetooth.le.AdvertisingSetCallback
 import android.bluetooth.le.AdvertisingSetParameters
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.ParcelUuid
+import androidx.core.app.ActivityCompat
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.network.UkeAnnouncePacket
+import net.ballmerlabs.uscatterbrain.network.UpgradePacket
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.UUID_UKES
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
@@ -27,7 +33,7 @@ class AdvertiserImpl @Inject constructor(
     val context: Context,
     private val manager: BluetoothManager,
     private val firebase: FirebaseWrapper,
-    @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION)
+    @Named(RoutingServiceComponent.NamedSchedulers.IO)
     private val scheduler: Scheduler,
     private val state: Provider<LeState>
 ) : Advertiser {
@@ -57,6 +63,15 @@ class AdvertiserImpl @Inject constructor(
             txPower: Int,
             status: Int
         ) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.BLUETOOTH_ADVERTISE
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                advertisingSet?.setPeriodicAdvertisingEnabled(true)
+            } else {
+                LOG.w("SecurityException in advertisesetcallback")
+            }
             LOG.v("successfully started advertise $status")
             if (advertisingSet != null) {
                 isAdvertising.onNext(Pair(Optional.of(advertisingSet), status))
@@ -82,7 +97,6 @@ class AdvertiserImpl @Inject constructor(
     override fun setAdvertisingLuid(): Completable {
         val currentLuid = getHashLuid()
         return setAdvertisingLuid(currentLuid)
-            .subscribeOn(scheduler)
     }
 
     override fun setAdvertisingLuid(luid: UUID): Completable {
@@ -110,7 +124,40 @@ class AdvertiserImpl @Inject constructor(
                         startAdvertise(luid = luid)
                     }
                 }
-        }.subscribeOn(scheduler)
+        }
+    }
+
+
+   override fun setUkes(ukes: Map<UUID, UpgradePacket>): Completable {
+        return Completable.defer {
+            LOG.w("setUkes ${ukes.size}")
+            isAdvertising
+                .firstOrError()
+                .flatMapCompletable { v ->
+                    if (v.first.isPresent) {
+                        awaitAdvertiseDataUpdate()
+                            .mergeWith(Completable.fromAction {
+                                try {
+                                    LOG.w("setUkes setting advertise data ${ukes.size}")
+                                    val packet = UkeAnnouncePacket.newBuilder()
+                                        .setforceUke(ukes)
+                                        .build()
+                                    v.first.item!!.setPeriodicAdvertisingEnabled(true)
+                                    v.first.item!!.setPeriodicAdvertisingData(
+                                        AdvertiseData.Builder()
+                                            .addServiceData(ParcelUuid(UUID_UKES), packet.bytes)
+                                            .build()
+
+                                    )
+                                } catch (exc: SecurityException) {
+                                    throw exc
+                                }
+                            })
+                    } else {
+                        Completable.error(IllegalStateException("setUkes while not advertising"))
+                    }
+                }
+        }
     }
 
     private fun awaitAdvertiseDataUpdate(): Completable {
@@ -122,7 +169,7 @@ class AdvertiserImpl @Inject constructor(
                 else
                     Completable.error(IllegalStateException("failed to set advertising data"))
             }
-            .subscribeOn(scheduler)
+
     }
 
     override fun removeLuid(): Completable {
@@ -166,7 +213,6 @@ class AdvertiserImpl @Inject constructor(
             }
             mapAdvertiseComplete(false)
         }
-            .subscribeOn(scheduler)
     }
 
 
@@ -207,9 +253,10 @@ class AdvertiserImpl @Inject constructor(
                             .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
 
                         val serviceData = if (luid != null) {
-                          serviceDataBuilder.addServiceData(ParcelUuid(luid), byteArrayOf(5)).build()
+                            serviceDataBuilder.addServiceData(ParcelUuid(luid), byteArrayOf(5))
+                                .build()
                         } else {
-                          serviceDataBuilder.build()
+                            serviceDataBuilder.build()
                         }
 
                         try {
@@ -227,7 +274,7 @@ class AdvertiserImpl @Inject constructor(
                             LOG.e("failed to advertise $exc")
                         }
                         LOG.v("advertise start")
-                    }.subscribeOn(scheduler)
+                    }
                         .andThen(mapAdvertiseComplete(true))
             }
             .doOnError { err ->
