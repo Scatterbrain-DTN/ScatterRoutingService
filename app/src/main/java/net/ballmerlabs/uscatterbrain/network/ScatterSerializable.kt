@@ -4,21 +4,20 @@ import android.content.res.Resources
 import android.util.Log
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
-import com.google.protobuf.CodedInputStream
 import com.google.protobuf.MessageLite
-import io.reactivex.*
+import io.reactivex.Completable
+import io.reactivex.Flowable
 import io.reactivex.Observable
-import io.reactivex.schedulers.Schedulers
+import io.reactivex.Scheduler
+import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterProto
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.*
-import java.util.zip.CRC32
+import java.util.UUID
 
 private const val MASK = 0xFFFFFFFFL
 private const val MESSAGE_SIZE_CAP = 1024 * 1024
@@ -90,7 +89,17 @@ abstract class ScatterSerializable<T : MessageLite>(
         val packet: T
 ) {
     enum class PacketType {
-        TYPE_ACK, TYPE_BLOCKSEQUENCE, TYPE_BLOCKHEADER, TYPE_IDENTITY, TYPE_ADVERTISE, TYPE_UPGRADE, TYPE_ELECT_LEADER, TYPE_LUID, TYPE_DECLARE_HASHES
+        TYPE_ACK,
+        TYPE_BLOCKSEQUENCE,
+        TYPE_BLOCKHEADER,
+        TYPE_IDENTITY,
+        TYPE_ADVERTISE,
+        TYPE_UPGRADE,
+        TYPE_ELECT_LEADER,
+        TYPE_LUID,
+        TYPE_DECLARE_HASHES,
+        TYPE_IP_ANNOUNCE,
+        TYPE_UKE_ANNOUNCE
     }
 
     var luid: UUID? = null

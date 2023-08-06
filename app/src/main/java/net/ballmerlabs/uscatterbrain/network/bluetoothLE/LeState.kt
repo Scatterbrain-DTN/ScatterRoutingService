@@ -4,7 +4,6 @@ import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
 import io.reactivex.Maybe
-import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
@@ -13,11 +12,14 @@ import java.util.concurrent.ConcurrentHashMap
 
 interface LeState {
     val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>
-    val activeLuids: ConcurrentHashMap<UUID, Boolean>
     // a "channel" is a characteristc that protobuf messages are written to.
     val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>
 
     fun shouldConnect(res: ScanResult): Boolean
+
+    fun shouldConnect(luid: UUID): Boolean
+
+    fun activeCount(): Int
 
     fun establishConnectionCached(
         device: RxBleDevice,
@@ -26,12 +28,12 @@ interface LeState {
 
     fun getAdvertisedLuid(scanResult: ScanResult): UUID?
 
+    fun votingLock(): Completable
+
+    fun votingUnlock()
+
     fun updateGone(luid: UUID)
     fun startTransaction(): Int
-
-    fun awaitWifi(): Completable
-
-    fun setWifi(lock: Boolean)
 
     fun stopTransaction(): Int
     fun updateActive(uuid: UUID?): Boolean

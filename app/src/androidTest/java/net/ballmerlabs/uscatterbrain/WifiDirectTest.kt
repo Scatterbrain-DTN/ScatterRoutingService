@@ -25,6 +25,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -55,11 +56,8 @@ class WifiDirectTest {
         manager = ctx.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val manager = ctx.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         val channel = manager.initialize(ctx, ctx.mainLooper, null)
-        broadcastReceiver = WifiDirectBroadcastReceiverImpl(
-            manager,
-            channel,
-            scheduler
-        )
+        broadcastReceiver = WifiDirectBroadcastReceiverImpl()
+        //TODO: inject here
 
         database = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
             .fallbackToDestructiveMigration()
@@ -83,10 +81,8 @@ class WifiDirectTest {
     @Throws(TimeoutException::class)
     fun createGroupTest() {
         assert(
-            radioModule.createGroup(
-                if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-            ).timeout(20, TimeUnit.SECONDS)
-                .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
+            radioModule.createGroup(radioModule.getBand(), UUID.randomUUID(), UUID.randomUUID()).timeout(20, TimeUnit.SECONDS)
+                .blockingFirst().role == BluetoothLEModule.Role.ROLE_UKE
         )
     }
 
@@ -95,11 +91,9 @@ class WifiDirectTest {
     fun multipleCreateGroup() {
         for (x in 0..5) {
             assert(
-                radioModule.createGroup(
-                    if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-                )
+                radioModule.createGroup(radioModule.getBand(), UUID.randomUUID(), UUID.randomUUID())
                     .timeout(20, TimeUnit.SECONDS)
-                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
+                    .blockingFirst().role == BluetoothLEModule.Role.ROLE_UKE
             )
         }
     }
@@ -123,9 +117,7 @@ class WifiDirectTest {
     @Test
     @Throws(TimeoutException::class)
     fun wifiDirectIsUsableAfterCreate() {
-        val res = radioModule.createGroup(
-            if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-        ).timeout(10, TimeUnit.SECONDS).blockingGet()
+        val res = radioModule.createGroup(radioModule.getBand(), UUID.randomUUID(), UUID.randomUUID()).timeout(10, TimeUnit.SECONDS).blockingFirst()
         assert(radioModule.wifiDirectIsUsable().timeout(20, TimeUnit.SECONDS).blockingGet())
     }
 
@@ -137,11 +129,9 @@ class WifiDirectTest {
                 .timeout(10, TimeUnit.SECONDS)
                 .blockingAwait()
             assert(
-                radioModule.createGroup(
-                    if (manager.is5GHzBandSupported) FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ else FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-                )
+                radioModule.createGroup(radioModule.getBand(), UUID.randomUUID(), UUID.randomUUID())
                     .timeout(10, TimeUnit.SECONDS)
-                    .blockingGet().role == BluetoothLEModule.ConnectionRole.ROLE_UKE
+                    .blockingFirst().role == BluetoothLEModule.Role.ROLE_UKE
             )
         }
     }

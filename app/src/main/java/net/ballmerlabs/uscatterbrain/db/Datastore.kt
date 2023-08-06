@@ -31,7 +31,7 @@ class UuidTypeConverter {
         IdentityId::class,
         GlobalHash::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
     autoMigrations = []
 )

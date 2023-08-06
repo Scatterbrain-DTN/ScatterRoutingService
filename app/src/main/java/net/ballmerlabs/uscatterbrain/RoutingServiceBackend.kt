@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.net.Uri
 import io.reactivex.Completable
 import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.Identity
@@ -7,7 +8,7 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
-import java.util.*
+import java.util.UUID
 
 /**
  * Dagger2 interface for RoutingServiceBackend
@@ -38,5 +39,5 @@ interface RoutingServiceBackend {
     fun getIdentity(fingerprint: UUID): Single<Identity>
     fun refreshPeers(): Completable
 
-    fun registerReceiver()
+    fun dumpDatastore(uri: Uri): Completable
 }

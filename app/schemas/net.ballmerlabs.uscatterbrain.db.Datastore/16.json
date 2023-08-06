@@ -1,0 +1,420 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 16,
+    "identityHash": "19077d9013a73faf0344c693d4412f73",
+    "entities": [
+      {
+        "tableName": "messages",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`body` BLOB, `application` TEXT NOT NULL, `sig` BLOB, `sessionid` INTEGER NOT NULL, `extension` TEXT NOT NULL, `userFilename` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `sendDate` INTEGER NOT NULL, `receiveDate` INTEGER NOT NULL, `fileGlobalHash` BLOB NOT NULL, `fileSize` INTEGER NOT NULL DEFAULT -1, `shareCount` INTEGER NOT NULL DEFAULT 0, `packageName` TEXT NOT NULL DEFAULT '', `messageID` INTEGER PRIMARY KEY AUTOINCREMENT, FOREIGN KEY(`fileGlobalHash`) REFERENCES `globalhash`(`globalhash`) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED)",
+        "fields": [
+          {
+            "fieldPath": "body",
+            "columnName": "body",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "application",
+            "columnName": "application",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sig",
+            "columnName": "sig",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sessionid",
+            "columnName": "sessionid",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "extension",
+            "columnName": "extension",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userFilename",
+            "columnName": "userFilename",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sendDate",
+            "columnName": "sendDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receiveDate",
+            "columnName": "receiveDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileGlobalHash",
+            "columnName": "fileGlobalHash",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileSize",
+            "columnName": "fileSize",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "-1"
+          },
+          {
+            "fieldPath": "shareCount",
+            "columnName": "shareCount",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "messageID",
+            "columnName": "messageID",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "messageID"
+          ],
+          "autoGenerate": true
+        },
+        "indices": [
+          {
+            "name": "index_messages_application_extension_userFilename_mimeType_fileGlobalHash",
+            "unique": true,
+            "columnNames": [
+              "application",
+              "extension",
+              "userFilename",
+              "mimeType",
+              "fileGlobalHash"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_messages_application_extension_userFilename_mimeType_fileGlobalHash` ON `${TABLE_NAME}` (`application`, `extension`, `userFilename`, `mimeType`, `fileGlobalHash`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "globalhash",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE",
+            "columns": [
+              "fileGlobalHash"
+            ],
+            "referencedColumns": [
+              "globalhash"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "identities",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`givenname` TEXT NOT NULL, `publickey` BLOB NOT NULL, `signature` BLOB NOT NULL, `fingerprint` TEXT NOT NULL, `privatekey` BLOB, `identityID` INTEGER PRIMARY KEY AUTOINCREMENT)",
+        "fields": [
+          {
+            "fieldPath": "givenName",
+            "columnName": "givenname",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publicKey",
+            "columnName": "publickey",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signature",
+            "columnName": "signature",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fingerprint",
+            "columnName": "fingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "privatekey",
+            "columnName": "privatekey",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "identityID",
+            "columnName": "identityID",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "identityID"
+          ],
+          "autoGenerate": true
+        },
+        "indices": [
+          {
+            "name": "index_identities_fingerprint",
+            "unique": true,
+            "columnNames": [
+              "fingerprint"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_identities_fingerprint` ON `${TABLE_NAME}` (`fingerprint`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "hashes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`hash` BLOB NOT NULL, `parent` BLOB NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT, FOREIGN KEY(`parent`) REFERENCES `globalhash`(`globalhash`) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED)",
+        "fields": [
+          {
+            "fieldPath": "hash",
+            "columnName": "hash",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parent",
+            "columnName": "parent",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "id"
+          ],
+          "autoGenerate": true
+        },
+        "indices": [],
+        "foreignKeys": [
+          {
+            "table": "globalhash",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE",
+            "columns": [
+              "parent"
+            ],
+            "referencedColumns": [
+              "globalhash"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "keys",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `value` BLOB NOT NULL, `keyID` INTEGER PRIMARY KEY AUTOINCREMENT, `identityFK` INTEGER, FOREIGN KEY(`identityFK`) REFERENCES `identities`(`identityID`) ON UPDATE CASCADE ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "keyID",
+            "columnName": "keyID",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "identityFK",
+            "columnName": "identityFK",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "keyID"
+          ],
+          "autoGenerate": true
+        },
+        "indices": [],
+        "foreignKeys": [
+          {
+            "table": "identities",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE",
+            "columns": [
+              "identityFK"
+            ],
+            "referencedColumns": [
+              "identityID"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "ClientApp",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`identityFK` INTEGER, `packageName` TEXT NOT NULL, `packageSignature` TEXT, `clientAppID` INTEGER PRIMARY KEY AUTOINCREMENT)",
+        "fields": [
+          {
+            "fieldPath": "identityFK",
+            "columnName": "identityFK",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageSignature",
+            "columnName": "packageSignature",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "clientAppID",
+            "columnName": "clientAppID",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "clientAppID"
+          ],
+          "autoGenerate": true
+        },
+        "indices": [
+          {
+            "name": "index_ClientApp_packageName",
+            "unique": true,
+            "columnNames": [
+              "packageName"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_ClientApp_packageName` ON `${TABLE_NAME}` (`packageName`)"
+          },
+          {
+            "name": "index_ClientApp_packageSignature",
+            "unique": true,
+            "columnNames": [
+              "packageSignature"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_ClientApp_packageSignature` ON `${TABLE_NAME}` (`packageSignature`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "IdentityId",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `message` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "uuid"
+          ],
+          "autoGenerate": false
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "globalhash",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`globalhash` BLOB NOT NULL, `filePath` TEXT NOT NULL, `uuid` TEXT NOT NULL, PRIMARY KEY(`globalhash`))",
+        "fields": [
+          {
+            "fieldPath": "globalhash",
+            "columnName": "globalhash",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filePath",
+            "columnName": "filePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "globalhash"
+          ],
+          "autoGenerate": false
+        },
+        "indices": [
+          {
+            "name": "index_globalhash_uuid",
+            "unique": true,
+            "columnNames": [
+              "uuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_globalhash_uuid` ON `${TABLE_NAME}` (`uuid`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '19077d9013a73faf0344c693d4412f73')"
+    ]
+  }
+}

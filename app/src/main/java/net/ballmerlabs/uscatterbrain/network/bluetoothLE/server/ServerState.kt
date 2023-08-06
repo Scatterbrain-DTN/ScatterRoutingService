@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
-import java.util.*
+import java.util.UUID
 
 enum class NotificationStatus {
     NOTIFICATIONS_INDICATIONS_DISABLED, NOTIFICATIONS_ENABLED, INDICATIONS_ENABLED

@@ -7,17 +7,17 @@ import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.exceptions.BleDisconnectedException
 import io.reactivex.Completable
 import io.reactivex.Observable
-import io.reactivex.ObservableSource
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionScope
+import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.io.InputStream
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -34,33 +34,51 @@ import javax.inject.Named
  */
 @ScatterbrainTransactionScope
 class CachedLEConnection @Inject constructor(
-   @Named(RoutingServiceComponent.NamedSchedulers.IO) private val scheduler: Scheduler,
+    @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_PARSE) private val scheduler: Scheduler,
+    @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.TRANS_IO) private val ioScheduler: Scheduler,
     val device: RxBleDevice,
-    val advertiser: Advertiser
+    val advertiser: Advertiser,
+    val leState: LeState,
+    val luid: UUID
 ) : Disposable {
     private val LOG by scatterLog()
     private val disposable = CompositeDisposable()
     val connection = BehaviorSubject.create<RxBleConnection>()
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
     private val channelNotif = InputStreamObserver(8000)
+    private val notificationsSetup = CompletableSubject.create()
 
-    init {
+    fun subscribeNotifs() {
         selectChannel()
             .doOnNext { b -> LOG.e("client notif bytes ${b.size}") }
+            .doOnError { err ->
+                LOG.e("error in channel notifications $err")
+            }
+            .doFinally {
+                LOG.e("channel notifications for ${device.macAddress} completed")
+            }
             .subscribe(channelNotif)
+    }
+
+    fun awaitNotificationsSetup(): Completable {
+        return notificationsSetup
     }
 
     fun subscribeConnection(rawConnection: Observable<RxBleConnection>) {
         rawConnection.doOnSubscribe { disp ->
             disposable.add(disp)
             LOG.v("subscribed to connection subject")
+        }.onErrorResumeNext { err: Throwable ->
+            if (err is BleDisconnectedException) {
+                Observable.empty()
+            } else {
+                Observable.error(err)
+            }
         }
             .doOnError { err ->
                 LOG.e("raw connection error: $err")
             }
-            .onErrorResumeNext(onDisconnect().toObservable())
             .doOnComplete { LOG.e("raw connection completed") }
-            .concatWith(Observable.error(IllegalStateException("client connection completed")))
             .subscribe(connection)
     }
 
@@ -90,16 +108,18 @@ class CachedLEConnection @Inject constructor(
                         c.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
                             .flatMap { obs ->
                                 LOG.e("client notifications setup")
-                                obs.delay(0, TimeUnit.SECONDS,  scheduler)
+                                obs
                                     .mergeWith(
-                                        c.writeCharacteristic(
-                                            uuid,
-                                            BluetoothLERadioModuleImpl.uuid2bytes(
-                                                getHashUuid(
-                                                    advertiser.myLuid.get()
-                                                )
-                                            )!!
-                                        ).ignoreElement().onErrorComplete()
+                                        Completable.timer(1, TimeUnit.SECONDS, ioScheduler).andThen(
+                                            c.writeCharacteristic(
+                                                uuid,
+                                                BluetoothLERadioModuleImpl.uuid2bytes(
+                                                    advertiser.getHashLuid()
+                                                )!!
+                                            ).ignoreElement()
+                                        ).andThen(Completable.fromAction {
+                                            notificationsSetup.onComplete()
+                                        })
                                     )
                             }
                     }
@@ -118,8 +138,10 @@ class CachedLEConnection @Inject constructor(
         return ScatterSerializable.parseWrapperFromCRC(
             parser,
             channelNotif,
-            scheduler
-        ).timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
+            ioScheduler
+        ).timeout(25, TimeUnit.SECONDS, ioScheduler)
+            .doOnError { err -> LOG.w("failed to receive packet for $luid $err") }
+            .doOnSuccess { p -> LOG.e("parsed packet len ${p.bytes.size}") }
     }
 
     /**

@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
 import android.bluetooth.*
-import android.content.Context
 import android.util.Pair
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleClient
@@ -11,22 +10,19 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.Function
-import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.GattServerConnectionScope
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Companion.CLIENT_CONFIG
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.LongWriteClosableOutput
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Output
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.GattServerTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
-import java.util.concurrent.Callable
-import java.util.concurrent.Flow
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
@@ -44,7 +40,7 @@ class GattServerConnectionImpl @Inject constructor(
 ) : GattServerConnection {
     private val Log by scatterLog()
     private val compositeDisposable = CompositeDisposable()
-    private val currentMtu = AtomicInteger(20)
+    private val currentMtu = AtomicReference<Int?>(null)
     private var onDisconnect: (device: RxBleDevice) -> Unit = {}
 
     private val deviceOnDisconnect = mutableMapOf<RxBleDevice, () -> Unit>()
@@ -60,7 +56,7 @@ class GattServerConnectionImpl @Inject constructor(
     private val events = Output<ServerResponseTransaction>()
     private val connectionStatePublishRelay =
         PublishRelay.create<Pair<RxBleDevice, RxBleConnectionState>>()
-    private val notificationPublishRelay = Output<Int>()
+    private val notificationPublishRelay = Output<Pair<String, Int>>()
     private val changedMtuOutput = Output<Int>()
 
     private fun registerService(service: BluetoothGattService): Completable {
@@ -91,7 +87,6 @@ class GattServerConnectionImpl @Inject constructor(
     override val gattServerCallback = object : BluetoothGattServerCallback() {
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             super.onConnectionStateChange(device, status, newState)
-            Log.d("gatt server onConnectionStateChange: " + device.address + " " + status + " " + newState)
             val rxdevice = client.getBleDevice(device.address)
             connectionStatePublishRelay.accept(
                 Pair(
@@ -99,7 +94,6 @@ class GattServerConnectionImpl @Inject constructor(
                 )
             )
             if (newState == BluetoothProfile.STATE_DISCONNECTED || newState == BluetoothProfile.STATE_DISCONNECTING) {
-                Log.e("gatt server onDisconnect ${rxdevice.macAddress}")
                 onDisconnect(rxdevice)
                 deviceOnDisconnect[rxdevice]?.invoke()
                 deviceOnDisconnect.remove(rxdevice)
@@ -120,7 +114,6 @@ class GattServerConnectionImpl @Inject constructor(
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
             val rxBleDevice: RxBleDevice = client.getBleDevice(device.address)
             if (events.hasObservers()) {
-
                 val transaction = serverTransactionFactory.prepareCharacteristicTransaction(
                     null,
                     requestId,
@@ -322,7 +315,7 @@ class GattServerConnectionImpl @Inject constructor(
             if (getNotificationPublishRelay().valueRelay.hasObservers()) {
                 Log.v("onNotificationSent: " + device.address + " " + status)
                 getNotificationPublishRelay().valueRelay.onNext(
-                    status
+                    Pair(device.address, status)
                 )
             }
         }
@@ -330,7 +323,15 @@ class GattServerConnectionImpl @Inject constructor(
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
             super.onMtuChanged(device, mtu)
             Log.e("mtu changed: $mtu")
-            currentMtu.set(mtu)
+            currentMtu.accumulateAndGet(mtu) { old, new ->
+                if (old == null) {
+                    new?:20
+                } else if (new != null && new > old) {
+                    old
+                } else {
+                    new
+                }
+            }
             if (getChangedMtuOutput().valueRelay.hasObservers()) {
                 getChangedMtuOutput().valueRelay.onNext(mtu)
             }
@@ -376,7 +377,7 @@ class GattServerConnectionImpl @Inject constructor(
         }
     }
 
-    override fun getNotificationPublishRelay(): Output<Int> {
+    override fun getNotificationPublishRelay(): Output<Pair<String, Int>> {
         return notificationPublishRelay
     }
 
@@ -453,7 +454,12 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun getMtu(): Int {
-        return currentMtu.get()
+        return 20
+        return currentMtu.get()?:20
+    }
+
+    override fun resetMtu() {
+        currentMtu.set(null)
     }
 
     override fun resetDescriptorMap() {
@@ -478,7 +484,8 @@ class GattServerConnectionImpl @Inject constructor(
     private fun setupNotificationsDelay(
         clientconfig: BluetoothGattDescriptor,
         characteristic: BluetoothGattCharacteristic,
-        isIndication: Boolean
+        isIndication: Boolean,
+        mac: String
     ): Completable {
         return Single.fromCallable {
             if (isIndication && serverState.getIndications(characteristic.uuid)) {
@@ -489,6 +496,7 @@ class GattServerConnectionImpl @Inject constructor(
                 Completable.complete()
             } else {
                 withDisconnectionHandling(events)
+                    .filter { v -> v.remoteDevice.macAddress == mac}
                     .filter { e -> e.operation == GattServerConnection.Operation.DESCRIPTOR_WRITE }
                     .filter { transaction ->
                         (transaction.uuid.compareTo(clientconfig.uuid) == 0
@@ -529,13 +537,15 @@ class GattServerConnectionImpl @Inject constructor(
                 ?: return@defer Flowable.error(IllegalStateException("notification failed"))
             notifications
                 .delay<ByteArray> {
-                    setupNotificationsDelay(clientconfig, characteristic, isIndication)
+                    setupNotificationsDelay(clientconfig, characteristic, isIndication, device.macAddress)
                         .toFlowable()
                 }
-                .concatMapSingle { bytes ->
+                .serialize()
+                .observeOn(serverScheduler)
+                .flatMapSingle { bytes ->
                     Log.v("processing bytes length: " + bytes.size)
                     try {
-                        getOnNotification()
+                        getOnNotification(device.macAddress)
                             .mergeWith(Completable.fromAction {
                                 characteristic.value = bytes
                                 val res = gattServer.get().notifyCharacteristicChanged(
@@ -546,7 +556,7 @@ class GattServerConnectionImpl @Inject constructor(
                                 if (!res) {
                                     throw IllegalStateException("notifyCharacteristicChanged returned false")
                                 }
-                            }.subscribeOn(serverScheduler))
+                            })
                             .firstOrError()
                             .flatMapCompletable { integer ->
                                 Log.v("notification result: $integer")
@@ -576,6 +586,7 @@ class GattServerConnectionImpl @Inject constructor(
 
     override fun getOnMtuChanged(): Observable<Int> {
         return withDisconnectionHandling(getChangedMtuOutput())
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun observeDisconnect(): Observable<RxBleDevice> {
@@ -591,11 +602,14 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun getEvents(): Observable<ServerResponseTransaction> {
-        return withDisconnectionHandling(events)
+        return withDisconnectionHandling(events).delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
-    override fun getOnNotification(): Observable<Int> {
-        return notificationPublishRelay.valueRelay
+    override fun getOnNotification(mac: String): Observable<Int> {
+        return withDisconnectionHandling(notificationPublishRelay)
+            .filter { p -> p.first == mac }
+            .map { p -> p.second }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun disconnect(device: RxBleDevice): Completable {

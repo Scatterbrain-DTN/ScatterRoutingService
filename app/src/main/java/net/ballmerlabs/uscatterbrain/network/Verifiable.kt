@@ -1,6 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network
 
-import java.util.*
+import java.util.UUID
 
 /**
  * Fields for an ed25519 verifiable Scatterbrain message. Used

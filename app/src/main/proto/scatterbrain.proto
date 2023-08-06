@@ -65,16 +65,33 @@ message Luid {
     }
 }
 
+message ExtraUke {
+    UUID luid = 1;
+    Upgrade upgrade = 2;
+}
+
+
+enum Role {
+    UKE = 0;
+    SEME = 1;
+    SUPERSEME = 2;
+}
+
 message ElectLeader {
     message Body {
         bytes salt = 1;
         uint32 provides = 2;
         UUID tiebreaker_val = 3;
+        repeated ExtraUke force_luid = 4;
+        repeated UUID remove_luid = 5;
+        int32 band = 6;
+        Role role = 7;
     }
     oneof val {
         Body val_body = 1;
         bytes val_hash = 2;
     }
+    UUID sender = 3;
 }
 
 // used to request switching to a different physical transport
@@ -98,10 +115,28 @@ message Identity {
     }
 }
 
+message JustUkes  {
+    repeated ExtraUke ukes = 1;
+    bool too_small = 2;
+}
+
 // arbitrary metadata about the network
 // used for building more complex routing algorithms someday
 message RoutingMetadata {
     UUID id = 1;
     bool endofstream = 2;
     map<string, bytes> keyval = 3;
+}
+
+
+message IpAnnounceItem {
+    UUID id = 1;
+    string address = 2;
+    uint32 port = 3;
+    bool uke = 4;
+}
+
+message IpAnnounce {
+    UUID self = 1;
+    repeated IpAnnounceItem items = 2;
 }

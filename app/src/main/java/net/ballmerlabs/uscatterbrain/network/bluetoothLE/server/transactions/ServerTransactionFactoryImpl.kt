@@ -5,7 +5,7 @@ import com.polidea.rxandroidble2.RxBleDevice
 import net.ballmerlabs.uscatterbrain.GattServerConnectionScope
 import net.ballmerlabs.uscatterbrain.ServerTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
-import java.util.*
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Provider
 

@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.db.entities
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -19,6 +20,12 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE,
             onUpdate = ForeignKey.CASCADE,
             deferred = true
+        )
+    ],
+    indices = [
+        Index(
+            value = ["hash", "parent"],
+            unique = true
         )
     ]
 )

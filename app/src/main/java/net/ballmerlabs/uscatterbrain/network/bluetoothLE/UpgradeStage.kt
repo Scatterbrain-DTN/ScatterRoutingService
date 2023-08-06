@@ -1,7 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
-import java.util.*
+import java.util.Random
 
 /**
  * Manages state for the FSM to generate a BootstrapRequest or

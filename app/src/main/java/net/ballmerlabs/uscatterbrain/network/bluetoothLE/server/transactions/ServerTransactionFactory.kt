@@ -3,7 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions
 import android.bluetooth.BluetoothGattCharacteristic
 import com.polidea.rxandroidble2.RxBleDevice
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
-import java.util.*
+import java.util.UUID
 
 interface ServerTransactionFactory {
     fun prepareCharacteristicTransaction(

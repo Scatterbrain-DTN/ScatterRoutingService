@@ -12,7 +12,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLEConnection
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
+import java.util.UUID
 import javax.inject.Named
 
 @ScatterbrainTransactionScope
@@ -20,14 +20,19 @@ import javax.inject.Named
 interface ScatterbrainTransactionSubcomponent {
 
     object NamedSchedulers {
-        const val WIFI_READ = "wifi-read"
-        const val WIFI_WRITE = "wifi-write"
+
+        const val BLE_READ = "ble-read"
+        const val BLE_WRITE = "ble-write"
+        const val TRANS_IO = "trans-io"
+        const val BLE_PARSE = "ble-parse"
     }
 
     @Subcomponent.Builder
     interface Builder {
         @BindsInstance
         fun device(device: RxBleDevice): Builder
+        @BindsInstance
+        fun luid(luid: UUID): Builder
         fun build(): ScatterbrainTransactionSubcomponent?
     }
 
@@ -35,36 +40,50 @@ interface ScatterbrainTransactionSubcomponent {
     abstract class ScatterbrainTransactionModule {
         @Binds
         @ScatterbrainTransactionScope
-        abstract fun bindWifiDirectRadioModule(impl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
-
-        @Binds
-        @ScatterbrainTransactionScope
         abstract fun bindRadioModuleInternal(impl: BluetoothLERadioModuleImpl): BluetoothLEModule
 
         @Module
         companion object {
+
+
             @Provides
             @JvmStatic
             @ScatterbrainTransactionScope
-            @Named(NamedSchedulers.WIFI_READ)
-            fun providesWifiReadScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.WIFI_READ))
+            @Named(NamedSchedulers.BLE_READ)
+            fun providesBleReadScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BLE_READ))
             }
+
             @Provides
             @JvmStatic
             @ScatterbrainTransactionScope
-            @Named(NamedSchedulers.WIFI_WRITE)
-            fun providesWifiWriteScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.WIFI_WRITE))
+            @Named(NamedSchedulers.BLE_PARSE)
+            fun providesBleParseScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BLE_PARSE))
+            }
+
+            @Provides
+            @JvmStatic
+            @ScatterbrainTransactionScope
+            @Named(NamedSchedulers.BLE_WRITE)
+            fun providesBleWriteScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BLE_WRITE))
+            }
+
+            @Provides
+            @JvmStatic
+            @ScatterbrainTransactionScope
+            @Named(NamedSchedulers.TRANS_IO)
+            fun providesTransIoScheduler(): Scheduler {
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(NamedSchedulers.TRANS_IO))
             }
 
         }
     }
 
-
-    fun wifiDirectRadioModule(): WifiDirectRadioModule
     fun bluetoothLeRadioModule(): BluetoothLEModule
 
+    fun wifiDirectRadioModule(): WifiDirectRadioModule
     fun connection(): CachedLEConnection
 
 

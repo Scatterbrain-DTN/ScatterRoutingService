@@ -8,6 +8,8 @@ interface ScatterbrainScheduler {
     fun stop(): Boolean
     fun pauseScan()
     fun unpauseScan()
+    fun acquireWakelock()
+    fun releaseWakeLock()
     val isDiscovering: Boolean
     val isPassive: Boolean
 }

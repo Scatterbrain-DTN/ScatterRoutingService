@@ -1,12 +1,16 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import io.reactivex.Completable
-import java.util.*
-import java.util.concurrent.atomic.AtomicReference
+import net.ballmerlabs.uscatterbrain.network.UpgradePacket
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 interface Advertiser {
+    val ukes: ConcurrentHashMap<UUID, UpgradePacket>
 
-    val myLuid: AtomicReference<UUID>
+    fun getRawLuid(): UUID
+
+    fun getHashLuid(): UUID
 
     /**
      * Stats LE advertise on scatterbrain UUID
@@ -25,12 +29,14 @@ interface Advertiser {
      */
     fun setAdvertisingLuid(): Completable
 
+    fun clear(boolean: Boolean)
+
     /**
      * Changes the luid value sent in the scan response data
      * @param luid
      * @return completable
      */
-    fun setAdvertisingLuid(luid: UUID): Completable
+    fun setAdvertisingLuid(luid: UUID = getHashLuid(), ukes: Map<UUID, UpgradePacket> = mapOf()): Completable
 
 
     /**
@@ -40,4 +46,8 @@ interface Advertiser {
     fun randomizeLuidIfOld(): Boolean
 
     fun removeLuid(): Completable
+    companion object {
+        val CLEAR_DATA = UUID.fromString("00005BC5-0000-1000-8000-00805F9B34FB")
+        val LUID_DATA = UUID.fromString("0000FC87-0000-1000-8000-00805F9B34FB")
+    }
 }

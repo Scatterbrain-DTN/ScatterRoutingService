@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.Signature
+import android.net.Uri
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.RemoteException
 import com.goterl.lazysodium.interfaces.Sign
@@ -13,6 +14,7 @@ import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import io.reactivex.Completable
 import io.reactivex.Observable
+import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import io.reactivex.plugins.RxJavaPlugins
@@ -26,15 +28,16 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeStateImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import java.io.File
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 /**
@@ -49,7 +52,9 @@ class RoutingServiceBackendImpl @Inject constructor(
     override val leState: LeState,
     val transactionBuilder: ScatterbrainTransactionFactory,
     val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
-    val context: Context
+    val datastoreFile: File,
+    val context: Context,
+    @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) val ioScheduler: Scheduler
 ) : RoutingServiceBackend {
     private val LOG by scatterLog()
     private val protocolDisposableSet =
@@ -59,9 +64,19 @@ class RoutingServiceBackendImpl @Inject constructor(
         LOG.e("initializing backend")
         RxJavaPlugins.setErrorHandler { e: Throwable ->
             LOG.e("received an unhandled exception: $e")
-            e.printStackTrace()
         }
         // RxBleLOG.setLogLevel(RxBleLOG.VERBOSE)
+    }
+
+    override fun dumpDatastore(uri: Uri): Completable {
+        return Completable.fromAction {
+            val f = datastoreFile.inputStream()
+            val out = context.contentResolver.openOutputStream(uri)
+            if (out != null) {
+                f.copyTo(out)
+                out.close()
+            }
+        }.subscribeOn(ioScheduler)
     }
 
     /**
@@ -74,7 +89,6 @@ class RoutingServiceBackendImpl @Inject constructor(
      *
      */
     @SuppressLint("PackageManagerGetSignatures")
-    @Synchronized
     @Throws(RemoteException::class)
     private fun verifyCallingSig(acl: ACL, callingPackageName: String): Completable {
         return Completable.fromAction {
@@ -113,26 +127,6 @@ class RoutingServiceBackendImpl @Inject constructor(
             } catch (e: PackageManager.NameNotFoundException) {
                 throw RemoteException("invalid package name")
             }
-        }
-    }
-
-    override fun registerReceiver() {
-        try {
-            LOG.v("registering broadcast receiver")
-            val intentFilter = IntentFilter()
-            intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
-
-            // Indicates a change in the list of available peers.
-            intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
-
-            // Indicates the state of Wi-Fi P2P connectivity has changed.
-            intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
-
-            // Indicates this device's details have changed.
-            intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
-            context.registerReceiver(wifiDirectBroadcastReceiver.asReceiver(), intentFilter)
-        } catch (exc: Exception) {
-            LOG.e("failed to register receiver, ignoring $exc")
         }
     }
 

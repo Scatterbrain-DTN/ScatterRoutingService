@@ -13,15 +13,14 @@ import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.SingleSubject
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.GattServerTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction
-import java.util.*
+import java.util.UUID
 
 interface GattServerConnection: Disposable {
 
     val gattServerCallback: BluetoothGattServerCallback
 
-    fun getNotificationPublishRelay(): Output<Int>
+    fun getNotificationPublishRelay(): Output<Pair<String, Int>>
 
     fun getChangedMtuOutput(): Output<Int>
 
@@ -37,7 +36,7 @@ interface GattServerConnection: Disposable {
 
     fun resetCharacteristicMap()
 
-    fun getOnNotification(): Observable<Int>
+    fun getOnNotification(mac: String): Observable<Int>
     
     fun getOnConnectionStateChange(): Observable<Pair<RxBleDevice, RxBleConnectionState>>
 
@@ -75,6 +74,8 @@ interface GattServerConnection: Disposable {
 
     fun getMtu(): Int
     fun setOnDisconnect(device: RxBleDevice, func: () -> Unit)
+
+    fun resetMtu()
 
     open class Output<T> {
         open val valueRelay: PublishSubject<T> = PublishSubject.create()

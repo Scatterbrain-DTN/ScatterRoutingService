@@ -195,12 +195,12 @@ class ProtocolTests {
         Random().nextBytes(hash)
 
 
-        val electLeaderPacket = ElectLeaderPacket.newBuilder()
+        val electLeaderPacket = ElectLeaderPacket.newBuilder(UUID.randomUUID())
                 .setProvides(provides)
                 .setTiebreaker(tiebreaker)
                 .build()
 
-        val hashedPacket = ElectLeaderPacket.newBuilder()
+        val hashedPacket = ElectLeaderPacket.newBuilder(UUID.randomUUID())
                 .setProvides(provides)
                 .setTiebreaker(tiebreaker)
                 .enableHashing()

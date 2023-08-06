@@ -7,7 +7,7 @@ import net.ballmerlabs.uscatterbrain.ScatterProto.Luid.hashed
 import net.ballmerlabs.uscatterbrain.db.hashAsUUID
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.UUID
 
 fun getHashUuid(uuid: UUID?): UUID? {
     return if(uuid == null)

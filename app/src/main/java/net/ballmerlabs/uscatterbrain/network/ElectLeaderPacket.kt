@@ -2,9 +2,11 @@ package net.ballmerlabs.uscatterbrain.network
 
 import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.GenericHash
+import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.ElectLeader
+import net.ballmerlabs.uscatterbrain.ScatterProto.Role
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.UUID
 
 /**
  * wrapper class for ElectLeader protobuf message
@@ -27,12 +29,12 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             buffer.putInt(packet.valBody.provides)
             bytes.concat(ByteString.copyFrom(buffer.array()))
             LibsodiumInterface.sodium.crypto_generichash(
-                    hashbytes,
-                    hashbytes.size,
-                    bytes.toByteArray(),
-                    bytes.toByteArray().size.toLong(),
-                    null,
-                    0
+                hashbytes,
+                hashbytes.size,
+                bytes.toByteArray(),
+                bytes.toByteArray().size.toLong(),
+                null,
+                0
             )
             hashbytes
         }
@@ -43,10 +45,12 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             remote.isHashed == isHashed -> {
                 false
             }
+
             isHashed -> {
                 val hash = remote.hashFromPacket()
                 hash.contentEquals(hash)
             }
+
             else -> {
                 val hash = hashFromPacket()
                 hash.contentEquals(remote.hash)
@@ -54,15 +58,20 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
         }
     }
 
+    val from: UUID
+        get() = protoUUIDtoUUID(packet.sender)
     val tieBreak: UUID
         get() = UUID(
-                packet.valBody.tiebreakerVal.upper,
-                packet.valBody.tiebreakerVal.lower
+            packet.valBody.tiebreakerVal.upper,
+            packet.valBody.tiebreakerVal.lower
         )
-    
+
     val provides: AdvertisePacket.Provides
         get() = AdvertisePacket.valToProvides(packet.valBody.provides)
-    
+
+    val role: Role
+        get() = packet.valBody.role
+
     override val type: PacketType
         get() = PacketType.TYPE_ELECT_LEADER
 
@@ -72,14 +81,27 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
     val hash: ByteArray
         get() = packet.valHash.toByteArray()
 
+    val force: Map<UUID, UpgradePacket>
+        get() = packet.valBody.forceLuidList.fold(HashMap()) { map, v ->
+            map[protoUUIDtoUUID(v.luid)] = UpgradePacket(v.upgrade)
+            map
+        }
+
+
+    val remove: List<UUID>
+        get() = packet.valBody.removeLuidList.map { v -> protoUUIDtoUUID(v) }
+
     data class Builder(
-            var enableHashing: Boolean = false,
-            var hashVal: ByteString? = null,
-            var provides: AdvertisePacket.Provides? = null,
-            var tiebreaker: UUID? = null,
+        val sender: UUID,
+        var role: Role = Role.UNRECOGNIZED,
+        var enableHashing: Boolean = false,
+        var hashVal: ByteString? = null,
+        var provides: AdvertisePacket.Provides? = null,
+        var tiebreaker: UUID? = null,
+        var forceUke: MutableMap<UUID, UpgradePacket> = mutableMapOf(),
+        var remove: MutableList<UUID> = mutableListOf()
     ) {
         private val salt: ByteArray = ByteArray(GenericHash.BYTES)
-
 
 
         private fun hashFromBuilder(): ByteString {
@@ -91,21 +113,26 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             buffer.putInt(provides!!.`val`)
             bytes.concat(ByteString.copyFrom(buffer.array()))
             LibsodiumInterface.sodium.crypto_generichash(
-                    hashbytes,
-                    hashbytes.size,
-                    bytes.toByteArray(),
-                    bytes.toByteArray().size.toLong(),
-                    null,
-                    0
+                hashbytes,
+                hashbytes.size,
+                bytes.toByteArray(),
+                bytes.toByteArray().size.toLong(),
+                null,
+                0
             )
             return ByteString.copyFrom(hashbytes)
         }
+
         fun enableHashing() = apply {
             enableHashing = true
         }
 
         fun setProvides(provides: AdvertisePacket.Provides) = apply {
             this.provides = provides
+        }
+
+        fun setRole(role: Role) = apply {
+            this.role = role
         }
 
         fun setTiebreaker(tiebreaker: UUID) = apply {
@@ -116,21 +143,37 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             this.hashVal = hash
         }
 
+        fun setRemove(remove: List<UUID>) = apply {
+            this.remove.addAll(remove)
+        }
+
+        fun setforceUke(force: Map<UUID, UpgradePacket>) = apply {
+            this.forceUke.putAll(force)
+        }
+
         fun build(): ElectLeaderPacket {
             require((!(provides == null || tiebreaker == null)) || hashVal != null) { "both tiebreaker and provides must be set" }
             return if (enableHashing) {
                 ElectLeaderPacket(ElectLeader.newBuilder().setValHash(hashFromBuilder()).build())
             } else {
+                val builder = ElectLeader.Body.newBuilder()
+                .setSalt(ByteString.copyFrom(salt))
+                    .setProvides(providesToVal(provides!!))
+                    .setTiebreakerVal(protoUUIDfromUUID(tiebreaker!!))
+                    .setRole(this.role)
+                    .addAllRemoveLuid(this.remove.map { v -> protoUUIDfromUUID(v) })
+                    .addAllForceLuid(forceUke.map { v -> ScatterProto.ExtraUke.newBuilder()
+                        .setLuid(protoUUIDfromUUID(v.key))
+                        .setUpgrade(v.value.packet).build()
+                    })
                 ElectLeaderPacket(
-                        ElectLeader.newBuilder()
-                                .setValBody(
-                                        ElectLeader.Body.newBuilder()
-                                                .setSalt(ByteString.copyFrom(salt))
-                                                .setProvides(providesToVal(provides!!))
-                                                .setTiebreakerVal(protoUUIDfromUUID(tiebreaker!!))
-                                                .build()
-                                )
+                    ElectLeader.newBuilder()
+                        .setSender(protoUUIDfromUUID(sender))
+                        .setValBody(
+                            builder
                                 .build()
+                        )
+                        .build()
                 )
             }
         }
@@ -144,10 +187,13 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             return uuidBuffer.array()
         }
 
-        fun newBuilder(): Builder {
-            return Builder()
+        fun newBuilder(sender: UUID): Builder {
+            return Builder(sender)
         }
-        class Parser : ScatterSerializable.Companion.Parser<ElectLeader, ElectLeaderPacket>(ElectLeader.parser())
+
+        class Parser :
+            ScatterSerializable.Companion.Parser<ElectLeader, ElectLeaderPacket>(ElectLeader.parser())
+
         fun parser(): Parser {
             return Parser()
         }

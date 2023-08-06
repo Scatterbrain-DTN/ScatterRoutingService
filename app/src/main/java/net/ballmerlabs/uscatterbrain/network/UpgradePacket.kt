@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network
 
 import net.ballmerlabs.uscatterbrain.ScatterProto.Upgrade
-import java.util.*
 
 /**
  * Wrapper class for protocol buffer upgrade message

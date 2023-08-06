@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.NetworkInfo
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pInfo
@@ -14,7 +15,9 @@ import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver.P2pState
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -25,27 +28,44 @@ import javax.inject.Singleton
  * this class converts broadcasts into observables
  */
 @Singleton
-class WifiDirectBroadcastReceiverImpl @Inject constructor(
-        private val manager: WifiP2pManager,
-        private val channel: Channel,
-        @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationScheduler: Scheduler
-) : BroadcastReceiver(), WifiDirectBroadcastReceiver {
-    
+class WifiDirectBroadcastReceiverImpl @Inject constructor() : BroadcastReceiver(), WifiDirectBroadcastReceiver {
+
+    @Inject
+    lateinit var manager: WifiP2pManager
+    @Inject
+    lateinit var channel: Channel
+
     private val LOG by scatterLog()
 
-    private val thisDeviceChangedSubject = BehaviorSubject.create<WifiP2pDevice>().toSerialized()
-    private val connectionSubject = BehaviorSubject.create<WifiP2pInfo>().toSerialized()
-    private val deviceListSubject = BehaviorSubject.create<WifiP2pDeviceList>().toSerialized()
-    private val p2pStateSubject = BehaviorSubject.create<P2pState>().toSerialized()
-    private val mListener = PeerListListener { value: WifiP2pDeviceList -> deviceListSubject.onNext(value) }
-    private val mConnectionInfoListener = ConnectionInfoListener { value ->
-        connectionSubject.onNext(value)
-        LOG.v("retrieved WifiP2pInfo: ${value.groupFormed} ${value.isGroupOwner}")
+    private val thisDeviceChangedSubject = BehaviorSubject.create<WifiP2pDevice>()
+    private val connectionSubject = BehaviorSubject.create<WifiP2pInfo>()
+    private val deviceListSubject = BehaviorSubject.create<WifiP2pDeviceList>()
+    private val p2pStateSubject = BehaviorSubject.create<P2pState>()
+    private val onDisconnects = ConcurrentHashMap<WifiP2pDevice, ()-> Unit>()
+    private val mListener = PeerListListener { value ->
+        peerList.set(value.deviceList)
+        LOG.e("peersListener fired: ${peerList.get().size}")
+        deviceListSubject.onNext(value)
+        value.deviceList.forEach { dev ->
+           val onDisconnect = onDisconnects.remove(dev)
+            if (onDisconnect != null) {
+                onDisconnect()
+            }
+        }
+    }
+    private val peerList = AtomicReference<Collection<WifiP2pDevice>>(setOf())
+
+
+    override fun setOnDisconnect(device: WifiP2pDevice, onDisconnect: () -> Unit) {
+        onDisconnects[device] = onDisconnect
     }
 
+    override fun connectedDevices(): Collection<WifiP2pDevice> {
+        return peerList.get()
+    }
     private fun p2pStateChangedAction(intent: Intent) {
         LOG.v("WIFI_P2P_STATE_CHANGED_ACTION")
-        // Determine if Wifi P2P mode is enabled
+        // Determine if Wifi P2P mode is enabledL
         val state = intent.getIntExtra(EXTRA_WIFI_STATE, -1)
         if (state == WIFI_P2P_STATE_ENABLED) {
             p2pStateSubject.onNext(P2pState.STATE_ENABLED)
@@ -57,13 +77,22 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
     private fun peersChangedAction(context: Context) {
         // The peer list has changed!
         LOG.v("WIFI_P2P_PEERS_CHANGED_ACTION")
-        manager.requestPeers(channel, mListener)
+        try {
+            manager.requestPeers(channel, mListener)
+        } catch (exc: SecurityException) {
+            LOG.e("securityException $exc")
+        }
     }
 
-    private fun connectionChangedAction() {
+    private fun connectionChangedAction(intent: Intent) {
         // Connection state changed!
         LOG.v("WIFI_P2P_CONNECTION_CHANGED_ACTION")
-        manager.requestConnectionInfo(channel, mConnectionInfoListener)
+        val info = intent.getParcelableExtra<WifiP2pInfo>(EXTRA_WIFI_P2P_INFO)
+        val network = intent.getParcelableExtra<NetworkInfo>(EXTRA_NETWORK_INFO)
+        LOG.v( "wifi connected? ${network?.isConnected}")
+        if (info != null) {
+            connectionSubject.onNext(info)
+        }
     }
 
     private fun thisDeviceChangedAction(intent: Intent) {
@@ -80,28 +109,28 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor(
         when(val action = intent.action) {
             WIFI_P2P_STATE_CHANGED_ACTION -> p2pStateChangedAction(intent)
             WIFI_P2P_PEERS_CHANGED_ACTION -> peersChangedAction(context)
-            WIFI_P2P_CONNECTION_CHANGED_ACTION -> connectionChangedAction()
+            WIFI_P2P_CONNECTION_CHANGED_ACTION -> connectionChangedAction(intent)
             WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> thisDeviceChangedAction(intent)
             else -> LOG.v("unhandled wifi p2p action $action")
         }
     }
 
     override fun observeP2pState(): Observable<P2pState> {
-        return p2pStateSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
+        return p2pStateSubject
     }
 
     override fun observeThisDevice(): Observable<WifiP2pDevice> {
-        return thisDeviceChangedSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
+        return thisDeviceChangedSubject
     }
 
     override fun observeConnectionInfo(): Observable<WifiDirectInfo> {
         return connectionSubject.
                 map { i -> wifiDirectInfo(i) }
-                .delay(0, TimeUnit.SECONDS, operationScheduler)
+
     }
 
     override fun observePeers(): Observable<WifiP2pDeviceList> {
-        return deviceListSubject.delay(0, TimeUnit.SECONDS, operationScheduler)
+        return deviceListSubject
     }
 
     override fun asReceiver(): BroadcastReceiver {

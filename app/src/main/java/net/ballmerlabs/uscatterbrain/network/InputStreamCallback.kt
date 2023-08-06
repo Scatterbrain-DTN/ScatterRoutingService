@@ -18,11 +18,9 @@ import kotlin.concurrent.withLock
 abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
     protected var throwable: Throwable? = null
     protected var closed = false
-    protected var disposable: Disposable? = null
     private val buf = CircularBuffer(ByteBuffer.allocate(BUF_CAPACITY + 1))
     private val blockingEmptyLock = Semaphore(1, true)
     private val lock = ReentrantLock()
-
 
     protected fun acceptBytes(buf: ByteArray) {
         lock.withLock {
@@ -31,32 +29,40 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
                 throw BufferOverflowException()
             }
             this.buf.put(buf, 0, buf.size)
-            blockingEmptyLock.release()
         }
+        blockingEmptyLock.release()
     }
 
     fun size(): Int {
         return buf.size()
     }
 
-    private operator fun get(result: ByteArray, offset: Int, len: Int): Int {
-        return try {
-            while (buf.size() < len) {
-                blockingEmptyLock.acquire()
-            }
-            lock.withLock {
-                if (closed) {
-                    throw IOException("closed")
-                }
-                val l = len.coerceAtMost(buf.size())
+    fun clear() {
 
-                buf[result, offset, l]
-                l
+    }
+
+    private operator fun get(result: ByteArray, offset: Int, len: Int): Int {
+        try {
+            while (true) {
+                if (buf.size() < len) {
+                    blockingEmptyLock.acquire()
+                }
+                lock.withLock {
+                    if (buf.size() >= len) {
+                        if (closed) {
+                            throw IOException("closed")
+                        }
+                        val l = len.coerceAtMost(buf.size())
+
+                        buf[result, offset, l]
+                        return l
+                    }
+                }
             }
         } catch (ignored: BufferUnderflowException) {
             throw IOException("underflow")
         } catch (ignored: InterruptedException) {
-            -1
+            return -1
         }
     }
 
@@ -84,9 +90,8 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
 
 
     override fun close() {
-        closed = true
+      //  closed = true
         blockingEmptyLock.release()
-        disposable?.dispose()
     }
 
     override fun markSupported(): Boolean {
@@ -98,15 +103,19 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
         if (closed) {
             throw IOException("closed")
         }
-        return try {
-            while (buf.size() == 0) {
-                blockingEmptyLock.acquire()
-            }
-            lock.withLock {
-                buf.get().toInt()
+        try {
+            while (true) {
+                if (buf.size() == 0) {
+                    blockingEmptyLock.acquire()
+                }
+                lock.withLock {
+
+                if (buf.size() > 0)
+                    return buf.get().toInt()
+                }
             }
         } catch (ignored: InterruptedException) {
-            -1
+            return -1
         }
     }
 

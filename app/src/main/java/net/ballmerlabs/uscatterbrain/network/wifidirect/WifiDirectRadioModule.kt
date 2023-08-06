@@ -2,43 +2,46 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import io.reactivex.Completable
 import io.reactivex.Flowable
+import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
+import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
+import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import java.io.File
+import java.util.UUID
+import java.util.concurrent.Flow
 
 /**
  * dagger2 interface for WifiDirectRadioModule
  */
 interface WifiDirectRadioModule {
-    /**
-     * Connects to an existing wifi direct group manually
-     * @param name group name. MUST start with DIRECT-*
-     * @param passphrase group PSK. minimum 8 characters
-     * @param timeout emits error from single if no connection is established within this many seconds
-     * @return single emitting WifiP2pInfo if connection is successful, called onError if failed or timed out
-     */
-    fun connectToGroup(name: String, passphrase: String, timeout: Int, band: Int): Single<WifiDirectInfo>
+    fun getBand(): Int
 
-    /**
-     * performs an automatic handshake with a peer specified by a WifiDirectBootstrapRequest object
-     * from another transport module.
-     * @param upgradeRequest bootstrap request generated with WifiDirectBootstrapRequest
-     * @return Single emitting handshake result with transaction stats
-     */
-    fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest): Single<HandshakeResult>
+    fun addUke(uuid: UUID, bootstrap: UpgradePacket): Completable
+    fun setUke(ukes: Map<UUID, UpgradePacket>): Completable
+    fun removeUke(uuid: UUID)
+    fun getUkes(): Map<UUID, UpgradePacket>
+
+    fun bootstrapUke(band: Int, remoteLuid: UUID, selfLuid: UUID): Single<WifiDirectBootstrapRequest>
+    fun bootstrapSeme(name: String, passphrase: String, band: Int, ownerPort: Int, self: UUID)
+
+    fun safeShutdownGroup(): Completable
+
+    fun awaitUke(): Observable<Pair<UUID, UpgradePacket>>
+
+    fun getForceUke(): Boolean
 
     /**
      * Manually creates a wifi direct group, autogenerating the username/passphrase and
      * returning them as a BootstrapRequest
      * @return WifiDirectBootstrapRequest
      */
-    fun createGroup(band: Int): Single<WifiDirectBootstrapRequest>
+    fun createGroup(band: Int, remoteLuid: UUID, selfLuid: UUID): Flowable<WifiDirectBootstrapRequest>
 
     /**
      * Removes an existing wifi direct group if it exists

@@ -15,7 +15,6 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.BiFunction
-import io.reactivex.functions.Function
 import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
@@ -175,8 +174,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Completable.defer {
             stream.entity?.message?.receiveDate = Date().time
             if (stream.toDisk) {
+                LOG.v("inserting message with disk")
                 insertMessageWithDisk(stream)
             } else {
+                LOG.v("inserting message without disk")
                 insertMessagesWithoutDisk(stream)
             }
         }.andThen(
@@ -189,8 +190,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     private fun getMax(): Long {
-        return preferences.getInt(ctx.getString(R.string.pref_sizecap), 4096)!!
-            .toLong() * 1024 * 1024
+        return ((preferences.getInt(ctx.getString(R.string.pref_sizecap), 4096)
+            ?: (4096))).toLong() * 1024 * 1024
     }
 
     /**
@@ -214,12 +215,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     }
                 }
                 .subscribeOn(databaseScheduler)
-        }
-            .doOnError { err ->
+        }.doOnError { err ->
                 LOG.e("error inserting messsage $err")
-                err.printStackTrace()
             }
-            .onErrorResumeNext { discardStream(stream) }
     }
 
     /**
@@ -230,17 +228,20 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return mDatastore.scatterMessageDao()
             .messageCountSingle(stream.headerPacket.autogenFilename)
             .subscribeOn(databaseScheduler)
+            .doOnSubscribe { LOG.v("insertMessageWithoutDisk") }
             .flatMapCompletable { count ->
                 if (count > 0) {
                     discardStream(stream)
                 } else {
                     stream.sequencePackets
                         .flatMap { packet ->
+                            LOG.v("insertMessageWithoutDisk ${packet.data.size}")
+
                             if (packet.verifyHash(stream.headerPacket)) {
                                 Flowable.just(packet.data)
                             } else {
                                 LOG.e("invalid hash")
-                                Flowable.error(SecurityException("failed to verify hash"))
+                                Flowable.empty()
                             }
                         }
                         .reduce { obj, other -> obj + other }
@@ -248,7 +249,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             if (bytes.size <= ScatterbrainApi.MAX_BODY_SIZE) {
                                 stream.entity!!.message.body = bytes
                                 stream.entity.message.fileSize = bytes.size.toLong()
+                                LOG.v("inserting entity size ${bytes.size}")
                                 insertMessages(stream.entity)
+                                    .doOnError { err ->
+                                        LOG.e("insertMessages error $err")
+                                    }.onErrorComplete()
                             } else {
                                 LOG.e("received message with invalid size ${bytes.size}, skipping")
                                 Completable.complete()
@@ -256,11 +261,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         }.subscribeOn(databaseScheduler)
                 }
             }
+            .doOnError { err-> LOG.e("failed to insertMessageWithoutDisk $err") }
             .doOnError { err ->
                 LOG.e("error inserting messsage $err")
-                err.printStackTrace()
             }
-            .onErrorResumeNext { discardStream(stream) }
     }
 
     override fun readBody(body: ByteArray, blocksize: Int): Flowable<BlockSequencePacket> {
@@ -268,10 +272,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .zipWith(seq) { bytes, seq ->
                 BlockSequencePacket.newBuilder()
                     .setData(ByteString.copyFrom(bytes))
-                    .setEnd(seq >= floor(body.size.toDouble() / DEFAULT_BLOCKSIZE.toDouble()))
                     .setSequenceNumber(seq)
                     .build()
-            }
+            }.concatWith(Flowable.just(BlockSequencePacket.newBuilder().setEnd(true).build()))
+                .doOnComplete { LOG.v("readBody complete") }
     }
 
     override fun getTopRandomMessages(
@@ -306,8 +310,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .doOnError { err ->
                     LOG.e("getTopRandomMessages error $err")
                 }
-                .onErrorReturnItem(BlockDataStream.endOfStream())
                 .concatWith(Single.just(BlockDataStream.endOfStream()))
+                .onErrorReturnItem(BlockDataStream.endOfStream())
+                .doOnComplete { LOG.v("getTopRandomMessages complete") }
         }
     }
 
@@ -380,7 +385,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .takeUntil { v -> v <= max }
                     .ignoreElements()
             }
-            .onErrorComplete()
     }
 
     override fun trimDatastore(start: Date, end: Date, max: Long, limit: Int?): Completable {
@@ -587,14 +591,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .filter { i -> !i.isEnd }
             .doOnNext { id -> LOG.v("inserting identity: ${id.fingerprint}") }
             .flatMap { i ->
-                if (i.isEnd || i.isEmpty()) {
-                    Observable.never()
+                if (i.isEnd || i.isEmpty() || i.pubkey == null || i.uuid == null) {
+                    Observable.empty()
                 } else {
                     val id = KeylessIdentity(
                         i.name,
-                        i.pubkey!!,
+                        i.pubkey,
                         i.getSig(),
-                        i.uuid!!,
+                        i.uuid,
                         null
 
                     )
@@ -659,8 +663,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .setSig(identity.identity.signature)
                             .build()!!
                     }
-                    .concatWith(Single.just(IdentityPacket.newBuilder().setEnd().build()!!))
-            }
+            }.concatWith(Single.just(IdentityPacket.newBuilder().setEnd().build()!!))
+
     }
 
     override val declareHashesPacket: Single<DeclareHashesPacket>
@@ -1070,14 +1074,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Single.fromCallable { FileOutputStream(path) }
             .flatMapCompletable { fileOutputStream ->
                 packets
-                    .concatMapCompletable(Function<BlockSequencePacket, CompletableSource> c@{ blockSequencePacket ->
+                    .concatMapCompletable{ blockSequencePacket ->
                         if (!blockSequencePacket.verifyHash(header)) {
-                            Completable.error(IllegalStateException("failed to verify hash"))
+                            packets.ignoreElements()
                         } else {
                             Completable.fromAction { fileOutputStream.write(blockSequencePacket.data) }
                                 .subscribeOn(databaseScheduler)
                         }
-                    })
+                    }
             }
     }
 
@@ -1170,15 +1174,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .zipWith(seq) { bytes, seqnum ->
                         BlockSequencePacket.newBuilder()
                             .setSequenceNumber(seqnum)
-                            .setEnd(
-                                seqnum >= floor(
-                                    path.length().toDouble() / DEFAULT_BLOCKSIZE.toDouble()
-                                )
-                            )
                             .setData(ByteString.copyFrom(bytes))
                             .build()
                     }.subscribeOn(databaseScheduler)
             }.doOnComplete { LOG.v("readfile completed") }
+            .concatWith(Flowable.just(BlockSequencePacket.newBuilder().setEnd(true).build()))
     }
 
     init {

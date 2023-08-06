@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
+import android.net.wifi.p2p.WifiP2pInfo
 import java.net.InetAddress
 
 class MockWIfiDirectInfo(
@@ -17,5 +18,9 @@ class MockWIfiDirectInfo(
 
     override fun isGroupOwner(): Boolean {
         return isGroupOwner
+    }
+
+    override fun p2pInfo(): WifiP2pInfo {
+        return WifiP2pInfo()
     }
 }

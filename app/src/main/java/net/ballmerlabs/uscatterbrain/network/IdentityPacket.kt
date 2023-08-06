@@ -8,7 +8,10 @@ import com.sun.jna.ptr.PointerByReference
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.db.hashAsUUID
-import java.util.*
+import java.util.SortedSet
+import java.util.TreeMap
+import java.util.TreeSet
+import java.util.UUID
 
 /**
  * wrapper class for Identity protobuf message
@@ -53,9 +56,9 @@ class IdentityPacket(packet: ScatterProto.Identity) :
 
     private val hash: ByteArray? = initHash()
 
-    val uuid: UUID? = if (isEnd) null else hashAsUUID(hash!!)
+    val uuid: UUID? = if (isEnd || hash == null) null else hashAsUUID(hash)
 
-    val fingerprint: String? = if(isEnd) null else LibsodiumInterface.base64enc(hash!!)
+    val fingerprint: String? = if(isEnd || hash == null) null else LibsodiumInterface.base64enc(hash)
 
     private fun sumBytes(): ByteString? {
         var result = ByteString.EMPTY

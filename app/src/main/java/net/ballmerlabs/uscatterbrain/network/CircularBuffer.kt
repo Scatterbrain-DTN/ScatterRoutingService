@@ -43,39 +43,39 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
 
     operator fun get(buf: ByteArray, offset: Int, length: Int) {
         lock.withLock {
-        if (length > size()) {
-            throw BufferOverflowException()
-        }
-        var l = length
-        val read = length.coerceAtMost(readBuffer.remaining())
-        readBuffer[buf, offset, read]
-        l -= read
-        if (l > 0) {
-            readBuffer.position(0)
-            readBuffer[buf, offset + read, l]
-        }
+            if (length > size()) {
+                throw BufferOverflowException()
+            }
+            var l = length
+            val read = length.coerceAtMost(readBuffer.remaining())
+            readBuffer[buf, offset, read]
+            l -= read
+            if (l > 0) {
+                readBuffer.position(0)
+                readBuffer[buf, offset + read, l]
+            }
         }
 
     }
 
     fun put(buf: ByteArray, offset: Int, len: Int) {
         lock.withLock {
-        var l = buf.size.coerceAtMost(len)
-        if (l > remaining()) {
-            throw BufferOverflowException()
-        }
-        val write = l.coerceAtMost(writeBuffer.remaining())
-        writeBuffer.put(buf, offset, write)
-        l -= write
-        if (l > 0) {
-            writeBuffer.position(0)
-            writeBuffer.put(buf, offset + write, l)
-        }
+            var l = buf.size.coerceAtMost(len)
+            if (l > remaining()) {
+                throw BufferOverflowException()
+            }
+            val write = l.coerceAtMost(writeBuffer.remaining())
+            writeBuffer.put(buf, offset, write)
+            l -= write
+            if (l > 0) {
+                writeBuffer.position(0)
+                writeBuffer.put(buf, offset + write, l)
+            }
         }
     }
 
     fun remaining(): Int {
-        return lock.withLock {  writeBuffer.capacity() - size() }
+        return lock.withLock { writeBuffer.capacity() - size() }
     }
 
     fun skip(n: Long): Long {
@@ -83,7 +83,7 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
             val skip = remaining().toLong().coerceAtMost(n).toInt()
             val p = readBuffer.position()
             readBuffer.position(readBuffer.position() + skip)
-             (readBuffer.position() - p).toLong()
+            (readBuffer.position() - p).toLong()
         }
     }
 

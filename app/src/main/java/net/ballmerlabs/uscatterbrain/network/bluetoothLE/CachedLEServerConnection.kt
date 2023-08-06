@@ -1,31 +1,25 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGatt
-import androidx.room.util.convertByteToUUID
 import com.google.protobuf.MessageLite
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleDevice
-import io.reactivex.*
-import io.reactivex.Observable
+import io.reactivex.BackpressureStrategy
+import io.reactivex.Completable
+import io.reactivex.Scheduler
+import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.PublishSubject
-import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.math.floor
-import kotlin.math.max
 
 data class QueueItem(
     val packet: ScatterSerializable<out MessageLite>,
@@ -49,7 +43,8 @@ class CachedLEServerConnection(
     private val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>,
     private val scheduler: Scheduler,
     private val ioScheduler: Scheduler,
-    private val firebaseWrapper: FirebaseWrapper
+    private val firebaseWrapper: FirebaseWrapper,
+    private val advertiser: Advertiser
 ) {
     val luid: UUID? = null
     private val LOG by scatterLog()
@@ -57,7 +52,7 @@ class CachedLEServerConnection(
     private val packetQueue = ConcurrentHashMap<UUID, SessionHandle>()
     private val cookies = AtomicReference(0)
     private val cookieCompleteRelay = PublishRelay.create<Int>()
-    private val luidRegisteredSubject = BehaviorSubject.create<UUID>()
+    private val luidRegisteredSubject = BehaviorSubject.create<Pair<UUID, BehaviorSubject<QueueItem>>>()
     private val characteristicState = ConcurrentHashMap<String, OwnedCharacteristic>()
 
     private fun getCookie(): Int {
@@ -69,13 +64,13 @@ class CachedLEServerConnection(
     private fun awaitLuidRegistered(luid: UUID): Single<BehaviorSubject<QueueItem>> {
         return Single.defer {
             val item = packetQueue[luid]?.subject
+            LOG.v("awaiting luid registration for luid $luid $item")
             if (item != null) {
                 Single.just(item)
             } else {
-                luidRegisteredSubject.takeUntil { v -> packetQueue[luid] != null }.ignoreElements()
-                    .toSingle {
-                        packetQueue[luid]!!.subject
-                    }
+                luidRegisteredSubject.takeUntil { v -> v.first == luid }
+                    .map { v -> v.second }
+                    .firstOrError()
             }
         }
     }
@@ -107,41 +102,36 @@ class CachedLEServerConnection(
                     val notif = connection.setupNotifications(
                         characteristic.uuid,
                         subject.toFlowable(BackpressureStrategy.BUFFER)
-                            .mergeWith(Completable.fromAction {
-                                LOG.e("server setup notifications")
-                                if (luidRegisteredSubject.hasObservers()) {
-                                    luidRegisteredSubject.onNext(luid)
-                                }
-                            })
                             .flatMap { item ->
-                                LOG.e("packet! ${item.packet.type}")
-                                item.packet.writeToStream(connection.getMtu() - 3, ioScheduler)
+                                val mtu = connection.getMtu() - 3
+                                LOG.e("packet! ${item.packet.type} MTU: $mtu")
+                                item.packet.writeToStream(mtu, ioScheduler)
                                     .doFinally {
                                         LOG.e("packet write complete for ${item.packet.type} ")
-                                        if (cookieCompleteRelay.hasObservers()) {
-                                            cookieCompleteRelay.accept(item.cookie)
-                                        }
+                                        cookieCompleteRelay.accept(item.cookie)
                                     }
                             }
-                            .doOnError { err ->
-                                LOG.e("server notification error for $luid $err")
-                            }
-                            .doOnComplete { LOG.e("server notification completed, this is a problem") },
+                            .doOnError { err -> LOG.e("server notification error for $luid $err") },
                         device
-                    )
-                        .subscribeOn(ioScheduler)
+                    ).observeOn(ioScheduler)
                         .doFinally {
+                            LOG.w("releasing characteristic ${characteristic.uuid}")
                             characteristic.release()
+                            disconnect(device)
+                            unlockLuid(luid)
                         }
+                        .doOnDispose { characteristic.release() }
                         .subscribe(
                             { LOG.e("notification for $luid completed") },
                             { err -> LOG.e("notification for $luid error $err") }
                         )
-                    SessionHandle(
+                    val sub = SessionHandle(
                         subject = subject,
                         disposable = notif,
                         characteristic = characteristic
                     )
+                    luidRegisteredSubject.onNext(Pair(luid, sub.subject))
+                    sub
                 }
 
                 else -> v
@@ -182,6 +172,7 @@ class CachedLEServerConnection(
     ): Completable {
         return awaitLuidRegistered(luid).flatMapCompletable { subj ->
             LOG.e("serverNotify accepted ${packet.type}")
+            LOG.e("me = ${advertiser.getHashLuid()} remote $luid")
             val cookie = getCookie()
             cookieCompleteRelay.takeUntil { v -> v == cookie }
                 .ignoreElements()
@@ -194,7 +185,7 @@ class CachedLEServerConnection(
                         )
                     )
                 })
-                //.timeout(30, TimeUnit.SECONDS, ioScheduler)
+                .timeout(36, TimeUnit.SECONDS, ioScheduler)
                 .doOnComplete { LOG.v("serverNotify COMPLETED for ${packet.type} cookie $cookie") }
         }
 
@@ -231,15 +222,15 @@ class CachedLEServerConnection(
          * the adapter can only service one packet per channel
          */
         val d =
-            connection.getEvents(
-            )
-                .subscribeOn(ioScheduler)
+            connection.getEvents()
+                .observeOn(ioScheduler)
                 .flatMapCompletable { req ->
                     when (req.operation) {
                         GattServerConnection.Operation.CHARACTERISTIC_READ -> {
                             val res = when (req.uuid) {
                                 BluetoothLERadioModuleImpl.UUID_SEMAPHOR -> {
-                                    selectCharacteristic().flatMapCompletable { characteristic ->
+                                    selectCharacteristic()
+                                        .flatMapCompletable { characteristic ->
                                         characteristicState[req.remoteDevice.macAddress] =
                                             characteristic
                                         LOG.e("starting characteristic lock for ${req.remoteDevice.macAddress}")

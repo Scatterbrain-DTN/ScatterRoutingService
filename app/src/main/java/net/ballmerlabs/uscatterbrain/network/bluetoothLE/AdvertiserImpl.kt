@@ -1,24 +1,33 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.bluetooth.BluetoothDevice
+import android.Manifest
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertisingSet
 import android.bluetooth.le.AdvertisingSetCallback
 import android.bluetooth.le.AdvertisingSetParameters
+import android.bluetooth.le.PeriodicAdvertisingParameters
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.ParcelUuid
+import androidx.core.app.ActivityCompat
+import androidx.room.util.convertUUIDToByte
 import io.reactivex.Completable
 import io.reactivex.Scheduler
-import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.network.UkeAnnouncePacket
+import net.ballmerlabs.uscatterbrain.network.UpgradePacket
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.CLEAR_DATA;
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.LUID_DATA
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
@@ -30,25 +39,28 @@ class AdvertiserImpl @Inject constructor(
     val context: Context,
     private val manager: BluetoothManager,
     private val firebase: FirebaseWrapper,
-    @Named(RoutingServiceComponent.NamedSchedulers.IO)
-    private val scheduler: Scheduler,
-    private val state: Provider<LeState>
+    private val state: Provider<LeState>,
+    @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val scheduler: Scheduler,
 ) : Advertiser {
-
-    companion object {
-        const val LUID_REMOVE_MINUTES: Long = 10
-    }
+    override val ukes: ConcurrentHashMap<UUID, UpgradePacket> = ConcurrentHashMap<UUID, UpgradePacket>()
 
     private val LOG by scatterLog()
     private val advertisingLock = AtomicReference(false)
     private val isAdvertising = BehaviorSubject.create<Pair<Optional<AdvertisingSet>, Int>>()
     private val advertisingDataUpdated = PublishSubject.create<Int>()
-
     // luid is a temporary unique identifier used for a single transaction.
-    override val myLuid: AtomicReference<UUID> = AtomicReference(UUID.randomUUID())
+    private val myLuid: AtomicReference<UUID> = AtomicReference(UUID.randomUUID())
     private val lastLuidRandomize = AtomicReference(Date())
-    private val luidRemoveTimer = AtomicReference<Disposable>()
+    private val clear = AtomicBoolean()
 
+
+    override fun getHashLuid(): UUID {
+        return getHashUuid(myLuid.get())!!
+    }
+
+    override fun getRawLuid(): UUID {
+        return myLuid.get()
+    }
 
     // map advertising state to rxjava2
     private val advertiseSetCallback = object : AdvertisingSetCallback() {
@@ -71,38 +83,31 @@ class AdvertiserImpl @Inject constructor(
         }
 
         override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
+            LOG.w("onScanResponseDataSet $status $ADVERTISE_SUCCESS")
             advertisingDataUpdated.onNext(status)
         }
 
         override fun onAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) {
             advertisingDataUpdated.onNext(status)
         }
-    }
 
-    private fun setLuidRemove(time: Long, timeUnit: TimeUnit) {
-        val timer = Completable.timer(time, timeUnit, scheduler)
-            .andThen(Completable.defer {
-                removeLuid()
-            })
-            .subscribe(
-                { LOG.v("removed luid after delay") },
-                { err -> LOG.e("failed to remove luid $err") }
-            )
-        val old = luidRemoveTimer.getAndSet(timer)
-        old?.dispose()
-    }
-
-    override fun setAdvertisingLuid(): Completable {
-        return Completable.defer {
-            val currentLuid = getHashUuid(myLuid.get()) ?: UUID.randomUUID()
-            setAdvertisingLuid(currentLuid)
-                .subscribeOn(scheduler)
+        override fun onPeriodicAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) {
+            super.onPeriodicAdvertisingDataSet(advertisingSet, status)
+            LOG.w("set periodic data")
         }
     }
 
-    override fun setAdvertisingLuid(luid: UUID): Completable {
-        return Completable.defer {
-            setLuidRemove(LUID_REMOVE_MINUTES, TimeUnit.MINUTES)
+    override fun setAdvertisingLuid(): Completable {
+        val currentLuid = getHashLuid()
+        return setAdvertisingLuid(currentLuid, ukes)
+    }
+
+    override fun clear(boolean: Boolean) {
+        clear.set(boolean)
+    }
+
+    override fun setAdvertisingLuid(luid: UUID, ukes: Map<UUID, UpgradePacket>): Completable {
+        val cmp =  Completable.defer {
             isAdvertising
                 .firstOrError()
                 .flatMapCompletable { v ->
@@ -110,14 +115,15 @@ class AdvertiserImpl @Inject constructor(
                         awaitAdvertiseDataUpdate()
                             .mergeWith(Completable.fromAction {
                                 try {
-                                    v.first.item?.setAdvertisingData(
-                                        AdvertiseData.Builder()
-                                            .setIncludeDeviceName(true)
-                                            .setIncludeTxPowerLevel(false)
-                                            .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
-                                            .addServiceData(ParcelUuid(luid), byteArrayOf(5))
-                                            .build()
-                                    )
+                                    val u = shrinkUkes(ukes).packet.toByteArray()
+                                    val builder = AdvertiseData.Builder()
+                                        .setIncludeDeviceName(false)
+                                        .setIncludeTxPowerLevel(false)
+                                        .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
+                                        .addServiceData(ParcelUuid(LUID_DATA), convertUUIDToByte(luid))
+                                    if(clear.get())
+                                        builder.addServiceData(ParcelUuid(CLEAR_DATA), byteArrayOf())
+                                    v.first.item!!.setAdvertisingData(builder.build())
                                 } catch (exc: SecurityException) {
                                     throw exc
                                 }
@@ -126,7 +132,32 @@ class AdvertiserImpl @Inject constructor(
                         startAdvertise(luid = luid)
                     }
                 }
-        }.subscribeOn(scheduler)
+        }.doOnError { err -> LOG.w("failed to set advertising luid: $err, retry") }
+        return retryDelay(cmp, 10, 5)
+            .doOnError { err -> LOG.e("FATAL: failed to set advertising data, out of retries: $err") }
+    }
+
+
+    private fun estimateSize(size: Int): Int {
+        return size + 16*2
+    }
+
+    private fun shrinkUkes(ukes: Map<UUID, UpgradePacket>): UkeAnnouncePacket {
+        val packet = UkeAnnouncePacket.newBuilder()
+        packet.setforceUke(ukes)
+        val b = packet.build()
+        val size = estimateSize(b.packet.toByteArray().size)
+        val target = manager.adapter.leMaximumAdvertisingDataLength - 32 //TODO: calculate default payload size
+        if(size < target) {
+            return b
+        } else {
+            if (ukes.size == 1) {
+                return UkeAnnouncePacket.empty()
+            }
+            val n = ukes.toMutableMap()
+            n.remove(n.keys.first())
+            return shrinkUkes(n)
+        }
     }
 
     private fun awaitAdvertiseDataUpdate(): Completable {
@@ -136,9 +167,9 @@ class AdvertiserImpl @Inject constructor(
                 if (status == AdvertisingSetCallback.ADVERTISE_SUCCESS)
                     Completable.complete()
                 else
-                    Completable.error(IllegalStateException("failed to set advertising data"))
-            }
-            .subscribeOn(scheduler)
+                    Completable.error(IllegalStateException("failed to set advertising data: $status"))
+            }.subscribeOn(scheduler)
+
     }
 
     override fun removeLuid(): Completable {
@@ -157,7 +188,6 @@ class AdvertiserImpl @Inject constructor(
                                             .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
                                             .build()
                                     )
-                                    myLuid.set(UUID.randomUUID())
                                 } catch (exc: SecurityException) {
                                     throw exc
                                 }
@@ -167,7 +197,7 @@ class AdvertiserImpl @Inject constructor(
                     }
                 }
         }
-            .doOnComplete { LOG.v("successfully removed luid: remaining luids: ${state.get().activeLuids.size}") }
+            .doOnComplete { LOG.v("successfully removed luid") }
     }
 
     /**
@@ -182,8 +212,7 @@ class AdvertiserImpl @Inject constructor(
                 throw exc
             }
             mapAdvertiseComplete(false)
-        }
-            .subscribeOn(scheduler)
+        }.subscribeOn(scheduler)
     }
 
 
@@ -196,7 +225,8 @@ class AdvertiserImpl @Inject constructor(
                 } else {
                     Completable.complete()
                 }
-            }
+            }.subscribeOn(scheduler)
+
     }
 
     /**
@@ -218,12 +248,12 @@ class AdvertiserImpl @Inject constructor(
                             .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
                             .build()
                         val serviceDataBuilder = AdvertiseData.Builder()
-                            .setIncludeDeviceName(true)
+                            .setIncludeDeviceName(false)
                             .setIncludeTxPowerLevel(false)
                             .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
 
                         val serviceData = if (luid != null) {
-                            serviceDataBuilder.addServiceData(ParcelUuid(luid), byteArrayOf(5))
+                            serviceDataBuilder.addServiceData(ParcelUuid(LUID_DATA), convertUUIDToByte(luid))
                                 .build()
                         } else {
                             serviceDataBuilder.build()
@@ -244,7 +274,7 @@ class AdvertiserImpl @Inject constructor(
                             LOG.e("failed to advertise $exc")
                         }
                         LOG.v("advertise start")
-                    }.subscribeOn(scheduler)
+                    }
                         .andThen(mapAdvertiseComplete(true))
             }
             .doOnError { err ->
@@ -255,7 +285,7 @@ class AdvertiserImpl @Inject constructor(
             .doFinally {
                 LOG.v("startAdvertise completed")
                 advertisingLock.set(false)
-            }
+            }.subscribeOn(scheduler)
 
         return advertise
     }

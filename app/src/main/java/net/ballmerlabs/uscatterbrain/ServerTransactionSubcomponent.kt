@@ -11,7 +11,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.Not
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.NotificationSetupTransactionImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransactionImpl
-import java.util.*
+import java.util.UUID
 
 @GattServerTransactionScope
 @Subcomponent(modules = [ServerTransactionSubcomponent.ServerTransactionModule::class])

@@ -97,7 +97,7 @@ abstract class ScatterMessageDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertMessages(message: HashlessScatterMessage): Single<Long>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertHashes(h: List<Hashes>): Single<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)

@@ -1,11 +1,9 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import com.polidea.rxandroidble2.RxBleDevice
-import io.reactivex.Completable
 import io.reactivex.Maybe
-import io.reactivex.Observable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import java.util.*
+import net.ballmerlabs.uscatterbrain.network.UpgradePacket
+import java.util.UUID
 
 interface BluetoothLEModule {
     /**
@@ -13,31 +11,21 @@ interface BluetoothLEModule {
      */
     fun stopDiscover()
 
-    /**
-     * Clears the list of nearby peers, nearby devices currently in range will
-     * be reconnected to if possible
-     */
-    fun clearPeers()
-
-    /**
-     * Removes the current wifi direct group if it exists
-     * @param shouldRemove do nothing if false (what?)
-     * @return completable
-     */
-    fun removeWifiDirectGroup(shouldRemove: Boolean): Completable
-
 
     fun handleConnection(
         luid: UUID
     ): Maybe<HandshakeResult>
 
+    fun isBusy(): Boolean
+
+    fun cancelTransaction()
     fun initiateOutgoingConnection(
         luid: UUID
     ): Maybe<HandshakeResult>
 
     /**
      * role is a generalized concept of "initiator" vs "acceptor"
-     * with "SEME" being an initiator and "UKE" being acceptor
+     * with "SEME" being an initziator and "UKE" being acceptor
      * used for bootstrapping to another transport that may be asymmetric
      * and require some form of symmetry-breaking
      *
@@ -45,12 +33,19 @@ interface BluetoothLEModule {
      *
      * This is decided via the leader election process
      */
-    enum class ConnectionRole {
-        ROLE_UKE, ROLE_SEME
+    enum class Role {
+        ROLE_UKE,
+        ROLE_SEME,
+        ROLE_SUPERSEME
     }
+
+    data class ConnectionRole(
+        val role: Role,
+        val luids: Map<UUID, UpgradePacket>
+    )
 
     companion object {
         const val GATT_SIZE = 19
-        const val TIMEOUT = 200
+        const val TIMEOUT = 45
     }
 }

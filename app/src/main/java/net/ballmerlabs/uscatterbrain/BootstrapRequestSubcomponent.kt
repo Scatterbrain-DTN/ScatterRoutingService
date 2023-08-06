@@ -19,13 +19,15 @@ interface BootstrapRequestSubcomponent {
         const val NAME = "bootstrapname"
         const val PASSPHRASE = "bootstrappassphrase"
         const val BAND = "band"
+        const val PORT = "port"
     }
 
     data class WifiDirectBootstrapRequestArgs(
             val name: String,
             val passphrase: String,
-            val role: BluetoothLEModule.ConnectionRole,
-            val band: Int
+            val role: BluetoothLEModule.Role,
+            val band: Int,
+            val port: Int
     )
 
     @Subcomponent.Builder
@@ -72,7 +74,16 @@ interface BootstrapRequestSubcomponent {
             @Provides
             @JvmStatic
             @BootstrapRequestScope
-            fun providesRole(args: WifiDirectBootstrapRequestArgs): BluetoothLEModule.ConnectionRole {
+            @Named(PORT)
+            fun providesPort(args: WifiDirectBootstrapRequestArgs): Int {
+                return args.port
+            }
+
+
+            @Provides
+            @JvmStatic
+            @BootstrapRequestScope
+            fun providesRole(args: WifiDirectBootstrapRequestArgs): BluetoothLEModule.Role {
                 return args.role
             }
 

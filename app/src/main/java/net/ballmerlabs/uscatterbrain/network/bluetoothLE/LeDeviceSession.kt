@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.bluetooth.BluetoothDevice
 import android.util.Pair
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Observable
@@ -10,7 +9,7 @@ import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
@@ -43,24 +42,24 @@ class LeDeviceSession(
     luid: UUID,
     val client: CachedLEConnection,
     val server: CachedLEServerConnection,
-    val remoteLuid: UUID
+    val remoteLuid: UUID,
+    val hashedSelf: UUID
 ) {
     private val LOG by scatterLog()
     val luidStage: LuidStage = LuidStage(luid, remoteLuid) //exchange hashed and unhashed luids
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities
-    val votingStage: VotingStage = VotingStage() //determine if an upgrade takes place
+    val votingStage: VotingStage = VotingStage(hashedSelf, remoteLuid) //determine if an upgrade takes place
     var upgradeStage: UpgradeStage? = null //possibly upgrade to new transport
     private val transactionMap =
         ConcurrentHashMap<String, Pair<ClientTransaction, ServerTransaction>>()
     private val stageChanges = BehaviorSubject.create<String>()
     var locked = BehaviorSubject.create<Boolean>()
-    val luidMap = ConcurrentHashMap<String, UUID>()
     var stage: String = TransactionResult.STAGE_START
         set(value) {
             stageChanges.onNext(value)
             field = value
         }
-    var role = ConnectionRole.ROLE_UKE
+    var role = ConnectionRole(role = BluetoothLEModule.Role.ROLE_UKE, luids = mutableMapOf())
     private var declareHashesPacket: DeclareHashesPacket? = DeclareHashesPacket.newBuilder().build()
 
     /**
@@ -112,7 +111,6 @@ class LeDeviceSession(
     fun observeStage(): Observable<String> {
         return stageChanges
             .takeWhile { s -> s.compareTo(TransactionResult.STAGE_TERMINATE) != 0 }
-            .filter { s -> s.compareTo(TransactionResult.STAGE_SUSPEND) != 0 }
             .zipWith(locked.filter { v -> !v }) { v, _ ->
                 locked.onNext(true)
                 v

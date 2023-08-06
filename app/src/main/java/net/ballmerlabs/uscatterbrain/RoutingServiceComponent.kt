@@ -25,6 +25,7 @@ import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapperImpl
+import java.io.File
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -38,9 +39,11 @@ interface RoutingServiceComponent {
         const val BLE_CLIENT = "scheduler-ble-client-"
         const val BLE_CALLBACKS = "ble-server-callbacks"
         const val BLE_SERVER = "scheduler-ble-server-"
-        const val IO = "network-io-2"
         const val COMPUTATION = "computation-2"
+        const val GLOBAL_IO = "global-io"
         const val MAIN_THREAD = "themainthread"
+        const val WIFI_READ = "wifi-read"
+        const val WIFI_WRITE = "wifi-write"
     }
 
     @Component.Builder
@@ -76,6 +79,10 @@ interface RoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindsDatastoreImportProvider(impl: DatastoreImportProviderImpl): DatastoreImportProvider
+
+        @Binds
+        @Singleton
+        abstract fun bindWifiDirectRadioModule(impl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
 
         @Binds
         @Singleton
@@ -122,6 +129,14 @@ interface RoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
+            @Named(NamedSchedulers.WIFI_READ)
+            fun providesWifiReadScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.WIFI_READ))
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
             fun provideDatastore(ctx: Context?): Datastore {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
                         .fallbackToDestructiveMigration()
@@ -131,8 +146,23 @@ interface RoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
+            @Named(NamedSchedulers.WIFI_WRITE)
+            fun providesWifiWriteScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.WIFI_WRITE))
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
             fun providesChannel(ctx: Context, wifiP2pManager: WifiP2pManager): WifiP2pManager.Channel {
                 return wifiP2pManager.initialize(ctx, ctx.mainLooper, null)
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesDatabaseFile(datastore:Datastore): File {
+                return File(datastore.openHelper.readableDatabase.path!!)
             }
 
             @Provides
@@ -166,9 +196,9 @@ interface RoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            @Named(NamedSchedulers.IO)
+            @Named(NamedSchedulers.GLOBAL_IO)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(NamedSchedulers.IO))
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(NamedSchedulers.GLOBAL_IO))
             }
 
             @Provides

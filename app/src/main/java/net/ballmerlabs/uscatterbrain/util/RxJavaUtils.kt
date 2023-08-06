@@ -1,6 +1,10 @@
 package net.ballmerlabs.uscatterbrain.util
 
-import io.reactivex.*
+import io.reactivex.Completable
+import io.reactivex.Flowable
+import io.reactivex.Maybe
+import io.reactivex.Observable
+import io.reactivex.Single
 import java.util.concurrent.TimeUnit
 
 fun <T> retryDelay(observable: Observable<T>, count: Int, seconds: Int): Observable<T> {
@@ -16,6 +20,15 @@ fun <T> retryDelay(observable: Observable<T>, seconds: Int): Observable<T> {
     return observable
         .retryWhen { errors: Observable<Throwable> ->
             errors
+                .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
+}
+
+fun <T> retryDelay(observable: Flowable<T>, count: Int, seconds: Int): Flowable<T> {
+    return observable
+        .retryWhen { errors: Flowable<Throwable> ->
+            errors
+                .zipWith(Flowable.range(1, count)) { _: Throwable, i: Int -> i }
                 .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
         }
 }

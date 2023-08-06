@@ -33,4 +33,12 @@ class MockWifiDirectBroadcastReceiver(private val broadcastReceiver: BroadcastRe
     override fun asReceiver(): BroadcastReceiver {
         return broadcastReceiver
     }
+
+    override fun connectedDevices(): Collection<WifiP2pDevice> {
+        return listOf()
+    }
+
+    override fun setOnDisconnect(device: WifiP2pDevice, onDisconnect: () -> Unit) {
+        TODO("Not yet implemented")
+    }
 }

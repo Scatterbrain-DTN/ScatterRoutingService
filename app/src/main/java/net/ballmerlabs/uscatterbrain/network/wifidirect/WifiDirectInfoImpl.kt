@@ -19,4 +19,8 @@ class WifiDirectInfoImpl(private val wifiP2pInfo: WifiP2pInfo): WifiDirectInfo {
     override fun isGroupOwner(): Boolean {
         return wifiP2pInfo.isGroupOwner
     }
+
+    override fun p2pInfo(): WifiP2pInfo {
+        return wifiP2pInfo
+    }
 }

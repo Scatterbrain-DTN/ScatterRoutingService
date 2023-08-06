@@ -14,10 +14,7 @@ class MockServerSocketManager @Inject constructor(
         private val stream: InputStream,
         private val output: OutputStream
 ): ServerSocketManager {
-    override fun getServerSocket(): Single<Socket> {
-        return Single.just(mock {
-            on { getInputStream() } doReturn stream
-            on { getOutputStream() } doReturn output
-        })
+    override fun getServerSocket(): Single<PortSocket> {
+        return Single.error(NotImplementedError())
     }
 }

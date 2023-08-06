@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -58,7 +59,7 @@ class ScatterRoutingService : LifecycleService() {
             get() {
                 var packageName: String? = null
                 val packages = packageManager.getPackagesForUid(Binder.getCallingUid())
-                if (packages != null && packages.isNotEmpty()) {
+                if (!packages.isNullOrEmpty()) {
                     packageName = packages[0]
                 }
                 if (packageName != null) {
@@ -655,6 +656,20 @@ class ScatterRoutingService : LifecycleService() {
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
+        override fun exportDatabase(uri: Uri, callback: UnitCallback) {
+            checkSuperuserPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.dumpDatastore(uri)
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { e -> callback.onError(e.toString()) }
+                )
+
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
         /**
          * Gets a list of packages this service has interacted with
          */
@@ -727,7 +742,6 @@ class ScatterRoutingService : LifecycleService() {
             .setTicker("fmef am tire")
             .build()
         startForeground(1, notification)
-        mBackend.registerReceiver()
         try {
             mBackend.leState.connectionCache.clear()
 

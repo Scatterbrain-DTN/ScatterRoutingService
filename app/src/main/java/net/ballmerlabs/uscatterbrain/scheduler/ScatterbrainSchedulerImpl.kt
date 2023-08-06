@@ -1,7 +1,10 @@
 package net.ballmerlabs.uscatterbrain.scheduler
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.wifi.p2p.WifiP2pManager
 import android.os.ParcelUuid
 import android.os.Parcelable
 import android.os.PowerManager
@@ -9,17 +12,32 @@ import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanSettings
 import com.polidea.rxandroidble2.scan.ScanSettings.SCAN_MODE_LOW_POWER
+import io.reactivex.Completable
+import io.reactivex.Scheduler
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.RouterState
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.*
+import net.ballmerlabs.uscatterbrain.RoutingServiceBackend
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ManagedGattServer
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.SCAN_REQUEST_CODE
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiver
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiverImpl
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
@@ -38,11 +56,13 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val state: BroadcastReceiverState,
     private val server: ManagedGattServer,
     private val leState: LeState,
-    private val broadcastReceiverState: BroadcastReceiverState,
+    private val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
+    private val wifiDirectRadioModule: WifiDirectRadioModule,
+    @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val operationsScheduler: Scheduler,
     powerManager: PowerManager
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
-    private val pendingIntent = ScanBroadcastReceiver.newPendingIntent(context)
+    private var pendingIntent = ScanBroadcastReceiver.newPendingIntent(context)
     private val discoveryLock = AtomicReference(false)
     override val isDiscovering: Boolean
         get() = discoveryLock.get()
@@ -68,12 +88,47 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     }
 
     override fun pauseScan() {
-        LOG.e("pausing scan")
         client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
+        /*
+        PendingIntent.getBroadcast(
+            context,
+            SCAN_REQUEST_CODE,
+            Intent(context, ScanBroadcastReceiverImpl::class.java),
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_CANCEL_CURRENT
+        ).cancel()
+         */
+        //pendingIntent.cancel()
+        pendingIntent = ScanBroadcastReceiver.newPendingIntent(context)
+    }
+
+    private fun registerReceiver(): Completable {
+        return Completable.fromAction {
+            LOG.v("registering broadcast receiver")
+            val intentFilter = IntentFilter()
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
+
+            // Indicates a change in the list of available peers.
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
+
+            // Indicates the state of Wi-Fi P2P connectivity has changed.
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
+
+            // Indicates this device's details have changed.
+            intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
+            context.applicationContext.registerReceiver(wifiDirectBroadcastReceiver.asReceiver(), intentFilter)
+
+        }.subscribeOn(operationsScheduler)
+    }
+
+    private fun unregisterReceiver(): Completable {
+        return Completable.fromAction {
+            context.applicationContext.unregisterReceiver(wifiDirectBroadcastReceiver.asReceiver())
+        }.subscribeOn(operationsScheduler)
+            .doOnError { err -> LOG.w("failed to unregister receiver $err") }
+            .onErrorComplete()
     }
 
     override fun unpauseScan() {
-        LOG.e("unpausing scan")
         client.backgroundScanner.scanBleDeviceInBackground(
             pendingIntent,
             ScanSettings.Builder()
@@ -93,81 +148,65 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     * when a scatterbrain uuid is detected. The adapter is responsible for waking up the device
     * via offloaded scanning, but NOT for keeping it awake.
     */
-    private fun acquireWakelock() {
+    override fun acquireWakelock() {
         if (!wakeLock.isHeld)
-            wakeLock.acquire((30 * 1000).toLong())
+            wakeLock.acquire(10*60*1000L /*10 minutes*/)
     }
 
-    private fun releaseWakeLock() {
+    override fun releaseWakeLock() {
         if (wakeLock.isHeld)
             wakeLock.release()
     }
 
-    @Synchronized
     override fun start() {
         val discovering = discoveryLock.getAndSet(true)
         if (discovering) {
             broadcastRouterState(RouterState.DISCOVERING)
             return
         }
-        client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
-        server.stopServer()
+        pauseScan()
         state.shouldScan = true
-        val disp = advertiser.startAdvertise()
+        val disp = registerReceiver()
+            .andThen(wifiDirectRadioModule.removeGroup().onErrorComplete())
+            .andThen(advertiser.startAdvertise())
             .andThen(server.startServer())
             .timeout(10, TimeUnit.SECONDS)
+            .doOnComplete { unpauseScan() }
             .subscribe(
-            {
-             LOG.v("started advertise")
-                client.backgroundScanner.scanBleDeviceInBackground(
-                    pendingIntent,
-                    ScanSettings.Builder()
-                        .setScanMode(SCAN_MODE_LOW_POWER)
-                        .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .setShouldCheckLocationServicesState(true)
-                        .setLegacy(false)
-                        .build(),
-                    ScanFilter.Builder()
-                        .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
-                        .build()
-                )
-                broadcastRouterState(RouterState.DISCOVERING)
-                isAdvertising = true
-            },
-            { e ->
-                LOG.e("failed to start: $e")
-                e.printStackTrace()
-                firebaseWrapper.recordException(e)
-                broadcastRouterState(RouterState.ERROR)
-            }
-        )
+                {
+                    LOG.v("started advertise")
+                    broadcastRouterState(RouterState.DISCOVERING)
+                    isAdvertising = true
+                },
+                { e ->
+                    LOG.e("failed to start: $e")
+                    e.printStackTrace()
+                    firebaseWrapper.recordException(e)
+                    broadcastRouterState(RouterState.ERROR)
+                }
+            )
 
         globalDisposable.getAndSet(disp)?.dispose()
 
     }
 
-    @Synchronized
     override fun stop(): Boolean {
         LOG.e("stop")
         val lock = discoveryLock.getAndSet(false)
         if (lock) {
             client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
-            val disp = advertiser.stopAdvertise().subscribe(
+            val disp = unregisterReceiver().andThen(advertiser.stopAdvertise()).subscribe(
                 {
-                    broadcastReceiverState.dispose()
+                    //broadcastReceiverState.dispose()
                     state.shouldScan = false
                     leState.connectionCache.forEach { c ->
                         leState.updateDisconnected(c.key)
                     }
-                    leState.activeLuids.forEach { c ->
-                        leState.updateDisconnected(c.key)
-                    }
                     leState.connectionCache.clear()
-                    leState.activeLuids.clear()
                     globalDisposable.getAndSet(null)?.dispose()
                     broadcastRouterState(RouterState.OFFLINE)
                 },
-                { err -> LOG.e("failed to stop advertise $err") }
+                { err -> LOG.e("failed to stop advertise ") }
             )
         }
         return lock

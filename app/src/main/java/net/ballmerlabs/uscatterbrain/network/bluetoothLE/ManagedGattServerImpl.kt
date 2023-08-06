@@ -14,7 +14,8 @@ import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
-import net.ballmerlabs.uscatterbrain.network.getHashUuid
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
+import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
@@ -22,17 +23,19 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
 class ManagedGattServerImpl @Inject constructor(
     private val newServer: GattServer,
-    @Named(RoutingServiceComponent.NamedSchedulers.IO) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val operationsScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
     private val advertiser: Advertiser,
     private val state: LeState,
-    private val builder: ScatterbrainTransactionSubcomponent.Builder,
-    private val firebase: FirebaseWrapper
+    private val firebase: FirebaseWrapper,
+    private val radioModule: WifiDirectRadioModule,
+    private val scheduler: Provider<ScatterbrainScheduler>,
 ) : ManagedGattServer {
 
     private val server = AtomicReference<Pair<CachedLEServerConnection, Disposable>?>(null)
@@ -42,16 +45,16 @@ class ManagedGattServerImpl @Inject constructor(
 
     private fun helloRead(serverConnection: GattServerConnection): Completable {
         return serverConnection.getEvents()
-            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO }
+            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO && p.operation == GattServerConnection.Operation.CHARACTERISTIC_READ }
             .subscribeOn(operationsScheduler)
             .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
             .flatMapCompletable { trans ->
-                val luid = getHashUuid(advertiser.myLuid.get())
+                val luid = advertiser.getHashLuid()
                 LOG.v("hello characteristic read, replying with luid $luid")
                 trans.sendReply(
                     BluetoothLERadioModuleImpl.uuid2bytes(luid),
                     BluetoothGatt.GATT_SUCCESS
-                ).onErrorComplete()
+                )
             }
             .doOnError { err ->
                 LOG.e("error in hello characteristic read: $err")
@@ -75,30 +78,47 @@ class ManagedGattServerImpl @Inject constructor(
 
     private fun helloWrite(serverConnection: CachedLEServerConnection): Observable<HandshakeResult> {
         return serverConnection.connection.getEvents()
-            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO }
+            .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO && p.operation == GattServerConnection.Operation.CHARACTERISTIC_WRITE }
             .subscribeOn(operationsScheduler)
             .flatMapMaybe { trans ->
+                scheduler.get().acquireWakelock()
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
                 val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)!!
+                state.updateActive(luid)
                 serverConnection.connection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
                     state.updateDisconnected(luid)
                     serverConnection.disconnect(trans.remoteDevice)
                     serverConnection.unlockLuid(luid)
+                    radioModule.removeUke(luid)
                 }
-                LOG.e("server handling luid $luid")
-                LOG.e("transaction NOT locked, continuing")
-                trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                    .andThen(state.establishConnectionCached(trans.remoteDevice, luid))
+
+                LOG.v("server handling luid $luid")
+                LOG.v("transaction NOT locked, continuing")
+
+
+                state.establishConnectionCached(trans.remoteDevice, luid)
+                    .subscribeOn(operationsScheduler)
                     .flatMapMaybe { connection ->
-                        connection.bluetoothLeRadioModule().handleConnection(luid)
-                    }
+
+                            LOG.e("this is a reverse connection")
+                            trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                                .andThen(
+                                    connection.bluetoothLeRadioModule()
+                                        .handleConnection(luid)
+                                )
+                                .subscribeOn(operationsScheduler)
+                        }
                     .onErrorComplete()
+                    .doFinally {
+                        state.transactionUnlock(luid)
+                    }
                     .doOnError { err ->
                         LOG.e("error in handleConnection $err")
                         firebase.recordException(err)
                         //   state.updateDisconnected(luid)
                     }
+
 
             }
             .onErrorReturnItem(
@@ -128,6 +148,7 @@ class ManagedGattServerImpl @Inject constructor(
      */
     override fun startServer(): Completable {
         // initialize our channels
+        state.channels.clear()
         makeCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
         makeCharacteristic(BluetoothLERadioModuleImpl.UUID_HELLO)
         for (i in 0 until BluetoothLERadioModuleImpl.NUM_CHANNELS) {
@@ -165,9 +186,10 @@ class ManagedGattServerImpl @Inject constructor(
                     val s = CachedLEServerConnection(
                         connectionRaw,
                         state.channels,
-                        scheduler = operationsScheduler,
+                        scheduler = serverScheduler,
                         ioScheduler = operationsScheduler,
-                        firebaseWrapper = firebase
+                        firebaseWrapper = firebase,
+                        advertiser = advertiser
                     )
 
                     val write = helloWrite(s)

@@ -8,7 +8,7 @@ import java.io.File
 import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObject
 
-val loggerScheduler = lazy { RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("logging")) }
+val loggerScheduler = lazy { RxJavaPlugins.createComputationScheduler(ScatterbrainThreadFactory("logging")) }
 var logger: (c: Class<*>) -> Logger = { c -> LoggerImpl(c) }
 private var cacheFileDir: File? = null
 var logsDir: File? = null

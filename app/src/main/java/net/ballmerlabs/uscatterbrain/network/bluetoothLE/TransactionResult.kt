@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import io.reactivex.Maybe
 import io.reactivex.Single
 
 /**
@@ -17,14 +18,14 @@ data class TransactionResult<T>(
     val isError: Boolean
     get() = err != null
 
-    fun merge(newres: TransactionResult<T>): Single<TransactionResult<T>> {
-        return Single.defer {
+    fun merge(newres: TransactionResult<T>): Maybe<TransactionResult<T>> {
+        return Maybe.defer {
             when {
-                newres.err != null -> Single.error(newres.err)
-                err != null -> Single.error(err)
-                newres.stage == null && stage == null -> Single.error(IllegalStateException("no stage"))
-                newres.item != null && item != null -> Single.error(IllegalStateException("conflicting items"))
-                newres.stage != null && stage != null -> Single.error(IllegalStateException("conflicting stages"))
+                newres.err != null -> Maybe.error(newres.err)
+                err != null -> Maybe.error(err)
+                newres.stage == null && stage == null -> Maybe.empty()
+                newres.item != null && item != null && newres.item != item -> Maybe.error(IllegalStateException("conflicting items"))
+                newres.stage != null && stage != null -> Maybe.error(IllegalStateException("conflicting stages"))
                 else -> {
                     val newitem = item?:newres.item
                     val newstage = stage?:newres.stage
@@ -34,7 +35,7 @@ data class TransactionResult<T>(
                         err = err,
                         stage = newstage
                     )
-                    Single.just(result)
+                    Maybe.just(result)
                 }
             }
         }
@@ -61,7 +62,6 @@ data class TransactionResult<T>(
             return TransactionResult(item = null, err = throwable, stage = STAGE_TERMINATE)
         }
 
-        const val STAGE_SUSPEND = "suspend"
         const val STAGE_TERMINATE = "exit"
         const val STAGE_START = "start"
         const val STAGE_LUID = "luid"
