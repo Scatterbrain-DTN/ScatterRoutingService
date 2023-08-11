@@ -375,13 +375,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 request.toUpgrade(Random().nextInt())
                             )
                         )
-                        .subscribeOn(timeoutScheduler)
                         .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
-
                         .flatMapSingle { sock ->
                             sendConnectedIps(sock.socket, selfLuid)
+                                .subscribeOn(timeoutScheduler)
                                 .ignoreElement()
                                 .andThen(bootstrapUkeSocket(sock.socket)
+                                    .subscribeOn(timeoutScheduler)
                                     .doOnError { err -> LOG.w("uke bootstrapUkeSocket failed $err") })
                                 .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
                         }

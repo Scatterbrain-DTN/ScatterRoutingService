@@ -195,11 +195,23 @@ class LeStateImpl @Inject constructor(
                 } else {
                     LOG.e("establishing NEW connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
                     val rawConnection = device.establishConnection(false)
-                        //  .flatMapSingle { v -> v.discoverServices().flatMap { v.requestMtu(512).map { v } } }
-                        .doFinally { connectionCache.remove(luid) }
+                        .flatMapSingle { v ->
+                            v.discoverServices()
+                                .map { v }
+                           // .flatMap {
+                              //  v.requestMtu(512)
+                              //      .map { v }
+                        //    }
+                        }
+                        .timeout(63, TimeUnit.SECONDS, ioScheduler)
                         .doOnNext {
                             LOG.d("now connected ${device.macAddress}")
+                        }.doOnError {
+                            updateGone(luid)
+                            updateDisconnected(luid)
                         }
+                        .doFinally { connectionCache.remove(luid) }
+
                     val newconnection = factory.transaction(device, luid)
                     newconnection.connection().subscribeConnection(rawConnection)
                     connectionCache[luid] = newconnection
@@ -215,11 +227,7 @@ class LeStateImpl @Inject constructor(
                             Completable.complete()
                         } else {
                             Completable.complete()
-                        }.andThen(server.get().getServer().flatMapCompletable { s ->
-                            s.unlockLuid(luid)
-                            s.disconnect(device)
-                            Completable.complete()
-                        })
+                        }
 
                     }
                     newconnection.connection().subscribeNotifs()
@@ -232,7 +240,6 @@ class LeStateImpl @Inject constructor(
             }.flatMap { c -> c }.subscribeOn(ioScheduler)
 
         return connectSingle
-            .timeout(63, TimeUnit.SECONDS, ioScheduler)
             .doOnError { updateGone(luid) }
     }
 
