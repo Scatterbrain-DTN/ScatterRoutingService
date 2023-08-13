@@ -21,6 +21,7 @@ import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -32,6 +33,7 @@ import kotlin.math.min
 @Singleton
 class LeStateImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val ioScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val connectScheduler: Scheduler,
     val factory: ScatterbrainTransactionFactory,
     private val server: Provider<ManagedGattServer>,
     private val radioModule: WifiDirectRadioModule,
@@ -130,11 +132,12 @@ class LeStateImpl @Inject constructor(
             //  server.get()?.disconnect(device)
             server.get()?.getServerSync()?.disconnect(device)
             server.get()?.getServerSync()?.unlockLuid(luid)
+            if (connectionCache.size == 0) {
+                server.get().getServerSync()?.connection?.resetMtu(device.macAddress)
+            }
         }
         transactionLock.set(null)
-        if (connectionCache.size == 0) {
-            server.get().getServerSync()?.connection?.resetMtu()
-        }
+
     }
 
     override fun updateGone(luid: UUID) {
@@ -197,17 +200,19 @@ class LeStateImpl @Inject constructor(
                     val rawConnection = device.establishConnection(false)
                         .flatMapSingle { v ->
                             v.discoverServices()
-                                .map { v }
-                           // .flatMap {
-                              //  v.requestMtu(512)
-                              //      .map { v }
-                        //    }
+                                .flatMap {
+                                    v.requestMtu(512)
+                                        .map { v }
+                                }.timeout(60, TimeUnit.SECONDS)
                         }
-                        .timeout(63, TimeUnit.SECONDS, ioScheduler)
                         .doOnNext {
                             LOG.d("now connected ${device.macAddress}")
-                        }.doOnError {
-                            updateGone(luid)
+                        }.doOnError { err ->
+                            if (err is TimeoutException) {
+                                LOG.w("connect timed out, updating gone")
+                                updateGone(luid)
+                            }
+                            LOG.w("connection error $err, updating disconnected")
                             updateDisconnected(luid)
                         }
                         .doFinally { connectionCache.remove(luid) }

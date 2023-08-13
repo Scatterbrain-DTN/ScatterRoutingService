@@ -98,7 +98,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         ).cancel()
          */
         //pendingIntent.cancel()
-        pendingIntent = ScanBroadcastReceiver.newPendingIntent(context)
     }
 
     private fun registerReceiver(): Completable {

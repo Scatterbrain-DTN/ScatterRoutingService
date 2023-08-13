@@ -20,6 +20,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.Ser
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -40,7 +41,7 @@ class GattServerConnectionImpl @Inject constructor(
 ) : GattServerConnection {
     private val Log by scatterLog()
     private val compositeDisposable = CompositeDisposable()
-    private val currentMtu = AtomicReference<Int?>(null)
+    private val currentMtu = ConcurrentHashMap<String, Int>()
     private var onDisconnect: (device: RxBleDevice) -> Unit = {}
 
     private val deviceOnDisconnect = mutableMapOf<RxBleDevice, () -> Unit>()
@@ -323,15 +324,7 @@ class GattServerConnectionImpl @Inject constructor(
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
             super.onMtuChanged(device, mtu)
             Log.e("mtu changed: $mtu")
-            currentMtu.accumulateAndGet(mtu) { old, new ->
-                if (old == null) {
-                    new?:20
-                } else if (new != null && new > old) {
-                    old
-                } else {
-                    new
-                }
-            }
+            currentMtu[device.address] = mtu
             if (getChangedMtuOutput().valueRelay.hasObservers()) {
                 getChangedMtuOutput().valueRelay.onNext(mtu)
             }
@@ -453,13 +446,12 @@ class GattServerConnectionImpl @Inject constructor(
             }
     }
 
-    override fun getMtu(): Int {
-        return 20
-        return currentMtu.get()?:20
+    override fun getMtu(address: String): Int {
+        return currentMtu[address]?:20
     }
 
-    override fun resetMtu() {
-        currentMtu.set(null)
+    override fun resetMtu(address: String) {
+        currentMtu.clear()
     }
 
     override fun resetDescriptorMap() {

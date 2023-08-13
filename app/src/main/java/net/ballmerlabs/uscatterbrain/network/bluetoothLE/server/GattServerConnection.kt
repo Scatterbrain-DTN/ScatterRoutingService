@@ -72,10 +72,10 @@ interface GattServerConnection: Disposable {
 
     fun setOnDisconnect(func: (device: RxBleDevice) -> Unit)
 
-    fun getMtu(): Int
+    fun getMtu(address: String): Int
     fun setOnDisconnect(device: RxBleDevice, func: () -> Unit)
 
-    fun resetMtu()
+    fun resetMtu(address: String)
 
     open class Output<T> {
         open val valueRelay: PublishSubject<T> = PublishSubject.create()

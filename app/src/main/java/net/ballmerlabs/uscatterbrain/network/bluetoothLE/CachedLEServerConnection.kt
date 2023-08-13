@@ -103,7 +103,7 @@ class CachedLEServerConnection(
                         characteristic.uuid,
                         subject.toFlowable(BackpressureStrategy.BUFFER)
                             .flatMap { item ->
-                                val mtu = connection.getMtu() - 3
+                                val mtu = connection.getMtu(device.macAddress) - 3
                                 LOG.e("packet! ${item.packet.type} MTU: $mtu")
                                 item.packet.writeToStream(mtu, ioScheduler)
                                     .doFinally {
