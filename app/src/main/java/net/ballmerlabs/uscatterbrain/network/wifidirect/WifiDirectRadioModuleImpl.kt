@@ -72,7 +72,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val preferences: RouterPreferences,
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val timeoutScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val readScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.WIFI_WRITE) private val writeScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val writeScheduler: Scheduler,
     private val channel: WifiP2pManager.Channel,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
@@ -382,8 +382,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     .subscribeOn(timeoutScheduler)
                                     .doOnError { err -> LOG.w("uke bootstrapUkeSocket failed $err") })
                                 .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-                        }
-
+                        }.subscribeOn(timeoutScheduler)
                         .flatMap { Flowable.never<WifiDirectBootstrapRequest>() }
                         .mergeWith(Flowable.just(request))
                         .materialize()

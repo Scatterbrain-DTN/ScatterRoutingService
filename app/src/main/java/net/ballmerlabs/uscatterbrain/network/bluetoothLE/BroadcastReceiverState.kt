@@ -22,7 +22,7 @@ class BroadcastReceiverState @Inject constructor(
 ) {
     private val log by scatterLog()
     private val disposable = AtomicReference<Disposable?>(null)
-    private val clear = AtomicReference(Pair(false, false))
+    private val clear = AtomicBoolean()
     private val batchCounter = AtomicInteger()
     private val batch = ConcurrentHashMap<ScanResult, Boolean>()
     val connectLock = AtomicBoolean()
@@ -34,10 +34,8 @@ class BroadcastReceiverState @Inject constructor(
     }
 
     fun clear(c: Boolean): Boolean {
-        val out = clear.updateAndGet { v ->
-            Pair(v.second, c)
-        }
-        return !out.first && out.second
+        val out = clear.getAndSet(c)
+        return !out && c
     }
 
     fun batch(scanResult: List<ScanResult>, count: Int = 5): Flowable<ScanResult> {
