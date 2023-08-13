@@ -157,7 +157,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
                 subject.andThen(mBroadcastReceiver.observeConnectionInfo())
                     .mergeWith(Completable.fromAction {
-                        /*
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             val builder = infoComponentProvider.get()
                             val pass = ByteArray(8)
@@ -179,8 +178,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         } else {
                             mManager.createGroup(channel, listener)
                         }
-                         */
-                        mManager.createGroup(channel, listener)
+                       // mManager.createGroup(channel, listener)
                     })
                     .doOnError { err -> LOG.e("createGroupSingle error: $err") }
                     .takeUntil { wifiP2pInfo ->
@@ -557,8 +555,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun getBand(): Int {
-        return FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
-
+     //   return FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
         val connected = manager.connectionInfo?.networkId != -1
         //    LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported} $connected")
         return if (manager.is5GHzBandSupported && !connected)

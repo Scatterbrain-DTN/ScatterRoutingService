@@ -713,20 +713,21 @@ class ScatterRoutingService : LifecycleService() {
      */
     override fun onCreate() {
         super.onCreate()
-        initDiskLogging()
-        val channel = NotificationChannel(
-            NOTIFICATION_CHANNEL_FOREGROUND,
-            "fmef",
-            NotificationManager.IMPORTANCE_DEFAULT
-        )
+        LOG.e("ScatterRoutingService onCreate called (should only call this once)")
         if (!this::mBackend.isInitialized) {
+            initDiskLogging()
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_FOREGROUND,
+                "fmef",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
             LOG.e("init!!")
             val c = this.getComponent()!!
             component.accept(c)
             mBackend = c.scatterRoutingService()
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
         }
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
     }
 
     /*
