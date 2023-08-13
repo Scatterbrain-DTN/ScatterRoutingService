@@ -10,6 +10,7 @@ import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.UpgradePacket
+import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
 import java.util.UUID
@@ -20,6 +21,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * in a semi-trustless fashion if a transport layer bootstrap is required and, if so,
  * to which transport to switch to.
  */
+
+data class VotingResult(
+    val provides: AdvertisePacket.Provides,
+    val band: Int
+)
 class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDeviceSession.Stage {
     private val LOG by scatterLog()
     val serverPackets = CompletableSubject.create()
@@ -32,7 +38,8 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
         provides: AdvertisePacket.Provides,
         force: Map<UUID, UpgradePacket>,
         sender: UUID,
-        role: Role
+        role: Role,
+        band: Int
     ): ElectLeaderPacket {
         LOG.e("votingStage with forces ${force.size}")
         val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder(sender)
@@ -43,6 +50,7 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
             .setProvides(provides)
             .setTiebreaker(tiebreaker)
             .setRole(role)
+            .setBand(band)
             .setforceUke(force)
             .build()
     }
@@ -99,12 +107,19 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
         val forces =
             unhashedPackets
                 .flatMap { p -> p.force.entries }
-                .filter { p -> p.key != me && p.key != remoteLuid}
+                .filter { p -> p.key != me && p.key != remoteLuid }
                 .associate { (t, u) -> Pair(t, u) }
         LOG.e("voting forces ${forces.size}")
+        val band = unhashedPackets
+            .fold(mutableMapOf<Int, Int>()) { acc, electLeaderPacket ->
+                val v = acc[electLeaderPacket.band]?:0
+                acc[electLeaderPacket.band] = v+1
+                acc
+            }.maxBy { v -> v.value }
+            .key
         when (forces.size) {
             0 -> {
-                val ukes = unhashedPackets.filter { r -> r.role == Role.UKE}
+                val ukes = unhashedPackets.filter { r -> r.role == Role.UKE }
                 if (ukes.size == 1 && ukes[0].from != me) {
                     role = BluetoothLEModule.Role.ROLE_SEME
                 } else {
@@ -136,23 +151,29 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
         if (role == null) {
             throw MiracleException()
         }
-        return BluetoothLEModule.ConnectionRole(luids = ret, role = role)
+        return BluetoothLEModule.ConnectionRole(
+            luids = ret,
+            role = role,
+            band = band
+        )
     }
 
-    private fun countVotes(): Single<AdvertisePacket.Provides> {
+    fun determineUpgrade(): Single<VotingResult> {
         return Observable.fromIterable(unhashedPackets)
-            .map { p -> p.provides }
-            .reduce(AdvertisePacket.Provides.WIFIP2P) { _, n ->
-                if (n == AdvertisePacket.Provides.BLE) {
-                    AdvertisePacket.Provides.BLE
+            .map { p -> VotingResult(provides = p.provides, band = p.band) }
+            .reduce(VotingResult(
+                provides = AdvertisePacket.Provides.BLE,
+                band = FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO)
+            ) { _, n ->
+                if (n.provides == AdvertisePacket.Provides.BLE) {
+                    VotingResult(
+                        provides = AdvertisePacket.Provides.BLE,
+                        band = n.band
+                    )
                 } else {
                     n
                 }
             }
-    }
-
-    fun determineUpgrade(): Single<AdvertisePacket.Provides> {
-        return countVotes()
     }
 
     /**

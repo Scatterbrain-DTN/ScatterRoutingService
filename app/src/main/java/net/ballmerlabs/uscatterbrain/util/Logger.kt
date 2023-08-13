@@ -8,7 +8,7 @@ import java.io.File
 import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObject
 
-val loggerScheduler = lazy { RxJavaPlugins.createComputationScheduler(ScatterbrainThreadFactory("logging")) }
+val loggerScheduler = lazy { RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("logging")) }
 var logger: (c: Class<*>) -> Logger = { c -> LoggerImpl(c) }
 private var cacheFileDir: File? = null
 var logsDir: File? = null
@@ -45,7 +45,7 @@ enum class LogLevel(val str: String) {
 }
 
 abstract class Logger(c: Class<*>) {
-    protected val name: String = getCompanionClass(c).name.replace("net.ballmerlabs", "")
+    protected val name: String = getCompanionClass(c).name.replace("net.ballmerlabs.uscatterbrain", "")
 
     protected fun fmt(text: String, level: LogLevel): String {
         return "[${level.str}]: $text"

@@ -41,7 +41,8 @@ interface BluetoothLEModule {
 
     data class ConnectionRole(
         val role: Role,
-        val luids: Map<UUID, UpgradePacket>
+        val luids: Map<UUID, UpgradePacket>,
+        val band: Int
     )
 
     companion object {

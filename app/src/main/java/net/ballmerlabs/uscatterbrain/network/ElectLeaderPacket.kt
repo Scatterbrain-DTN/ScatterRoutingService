@@ -5,6 +5,7 @@ import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.ElectLeader
 import net.ballmerlabs.uscatterbrain.ScatterProto.Role
+import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import java.nio.ByteBuffer
 import java.util.UUID
 
@@ -66,6 +67,9 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             packet.valBody.tiebreakerVal.lower
         )
 
+    val band: Int
+        get() = packet.valBody.band
+
     val provides: AdvertisePacket.Provides
         get() = AdvertisePacket.valToProvides(packet.valBody.provides)
 
@@ -99,7 +103,8 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
         var provides: AdvertisePacket.Provides? = null,
         var tiebreaker: UUID? = null,
         var forceUke: MutableMap<UUID, UpgradePacket> = mutableMapOf(),
-        var remove: MutableList<UUID> = mutableListOf()
+        var remove: MutableList<UUID> = mutableListOf(),
+        var band: Int = FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
     ) {
         private val salt: ByteArray = ByteArray(GenericHash.BYTES)
 
@@ -151,6 +156,10 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
             this.forceUke.putAll(force)
         }
 
+        fun setBand(band: Int) = apply {
+            this.band = band
+        }
+
         fun build(): ElectLeaderPacket {
             require((!(provides == null || tiebreaker == null)) || hashVal != null) { "both tiebreaker and provides must be set" }
             return if (enableHashing) {
@@ -161,6 +170,7 @@ class ElectLeaderPacket(packet: ElectLeader) : ScatterSerializable<ElectLeader>(
                     .setProvides(providesToVal(provides!!))
                     .setTiebreakerVal(protoUUIDfromUUID(tiebreaker!!))
                     .setRole(this.role)
+                    .setBand(this.band)
                     .addAllRemoveLuid(this.remove.map { v -> protoUUIDfromUUID(v) })
                     .addAllForceLuid(forceUke.map { v -> ScatterProto.ExtraUke.newBuilder()
                         .setLuid(protoUUIDfromUUID(v.key))

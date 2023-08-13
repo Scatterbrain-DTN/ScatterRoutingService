@@ -8,6 +8,7 @@ import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
+import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -59,7 +60,11 @@ class LeDeviceSession(
             stageChanges.onNext(value)
             field = value
         }
-    var role = ConnectionRole(role = BluetoothLEModule.Role.ROLE_UKE, luids = mutableMapOf())
+    var role = ConnectionRole(
+        role = BluetoothLEModule.Role.ROLE_UKE,
+        luids = mutableMapOf(),
+        band = FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
+        )
     private var declareHashesPacket: DeclareHashesPacket? = DeclareHashesPacket.newBuilder().build()
 
     /**
@@ -122,7 +127,7 @@ class LeDeviceSession(
      * register an upgrade stage if we decide to upgrade
      * @param provides what transport to upgrade to
      */
-    fun setUpgradeStage(provides: AdvertisePacket.Provides) {
+    fun setUpgradeStage(provides: VotingResult) {
         upgradeStage = UpgradeStage(provides)
     }
 

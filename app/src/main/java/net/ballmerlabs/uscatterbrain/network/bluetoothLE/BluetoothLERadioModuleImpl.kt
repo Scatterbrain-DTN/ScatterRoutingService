@@ -235,7 +235,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 provides,
                                 wifiDirectRadioModule.getUkes(),
                                 session.hashedSelf,
-                                if (wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME
+                                if (wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME,
+                                wifiDirectRadioModule.getBand()
                             )
                             session.votingStage.addPacket(packet)
                             serverConn.serverNotify(packet, session.remoteLuid, session.device)
@@ -271,7 +272,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         provides,
                                         wifiDirectRadioModule.getUkes(),
                                         session.hashedSelf,
-                                        if (wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME
+                                        if (wifiDirectRadioModule.getForceUke()) ScatterProto.Role.UKE else ScatterProto.Role.SEME,
+                                        wifiDirectRadioModule.getBand()
                                     )
                                     packet.tagLuid(luidPacket.luidVal)
                                     session.votingStage.addPacket(packet)
@@ -310,14 +312,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 session.role = if (wifiDirectRadioModule.getForceUke())
                                     ConnectionRole(
                                         role = BluetoothLEModule.Role.ROLE_UKE,
-                                        luids = ukes
+                                        luids = ukes,
+                                        band = wifiDirectRadioModule.getBand()
                                     )
                                 else
                                     connectionRole
 
                                 LOG.v("selected role: ${session.role}")
                                 session.setUpgradeStage(provides)
-                                when (provides) {
+                                when (provides.provides) {
                                     AdvertisePacket.Provides.INVALID -> {
                                         LOG.e("received invalid provides")
                                         TransactionResult.err<BootstrapRequest>(IllegalStateException("invaslid provides"))

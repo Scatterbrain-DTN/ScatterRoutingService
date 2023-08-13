@@ -968,7 +968,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     LOG.v("seme got send ip socket: ${ownerSocket.remoteSocketAddress}, ${ownerSocket.port}")
                                     sendSelfIp(ownerSocket, self, ownerPort)
                                         .doOnError { err -> LOG.w("seme sendSelfIp failed $err") }
-                                        .timeout(60, TimeUnit.SECONDS, timeoutScheduler)
+                                        .timeout(59, TimeUnit.SECONDS, timeoutScheduler)
                                         .flatMapPublisher { packet ->
                                             val size = packet.addresses.size.toLong()
                                             LOG.v("seme got ip announce from uke, connected size: $size")
