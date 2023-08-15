@@ -139,7 +139,7 @@ class CachedLEConnection @Inject constructor(
             parser,
             channelNotif,
             ioScheduler
-        ).timeout(25, TimeUnit.SECONDS, ioScheduler)
+        ).timeout(44, TimeUnit.SECONDS, ioScheduler)
             .doOnError { err -> LOG.w("failed to receive packet for $luid $err") }
             .doOnSuccess { p -> LOG.e("parsed packet len ${p.bytes.size}") }
     }

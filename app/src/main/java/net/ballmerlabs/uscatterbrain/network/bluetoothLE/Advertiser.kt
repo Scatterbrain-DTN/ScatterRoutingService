@@ -49,5 +49,6 @@ interface Advertiser {
     companion object {
         val CLEAR_DATA = UUID.fromString("00005BC5-0000-1000-8000-00805F9B34FB")
         val LUID_DATA = UUID.fromString("0000FC87-0000-1000-8000-00805F9B34FB")
+        val UKES_DATA = UUID.fromString("0000FC88-0000-1000-8000-00805F9B34FB")
     }
 }

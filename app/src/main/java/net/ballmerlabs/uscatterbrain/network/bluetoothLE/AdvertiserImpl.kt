@@ -21,6 +21,7 @@ import net.ballmerlabs.uscatterbrain.network.UkeAnnouncePacket
 import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.CLEAR_DATA;
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.LUID_DATA
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.UKES_DATA
 import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
@@ -115,7 +116,8 @@ class AdvertiserImpl @Inject constructor(
                         awaitAdvertiseDataUpdate()
                             .mergeWith(Completable.fromAction {
                                 try {
-                                    val u = shrinkUkes(ukes).packet.toByteArray()
+                                    val shrink = shrinkUkes(ukes)
+                                    val u = shrink.packet.toByteArray()
                                     val builder = AdvertiseData.Builder()
                                         .setIncludeDeviceName(false)
                                         .setIncludeTxPowerLevel(false)
@@ -123,6 +125,9 @@ class AdvertiserImpl @Inject constructor(
                                         .addServiceData(ParcelUuid(LUID_DATA), convertUUIDToByte(luid))
                                     if(clear.get())
                                         builder.addServiceData(ParcelUuid(CLEAR_DATA), byteArrayOf())
+
+                                    if(shrink.packet.ukesCount > 0)
+                                        builder.addServiceData(ParcelUuid(UKES_DATA), u)
                                     v.first.item!!.setAdvertisingData(builder.build())
                                 } catch (exc: SecurityException) {
                                     throw exc
@@ -147,7 +152,7 @@ class AdvertiserImpl @Inject constructor(
         packet.setforceUke(ukes)
         val b = packet.build()
         val size = estimateSize(b.packet.toByteArray().size)
-        val target = manager.adapter.leMaximumAdvertisingDataLength - 32 //TODO: calculate default payload size
+        val target = manager.adapter.leMaximumAdvertisingDataLength - ((2*3) + 16 + 1)
         if(size < target) {
             return b
         } else {

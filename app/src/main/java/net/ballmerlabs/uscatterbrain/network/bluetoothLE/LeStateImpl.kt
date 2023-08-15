@@ -8,6 +8,7 @@ import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
 import io.reactivex.Maybe
+import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
@@ -249,10 +250,12 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun refreshPeers(): Completable {
-        return Completable.fromAction {
+        return Observable.fromIterable(connectionCache.entries).flatMapCompletable { v ->
+            v.value.bluetoothLeRadioModule().initiateOutgoingConnection(v.key).ignoreElement().onErrorComplete()
+        }.andThen(Completable.fromAction {
             LOG.v("refreshPeers called")
             activeLuids.clear()
-        }
+        })
     }
 
 
