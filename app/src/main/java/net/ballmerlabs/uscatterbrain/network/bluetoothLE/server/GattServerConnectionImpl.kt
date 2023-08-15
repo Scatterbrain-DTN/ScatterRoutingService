@@ -451,7 +451,7 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun resetMtu(address: String) {
-        currentMtu.clear()
+        currentMtu.remove(address)
     }
 
     override fun resetDescriptorMap() {

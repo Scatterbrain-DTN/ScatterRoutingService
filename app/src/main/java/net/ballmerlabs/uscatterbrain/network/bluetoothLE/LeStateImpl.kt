@@ -251,7 +251,9 @@ class LeStateImpl @Inject constructor(
 
     override fun refreshPeers(): Completable {
         return Observable.fromIterable(connectionCache.entries).flatMapCompletable { v ->
-            v.value.bluetoothLeRadioModule().initiateOutgoingConnection(v.key).ignoreElement().onErrorComplete()
+            v.value.bluetoothLeRadioModule().initiateOutgoingConnection(v.key)
+                .ignoreElement()
+                .onErrorComplete()
         }.andThen(Completable.fromAction {
             LOG.v("refreshPeers called")
             activeLuids.clear()
