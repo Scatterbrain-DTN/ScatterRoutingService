@@ -794,11 +794,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID,
         device: RxBleDevice
     ): Maybe<HandshakeResult> {
-        return connection.awaitNotificationsSetup()
-            .doOnSubscribe { connection.subscribeNotifs() }
+        return connection.subscribeNotifs()
+            .andThen(connection.connection.firstOrError().flatMapCompletable { c -> c.requestMtu(512).ignoreElement() })
             .andThen(session.observeStage())
             .doOnNext { stage -> LOG.v("handling stage: $stage") }
-            .subscribeOn(ioScheduler)
             .concatMapSingle {
                 LOG.v("ghaa")
                 Single.zip(
@@ -807,12 +806,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 ) { client, server ->
                     LOG.v("server and client")
                     val serverResult = server(serverConnection)
-                        .subscribeOn(bleWriteScheduler)
                         .doOnError { err -> LOG.e("server error $err") }
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
                     val clientResult = client(clientConnection)
-                        .subscribeOn(bleReadScheduler)
                         .doOnError { err -> LOG.e("client error $err") }
                         .onErrorReturn { err -> TransactionResult.err(err) }
 
@@ -820,9 +817,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         s.merge(c)
                     }
                 } .flatMapMaybe { s ->
-                    s.flatMapMaybe{ v -> v.subscribeOn(ioScheduler) }
-                        .subscribeOn(ioScheduler)
-                }.subscribeOn(ioScheduler)
+                    s.flatMapMaybe{ v -> v }
+                }
                     .toSingle(TransactionResult.err(IllegalStateException("empty transaction merge")))
 
             }
@@ -858,7 +854,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                  //   state.updateDisconnected(luid)
                 }
                 serverConnection.unlockLuid(luid)
-                serverConnection.disconnect(device)
             }
     }
 
@@ -935,6 +930,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         fun release() {
             released = true
             lockedCharactersitic.release()
+        }
+
+        fun isLocked(): Boolean {
+            return !released
         }
 
         val characteristic: BluetoothGattCharacteristic

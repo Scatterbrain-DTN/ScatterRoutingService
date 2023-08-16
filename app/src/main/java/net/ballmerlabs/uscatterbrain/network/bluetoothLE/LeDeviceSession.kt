@@ -116,11 +116,6 @@ class LeDeviceSession(
     fun observeStage(): Observable<String> {
         return stageChanges
             .takeWhile { s -> s.compareTo(TransactionResult.STAGE_TERMINATE) != 0 }
-            .zipWith(locked.filter { v -> !v }) { v, _ ->
-                locked.onNext(true)
-                v
-            }
-            .delay(0, TimeUnit.SECONDS)
     }
 
     /**

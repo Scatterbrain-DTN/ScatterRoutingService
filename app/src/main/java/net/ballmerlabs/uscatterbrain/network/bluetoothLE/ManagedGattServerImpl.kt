@@ -88,7 +88,6 @@ class ManagedGattServerImpl @Inject constructor(
                 serverConnection.connection.setOnDisconnect(trans.remoteDevice) {
                     LOG.e("server onDisconnect $luid")
                     state.updateDisconnected(luid)
-                    serverConnection.disconnect(trans.remoteDevice)
                     serverConnection.unlockLuid(luid)
                     radioModule.removeUke(luid)
                 }
