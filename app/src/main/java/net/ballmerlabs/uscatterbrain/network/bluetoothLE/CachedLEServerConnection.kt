@@ -6,11 +6,13 @@ import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
+import io.reactivex.Flowable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl.OwnedCharacteristic
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
@@ -52,8 +54,8 @@ class CachedLEServerConnection(
     private val packetQueue = ConcurrentHashMap<UUID, SessionHandle>()
     private val cookies = AtomicReference(0)
     private val cookieCompleteRelay = PublishRelay.create<Int>()
-    private val luidRegisteredSubject = BehaviorSubject.create<Pair<UUID, BehaviorSubject<QueueItem>>>()
-    private val characteristicState = ConcurrentHashMap<String, OwnedCharacteristic>()
+    private val luidRegisteredSubject =
+        PublishSubject.create<Pair<UUID, BehaviorSubject<QueueItem>>>()
 
     private fun getCookie(): Int {
         return cookies.getAndUpdate { v ->
@@ -75,18 +77,10 @@ class CachedLEServerConnection(
         }
     }
 
-
-    fun disconnect(device: RxBleDevice) {
-        LOG.e("CachedLeServerConnection disconnect ${device.macAddress}")
-        characteristicState.remove(device.macAddress)
-      //  ch?.release()
-    }
-
     fun unlockLuid(luid: UUID) {
         LOG.e("server unlock luid $luid")
         val d = packetQueue.remove(luid)
         d?.subject?.onComplete()
-        //d?.disposable?.dispose()
     }
 
     private fun registerLuid(
@@ -94,7 +88,7 @@ class CachedLEServerConnection(
         device: RxBleDevice,
         characteristic: OwnedCharacteristic
     ): BehaviorSubject<QueueItem> {
-        LOG.e("registering luid $luid")
+        LOG.e("registering luid $luid ${characteristic.uuid}")
         val q = packetQueue.compute(luid) { k, v ->
             when (v) {
                 null -> {
@@ -103,24 +97,31 @@ class CachedLEServerConnection(
                         characteristic.uuid,
                         subject.toFlowable(BackpressureStrategy.BUFFER)
                             .flatMap { item ->
-                                val mtu = connection.getMtu(device.macAddress) - 3
-                                LOG.e("packet! ${item.packet.type} MTU: $mtu")
-                                item.packet.writeToStream(mtu, ioScheduler)
-                                    .doFinally {
-                                        LOG.e("packet write complete for ${item.packet.type} ")
-                                        cookieCompleteRelay.accept(item.cookie)
-                                    }
+                                if (!characteristic.isLocked()) {
+                                    Flowable.error(IllegalStateException("characteristic not owned"))
+                                } else {
+                                    val mtu = connection.getMtu(device.macAddress) - 3
+                                    LOG.e("packet! ${item.packet.type} MTU: $mtu")
+                                    item.packet.writeToStream(mtu, scheduler)
+                                        .doFinally {
+                                            LOG.e("packet write complete for ${item.packet.type} ")
+                                            cookieCompleteRelay.accept(item.cookie)
+                                        }
+                                }.doOnCancel { cookieCompleteRelay.accept(item.cookie) }
                             }
-                            .doOnError { err -> LOG.e("server notification error for $luid $err") },
+                            .doOnError { err -> LOG.e("server notification error for $luid $err") }
+                            .doFinally {
+                                characteristic.release()
+                            },
                         device
-                    ).observeOn(ioScheduler)
+                    )
                         .doFinally {
                             LOG.w("releasing characteristic ${characteristic.uuid}")
                             characteristic.release()
-                            disconnect(device)
-                            unlockLuid(luid)
                         }
-                        .doOnDispose { characteristic.release() }
+                        .doOnDispose {
+                            characteristic.release()
+                        }
                         .subscribe(
                             { LOG.e("notification for $luid completed") },
                             { err -> LOG.e("notification for $luid error $err") }
@@ -231,42 +232,52 @@ class CachedLEServerConnection(
                                 BluetoothLERadioModuleImpl.UUID_SEMAPHOR -> {
                                     selectCharacteristic()
                                         .flatMapCompletable { characteristic ->
-                                        characteristicState[req.remoteDevice.macAddress] =
-                                            characteristic
-                                        LOG.e("starting characteristic lock for ${req.remoteDevice.macAddress}")
-                                        req.sendReply(
-                                            BluetoothLERadioModuleImpl.uuid2bytes(
-                                                characteristic.uuid
-                                            ), BluetoothGatt.GATT_SUCCESS
-                                        )
-                                    }
+
+                                            LOG.e("starting characteristic lock for ${req.remoteDevice.macAddress}")
+                                            req.sendReply(
+                                                BluetoothLERadioModuleImpl.uuid2bytes(
+                                                    characteristic.uuid
+                                                ), BluetoothGatt.GATT_SUCCESS
+                                            )
+                                                .andThen(connection.getEvents()
+                                                    .filter { c ->
+                                                        c.operation == GattServerConnection.Operation.CHARACTERISTIC_WRITE
+                                                                && c.characteristic.uuid == characteristic.uuid
+                                                    }.firstOrError()
+                                                    .flatMapCompletable { trans ->
+                                                        if (channels.containsKey(trans.uuid)) {
+
+                                                                Completable.defer {
+                                                                    LOG.e("finalizing characteristic lock for ${trans.remoteDevice.macAddress}")
+                                                                    val luid =
+                                                                        BluetoothLERadioModuleImpl.bytes2uuid(
+                                                                            trans.value
+                                                                        )!!
+                                                                    LOG.e("server LOCKED characteristic $luid ${characteristic.uuid}")
+                                                                    registerLuid(
+                                                                        luid,
+                                                                        trans.remoteDevice,
+                                                                        characteristic
+                                                                    )
+                                                                    Completable.complete()
+                                                                }.andThen(
+                                                                    trans.sendReply(
+                                                                        byteArrayOf(),
+                                                                        BluetoothGatt.GATT_SUCCESS
+                                                                    )
+                                                                )
+                                                        } else {
+                                                            trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
+                                                        }
+                                                    }
+                                                )
+                                        }
                                 }
 
                                 else -> Completable.complete()
 
                             }
                             res
-                        }
-
-                        GattServerConnection.Operation.CHARACTERISTIC_WRITE -> {
-                            if (channels.containsKey(req.uuid)) {
-                                req.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
-                                    .andThen(Completable.defer {
-                                        LOG.e("finalizing characteristic lock for ${req.remoteDevice.macAddress}")
-                                        val l =
-                                            characteristicState.remove(req.remoteDevice.macAddress)
-                                        if (l != null) {
-                                            val luid =
-                                                BluetoothLERadioModuleImpl.bytes2uuid(req.value)!!
-                                            LOG.e("server LOCKED characteristic $luid ${l.characteristic.uuid}")
-                                            registerLuid(luid, req.remoteDevice, l)
-                                        }
-                                        Completable.complete()
-                                    })
-                            } else {
-                                Completable.complete()
-                            }
-
                         }
 
                         else -> Completable.complete()

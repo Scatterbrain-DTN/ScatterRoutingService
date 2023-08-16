@@ -131,7 +131,6 @@ class LeStateImpl @Inject constructor(
         val device = c?.device()
         if (device != null) {
             //  server.get()?.disconnect(device)
-            server.get()?.getServerSync()?.disconnect(device)
             server.get()?.getServerSync()?.unlockLuid(luid)
             if (connectionCache.size == 0) {
                 server.get().getServerSync()?.connection?.resetMtu(device.macAddress)

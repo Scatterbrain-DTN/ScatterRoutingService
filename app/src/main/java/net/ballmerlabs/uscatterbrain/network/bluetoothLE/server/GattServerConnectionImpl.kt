@@ -533,7 +533,6 @@ class GattServerConnectionImpl @Inject constructor(
                         .toFlowable()
                 }
                 .serialize()
-                .observeOn(serverScheduler)
                 .flatMapSingle { bytes ->
                     Log.v("processing bytes length: " + bytes.size)
                     try {
@@ -578,7 +577,6 @@ class GattServerConnectionImpl @Inject constructor(
 
     override fun getOnMtuChanged(): Observable<Int> {
         return withDisconnectionHandling(getChangedMtuOutput())
-            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun observeDisconnect(): Observable<RxBleDevice> {
@@ -594,14 +592,13 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     override fun getEvents(): Observable<ServerResponseTransaction> {
-        return withDisconnectionHandling(events).delay(0, TimeUnit.SECONDS, callbackScheduler)
+        return withDisconnectionHandling(events)
     }
 
     override fun getOnNotification(mac: String): Observable<Int> {
         return withDisconnectionHandling(notificationPublishRelay)
             .filter { p -> p.first == mac }
             .map { p -> p.second }
-            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun disconnect(device: RxBleDevice): Completable {
