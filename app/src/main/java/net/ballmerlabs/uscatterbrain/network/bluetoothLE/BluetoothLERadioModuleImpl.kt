@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.le.*
 import android.content.Context
+import android.util.Log
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.*
 import io.reactivex.Observable
@@ -793,7 +794,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID,
         device: RxBleDevice
     ): Maybe<HandshakeResult> {
-        return session.observeStage()
+        return connection.awaitNotificationsSetup()
+            .doOnSubscribe { connection.subscribeNotifs() }
+            .andThen(session.observeStage())
             .doOnNext { stage -> LOG.v("handling stage: $stage") }
             .subscribeOn(ioScheduler)
             .concatMapSingle {
@@ -854,6 +857,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 if(session.role.role != BluetoothLEModule.Role.ROLE_UKE) {
                  //   state.updateDisconnected(luid)
                 }
+                serverConnection.unlockLuid(luid)
+                serverConnection.disconnect(device)
             }
     }
 
@@ -916,6 +921,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         }
 
         fun release() {
+            Log.v("debug", "selected channel release: ${characteristic.uuid}")
             lockState.set(false)
         }
     }

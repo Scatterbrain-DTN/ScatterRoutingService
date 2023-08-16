@@ -66,6 +66,7 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
      * @param packet
      */
     fun addPacket(packet: ElectLeaderPacket) {
+        LOG.w("adding vote packet ${packet.isHashed}")
         if (packet.isHashed) {
             hashedPackets.add(packet)
         } else {

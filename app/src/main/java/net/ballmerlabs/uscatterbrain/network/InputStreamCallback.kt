@@ -38,7 +38,7 @@ abstract class InputStreamCallback(BUF_CAPACITY: Int) : InputStream() {
     }
 
     fun clear() {
-
+        buf.clear()
     }
 
     private operator fun get(result: ByteArray, offset: Int, len: Int): Int {

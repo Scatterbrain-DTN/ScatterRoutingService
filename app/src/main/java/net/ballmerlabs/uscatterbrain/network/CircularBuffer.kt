@@ -41,6 +41,11 @@ class CircularBuffer(private val writeBuffer: ByteBuffer) {
         }
     }
 
+    fun clear() {
+        readBuffer.clear()
+        writeBuffer.clear()
+    }
+
     operator fun get(buf: ByteArray, offset: Int, length: Int) {
         lock.withLock {
             if (length > size()) {

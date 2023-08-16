@@ -78,15 +78,15 @@ class CachedLEServerConnection(
 
     fun disconnect(device: RxBleDevice) {
         LOG.e("CachedLeServerConnection disconnect ${device.macAddress}")
-        val ch = characteristicState.remove(device.macAddress)
-        ch?.release()
+        characteristicState.remove(device.macAddress)
+      //  ch?.release()
     }
 
     fun unlockLuid(luid: UUID) {
         LOG.e("server unlock luid $luid")
         val d = packetQueue.remove(luid)
         d?.subject?.onComplete()
-        d?.disposable?.dispose()
+        //d?.disposable?.dispose()
     }
 
     private fun registerLuid(
@@ -148,7 +148,7 @@ class CachedLEServerConnection(
      * @return single emitting characteristic selected
      */
     private fun selectCharacteristic(): Single<OwnedCharacteristic> {
-        return Single.defer {
+        return Single.defer<OwnedCharacteristic?> {
             for (char in channels.values) {
                 val lock = char.lock()
                 if (lock != null) {
@@ -157,7 +157,7 @@ class CachedLEServerConnection(
             }
 
             Single.error(IllegalStateException("no characteristics"))
-        }
+        }.doOnSuccess { v -> LOG.w("server selected channel ${v.uuid} for $luid") }
     }
 
     /**

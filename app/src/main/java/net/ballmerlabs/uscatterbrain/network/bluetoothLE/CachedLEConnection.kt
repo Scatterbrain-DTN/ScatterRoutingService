@@ -21,6 +21,8 @@ import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -45,23 +47,29 @@ class CachedLEConnection @Inject constructor(
     private val disposable = CompositeDisposable()
     val connection = BehaviorSubject.create<RxBleConnection>()
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
-    private val channelNotif = InputStreamObserver(8000)
-    private val notificationsSetup = CompletableSubject.create()
+    private val channelNotif = AtomicReference(InputStreamObserver(8000))
+    private val notificationsSetup = AtomicReference(CompletableSubject.create())
+    private var subscribed = AtomicBoolean(false)
 
     fun subscribeNotifs() {
-        selectChannel()
-            .doOnNext { b -> LOG.e("client notif bytes ${b.size}") }
-            .doOnError { err ->
-                LOG.e("error in channel notifications $err")
-            }
-            .doFinally {
-                LOG.e("channel notifications for ${device.macAddress} completed")
-            }
-            .subscribe(channelNotif)
+        channelNotif.updateAndGet {
+            val new = InputStreamObserver(8000)
+            selectChannel()
+                .doOnNext { b -> LOG.e("client notif bytes ${b.size}") }
+                .doOnError { err ->
+                    LOG.e("error in channel notifications $err")
+                }
+                .doFinally {
+                    LOG.e("channel notifications for ${device.macAddress} completed")
+                    subscribed.set(false)
+                }
+                .subscribe(new)
+            new
+        }
     }
 
     fun awaitNotificationsSetup(): Completable {
-        return notificationsSetup
+        return notificationsSetup.get()
     }
 
     fun subscribeConnection(rawConnection: Observable<RxBleConnection>) {
@@ -104,7 +112,7 @@ class CachedLEConnection @Inject constructor(
                 c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
                     .flatMapObservable { bytes ->
                         val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
-                        LOG.e("client selected channel $uuid")
+                        LOG.e("client selected channel $uuid for $luid")
                         c.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
                             .flatMap { obs ->
                                 LOG.e("client notifications setup")
@@ -118,7 +126,7 @@ class CachedLEConnection @Inject constructor(
                                                 )!!
                                             ).ignoreElement()
                                         ).andThen(Completable.fromAction {
-                                            notificationsSetup.onComplete()
+                                            notificationsSetup.getAndSet(CompletableSubject.create())?.onComplete()
                                         })
                                     )
                             }
@@ -137,7 +145,7 @@ class CachedLEConnection @Inject constructor(
     ): Single<T> {
         return ScatterSerializable.parseWrapperFromCRC(
             parser,
-            channelNotif,
+            channelNotif.get(),
             ioScheduler
         ).timeout(44, TimeUnit.SECONDS, ioScheduler)
             .doOnError { err -> LOG.w("failed to receive packet for $luid $err") }

@@ -236,12 +236,8 @@ class LeStateImpl @Inject constructor(
                         }
 
                     }
-                    newconnection.connection().subscribeNotifs()
-                    newconnection.connection().awaitNotificationsSetup()
-                        .andThen(
-                            newconnection.connection().connection.firstOrError().ignoreElement()
-                                .toSingleDefault(newconnection)
-                        )
+                    newconnection.connection().connection.firstOrError().ignoreElement()
+                        .toSingleDefault(newconnection)
                 }
             }.flatMap { c -> c }.subscribeOn(ioScheduler)
 

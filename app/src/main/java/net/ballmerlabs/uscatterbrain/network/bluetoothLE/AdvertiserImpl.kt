@@ -126,7 +126,7 @@ class AdvertiserImpl @Inject constructor(
                                     if(clear.get())
                                         builder.addServiceData(ParcelUuid(CLEAR_DATA), byteArrayOf())
 
-                                    if(shrink.packet.ukesCount > 0)
+                                    if(shrink.packet.ukesCount > 0 && false)
                                         builder.addServiceData(ParcelUuid(UKES_DATA), u)
                                     v.first.item!!.setAdvertisingData(builder.build())
                                 } catch (exc: SecurityException) {
