@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.app.AlarmManager
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.net.wifi.WifiManager
@@ -132,6 +133,14 @@ interface RoutingServiceComponent {
             @Named(NamedSchedulers.WIFI_READ)
             fun providesWifiReadScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.WIFI_READ))
+            }
+
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesAlarmManager(context: Context): AlarmManager {
+                return context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             }
 
             @Provides

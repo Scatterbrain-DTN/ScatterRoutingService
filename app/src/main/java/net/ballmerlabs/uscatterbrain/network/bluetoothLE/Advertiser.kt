@@ -1,5 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import android.app.PendingIntent
+import android.content.Intent
 import io.reactivex.Completable
 import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import java.util.UUID
@@ -46,6 +48,11 @@ interface Advertiser {
     fun randomizeLuidIfOld(): Boolean
 
     fun removeLuid(): Completable
+
+    fun randomizeLuidAndRemove()
+
+    fun setRandomizeTimer(minutes: Int)
+    fun getAlarmIntent(): PendingIntent
     companion object {
         val CLEAR_DATA = UUID.fromString("00005BC5-0000-1000-8000-00805F9B34FB")
         val LUID_DATA = UUID.fromString("0000FC87-0000-1000-8000-00805F9B34FB")

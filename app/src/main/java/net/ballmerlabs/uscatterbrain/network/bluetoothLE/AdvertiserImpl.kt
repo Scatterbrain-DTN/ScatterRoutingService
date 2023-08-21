@@ -1,6 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.Manifest
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertisingSet
@@ -8,12 +10,16 @@ import android.bluetooth.le.AdvertisingSetCallback
 import android.bluetooth.le.AdvertisingSetParameters
 import android.bluetooth.le.PeriodicAdvertisingParameters
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
+import android.os.SystemClock
 import androidx.core.app.ActivityCompat
 import androidx.room.util.convertUUIDToByte
 import io.reactivex.Completable
 import io.reactivex.Scheduler
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
@@ -42,6 +48,7 @@ class AdvertiserImpl @Inject constructor(
     private val firebase: FirebaseWrapper,
     private val state: Provider<LeState>,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val scheduler: Scheduler,
+    private val alarmManager: AlarmManager
 ) : Advertiser {
     override val ukes: ConcurrentHashMap<UUID, UpgradePacket> = ConcurrentHashMap<UUID, UpgradePacket>()
 
@@ -52,6 +59,7 @@ class AdvertiserImpl @Inject constructor(
     // luid is a temporary unique identifier used for a single transaction.
     private val myLuid: AtomicReference<UUID> = AtomicReference(UUID.randomUUID())
     private val lastLuidRandomize = AtomicReference(Date())
+    private val randomizeLuidDisp = AtomicReference<Disposable?>(null)
     private val clear = AtomicBoolean()
 
 
@@ -61,6 +69,17 @@ class AdvertiserImpl @Inject constructor(
 
     override fun getRawLuid(): UUID {
         return myLuid.get()
+    }
+
+    override fun randomizeLuidAndRemove() {
+        val disp = Completable.fromAction {
+            myLuid.set(UUID.randomUUID())
+        }.andThen(removeLuid())
+            .subscribe(
+                { LOG.w("successfully removed and randomized luid") },
+                { err -> LOG.e("failed to remove and randomize luid $err") }
+            )
+        randomizeLuidDisp.getAndSet(disp)?.dispose()
     }
 
     // map advertising state to rxjava2
@@ -98,6 +117,17 @@ class AdvertiserImpl @Inject constructor(
         }
     }
 
+    override fun getAlarmIntent(): PendingIntent {
+        return Intent(context, LuidRandomizeReceiver::class.java).let {
+            PendingIntent.getBroadcast(
+                context,
+                0,
+                it,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT
+            )
+        }
+    }
+
     override fun setAdvertisingLuid(): Completable {
         val currentLuid = getHashLuid()
         return setAdvertisingLuid(currentLuid, ukes)
@@ -105,6 +135,14 @@ class AdvertiserImpl @Inject constructor(
 
     override fun clear(boolean: Boolean) {
         clear.set(boolean)
+    }
+
+    override fun setRandomizeTimer(minutes: Int) {
+        alarmManager.set(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            SystemClock.elapsedRealtime() + 60 * 1000 * minutes,
+            getAlarmIntent()
+        )
     }
 
     override fun setAdvertisingLuid(luid: UUID, ukes: Map<UUID, UpgradePacket>): Completable {

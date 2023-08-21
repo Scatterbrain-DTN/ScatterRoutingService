@@ -708,6 +708,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         luid: UUID
     ): Maybe<HandshakeResult> {
         return Maybe.defer {
+            advertiser.setRandomizeTimer(10)
             if (luid == currentLuid) {
                 ongoingTransaction.updateAndGet { v ->
                     when (v) {
