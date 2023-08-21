@@ -277,6 +277,8 @@ interface RoutingServiceComponent {
     fun inject(provider: DatastoreImportProviderImpl?)
     fun inject(provider: ScanBroadcastReceiverImpl)
 
+    fun inject(prover: LuidRandomizeReceiver)
+
     companion object {
         const val SHARED_PREFS = "scatterbrainprefs"
     }

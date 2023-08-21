@@ -48,7 +48,8 @@ class AdvertiserImpl @Inject constructor(
     private val firebase: FirebaseWrapper,
     private val state: Provider<LeState>,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val scheduler: Scheduler,
-    private val alarmManager: AlarmManager
+    private val alarmManager: AlarmManager,
+    private val leState: Provider<LeState>
 ) : Advertiser {
     override val ukes: ConcurrentHashMap<UUID, UpgradePacket> = ConcurrentHashMap<UUID, UpgradePacket>()
 
@@ -73,6 +74,10 @@ class AdvertiserImpl @Inject constructor(
 
     override fun randomizeLuidAndRemove() {
         val disp = Completable.fromAction {
+            leState.get().connectionCache.forEach { (k, v ) ->
+                leState.get().updateGone(k)
+               v.connection().dispose()
+            }
             myLuid.set(UUID.randomUUID())
         }.andThen(removeLuid())
             .subscribe(

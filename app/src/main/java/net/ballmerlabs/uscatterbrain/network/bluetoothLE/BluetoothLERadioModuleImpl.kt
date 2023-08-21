@@ -776,8 +776,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
             }
         }.doOnError { err ->
             LOG.w("handle connection error: $err, dumping peers")
-            state.updateDisconnected(luid)
             state.updateGone(luid)
+            state.updateDisconnected(luid)
         }
     }
 
