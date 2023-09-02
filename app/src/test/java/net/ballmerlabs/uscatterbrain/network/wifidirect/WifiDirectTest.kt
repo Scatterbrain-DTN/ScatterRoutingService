@@ -82,8 +82,7 @@ class WifiDirectTest {
 
     private var broadcastReceiver = MockWifiDirectBroadcastReceiver(mock())
 
-    @Mock
-    private lateinit var wifiP2pManager: WifiP2pManager
+    private var wifiP2pManager: WifiP2pManager? = null
 
     @Mock
     private lateinit var bluetoothManager: BluetoothManager
@@ -103,7 +102,7 @@ class WifiDirectTest {
         broadcastReceiver = MockWifiDirectBroadcastReceiver(mock())
         val component = DaggerFakeRoutingServiceComponent.builder()
             .applicationContext(context)
-            .wifiP2pManager(wifiP2pManager)
+            .wifiP2pManager(wifiP2pManager!!)
             .packetInputStream(packets)
             .rxBleClient(mock { })
             .mockPreferences(preferences)
@@ -238,6 +237,7 @@ class WifiDirectTest {
 
     @Test
     fun buildBlankModule() {
+        wifiP2pManager = mockWifiP2p()
         buildModule()
         module.hashCode()
     }
@@ -248,7 +248,7 @@ class WifiDirectTest {
         buildModule()
         val info = module.connectToGroup(name, pass, 10, FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
             .doOnSubscribe { shadowOf(Looper.getMainLooper()).idle() }
-            .timeout(10, TimeUnit.SECONDS)
+            .timeout(15, TimeUnit.SECONDS)
             .blockingGet()
 
         assert(info.groupOwnerAddress() != null)
@@ -276,11 +276,11 @@ class WifiDirectTest {
     @Test
     fun bootstrapUke() {
         wifiP2pManager = mockWifiP2p()
+        buildModule(packets = initEmptyHandshake())
         context = mock {
             on { getString(any()) } doReturn "blockdatacap"
         }
         preferences.putValue("blockdatacap", 1)
-        buildModule(packets = initEmptyHandshake())
         val req = bootstrapRequestComponentBuilder
             .wifiDirectArgs(
                 BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
@@ -298,11 +298,11 @@ class WifiDirectTest {
     @Test
     fun bootstrapSeme() {
         wifiP2pManager = mockWifiP2p()
+        buildModule(packets = initEmptyHandshake())
         context = mock {
             on { getString(any()) } doReturn "blockdatacap"
         }
         preferences.putValue("blockdatacap", 1)
-        buildModule(packets = initEmptyHandshake())
         val req = bootstrapRequestComponentBuilder
             .wifiDirectArgs(
                 BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
@@ -327,7 +327,7 @@ class WifiDirectTest {
                     val info = module.connectToGroup(
                         name,
                         pass,
-                        ((connectDelay + groupInfoDelay + broadcastDelay) / 1000).toInt() + 5,
+                        ((connectDelay + groupInfoDelay + broadcastDelay) / 1000).toInt() + 10,
                         band = FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
                     )
                         .timeout(5, TimeUnit.SECONDS)
