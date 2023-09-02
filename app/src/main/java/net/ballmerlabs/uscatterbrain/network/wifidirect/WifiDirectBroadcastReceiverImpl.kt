@@ -13,6 +13,7 @@ import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.WifiDirectProvider
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver.P2pState
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.ConcurrentHashMap
@@ -31,9 +32,7 @@ import javax.inject.Singleton
 class WifiDirectBroadcastReceiverImpl @Inject constructor() : BroadcastReceiver(), WifiDirectBroadcastReceiver {
 
     @Inject
-    lateinit var manager: WifiP2pManager
-    @Inject
-    lateinit var channel: Channel
+    lateinit var manager: WifiDirectProvider
 
     private val LOG by scatterLog()
 
@@ -78,7 +77,10 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor() : BroadcastReceiver(
         // The peer list has changed!
         LOG.v("WIFI_P2P_PEERS_CHANGED_ACTION")
         try {
-            manager.requestPeers(channel, mListener)
+            val channel = manager.getChannel()
+            if (channel != null) {
+                manager.getManager()?.requestPeers(channel, mListener)
+            }
         } catch (exc: SecurityException) {
             LOG.e("securityException $exc")
         }

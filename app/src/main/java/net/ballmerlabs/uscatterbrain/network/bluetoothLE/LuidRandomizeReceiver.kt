@@ -18,9 +18,11 @@ class LuidRandomizeReceiver : BroadcastReceiver() {
         val component = context.getComponent()
         if (component != null) {
             component.inject(this)
-            // This method is called when the BroadcastReceiver is receiving an Intent broadcast.
-            LOG.w("timer fired, randomizing luid ${advertiser.getHashLuid()}")
-            advertiser.randomizeLuidAndRemove()
+            if(this::advertiser.isInitialized) {
+                // This method is called when the BroadcastReceiver is receiving an Intent broadcast.
+                LOG.w("timer fired, randomizing luid ${advertiser.getHashLuid()}")
+                advertiser.randomizeLuidAndRemove()
+            }
         }
     }
 }

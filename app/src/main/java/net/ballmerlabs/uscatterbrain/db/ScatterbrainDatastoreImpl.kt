@@ -1194,11 +1194,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
         disposable.add(d)
 
-        userDirectoryObserver = object : FileObserver(userFilesDir) {
+        userDirectoryObserver = object : FileObserver(userFilesDir.absolutePath) {
             override fun onEvent(i: Int, s: String?) {
                 when (i) {
                     CLOSE_WRITE -> {
-                        if (s != null && s.isNotEmpty()) {
+                        if (!s.isNullOrEmpty()) {
                             LOG.v("file closed in user directory; $s")
                             val f = File(userFilesDir, s)
                             if (!f.isDirectory) {

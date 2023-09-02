@@ -25,22 +25,27 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
         return "$text.log$num"
     }
     override fun getCurrentLog(): File? {
-        val file = logsDir
-        return if (file != null) {
-            var num = 1
+        return try {
+            val file = logsDir
+            if (file != null) {
+                var num = 1
 
-            if (!file.exists()) {
-                file.mkdir()
+                if (!file.exists()) {
+                    file.mkdir()
+                }
+                var it = File(file, getFileName(num))
+                while (it.exists() && it.length() < LOGS_SIZE) {
+                    num++
+                    it = File(file, getFileName(num))
+                }
+                val f = File(file, getFileName(num - 1))
+                f.createNewFile()
+                return f
+            } else {
+                null
             }
-            var it = File(file, getFileName(num))
-            while(it.exists() && it.length() < LOGS_SIZE) {
-                num++
-                it = File(file, getFileName(num))
-            }
-            val f = File(file, getFileName(num-1))
-            f.createNewFile()
-            return f
-        } else {
+        } catch (exc: Exception) {
+            Log.e("loggermeta", "failed to get current log: $exc")
             null
         }
     }
@@ -51,9 +56,8 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
             val f = getCurrentLog()
             f?.appendBytes(t.encodeToByteArray())
         }
-            .doOnError { e -> Log.e("loggermeta", "failed to log: $e") }
             .subscribeOn(scheduler.value)
-            .subscribe()
+            .subscribe({ }, { err -> Log.e("loggermeta", "failed to log: $err")})
         if(buffer.size > bufSize) {
             buffer.remove()?.dispose()
         }

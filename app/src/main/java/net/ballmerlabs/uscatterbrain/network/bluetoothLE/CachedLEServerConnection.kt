@@ -293,7 +293,10 @@ class CachedLEServerConnection(
                     }
                 )
 
-        val d2 = luidRegisteredSubject.subscribe()
+        val d2 = luidRegisteredSubject.subscribe(
+            {},
+            { err -> LOG.w("luid registered subject failed $err") }
+        )
         disposable.add(d)
         disposable.add(d2)
     }

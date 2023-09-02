@@ -66,14 +66,12 @@ data class GroupHandle(
  */
 @Singleton
 class WifiDirectRadioModuleImpl @Inject constructor(
-    private val mManager: WifiP2pManager,
     private val mContext: Context,
     private val datastore: ScatterbrainDatastore,
     private val preferences: RouterPreferences,
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val timeoutScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val readScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.WIFI_WRITE) private val writeScheduler: Scheduler,
-    private val channel: WifiP2pManager.Channel,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
     private val infoComponentProvider: Provider<WifiDirectInfoSubcomponent.Builder>,
@@ -83,7 +81,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val manager: WifiManager,
     private val advertiser: Advertiser,
     private val leState: Provider<LeState>,
-    private val scheduler: Provider<ScatterbrainScheduler>
+    private val scheduler: Provider<ScatterbrainScheduler>,
+    private val provider: WifiDirectProvider
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
@@ -134,6 +133,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private fun createGroupSingle(band: Int): Single<WifiDirectInfo> {
         return Single.defer {
+            val channel = provider.getChannel()!!
             val subject = CompletableSubject.create()
             try {
                 val listener = object : WifiP2pManager.ActionListener {
@@ -174,11 +174,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     band = band
                                 )
                             ).build()!!.fakeWifiP2pConfig()
-                            mManager.createGroup(channel, fakeConfig.asConfig(), listener)
+                            provider.getManager()?.createGroup(channel, fakeConfig.asConfig(), listener)
                         } else {
-                            mManager.createGroup(channel, listener)
+                            provider.getManager()?.createGroup(channel, listener)
                         }
-                       // mManager.createGroup(channel, listener)
+                       // provider.getManager()?.createGroup(provider.getChannel()?, listener)
                     })
                     .doOnError { err -> LOG.e("createGroupSingle error: $err") }
                     .takeUntil { wifiP2pInfo ->
@@ -214,6 +214,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private fun requestGroupInfo(): Maybe<WifiP2pGroup> {
         return Maybe.defer {
+            val channel = provider.getChannel()!!
             LOG.v("requestGroupInfo")
             val subject = MaybeSubject.create<WifiP2pGroup>()
             val listener = WifiP2pManager.GroupInfoListener { groupInfo ->
@@ -224,7 +225,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
             }
             try {
-                mManager.requestGroupInfo(channel, listener)
+                provider.getManager()?.requestGroupInfo(channel, listener)
             } catch (exc: SecurityException) {
                 firebaseWrapper.recordException(exc)
                 subject.onError(exc)
@@ -239,6 +240,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private fun requestConnectionInfo(): Maybe<WifiP2pInfo> {
         return Maybe.defer {
+            val channel = provider.getChannel()!!
             LOG.v("requestConnectionInfo")
             val subject = MaybeSubject.create<WifiP2pInfo>()
             val listener = WifiP2pManager.ConnectionInfoListener { connectionInfo ->
@@ -250,7 +252,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
 
             try {
-                mManager.requestConnectionInfo(channel, listener)
+                provider.getManager()?.requestConnectionInfo(channel, listener)
             } catch (exc: SecurityException) {
                 firebaseWrapper.recordException(exc)
                 subject.onError(exc)
@@ -471,6 +473,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     override fun removeGroup(retries: Int, delay: Int): Completable {
         val c = Completable.defer {
             LOG.v("removeGroup called")
+            val channel = provider.getChannel()!!
             val subject = CompletableSubject.create()
             val actionListener = object : WifiP2pManager.ActionListener {
                 override fun onSuccess() {
@@ -486,7 +489,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
             subject.andThen(mBroadcastReceiver.observeConnectionInfo())
                 .mergeWith(Completable.fromAction {
-                    mManager.removeGroup(channel, actionListener)
+                    provider.getManager()?.removeGroup(channel, actionListener)
                 })
                 .doOnSubscribe { LOG.w("awaiting removeGroup") }
                 .doOnError { err -> LOG.e("removeGroup error: $err") }
@@ -565,6 +568,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private fun cancelConnection(): Completable {
         val cancel = Completable.defer {
+            val channel = provider.getChannel()!!
             val subject = CompletableSubject.create()
             try {
 
@@ -590,7 +594,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
                 }
                 try {
-                    mManager.cancelConnect(channel, connectListener)
+                    provider.getManager()?.cancelConnect(channel, connectListener)
                     subject
                 } catch (exc: Exception) {
                     LOG.e("wifi p2p failed to cancel connect: ${exc.message}")
@@ -612,6 +616,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      */
     private fun initiateConnection(config: WifiP2pConfig): Completable {
         val connection = Completable.defer {
+            val channel = provider.getChannel()!!
             val subject = CompletableSubject.create()
             try {
 
@@ -637,7 +642,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     }
                 }
                 try {
-                    mManager.connect(channel, config, connectListener)
+                    provider.getManager()?.connect(channel, config, connectListener)
                     subject
                 } catch (exc: Exception) {
                     LOG.e("wifi p2p failed to connect: ${exc.message}")

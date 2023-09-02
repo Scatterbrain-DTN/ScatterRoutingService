@@ -78,7 +78,10 @@ class BroadcastReceiverState @Inject constructor(
 
     fun addTask(func: () -> Completable) {
         val comp = CompletableSubject.create()
-        if(disposable.compareAndSet(null, comp.subscribe())) {
+        if(disposable.compareAndSet(null, comp.subscribe(
+                {},
+                { err -> log.e("addTask failure $err") }
+        ))) {
             func()
                 .doFinally {
                     disposable.set(null)

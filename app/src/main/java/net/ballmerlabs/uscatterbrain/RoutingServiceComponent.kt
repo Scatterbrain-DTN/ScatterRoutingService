@@ -125,6 +125,10 @@ interface RoutingServiceComponent {
         @Singleton
         abstract fun bindsManagedServer(impl: ManagedGattServerImpl): ManagedGattServer
 
+        @Binds
+        @Singleton
+        abstract fun bindsWifiDirectProvider(impl: WifiDirectProviderImpl): WifiDirectProvider
+
         @Module
         companion object {
             @Provides
@@ -159,14 +163,6 @@ interface RoutingServiceComponent {
             fun providesWifiWriteScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.WIFI_WRITE))
             }
-
-            @Provides
-            @JvmStatic
-            @Singleton
-            fun providesChannel(ctx: Context, wifiP2pManager: WifiP2pManager): WifiP2pManager.Channel {
-                return wifiP2pManager.initialize(ctx, ctx.mainLooper, null)
-            }
-
             @Provides
             @JvmStatic
             @Singleton
@@ -177,13 +173,6 @@ interface RoutingServiceComponent {
             @Provides
             fun providesBluetoothManager(ctx: Context): BluetoothManager {
                 return ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-            }
-
-            @Provides
-            @JvmStatic
-            @Singleton
-            fun providesWifiP2pManager(ctx: Context?): WifiP2pManager {
-                return ctx!!.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
             }
 
             @Provides
