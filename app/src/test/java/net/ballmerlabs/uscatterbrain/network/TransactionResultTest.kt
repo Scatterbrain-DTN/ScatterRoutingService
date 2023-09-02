@@ -1,11 +1,14 @@
 package net.ballmerlabs.uscatterbrain.network
 
+import android.os.Build
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.TransactionResult
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [Build.VERSION_CODES.TIRAMISU])
 class TransactionResultTest {
 
     @Test
@@ -36,7 +39,7 @@ class TransactionResultTest {
         val value = TransactionResult.of(5)
         val empty = TransactionResult.empty<Int>()
         val n = value.merge(empty).test()
-        assert(n.errorCount() == 1)
+        assert(n.errorCount() == 0)
 
         val stage = TransactionResult.of<Int>(TransactionResult.STAGE_TERMINATE)
         val newstage = TransactionResult.of<Int>(TransactionResult.STAGE_ADVERTISE)

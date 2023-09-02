@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.os.Build
 import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
 import org.junit.After
 import org.junit.Before
@@ -8,9 +9,11 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.mockito.MockitoAnnotations
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.util.concurrent.TimeoutException
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [Build.VERSION_CODES.TIRAMISU])
 class ApiTest {
 
     @Before

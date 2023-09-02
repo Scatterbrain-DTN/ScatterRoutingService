@@ -515,7 +515,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     }
 
-    private fun connectToGroup(
+    override fun connectToGroup(
         name: String,
         passphrase: String,
         timeout: Int,

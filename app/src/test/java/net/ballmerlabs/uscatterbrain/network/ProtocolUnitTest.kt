@@ -4,6 +4,7 @@ import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import org.robolectric.RobolectricTestRunner
 
 import android.content.Context
+import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import com.google.firebase.FirebaseApp
 import com.google.protobuf.ByteString
@@ -12,6 +13,7 @@ import com.goterl.lazysodium.interfaces.Hash
 import com.goterl.lazysodium.interfaces.Sign
 import io.reactivex.Completable
 import io.reactivex.plugins.RxJavaPlugins
+import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.network.*
@@ -20,12 +22,14 @@ import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*
 import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [Build.VERSION_CODES.TIRAMISU])
 class ProtocolUnitTest {
     private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test"))
     private val writeScheduler = RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test2"))
@@ -210,11 +214,13 @@ class ProtocolUnitTest {
         val electLeaderPacket = ElectLeaderPacket.newBuilder(UUID.randomUUID())
             .setProvides(provides)
             .setTiebreaker(tiebreaker)
+            .setRole(ScatterProto.Role.SEME)
             .build()
 
         val hashedPacket = ElectLeaderPacket.newBuilder(UUID.randomUUID())
             .setProvides(provides)
             .setTiebreaker(tiebreaker)
+            .setRole(ScatterProto.Role.SEME)
             .enableHashing()
             .build()
 

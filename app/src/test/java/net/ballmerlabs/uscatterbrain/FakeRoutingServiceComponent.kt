@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.app.AlarmManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.BluetoothLeAdvertiser
@@ -28,7 +29,10 @@ import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import javax.inject.Named
@@ -137,6 +141,14 @@ interface FakeRoutingServiceComponent {
         @Singleton
         abstract fun bindsManagedServer(impl: ManagedGattServerImpl): ManagedGattServer
 
+        @Binds
+        @Singleton
+        abstract fun bindsWifiDirectManager(impl: FakeWifiDirectProvider): WifiDirectProvider
+
+        @Binds
+        @Singleton
+        abstract fun bindsWakeLockManager(impl: FakeWakeLockProvider): WakeLockProvider
+
         @Module
         companion object {
             @Provides
@@ -148,6 +160,20 @@ interface FakeRoutingServiceComponent {
                         .build()
             }
 
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesAlarmManager(context: Context): AlarmManager {
+                return mock {  }
+            }
+
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesDatabaseFile(datastore:Datastore): File {
+                return File(datastore.openHelper.readableDatabase.path!!)
+            }
 
             @Provides
             @JvmStatic
@@ -213,7 +239,7 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            @Named(RoutingServiceComponent.NamedSchedulers.IO)
+            @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test-ops"))
             }
@@ -223,6 +249,22 @@ interface FakeRoutingServiceComponent {
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT)
             fun provideBleClientScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-client"))
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.WIFI_READ)
+            fun provideWifiReadScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-client"))
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.WIFI_WRITE)
+            fun provideWifiWriteScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-client"))
             }
 
@@ -257,7 +299,13 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             fun providesPowerManager(context: Context?): PowerManager {
-                return context!!.getSystemService(Context.POWER_SERVICE) as PowerManager
+                return mock {
+                    on { newWakeLock(any(), any()) } doReturn mock {
+                        on { acquire() } doReturn Unit
+                        on { acquire(any()) } doReturn Unit
+                        on { release() } doReturn Unit
+                    }
+                }
             }
         }
 

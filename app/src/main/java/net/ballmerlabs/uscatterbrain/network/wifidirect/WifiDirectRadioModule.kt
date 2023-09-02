@@ -21,7 +21,12 @@ import java.util.concurrent.Flow
  */
 interface WifiDirectRadioModule {
     fun getBand(): Int
-
+    fun connectToGroup(
+        name: String,
+        passphrase: String,
+        timeout: Int,
+        band: Int
+    ): Single<WifiDirectInfo>
     fun addUke(uuid: UUID, bootstrap: UpgradePacket): Completable
     fun setUke(ukes: Map<UUID, UpgradePacket>): Completable
     fun removeUke(uuid: UUID)

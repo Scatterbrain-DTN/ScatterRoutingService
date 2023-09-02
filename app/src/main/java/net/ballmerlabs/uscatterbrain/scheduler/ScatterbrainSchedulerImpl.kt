@@ -21,6 +21,7 @@ import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackend
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.WakeLockProvider
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
@@ -59,7 +60,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val wifiDirectRadioModule: WifiDirectRadioModule,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val operationsScheduler: Scheduler,
-    powerManager: PowerManager
+    private val powerManager: WakeLockProvider
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
     private var pendingIntent = ScanBroadcastReceiver.newPendingIntent(context)
@@ -67,12 +68,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     override val isDiscovering: Boolean
         get() = discoveryLock.get()
     private var isAdvertising = false
-    private val wakeLock = powerManager.newWakeLock(
-        PowerManager.PARTIAL_WAKE_LOCK,
-        context.getString(
-            R.string.wakelock_tag
-        )
-    )
+
     private val globalDisposable = AtomicReference<Disposable?>()
     private fun broadcastTransactionResult(transactionStats: HandshakeResult) {
         val intent = Intent(ScatterbrainApi.BROADCAST_EVENT)
@@ -148,13 +144,11 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     * via offloaded scanning, but NOT for keeping it awake.
     */
     override fun acquireWakelock() {
-        if (!wakeLock.isHeld)
-            wakeLock.acquire(10*60*1000L /*10 minutes*/)
+        powerManager.hold()
     }
 
     override fun releaseWakeLock() {
-        if (wakeLock.isHeld)
-            wakeLock.release()
+        powerManager.releaseAll()
     }
 
     override fun start() {

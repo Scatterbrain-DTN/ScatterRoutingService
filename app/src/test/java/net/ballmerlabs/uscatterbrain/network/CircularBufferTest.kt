@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network
 
+import android.os.Build
 import com.github.davidmoten.rx2.Bytes
 import com.google.android.gms.common.util.Hex
 import io.reactivex.Observable
@@ -7,6 +8,7 @@ import io.reactivex.schedulers.Schedulers
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
@@ -17,6 +19,7 @@ import kotlin.concurrent.thread
 import kotlin.random.Random
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [Build.VERSION_CODES.TIRAMISU])
 class CircularBufferTest {
     @Test
     fun inputStreamCallbackWorks() {

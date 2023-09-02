@@ -129,6 +129,10 @@ interface RoutingServiceComponent {
         @Singleton
         abstract fun bindsWifiDirectProvider(impl: WifiDirectProviderImpl): WifiDirectProvider
 
+        @Binds
+        @Singleton
+        abstract fun bindsWakelockManager(impl: WakeLockProviderImpl): WakeLockProvider
+
         @Module
         companion object {
             @Provides

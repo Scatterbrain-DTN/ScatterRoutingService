@@ -17,4 +17,8 @@ class MockServerSocketManager @Inject constructor(
     override fun getServerSocket(): Single<PortSocket> {
         return Single.error(NotImplementedError())
     }
+
+    override fun randomizePort() {
+
+    }
 }

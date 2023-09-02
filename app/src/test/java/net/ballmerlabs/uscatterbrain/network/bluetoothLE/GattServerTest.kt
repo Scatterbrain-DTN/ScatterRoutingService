@@ -4,6 +4,8 @@ import android.bluetooth.*
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
+import android.util.Pair
 import com.google.protobuf.MessageLite
 import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.RxBleDevice
@@ -47,6 +49,7 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*
@@ -54,6 +57,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [Build.VERSION_CODES.TIRAMISU])
 class GattServerTest {
     init {
         System.setProperty("jna.library.path", "/opt/homebrew/lib")
@@ -381,7 +385,7 @@ class GattServerTest {
                     )
                 } doAnswer { c ->
                     println("answering notifyCharacteristicChanged")
-                    connection!!.getNotificationPublishRelay().valueRelay.onNext(BluetoothGatt.GATT_SUCCESS)
+                    connection!!.getNotificationPublishRelay().valueRelay.onNext(Pair(mac, BluetoothGatt.GATT_SUCCESS))
                     true
                 }
             }
