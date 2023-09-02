@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import io.reactivex.Maybe
-import io.reactivex.Single
 
 /**
  * transactionresult is a combination optional and data class holding the result of a GATT

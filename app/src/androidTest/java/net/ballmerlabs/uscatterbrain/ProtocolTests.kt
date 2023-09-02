@@ -10,7 +10,6 @@ import com.goterl.lazysodium.interfaces.Hash
 import com.goterl.lazysodium.interfaces.Sign
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
-import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.network.*
 import org.junit.Before
 import org.junit.Test

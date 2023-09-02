@@ -12,8 +12,6 @@ import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.CompletableSubject
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionScope
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.*

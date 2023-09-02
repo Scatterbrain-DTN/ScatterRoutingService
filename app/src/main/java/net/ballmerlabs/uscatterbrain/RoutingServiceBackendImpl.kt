@@ -3,11 +3,9 @@ package net.ballmerlabs.uscatterbrain
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.net.Uri
-import android.net.wifi.p2p.WifiP2pManager
 import android.os.RemoteException
 import com.goterl.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer

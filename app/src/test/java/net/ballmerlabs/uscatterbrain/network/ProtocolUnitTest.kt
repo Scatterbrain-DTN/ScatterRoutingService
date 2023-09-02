@@ -1,8 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network
 
-import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
-import org.robolectric.RobolectricTestRunner
-
 import android.content.Context
 import android.os.Build
 import androidx.test.core.app.ApplicationProvider
@@ -11,17 +8,17 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.Hash
 import com.goterl.lazysodium.interfaces.Sign
-import io.reactivex.Completable
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterProto
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
-import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.util.logger
 import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream

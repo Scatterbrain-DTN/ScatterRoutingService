@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.net.wifi.WifiManager
-import android.net.wifi.p2p.WifiP2pManager
 import android.os.PowerManager
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences

@@ -8,11 +8,9 @@ import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Looper
-import android.os.ParcelUuid
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
-import com.polidea.rxandroidble2.scan.ScanRecord
 import io.reactivex.Completable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
@@ -33,7 +31,6 @@ import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
@@ -41,7 +38,6 @@ import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import java.lang.IllegalStateException
 import java.net.InetAddress
 import java.util.UUID
 import java.util.concurrent.TimeUnit

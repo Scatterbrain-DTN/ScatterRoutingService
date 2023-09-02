@@ -103,7 +103,7 @@ dependencies {
     implementation 'com.akaita.java:rxjava2-debug:1.4.0'
 
     //reflect for logging
-    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.7.20'
+    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.8.20'
 
     implementation project(':scatterbrainSDK')
     androidTestImplementation project(':scatterbrainSDK')
@@ -140,11 +140,11 @@ dependencies {
     testImplementation 'net.java.dev.jna:jna:5.11.0@aar'
     testImplementation 'net.java.dev.jna:jna-platform:5.11.0'
 
-    implementation "com.google.dagger:dagger:2.44"
-    testImplementation "com.google.dagger:dagger:2.44"
+    implementation "com.google.dagger:dagger:2.47"
+    testImplementation "com.google.dagger:dagger:2.47"
 
-    kapt "com.google.dagger:dagger-compiler:2.44"
-    kaptTest "com.google.dagger:dagger-compiler:2.44"
+    kapt "com.google.dagger:dagger-compiler:2.47"
+    kaptTest "com.google.dagger:dagger-compiler:2.47"
 
 
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
@@ -165,9 +165,9 @@ dependencies {
     implementation "androidx.core:core-ktx:1.10.1"
     androidTestImplementation 'androidx.test:core:1.5.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation 'com.google.firebase:firebase-crashlytics:18.4.0'
-    androidTestImplementation 'com.google.firebase:firebase-crashlytics:18.4.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4'
+    implementation 'com.google.firebase:firebase-crashlytics:18.4.1'
+    androidTestImplementation 'com.google.firebase:firebase-crashlytics:18.4.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1'
     // Required -- JUnit 4 framework
     testImplementation "junit:junit:4.13.2"
     // Optional -- Robolectric environment

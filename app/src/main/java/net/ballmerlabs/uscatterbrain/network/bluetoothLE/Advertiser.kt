@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.app.PendingIntent
-import android.content.Intent
 import io.reactivex.Completable
 import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import java.util.UUID

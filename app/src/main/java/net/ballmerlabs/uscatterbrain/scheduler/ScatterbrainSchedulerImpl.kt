@@ -1,13 +1,11 @@
 package net.ballmerlabs.uscatterbrain.scheduler
 
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.ParcelUuid
 import android.os.Parcelable
-import android.os.PowerManager
 import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanSettings
@@ -18,8 +16,6 @@ import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.RouterState
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
-import net.ballmerlabs.uscatterbrain.R
-import net.ballmerlabs.uscatterbrain.RoutingServiceBackend
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WakeLockProvider
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
@@ -27,9 +23,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleI
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ManagedGattServer
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.SCAN_REQUEST_CODE
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiver
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiverImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
@@ -38,7 +32,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
-import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
