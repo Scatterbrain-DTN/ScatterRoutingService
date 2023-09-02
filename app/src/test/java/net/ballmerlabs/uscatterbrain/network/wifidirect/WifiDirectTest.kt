@@ -13,9 +13,11 @@ import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
 import io.reactivex.Completable
 import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
@@ -92,7 +94,7 @@ class WifiDirectTest {
 
     private lateinit var bootstrapRequestComponentBuilder: BootstrapRequestSubcomponent.Builder
 
-    private val delayScheduler = Schedulers.io()
+    private val delayScheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("debug-io"))
 
     private fun buildModule(packets: InputStream = ByteArrayInputStream(byteArrayOf())) {
         broadcastReceiver = MockWifiDirectBroadcastReceiver(mock())
