@@ -32,7 +32,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
@@ -50,7 +50,7 @@
         <service
             android:name=".ScatterRoutingService"
             android:exported="true"
-            android:foregroundServiceType="location"
+            android:foregroundServiceType="dataSync"
             android:permission="net.ballmerlabs.scatterroutingservice.permission.ACCESS">
             <intent-filter>
                 <action android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService.BIND" />

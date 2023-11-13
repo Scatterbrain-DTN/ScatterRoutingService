@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.Binder
 import android.os.Build
@@ -742,7 +743,8 @@ class ScatterRoutingService : LifecycleService() {
             .setSmallIcon(R.drawable.ic_launcher_background)
             .setTicker("fmef am tire")
             .build()
-        startForeground(1, notification)
+
+            startForeground(1, notification)
         try {
             mBackend.leState.connectionCache.clear()
 
