@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattServerCallback
@@ -76,6 +77,8 @@ interface GattServerConnection: Disposable {
     fun setOnDisconnect(device: RxBleDevice, func: () -> Unit)
 
     fun resetMtu(address: String)
+
+    fun setOnMtuChanged(device: BluetoothDevice, callback: (Int)->Unit)
 
     open class Output<T> {
         open val valueRelay: PublishSubject<T> = PublishSubject.create()

@@ -178,10 +178,6 @@ class LeStateImpl @Inject constructor(
             null
     }
 
-    private fun getMtu(): Int {
-        return min(512, bluetoothManager.adapter.leMaximumAdvertisingDataLength)
-    }
-
     override fun establishConnectionCached(
         device: RxBleDevice,
         luid: UUID
@@ -197,12 +193,24 @@ class LeStateImpl @Inject constructor(
                         .toSingleDefault(connection)
                 } else {
                     LOG.e("establishing NEW connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
+                    val newconnection = factory.transaction(device, luid)
+                    server.get().getServerSync()!!.connection.setOnMtuChanged(device.bluetoothDevice) { m ->
+                        newconnection.connection().mtu.getAndUpdate { v -> if (m < v)
+                            m
+                         else
+                            v
+                        }
+                    }
                     val rawConnection = device.establishConnection(false)
                         .flatMapSingle { v ->
                             v.discoverServices()
                                 .flatMap {
                                     v.requestMtu(512)
-                                        .map { v }
+                                        .map { mtu ->
+                                            newconnection.connection().mtu.set(mtu)
+                                            LOG.w("actual mtu $mtu")
+                                            v
+                                        }
                                 }.timeout(60, TimeUnit.SECONDS)
                         }
                         .doOnNext {
@@ -217,7 +225,6 @@ class LeStateImpl @Inject constructor(
                         }
                         .doFinally { connectionCache.remove(luid) }
 
-                    val newconnection = factory.transaction(device, luid)
                     newconnection.connection().subscribeConnection(rawConnection)
                     connectionCache[luid] = newconnection
                     //  updateActive(luid)

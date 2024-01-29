@@ -39,6 +39,7 @@ class GattServerConnectionImpl @Inject constructor(
     private val Log by scatterLog()
     private val compositeDisposable = CompositeDisposable()
     private val currentMtu = ConcurrentHashMap<String, Int>()
+    private val mtuChangedCallback = ConcurrentHashMap<String, (Int)->Unit>()
     private var onDisconnect: (device: RxBleDevice) -> Unit = {}
 
     private val deviceOnDisconnect = mutableMapOf<RxBleDevice, () -> Unit>()
@@ -93,6 +94,7 @@ class GattServerConnectionImpl @Inject constructor(
             )
             if (newState == BluetoothProfile.STATE_DISCONNECTED || newState == BluetoothProfile.STATE_DISCONNECTING) {
                 onDisconnect(rxdevice)
+                mtuChangedCallback.remove(device.address)
                 deviceOnDisconnect[rxdevice]?.invoke()
                 deviceOnDisconnect.remove(rxdevice)
             }
@@ -322,6 +324,10 @@ class GattServerConnectionImpl @Inject constructor(
             super.onMtuChanged(device, mtu)
             Log.e("mtu changed: $mtu")
             currentMtu[device.address] = mtu
+            val cb = mtuChangedCallback[device.address]
+            if (cb != null) {
+                cb(mtu)
+            }
             if (getChangedMtuOutput().valueRelay.hasObservers()) {
                 getChangedMtuOutput().valueRelay.onNext(mtu)
             }
@@ -346,6 +352,13 @@ class GattServerConnectionImpl @Inject constructor(
             else -> RxBleConnectionState.DISCONNECTED
         }
     }
+
+
+    override fun setOnMtuChanged(device: BluetoothDevice, callback: (Int) -> Unit) {
+        mtuChangedCallback[device.address] = callback
+    }
+
+
 
     /**
      * @return Observable that emits RxBleConnectionState that matches BluetoothGatt's state.

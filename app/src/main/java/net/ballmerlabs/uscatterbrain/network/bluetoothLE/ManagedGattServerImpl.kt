@@ -184,7 +184,7 @@ class ManagedGattServerImpl @Inject constructor(
                     LOG.v("gatt server initialized")
                     val s = CachedLEServerConnection(
                         connectionRaw,
-                        state.channels,
+                        state,
                         scheduler = serverScheduler,
                         ioScheduler = operationsScheduler,
                         firebaseWrapper = firebase,

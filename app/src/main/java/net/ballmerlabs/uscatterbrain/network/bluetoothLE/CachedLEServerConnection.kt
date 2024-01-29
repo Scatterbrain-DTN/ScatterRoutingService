@@ -42,7 +42,7 @@ data class SessionHandle(
  */
 class CachedLEServerConnection(
     val connection: GattServerConnection,
-    private val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>,
+    private val state: LeState,
     private val scheduler: Scheduler,
     private val ioScheduler: Scheduler,
     private val firebaseWrapper: FirebaseWrapper,
@@ -149,8 +149,8 @@ class CachedLEServerConnection(
      * @return single emitting characteristic selected
      */
     private fun selectCharacteristic(): Single<OwnedCharacteristic> {
-        return Single.defer<OwnedCharacteristic?> {
-            for (char in channels.values) {
+        return Single.defer {
+            for (char in state.channels.values) {
                 val lock = char.lock()
                 if (lock != null) {
                     return@defer Single.just(lock)
@@ -245,7 +245,7 @@ class CachedLEServerConnection(
                                                                 && c.characteristic.uuid == characteristic.uuid
                                                     }.firstOrError()
                                                     .flatMapCompletable { trans ->
-                                                        if (channels.containsKey(trans.uuid)) {
+                                                        if (state.channels.containsKey(trans.uuid)) {
 
                                                                 Completable.defer {
                                                                     LOG.e("finalizing characteristic lock for ${trans.remoteDevice.macAddress}")

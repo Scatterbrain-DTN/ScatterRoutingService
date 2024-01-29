@@ -20,6 +20,7 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
@@ -42,6 +43,7 @@ class CachedLEConnection @Inject constructor(
     val luid: UUID
 ) : Disposable {
     private val LOG by scatterLog()
+    val mtu = AtomicInteger(512)
     private val disposable = CompositeDisposable()
     val connection = BehaviorSubject.create<RxBleConnection>()
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()

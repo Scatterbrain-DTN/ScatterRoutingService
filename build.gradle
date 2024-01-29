@@ -31,28 +31,6 @@ plugins {
     id 'com.google.devtools.ksp' version '1.9.22-1.0.17' apply false
 }
 
-task clean(type: Delete) {
+tasks.register('clean', Delete) {
     delete rootProject.buildDir
-}
-
-
-subprojects { project ->
-
-    apply plugin: 'checkstyle'
-
-    checkstyle {
-        toolVersion = '8.20'
-    }
-
-    if (!project.tasks.findByName("checkstyle")) {
-        task checkstyle(type: Checkstyle) {
-            configFile rootProject.file('RxAndroidBle/checkstyle.xml')
-            source 'src/main/java'
-            ignoreFailures false
-            showViolations true
-            include '**/*.java'
-
-            classpath = files()
-        }
-    }
 }
