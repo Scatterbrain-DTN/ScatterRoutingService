@@ -21,7 +21,8 @@ import java.util.*
 @RunWith(AndroidJUnit4ClassRunner::class)
 class ProtocolTests {
     private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test"))
-    private val writeScheduler = RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test2"))
+    private val writeScheduler =
+        RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test2"))
 
     @Before
     fun init() {
@@ -29,14 +30,14 @@ class ProtocolTests {
         FirebaseApp.initializeApp(ctx)
     }
 
-    private inline fun <reified T: ScatterSerializable<V>, reified V: MessageLite> testSerialize(
-            parser: ScatterSerializable.Companion.Parser<V,T>,
-            input: T,
-            blocksize: Int = 20,
-            onComplete: (packet: T) -> Unit
+    private inline fun <reified T : ScatterSerializable<V>, reified V : MessageLite> testSerialize(
+        parser: ScatterSerializable.Companion.Parser<V, T>,
+        input: T,
+        blocksize: Int = 20,
+        onComplete: (packet: T) -> Unit
     ) {
         onComplete(input)
-        val buf = InputStreamFlowableSubscriber(blocksize*1024)
+        val buf = InputStreamFlowableSubscriber(blocksize * 1024)
         for (x in 1..blocksize) {
             val obs = input.writeToStream(x, writeScheduler)
             obs.subscribe(buf)
@@ -53,9 +54,9 @@ class ProtocolTests {
         val stream = ByteArrayOutputStream()
         input.writeToStream(stream, scheduler).blockingAwait()
         val streamPacket = ScatterSerializable.parseWrapperFromCRC(
-                parser,
-                ByteArrayInputStream(stream.toByteArray()),
-                scheduler
+            parser,
+            ByteArrayInputStream(stream.toByteArray()),
+            scheduler
         ).blockingGet()
         onComplete(streamPacket)
     }
@@ -86,8 +87,8 @@ class ProtocolTests {
     fun advertisePacketWorks() {
         val provides = listOf(AdvertisePacket.Provides.WIFIP2P)
         val packet = AdvertisePacket.newBuilder()
-                .setProvides(provides)
-                .build()
+            .setProvides(provides)
+            .build()
         assert(packet != null)
         testSerialize(AdvertisePacket.parser(), packet!!) { parsed ->
             assert(parsed.provides == provides)
@@ -110,17 +111,17 @@ class ProtocolTests {
                 val hashes = listOf(ByteString.copyFrom(ByteArray(Hash.BYTES)))
 
                 val oldHeader = BlockHeaderPacket.newBuilder()
-                        .setToFingerprint(toFingerprint)
-                        .setFromFingerprint(fromFingerprint)
-                        .setApplication(application)
-                        .setSig(sig)
-                        .setToDisk(toDisk)
-                        .setSessionID(sessionId)
-                        .setMime(mime)
-                        .setExtension(extension)
-                        .setHashes(hashes)
-                        .setEndOfStream(endOfStream)
-                        .build()
+                    .setToFingerprint(toFingerprint)
+                    .setFromFingerprint(fromFingerprint)
+                    .setApplication(application)
+                    .setSig(sig)
+                    .setToDisk(toDisk)
+                    .setSessionID(sessionId)
+                    .setMime(mime)
+                    .setExtension(extension)
+                    .setHashes(hashes)
+                    .setEndOfStream(endOfStream)
+                    .build()
                 testSerialize(BlockHeaderPacket.parser(), oldHeader) { header ->
                     if (endOfStream) {
                         assert(header.isEndOfStream)
@@ -150,10 +151,10 @@ class ProtocolTests {
         for (end in arrayOf(false, true)) {
             for (x in 0..3) {
                 val blockSeq = BlockSequencePacket.newBuilder()
-                        .setData(ByteString.copyFrom(data))
-                        .setSequenceNumber(x)
-                        .setEnd(end)
-                        .build()
+                    .setData(ByteString.copyFrom(data))
+                    .setSequenceNumber(x)
+                    .setEnd(end)
+                    .build()
                 testSerialize(BlockSequencePacket.parser(), blockSeq) { packet ->
                     assert(packet.sequenceNum == x)
                     assert(packet.data.contentEquals(data))
@@ -170,16 +171,16 @@ class ProtocolTests {
         Random().nextBytes(hashes[0])
 
         val declareHashes = DeclareHashesPacket.newBuilder()
-                .setHashesByte(hashes)
-                .build()
+            .setHashesByte(hashes)
+            .build()
         testSerialize(DeclareHashesPacket.parser(), declareHashes) { packet ->
             assert(packet.hashes.size == hashes.size)
             assert(packet.hashes[0].contentEquals(hashes[0]))
         }
 
         val optOut = DeclareHashesPacket.newBuilder()
-                .optOut()
-                .build()
+            .optOut()
+            .build()
 
         testSerialize(DeclareHashesPacket.parser(), optOut) { packet ->
             assert(packet.optout)
@@ -195,15 +196,19 @@ class ProtocolTests {
 
 
         val electLeaderPacket = ElectLeaderPacket.newBuilder(UUID.randomUUID())
-                .setProvides(provides)
-                .setTiebreaker(tiebreaker)
-                .build()
+            .setProvides(provides)
+            .setTiebreaker(tiebreaker)
+            .setRole(ScatterProto.Role.SEME)
+            .setBand(0)
+            .build()
 
         val hashedPacket = ElectLeaderPacket.newBuilder(UUID.randomUUID())
-                .setProvides(provides)
-                .setTiebreaker(tiebreaker)
-                .enableHashing()
-                .build()
+            .setProvides(provides)
+            .setTiebreaker(tiebreaker)
+            .setRole(ScatterProto.Role.SEME)
+            .setBand(0)
+            .enableHashing()
+            .build()
 
         testSerialize(ElectLeaderPacket.parser(), electLeaderPacket) { packet ->
             assert(!packet.isHashed)
@@ -221,14 +226,14 @@ class ProtocolTests {
         val name = "mr. fmef"
         val keypair = ApiIdentity.newPrivateKey()
         val apiIdentity = ApiIdentity.newBuilder()
-                .sign(keypair)
-                .setName(name)
-                .build()
+            .sign(keypair)
+            .setName(name)
+            .build()
         val identityPacket = IdentityPacket.newBuilder()
-                .setScatterbrainPubkey(ByteString.copyFrom(keypair.publickey))
-                .setName(name)
-                .setSig(apiIdentity.identity.sig)
-                .build()
+            .setScatterbrainPubkey(ByteString.copyFrom(keypair.publickey))
+            .setName(name)
+            .setSig(apiIdentity.identity.sig)
+            .build()
         assert(identityPacket != null)
         testSerialize(IdentityPacket.parser(), identityPacket!!) { packet ->
             assert(!packet.isEnd)
@@ -251,17 +256,17 @@ class ProtocolTests {
         val luid = UUID.randomUUID()
         val protoVersion = 5
         val luidPacket = LuidPacket.newBuilder()
-                .setLuid(luid)
-                .build()
+            .setLuid(luid)
+            .build()
 
         testSerialize(LuidPacket.parser(), luidPacket) { packet ->
             assert(packet.luidVal == luid)
         }
 
         val hashedPacket = LuidPacket.newBuilder()
-                .setLuid(luid)
-                .enableHashing(protoVersion)
-                .build()
+            .setLuid(luid)
+            .enableHashing(protoVersion)
+            .build()
 
         testSerialize(LuidPacket.parser(), hashedPacket) { packet ->
             assert(packet.verifyHash(luidPacket))
@@ -285,10 +290,10 @@ class ProtocolTests {
         val provides = AdvertisePacket.Provides.WIFIP2P
         val sessionid = 5
         val upgradePacket = UpgradePacket.newBuilder()
-                .setMetadata(metadata)
-                .setProvides(provides)
-                .setSessionID(sessionid)
-                .build()
+            .setMetadata(metadata)
+            .setProvides(provides)
+            .setSessionID(sessionid)
+            .build()
         assert(upgradePacket != null)
         testSerialize(UpgradePacket.parser(), upgradePacket!!) { packet ->
             packet.metadata.forEach { (t, u) ->

@@ -358,7 +358,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .firstOrError()
     }
 
-    private fun trimOnce(packageName: String): Single<Long> {
+    private fun trimOnce(packageName: String):Maybe<Long> {
         return mDatastore.scatterMessageDao().getByReceiveDatePriority(packageName, 1)
             .subscribeOn(databaseScheduler)
             .flatMapObservable { list -> Observable.fromIterable(list) }
@@ -367,16 +367,19 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .andThen(deleteFile(File(scatterMessage.file.global.filePath)))
                     .toSingleDefault(scatterMessage.message.fileSize)
             }
-            .firstOrError()
+            .defaultIfEmpty(-1)
+            .reduce { acc, v ->
+                acc + v
+            }
     }
 
     override fun trimDatastore(packageName: String, max: Long): Completable {
         return mDatastore.scatterMessageDao().getTotalSize()
             .subscribeOn(databaseScheduler)
             .flatMapCompletable { size ->
-                LOG.v("trimming $size")
                 trimOnce(packageName)
                     .repeat()
+                    .takeWhile { v -> v >= 0 }
                     .filter { s -> s > 0 }
                     .scan(size) { s, v ->
                         LOG.v("scan $s $v")
@@ -936,7 +939,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     val buf = message.shm!!.mapReadOnly()
                     val body = ByteArray(buf.remaining())
                     buf.get(body)
-                    message.shm?.close()
                     hashData(body, blocksize)
                         .flatMapCompletable { hashes ->
 

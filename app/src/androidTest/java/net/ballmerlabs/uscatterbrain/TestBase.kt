@@ -43,7 +43,8 @@ abstract class TestBase {
         binder = BinderWrapperImpl(
                 ApplicationProvider.getApplicationContext(),
                 broadcastReceiver,
-                binderProvider
+                binderProvider,
+            testCoroutineScope
         )
         runBlocking { binder.startService() }
         regularBinder = ScatterbrainBinderApi.Stub.asInterface(b)

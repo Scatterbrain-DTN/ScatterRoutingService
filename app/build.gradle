@@ -110,6 +110,7 @@ dependencies {
     implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.1'
     implementation "com.polidea.rxandroidble2:rxandroidble:1.18.0"
     testImplementation "com.polidea.rxandroidble2:mockclient:1.18.0"
+    androidTestImplementation "com.polidea.rxandroidble2:mockclient:1.18.0"
 
     ksp "androidx.room:room-compiler:2.6.1" // For Kotlin use kapt instead of annotationProcessor
     implementation "androidx.lifecycle:lifecycle-service:$lifecycle_version"
@@ -177,6 +178,11 @@ dependencies {
     testImplementation "org.mockito:mockito-core:4.0.0"
     // Optional -- mockito-kotlin
     testImplementation "org.mockito.kotlin:mockito-kotlin:4.0.0"
+
+    // Optional -- Mockito framework
+    androidTestImplementation "org.mockito:mockito-core:4.0.0"
+    // Optional -- mockito-kotlin
+    androidTestImplementation "org.mockito.kotlin:mockito-kotlin:4.0.0"
     // Optional -- Mockk framework
     testImplementation "io.mockk:mockk:1.9.1"
     testImplementation "androidx.test:monitor:1.6.1"

@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.Context
+import android.content.IntentFilter
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pDeviceList
@@ -131,7 +132,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         }
     }
 
-    private fun createGroupSingle(band: Int): Single<WifiDirectInfo> {
+    override fun createGroupSingle(band: Int): Single<WifiDirectInfo> {
         return Single.defer {
             val channel = provider.getChannel()!!
             val subject = CompletableSubject.create()
@@ -181,11 +182,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                        // provider.getManager()?.createGroup(provider.getChannel()?, listener)
                     })
                     .doOnError { err -> LOG.e("createGroupSingle error: $err") }
+                    .doOnNext { v -> LOG.v("waiting for group creation ${v.groupFormed()} ${v.isGroupOwner()} ${v.groupOwnerAddress()}") }
                     .takeUntil { wifiP2pInfo ->
                         wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner() && wifiP2pInfo.groupOwnerAddress() != null
                     }
                     .doOnComplete { LOG.w("createGroupSingle return success") }
-                    .firstOrError()
+                    .lastOrError()
             } catch (exc: SecurityException) {
                 Single.error(exc)
             }
@@ -194,6 +196,18 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun registerReceiver() {
+        val intentFilter = IntentFilter()
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
+
+        // Indicates a change in the list of available peers.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
+
+        // Indicates the state of Wi-Fi P2P connectivity has changed.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
+
+        // Indicates this device's details have changed.
+        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
+        mContext.registerReceiver(mBroadcastReceiver.asReceiver(), intentFilter)
 
     }
 
@@ -212,7 +226,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
 
-    private fun requestGroupInfo(): Maybe<WifiP2pGroup> {
+    override fun requestGroupInfo(): Maybe<WifiP2pGroup> {
         return Maybe.defer {
             val channel = provider.getChannel()!!
             LOG.v("requestGroupInfo")

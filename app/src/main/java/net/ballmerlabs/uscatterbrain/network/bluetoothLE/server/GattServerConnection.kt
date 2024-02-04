@@ -23,8 +23,6 @@ interface GattServerConnection: Disposable {
 
     fun getNotificationPublishRelay(): Output<Pair<String, Int>>
 
-    fun getChangedMtuOutput(): Output<Int>
-
     fun openLongWriteCharacteristicOutput(requestid: Int, characteristic: BluetoothGattCharacteristic): Output<ByteArray>
 
     fun openLongWriteDescriptorOutput(requestid: Int, descriptor: BluetoothGattDescriptor): Output<ByteArray>
@@ -61,8 +59,6 @@ interface GattServerConnection: Disposable {
 
     fun setupIndication(ch: UUID, indications: Flowable<ByteArray>, device: RxBleDevice): Completable
 
-    fun getOnMtuChanged(): Observable<Int>
-
     fun getEvents(): Observable<ServerResponseTransaction>
 
     fun disconnect(device: RxBleDevice): Completable
@@ -79,6 +75,8 @@ interface GattServerConnection: Disposable {
     fun resetMtu(address: String)
 
     fun setOnMtuChanged(device: BluetoothDevice, callback: (Int)->Unit)
+
+    fun observeOnMtuChanged(device: BluetoothDevice): Observable<Int>
 
     open class Output<T> {
         open val valueRelay: PublishSubject<T> = PublishSubject.create()

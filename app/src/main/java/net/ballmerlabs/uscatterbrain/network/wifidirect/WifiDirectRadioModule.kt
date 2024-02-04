@@ -1,7 +1,9 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
+import android.net.wifi.p2p.WifiP2pGroup
 import io.reactivex.Completable
 import io.reactivex.Flowable
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
@@ -34,7 +36,8 @@ interface WifiDirectRadioModule {
 
     fun bootstrapUke(band: Int, remoteLuid: UUID, selfLuid: UUID): Single<WifiDirectBootstrapRequest>
     fun bootstrapSeme(name: String, passphrase: String, band: Int, ownerPort: Int, self: UUID)
-
+    fun createGroupSingle(band: Int): Single<WifiDirectInfo>
+    fun requestGroupInfo(): Maybe<WifiP2pGroup>
     fun safeShutdownGroup(): Completable
 
     fun awaitUke(): Observable<Pair<UUID, UpgradePacket>>

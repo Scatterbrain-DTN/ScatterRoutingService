@@ -56,7 +56,7 @@ class GattServerConnectionImpl @Inject constructor(
     private val connectionStatePublishRelay =
         PublishRelay.create<Pair<RxBleDevice, RxBleConnectionState>>()
     private val notificationPublishRelay = Output<Pair<String, Int>>()
-    private val changedMtuOutput = Output<Int>()
+    private val changedMtuOutput = Output<Pair<String, Int>>()
 
     private fun registerService(service: BluetoothGattService): Completable {
         return Completable.fromAction {
@@ -328,8 +328,8 @@ class GattServerConnectionImpl @Inject constructor(
             if (cb != null) {
                 cb(mtu)
             }
-            if (getChangedMtuOutput().valueRelay.hasObservers()) {
-                getChangedMtuOutput().valueRelay.onNext(mtu)
+            if (changedMtuOutput.valueRelay.hasObservers()) {
+                changedMtuOutput.valueRelay.onNext(Pair(device.address, mtu))
             }
         }
 
@@ -384,8 +384,10 @@ class GattServerConnectionImpl @Inject constructor(
         return notificationPublishRelay
     }
 
-    override fun getChangedMtuOutput(): Output<Int> {
-        return changedMtuOutput
+    override fun observeOnMtuChanged(device: BluetoothDevice): Observable<Int> {
+        return withDisconnectionHandling(changedMtuOutput)
+            .filter { v -> device.address == v.first }
+            .map { v -> v.second }
     }
 
     override fun openLongWriteCharacteristicOutput(
@@ -583,10 +585,6 @@ class GattServerConnectionImpl @Inject constructor(
             output.valueRelay,
             output.errorRelay.flatMap(errorMapper) as Observable<T>
         )
-    }
-
-    override fun getOnMtuChanged(): Observable<Int> {
-        return withDisconnectionHandling(getChangedMtuOutput())
     }
 
     override fun observeDisconnect(): Observable<RxBleDevice> {

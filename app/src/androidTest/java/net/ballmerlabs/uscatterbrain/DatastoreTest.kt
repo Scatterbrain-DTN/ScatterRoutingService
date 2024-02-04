@@ -34,7 +34,7 @@ class DatastoreTest {
     @JvmField
     val helper: MigrationTestHelper = MigrationTestHelper(
             InstrumentationRegistry.getInstrumentation(),
-            Datastore::class.java.canonicalName,
+            Datastore::class.java.canonicalName!!,
             FrameworkSQLiteOpenHelperFactory()
     )
 
@@ -67,6 +67,21 @@ class DatastoreTest {
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE,"").blockingAwait()
         assert(datastore.getApiMessages("fmef").blockingGet().size == 1)
     }
+
+
+    @Test
+    fun insertMessageHash() {
+        val apiMessage = ScatterMessage.Builder.newInstance(byteArrayOf(1, 2, 3))
+            .setApplication("fmef")
+            .build()
+        for(x in 0..5) {
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+        }
+        val size = datastore.getApiMessages("fmef").blockingGet().size
+        println("size $size")
+        assert(size == 1)
+    }
+
 
     @Test
     @Throws(IOException::class)
@@ -141,15 +156,15 @@ class DatastoreTest {
             val file = File.createTempFile("test", "jpeg", ctx.cacheDir)
             file.outputStream().write(byteArrayOf(x.toByte()))
             val apiMessage = ScatterMessage.Builder.newInstance(file)
-                    .setApplication("fmef")
+                    .setApplication("com.fmef")
                     .build()
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "com.fmef").blockingAwait()
         }
-        assert(datastore.getApiMessages("fmef").blockingGet().size == size)
+        assert(datastore.getApiMessages("com.fmef").blockingGet().size == size)
         datastore.trimDatastore("com.blerf", 0).blockingAwait()
-        assert(datastore.getApiMessages("fmef").blockingGet().size == 10)
+        assert(datastore.getApiMessages("com.fmef").blockingGet().size == 10)
         datastore.trimDatastore("com.fmef", 0).blockingAwait()
-        val res = datastore.getApiMessages("fmef").blockingGet().size
+        val res = datastore.getApiMessages("com.fmef").blockingGet().size
         println(res)
         assert(res == 0)
     }

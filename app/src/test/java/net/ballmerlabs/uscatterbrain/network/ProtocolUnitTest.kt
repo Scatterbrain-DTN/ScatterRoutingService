@@ -212,12 +212,14 @@ class ProtocolUnitTest {
             .setProvides(provides)
             .setTiebreaker(tiebreaker)
             .setRole(ScatterProto.Role.SEME)
+            .setBand(0)
             .build()
 
         val hashedPacket = ElectLeaderPacket.newBuilder(UUID.randomUUID())
             .setProvides(provides)
             .setTiebreaker(tiebreaker)
             .setRole(ScatterProto.Role.SEME)
+            .setBand(0)
             .enableHashing()
             .build()
 

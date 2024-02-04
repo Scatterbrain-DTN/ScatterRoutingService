@@ -206,9 +206,13 @@ class LeStateImpl @Inject constructor(
                             v.discoverServices()
                                 .flatMap {
                                     v.requestMtu(512)
-                                        .map { mtu ->
-                                            newconnection.connection().mtu.set(mtu)
-                                            LOG.w("actual mtu $mtu")
+                                        .map { m ->
+                                            newconnection.connection().mtu.getAndUpdate { v -> if (m < v)
+                                                m
+                                            else
+                                                v
+                                            }
+                                            LOG.w("actual mtu $m")
                                             v
                                         }
                                 }.timeout(60, TimeUnit.SECONDS)

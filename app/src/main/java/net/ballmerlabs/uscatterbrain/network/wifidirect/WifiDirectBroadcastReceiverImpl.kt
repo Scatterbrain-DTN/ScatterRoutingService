@@ -88,11 +88,11 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor() : BroadcastReceiver(
 
     private fun connectionChangedAction(intent: Intent) {
         // Connection state changed!
-        LOG.v("WIFI_P2P_CONNECTION_CHANGED_ACTION")
         val info = intent.getParcelableExtra<WifiP2pInfo>(EXTRA_WIFI_P2P_INFO)
         val network = intent.getParcelableExtra<NetworkInfo>(EXTRA_NETWORK_INFO)
         LOG.v( "wifi connected? ${network?.isConnected}")
         if (info != null) {
+            LOG.v("WIFI_P2P_CONNECTION_CHANGED_ACTION ${info.groupFormed} ${info.isGroupOwner} ${info.groupOwnerAddress}")
             connectionSubject.onNext(info)
         }
     }
