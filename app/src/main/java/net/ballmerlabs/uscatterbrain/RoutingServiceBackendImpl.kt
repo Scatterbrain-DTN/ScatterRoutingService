@@ -8,6 +8,7 @@ import android.content.pm.Signature
 import android.net.Uri
 import android.os.RemoteException
 import com.goterl.lazysodium.interfaces.Sign
+import com.polidea.rxandroidble2.internal.RxBleLog
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import io.reactivex.Completable
@@ -63,7 +64,7 @@ class RoutingServiceBackendImpl @Inject constructor(
         RxJavaPlugins.setErrorHandler { e: Throwable ->
             LOG.e("received an unhandled exception: $e")
         }
-        // RxBleLOG.setLogLevel(RxBleLOG.VERBOSE)
+       //RxBleLog.setLogLevel(RxBleLog.VERBOSE)
     }
 
     override fun dumpDatastore(uri: Uri): Completable {

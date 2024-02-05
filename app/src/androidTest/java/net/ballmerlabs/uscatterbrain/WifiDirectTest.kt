@@ -15,6 +15,7 @@ import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.rule.GrantPermissionRule
 import com.google.firebase.FirebaseApp
+import com.polidea.rxandroidble2.internal.RxBleLog
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
@@ -126,8 +127,10 @@ class WifiDirectTest {
     @Test
     @Throws(TimeoutException::class)
     fun wifiDirectIsUsableAfterCreate() {
-        val res = radioModule.createGroupSingle(radioModule.getBand()).timeout(60, TimeUnit.SECONDS).blockingGet()
-        assert(radioModule.wifiDirectIsUsable().timeout(20, TimeUnit.SECONDS).blockingGet())
+        RxBleLog.setLogLevel(RxBleLog.VERBOSE)
+        radioModule.removeGroup().blockingAwait()
+        val res = retryDelay( radioModule.createGroupSingle(radioModule.getBand()), 5, 10).timeout(60, TimeUnit.SECONDS).blockingGet()
+        assert(retryDelay( radioModule.wifiDirectIsUsable().timeout(20, TimeUnit.SECONDS), 5, 10).blockingGet())
         assert(res.groupFormed())
     }
 

@@ -7,17 +7,26 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.platform.app.InstrumentationRegistry
+import com.google.protobuf.ByteString
+import io.reactivex.Observable
 import io.reactivex.plugins.RxJavaPlugins
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
+import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.*
+import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate9
+import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
+import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
+import org.junit.Assert.*;
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.TimeoutException
 
@@ -167,6 +176,90 @@ class DatastoreTest {
         val res = datastore.getApiMessages("com.fmef").blockingGet().size
         println(res)
         assert(res == 0)
+    }
+
+    @Test
+    fun dbMessageEquiv() {
+        val size = 10
+        val oldmessage =
+            datastore.getTopRandomMessages(size, DeclareHashesPacket.newBuilder().build()).reduce(
+                mutableListOf<WifiDirectRadioModule.BlockDataStream>()
+            ) { acc, v ->
+                acc.add(v)
+                acc
+            }.blockingGet()
+        assertEquals(oldmessage.size - 1, 0)
+        for (x in 0 until size) {
+            val apiMessage =
+                ScatterMessage.Builder.newInstance(ByteBuffer.allocate(Int.SIZE_BYTES).apply {
+                    putInt(x)
+                }.array())
+                    .setApplication("com.fmef")
+                    .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "com.fmef")
+                .blockingAwait()
+        }
+
+        val streams =
+            datastore.getTopRandomMessages(size*4, DeclareHashesPacket.newBuilder().build()).reduce(
+                mutableListOf<WifiDirectRadioModule.BlockDataStream>()
+            ) { acc, v ->
+                acc.add(v)
+                acc
+            }.blockingGet()
+        assertEquals(streams.size - 1, size)
+
+        val messages = datastore.getApiMessages("com.fmef").blockingGet()
+        assertEquals(messages.size, size)
+
+        Observable.fromIterable(streams)
+            .flatMapCompletable { v -> datastore.insertMessage(v) }
+            .blockingAwait()
+
+
+        val messages2 = datastore.getApiMessages("com.fmef").blockingGet()
+        assertEquals(messages2.size, size)
+    }
+
+
+    @Test
+    fun declareHashes() {
+        val size = 10
+        for (x in 0 until size) {
+            val apiMessage =
+                ScatterMessage.Builder.newInstance(ByteBuffer.allocate(Int.SIZE_BYTES).apply {
+                    putInt(x)
+                }.array())
+                    .setApplication("com.fmef")
+                    .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "com.fmef")
+                .blockingAwait()
+        }
+
+
+        val streams =
+            datastore.getTopRandomMessages(size*4, DeclareHashesPacket.newBuilder().build()).reduce(
+                mutableListOf<WifiDirectRadioModule.BlockDataStream>()
+            ) { acc, v ->
+                acc.add(v)
+                acc
+            }.blockingGet()
+        assertEquals(streams.size - 1, size)
+
+
+        val packet = DeclareHashesPacket.newBuilder()
+            .setHashes(
+                streams.map { v -> getGlobalHash(v.headerPacket.hashList) }.map { v -> ByteString.copyFrom(v) }
+            ).build()
+
+        val newstreams =
+            datastore.getTopRandomMessages(size*4, packet).reduce(
+                mutableListOf<WifiDirectRadioModule.BlockDataStream>()
+            ) { acc, v ->
+                acc.add(v)
+                acc
+            }.blockingGet()
+        assertEquals(newstreams.size - 1, 0)
     }
 
 }

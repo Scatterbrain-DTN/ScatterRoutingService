@@ -156,7 +156,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         )
                     }
                 }
-                subject.andThen(mBroadcastReceiver.observeConnectionInfo())
+                retryDelay( subject, 10, 10).andThen(mBroadcastReceiver.observeConnectionInfo())
                     .mergeWith(Completable.fromAction {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             val builder = infoComponentProvider.get()
