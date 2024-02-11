@@ -15,7 +15,6 @@ import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import android.os.SystemClock
 import androidx.core.app.ActivityCompat
-import androidx.room.util.convertUUIDToByte
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.disposables.CompositeDisposable
@@ -32,6 +31,7 @@ import net.ballmerlabs.uscatterbrain.network.getHashUuid
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import net.ballmerlabs.uscatterbrain.util.toBytes
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -46,7 +46,6 @@ class AdvertiserImpl @Inject constructor(
     val context: Context,
     private val manager: BluetoothManager,
     private val firebase: FirebaseWrapper,
-    private val state: Provider<LeState>,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val scheduler: Scheduler,
     private val alarmManager: AlarmManager,
     private val leState: Provider<LeState>
@@ -62,7 +61,11 @@ class AdvertiserImpl @Inject constructor(
     private val lastLuidRandomize = AtomicReference(Date())
     private val randomizeLuidDisp = AtomicReference<Disposable?>(null)
     private val clear = AtomicBoolean()
+    private val busy = BehaviorSubject.create<Boolean>()
 
+    override fun awaitNotBusy(): Completable {
+        return busy.takeUntil { v -> !v }.ignoreElements()
+    }
 
     override fun getHashLuid(): UUID {
         return getHashUuid(myLuid.get())!!
@@ -73,6 +76,7 @@ class AdvertiserImpl @Inject constructor(
     }
 
     override fun randomizeLuidAndRemove() {
+        busy.onNext(true)
         val disp = Completable.fromAction {
             leState.get().connectionCache.forEach { (k, v ) ->
                 leState.get().updateGone(k)
@@ -80,6 +84,7 @@ class AdvertiserImpl @Inject constructor(
             }
             myLuid.set(UUID.randomUUID())
         }.andThen(removeLuid())
+            .doFinally { busy.onNext(false) }
             .subscribe(
                 { LOG.w("successfully removed and randomized luid") },
                 { err -> LOG.e("failed to remove and randomize luid $err") }
@@ -165,10 +170,11 @@ class AdvertiserImpl @Inject constructor(
                                         .setIncludeDeviceName(false)
                                         .setIncludeTxPowerLevel(false)
                                         .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
-                                        .addServiceData(ParcelUuid(LUID_DATA), convertUUIDToByte(luid))
+                                        .addServiceData(ParcelUuid(LUID_DATA), luid.toBytes())
                                     if(clear.get())
                                         builder.addServiceData(ParcelUuid(CLEAR_DATA), byteArrayOf())
 
+                                    // TODO: why the absolute fuck did I do this?
                                     if(shrink.packet.ukesCount > 0 && false)
                                         builder.addServiceData(ParcelUuid(UKES_DATA), u)
                                     v.first.item!!.setAdvertisingData(builder.build())
@@ -190,7 +196,7 @@ class AdvertiserImpl @Inject constructor(
         return size + 16*2
     }
 
-    private fun shrinkUkes(ukes: Map<UUID, UpgradePacket>): UkeAnnouncePacket {
+    fun shrinkUkes(ukes: Map<UUID, UpgradePacket>): UkeAnnouncePacket {
         val packet = UkeAnnouncePacket.newBuilder()
         packet.setforceUke(ukes)
         val b = packet.build()
@@ -301,7 +307,7 @@ class AdvertiserImpl @Inject constructor(
                             .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
 
                         val serviceData = if (luid != null) {
-                            serviceDataBuilder.addServiceData(ParcelUuid(LUID_DATA), convertUUIDToByte(luid))
+                            serviceDataBuilder.addServiceData(ParcelUuid(LUID_DATA), luid.toBytes())
                                 .build()
                         } else {
                             serviceDataBuilder.build()

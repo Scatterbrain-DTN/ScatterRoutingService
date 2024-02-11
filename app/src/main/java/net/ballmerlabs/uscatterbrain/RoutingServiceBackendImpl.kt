@@ -49,8 +49,6 @@ class RoutingServiceBackendImpl @Inject constructor(
     override val scheduler: ScatterbrainScheduler,
     override val prefs: RouterPreferences,
     override val leState: LeState,
-    val transactionBuilder: ScatterbrainTransactionFactory,
-    val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
     val datastoreFile: File,
     val context: Context,
     @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) val ioScheduler: Scheduler

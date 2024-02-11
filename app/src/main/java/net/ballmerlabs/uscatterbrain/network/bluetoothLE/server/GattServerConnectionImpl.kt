@@ -380,7 +380,7 @@ class GattServerConnectionImpl @Inject constructor(
         }
     }
 
-    override fun getNotificationPublishRelay(): Output<Pair<String, Int>> {
+    fun getNotificationPublishRelay(): Output<Pair<String, Int>> {
         return notificationPublishRelay
     }
 
@@ -390,7 +390,7 @@ class GattServerConnectionImpl @Inject constructor(
             .map { v -> v.second }
     }
 
-    override fun openLongWriteCharacteristicOutput(
+    fun openLongWriteCharacteristicOutput(
         requestid: Int,
         characteristic: BluetoothGattCharacteristic
     ): LongWriteClosableOutput<ByteArray> {
@@ -411,7 +411,7 @@ class GattServerConnectionImpl @Inject constructor(
         return output
     }
 
-    override fun openLongWriteDescriptorOutput(
+    fun openLongWriteDescriptorOutput(
         requestid: Int,
         descriptor: BluetoothGattDescriptor
     ): LongWriteClosableOutput<ByteArray> {
@@ -432,7 +432,7 @@ class GattServerConnectionImpl @Inject constructor(
         return output
     }
 
-    override fun closeLongWriteCharacteristicOutput(requestid: Int): Single<ByteArray> {
+    fun closeLongWriteCharacteristicOutput(requestid: Int): Single<ByteArray> {
         return Single.just(requestid)
             .flatMap { integer ->
                 val output = characteristicMultiIndex[integer]
@@ -445,7 +445,7 @@ class GattServerConnectionImpl @Inject constructor(
             }
     }
 
-    override fun closeLongWriteDescriptorOutput(requestid: Int): Single<ByteArray> {
+    fun closeLongWriteDescriptorOutput(requestid: Int): Single<ByteArray> {
         return Single.just(requestid)
             .flatMap { integer ->
                 val output = descriptorMultiIndex[integer]
@@ -466,11 +466,11 @@ class GattServerConnectionImpl @Inject constructor(
         currentMtu.remove(address)
     }
 
-    override fun resetDescriptorMap() {
+    fun resetDescriptorMap() {
         descriptorMultiIndex.clear()
     }
 
-    override fun resetCharacteristicMap() {
+    fun resetCharacteristicMap() {
         characteristicMultiIndex.clear()
     }
 
@@ -603,7 +603,7 @@ class GattServerConnectionImpl @Inject constructor(
         return withDisconnectionHandling(events)
     }
 
-    override fun getOnNotification(mac: String): Observable<Int> {
+    fun getOnNotification(mac: String): Observable<Int> {
         return withDisconnectionHandling(notificationPublishRelay)
             .filter { p -> p.first == mac }
             .map { p -> p.second }

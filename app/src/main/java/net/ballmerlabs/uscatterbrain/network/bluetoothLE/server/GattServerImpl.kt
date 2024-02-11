@@ -16,7 +16,7 @@ class GattServerImpl @Inject constructor(
         private val connectionBuilder: Provider<GattServerConnectionSubcomponent.Builder>,
         @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val timeoutScheduler: Scheduler
 ): GattServer {
-    override fun openServer(config: ServerConfig): Single<GattServerConnection> {
+    override fun openServer(config: ServerConfig): Single<GattServerConnectionSubcomponent> {
         return Single.fromCallable {
             connectionBuilder.get()
                     .timeoutConfiguration(
@@ -27,9 +27,8 @@ class GattServerImpl @Inject constructor(
                             )
                     )
                     .build()
-                    .connection()
 
         }
-            .flatMap { conn -> conn.initializeServer(config).toSingleDefault(conn) }
+            .flatMap { conn -> conn.connection().initializeServer(config).toSingleDefault(conn) }
     }
 }

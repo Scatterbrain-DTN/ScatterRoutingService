@@ -16,7 +16,6 @@ import net.ballmerlabs.uscatterbrain.ScatterProto.BlockData
 import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate9
-import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import org.junit.Assert.*;

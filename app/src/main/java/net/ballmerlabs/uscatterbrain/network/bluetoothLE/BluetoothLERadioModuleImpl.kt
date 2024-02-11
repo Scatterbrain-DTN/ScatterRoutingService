@@ -85,8 +85,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     private val firebase: FirebaseWrapper,
     private val state: LeState,
     private val advertiser: Advertiser,
-    private val managedGattServer: ManagedGattServer,
-    private val connection: CachedLEConnection,
+    private val cachedLeServerConnection: CachedLeServerConnection,
+    private val connection: CachedLeConnection,
     private val device: RxBleDevice,
     val factory: ScatterbrainTransactionFactory,
     private val currentLuid: UUID,
@@ -673,7 +673,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     override fun stopDiscover() {
     }
 
-    private fun awaitAck(clientConnection: CachedLEConnection): Completable {
+    private fun awaitAck(clientConnection: CachedLeConnection): Completable {
         return clientConnection.readAck()
             .flatMapCompletable { ack ->
                 val message = ack.message ?: "no message"
@@ -686,7 +686,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     }
 
     private fun sendAck(
-        serverConnection: CachedLEServerConnection,
+        serverConnection: CachedLeServerConnection,
         success: Boolean,
         luid: UUID,
         device: RxBleDevice,
@@ -715,8 +715,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         null -> {
                             LOG.w("NEW transaction for $luid")
                             val subject = MaybeSubject.create<HandshakeResult>()
-                            val obs = managedGattServer.getServer()
-                                .toSingle()
+                            val obs = Single.just(cachedLeServerConnection)
                                 .flatMapMaybe { serverConnection ->
                                     val t = state.startTransaction()
                                     LOG.v("successfully connected to $luid, transactions: $t")
@@ -790,8 +789,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
      */
     private fun handleStateMachine(
         session: LeDeviceSession,
-        serverConnection: CachedLEServerConnection,
-        clientConnection: CachedLEConnection,
+        serverConnection: CachedLeServerConnection,
+        clientConnection: CachedLeConnection,
         luid: UUID,
         device: RxBleDevice
     ): Maybe<HandshakeResult> {
@@ -860,8 +859,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
     // wait until remote peer sends us an ack, mapping errors to rxjava2 errors
     private fun <T> ackBarrier(
-        serverConnection: CachedLEServerConnection,
-        clientConnection: CachedLEConnection,
+        serverConnection: CachedLeServerConnection,
+        clientConnection: CachedLeConnection,
         transactionResult: TransactionResult<T>,
         luid: UUID,
         device: RxBleDevice

@@ -78,7 +78,6 @@ interface FakeRoutingServiceComponent {
         FakeWifiDirectInfoSubcomponent::class,
         FakeBootstrapRequestSubcomponent::class,
         FakeGattServerConnectionSubcomponent::class,
-        FakeTransactionSubcomponent::class
     ])
     abstract class FakeRoutingServiceModule {
         @Binds
@@ -107,10 +106,6 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun bindsTransactionFactory(impl: ScatterbrainTransactionFactoryImpl): ScatterbrainTransactionFactory
-
-        @Binds
-        @Singleton
         abstract fun bindsAdvertiser(impl: AdvertiserImpl): Advertiser
 
         @Binds
@@ -136,10 +131,6 @@ interface FakeRoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindGattServer(impl: GattServerImpl): GattServer
-
-        @Binds
-        @Singleton
-        abstract fun bindsManagedServer(impl: ManagedGattServerImpl): ManagedGattServer
 
         @Binds
         @Singleton
@@ -315,8 +306,8 @@ interface FakeRoutingServiceComponent {
     fun gattServer(): GattServer
     fun gattConnectionBuilder(): FakeGattServerConnectionSubcomponent.Builder
     fun bootstrapSubcomponent(): Provider<BootstrapRequestSubcomponent.Builder>
-    fun getTransactionBuilder(): ScatterbrainTransactionSubcomponent.Builder
     fun inject(provider: DatastoreImportProviderImpl?)
+
 
     companion object {
         const val SHARED_PREFS = "scatterbrainprefs"

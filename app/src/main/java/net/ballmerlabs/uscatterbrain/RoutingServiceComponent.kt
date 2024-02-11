@@ -57,7 +57,6 @@ interface RoutingServiceComponent {
         WifiDirectInfoSubcomponent::class,
         BootstrapRequestSubcomponent::class,
         GattServerConnectionSubcomponent::class,
-        ScatterbrainTransactionSubcomponent::class
     ])
     abstract class RoutingServiceModule {
         @Binds
@@ -110,19 +109,11 @@ interface RoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun bindsTransactionFactory(impl: ScatterbrainTransactionFactoryImpl): ScatterbrainTransactionFactory
-
-        @Binds
-        @Singleton
         abstract fun bindsAdvertiser(impl: AdvertiserImpl): Advertiser
 
         @Binds
         @Singleton
         abstract fun bindsLeState(impl: LeStateImpl): LeState
-
-        @Binds
-        @Singleton
-        abstract fun bindsManagedServer(impl: ManagedGattServerImpl): ManagedGattServer
 
         @Binds
         @Singleton
@@ -264,11 +255,10 @@ interface RoutingServiceComponent {
         
     }
 
-    fun transaction(): ScatterbrainTransactionSubcomponent.Builder
     fun scatterRoutingService(): RoutingServiceBackend
     fun inject(provider: DatastoreImportProviderImpl?)
     fun inject(provider: ScanBroadcastReceiverImpl)
-
+    fun gattConnectionBuilder(): GattServerConnectionSubcomponent.Builder
     fun inject(prover: LuidRandomizeReceiver)
 
     companion object {

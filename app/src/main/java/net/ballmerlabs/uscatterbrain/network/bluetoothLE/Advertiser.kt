@@ -13,6 +13,8 @@ interface Advertiser {
 
     fun getHashLuid(): UUID
 
+    fun awaitNotBusy(): Completable
+
     /**
      * Stats LE advertise on scatterbrain UUID
      * This should run offloaded on the adapter until stopAdvertise is called

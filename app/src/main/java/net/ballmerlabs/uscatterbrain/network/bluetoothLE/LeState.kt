@@ -6,6 +6,7 @@ import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -14,6 +15,12 @@ interface LeState {
     val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>
     // a "channel" is a characteristc that protobuf messages are written to.
     val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>
+
+    fun disconnectServer(device: RxBleDevice?)
+    fun startServer(): Completable
+    fun stopServer()
+    fun getServerSync(): GattServerConnectionSubcomponent?
+    fun getServer(): Maybe<GattServerConnectionSubcomponent>
 
     fun shouldConnect(res: ScanResult): Boolean
 
@@ -60,4 +67,15 @@ interface LeState {
      * @returns Observable emitting handshake results
      */
     fun refreshPeers(): Completable
+
+    fun setupChannels() {
+        for (i in 0 until BluetoothLERadioModuleImpl.NUM_CHANNELS) {
+            val channel = BluetoothLERadioModuleImpl.incrementUUID(
+                BluetoothLERadioModuleImpl.SERVICE_UUID,
+                i + 1
+            )
+            channels[channel] =
+                BluetoothLERadioModuleImpl.LockedCharacteristic(makeCharacteristic(channel), i)
+        }
+    }
 }

@@ -22,7 +22,6 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ManagedGattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
@@ -48,7 +47,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val advertiser: Advertiser,
     private val client: RxBleClient,
     private val state: BroadcastReceiverState,
-    private val server: ManagedGattServer,
     private val leState: LeState,
     private val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val wifiDirectRadioModule: WifiDirectRadioModule,
@@ -155,7 +153,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         val disp = registerReceiver()
             .andThen(wifiDirectRadioModule.removeGroup().onErrorComplete())
             .andThen(advertiser.startAdvertise())
-            .andThen(server.startServer())
+            .andThen(leState.startServer())
             .timeout(10, TimeUnit.SECONDS)
             .doOnComplete { unpauseScan() }
             .subscribe(

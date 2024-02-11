@@ -21,25 +21,9 @@ interface GattServerConnection: Disposable {
 
     val gattServerCallback: BluetoothGattServerCallback
 
-    fun getNotificationPublishRelay(): Output<Pair<String, Int>>
-
-    fun openLongWriteCharacteristicOutput(requestid: Int, characteristic: BluetoothGattCharacteristic): Output<ByteArray>
-
-    fun openLongWriteDescriptorOutput(requestid: Int, descriptor: BluetoothGattDescriptor): Output<ByteArray>
-
-    fun closeLongWriteCharacteristicOutput(requestid: Int): Single<ByteArray>
-
-    fun closeLongWriteDescriptorOutput(requestid: Int): Single<ByteArray>
-
-    fun resetDescriptorMap()
-
-    fun resetCharacteristicMap()
-
-    fun getOnNotification(mac: String): Observable<Int>
-    
-    fun getOnConnectionStateChange(): Observable<Pair<RxBleDevice, RxBleConnectionState>>
-
     fun initializeServer(config: ServerConfig): Completable
+
+    fun getOnConnectionStateChange(): Observable<Pair<RxBleDevice, RxBleConnectionState>>
 
     fun blindAck(
             requestID: Int,

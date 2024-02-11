@@ -8,10 +8,12 @@ import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Looper
+import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
 import io.reactivex.Completable
+import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
@@ -20,6 +22,10 @@ import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.MockCachedLeConnection
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.MockGattServerConnection
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.MockLeState
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.getBogusRxBleDevice
 import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
 import net.ballmerlabs.uscatterbrain.util.logger
 import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
@@ -109,21 +115,26 @@ class WifiDirectTest {
             .bluetoothManager(bluetoothManager)
             .wifiManager(wifiManager)
             .build()!!
-        val trans = component.getTransactionBuilder()
+        val trans = component
+            .gattConnectionBuilder()
+            .timeoutConfiguration(mock {  })
+            .gattServer(mock {  })
+            .build()
+            .transaction()
+            .connection(MockCachedLeConnection(
+                ioScheduler = delayScheduler,
+                bleDevice = getBogusRxBleDevice("ff:ff:ff:ff:ff:ff"),
+                state = MockLeState(
+                    serverConnection = component.gattConnectionBuilder()
+                        .timeoutConfiguration(TimeoutConfiguration(5, TimeUnit.SECONDS, delayScheduler))
+                        .gattServer(mock {  }).build(),
+                    connectionFactory = Observable.empty()
+                ),
+                leAdvertiser = mock {  },
+                luid = UUID.randomUUID()
+            ))
             .luid(UUID.randomUUID())
-            .device(RxBleDeviceMock.Builder()
-                .deviceMacAddress("ff:ff:ff:ff:ff:ff")
-                .deviceName("")
-                .bluetoothDevice(mock {
-                    on { address } doReturn "ff:ff:ff:ff:ff:ff"
-                })
-                .connection(
-                    RxBleConnectionMock.Builder()
-                        .rssi(1)
-                        .build()
-                )
-                .scanRecord(RxBleScanRecordMock.Builder().build())
-                .build())
+            .device(getBogusRxBleDevice("ff:ff:ff:ff:ff:ff"))
             .build()!!
         module = trans.wifiDirectRadioModule()
         bootstrapRequestComponentBuilder = component.bootstrapSubcomponent().get()

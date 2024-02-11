@@ -6,28 +6,17 @@ import android.content.Intent
 import android.os.ParcelUuid
 import com.polidea.rxandroidble2.RxBleClient
 import io.reactivex.Completable
-import io.reactivex.Flowable
 import io.reactivex.Maybe
-import io.reactivex.Observable
 import io.reactivex.Scheduler
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.ScatterProto
 import net.ballmerlabs.uscatterbrain.ScatterProto.JustUkes
-import net.ballmerlabs.uscatterbrain.ScatterProto.UUID
-import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
 import net.ballmerlabs.uscatterbrain.getComponent
-import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.UkeAnnouncePacket
-import net.ballmerlabs.uscatterbrain.network.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.CLEAR_DATA
-import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.util.concurrent.Flow
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
@@ -39,9 +28,6 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
 
     @Inject
     lateinit var state: BroadcastReceiverState
-
-    @Inject
-    lateinit var factory: ScatterbrainTransactionFactory
 
     @Inject
     lateinit var advertiser: Advertiser
@@ -64,7 +50,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
 
     private val LOG by scatterLog()
 
-    private fun handle(context: Context, intent: Intent) {
+    private fun handle(intent: Intent) {
         val r = client.backgroundScanner.onScanResultReceived(intent)
         val ukesSet = mutableListOf<UkeAnnouncePacket>()
         var clear = false
@@ -171,7 +157,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
         val component = context.getComponent()
         if (component != null) {
             component.inject(this)
-            handle(context, intent)
+            handle(intent)
         }
 
     }

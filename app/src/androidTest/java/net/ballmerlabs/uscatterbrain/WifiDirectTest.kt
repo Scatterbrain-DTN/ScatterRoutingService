@@ -16,6 +16,7 @@ import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.rule.GrantPermissionRule
 import com.google.firebase.FirebaseApp
 import com.polidea.rxandroidble2.internal.RxBleLog
+import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
@@ -84,7 +85,11 @@ class WifiDirectTest {
         val component = DaggerRoutingServiceComponent.builder()
             .applicationContext(ctx)
             ?.build()!!
-        radioModule = component.transaction().device(RxBleDeviceMock.Builder()
+        radioModule =component.gattConnectionBuilder()
+            .timeoutConfiguration(TimeoutConfiguration(5, TimeUnit.SECONDS, scheduler))
+            .build()
+            .transaction()
+            .device(RxBleDeviceMock.Builder()
             .deviceMacAddress("ff:ff:ff:ff:ff:ff")
             .deviceName("")
             .connection(

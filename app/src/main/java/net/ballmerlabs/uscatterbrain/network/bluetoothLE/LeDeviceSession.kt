@@ -5,14 +5,12 @@ import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
-import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
 import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 
 /*
  * server and client transactions are represented as functions taking a GATT connection
@@ -26,8 +24,8 @@ import java.util.concurrent.TimeUnit
  * if the bootstrap request is present, Scatterbrain will attempt to handle data transfer on
  * a new transport
  */
-typealias ServerTransaction = (connection: CachedLEServerConnection) -> Single<TransactionResult<BootstrapRequest>>
-typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionResult<BootstrapRequest>>
+typealias ServerTransaction = (connection: CachedLeServerConnection) -> Single<TransactionResult<BootstrapRequest>>
+typealias ClientTransaction = (conn: CachedLeConnection) -> Single<TransactionResult<BootstrapRequest>>
 
 /**
  * LeDeviceSession holds the state for the finite state machine managing a scatterbrain connection
@@ -41,8 +39,8 @@ typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionRe
 class LeDeviceSession(
     val device: RxBleDevice,
     luid: UUID,
-    val client: CachedLEConnection,
-    val server: CachedLEServerConnection,
+    val client: CachedLeConnection,
+    val server: CachedLeServerConnection,
     val remoteLuid: UUID,
     val hashedSelf: UUID
 ) {

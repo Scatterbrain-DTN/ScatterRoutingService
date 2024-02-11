@@ -32,6 +32,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Compa
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Companion.CLIENT_CONFIG
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnectionImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.MockWifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
@@ -55,6 +56,23 @@ import java.io.ByteArrayOutputStream
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
+
+
+fun getBogusRxBleDevice(mac: String): RxBleDevice {
+    return RxBleDeviceMock.Builder()
+        .deviceMacAddress(mac)
+        .deviceName("")
+        .bluetoothDevice(mock {
+            on { address } doReturn mac
+        })
+        .connection(
+            RxBleConnectionMock.Builder()
+                .rssi(1)
+                .build()
+        )
+        .scanRecord(RxBleScanRecordMock.Builder().build())
+        .build()
+}
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [Build.VERSION_CODES.TIRAMISU])
@@ -126,7 +144,7 @@ class GattServerTest {
         connectionBuilder = component.gattConnectionBuilder()
     }
 
-    private fun getConnection(): GattServerConnection {
+    private fun getConnection(): GattServerConnectionImpl {
         return connectionBuilder
             .gattServer(androidGattServer)
             .timeoutConfiguration(
@@ -158,21 +176,6 @@ class GattServerTest {
         connection.initializeServer(config).blockingAwait()
     }
 
-    private fun getBogusRxBleDevice(mac: String): RxBleDevice {
-        return RxBleDeviceMock.Builder()
-            .deviceMacAddress(mac)
-            .deviceName("")
-            .bluetoothDevice(mock {
-                on { address } doReturn mac
-            })
-            .connection(
-                RxBleConnectionMock.Builder()
-                    .rssi(1)
-                    .build()
-            )
-            .scanRecord(RxBleScanRecordMock.Builder().build())
-            .build()
-    }
 
     private fun getCharacteristic(
         char: UUID,
@@ -373,7 +376,7 @@ class GattServerTest {
                     getConnectionState(device.bluetoothDevice, BluetoothProfile.GATT_SERVER)
                 } doReturn BluetoothProfile.STATE_CONNECTED
             }
-            var connection: GattServerConnection? = null
+            var connection: GattServerConnectionImpl? = null
             setupModule()
 
             androidGattServer = mock {

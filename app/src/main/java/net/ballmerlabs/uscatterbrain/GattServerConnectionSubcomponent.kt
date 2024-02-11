@@ -5,9 +5,12 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import dagger.*
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLEServerConnectionImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLeServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactoryImpl
+import javax.inject.Singleton
 
 @Subcomponent(modules = [GattServerConnectionSubcomponent.GattServerConnectionModule::class])
 @GattServerConnectionScope
@@ -20,7 +23,10 @@ interface GattServerConnectionSubcomponent {
         fun build(): GattServerConnectionSubcomponent
     }
 
-    @Module(subcomponents = [ServerTransactionSubcomponent::class])
+    @Module(subcomponents = [
+        ServerTransactionSubcomponent::class,
+        ScatterbrainTransactionSubcomponent::class,
+    ])
     abstract class GattServerConnectionModule {
         @Binds
         @GattServerConnectionScope
@@ -33,6 +39,14 @@ interface GattServerConnectionSubcomponent {
         @Binds
         @GattServerConnectionScope
         abstract fun bindTransactionFactory(impl: ServerTransactionFactoryImpl): ServerTransactionFactory
+
+        @Binds
+        @GattServerConnectionScope
+        abstract fun bindCachedConnection(impl: CachedLEServerConnectionImpl): CachedLeServerConnection
+
+        @Binds
+        @GattServerConnectionScope
+        abstract fun bindsTransactionFactory(impl: ScatterbrainTransactionFactoryImpl): ScatterbrainTransactionFactory
 
         @Module
         companion object {
@@ -53,5 +67,9 @@ interface GattServerConnectionSubcomponent {
         }
     }
 
+    fun transaction(): ScatterbrainTransactionSubcomponent.Builder
+
     fun connection(): GattServerConnection
+    fun cachedConnection(): CachedLeServerConnection
+    fun factory(): ScatterbrainTransactionFactory
 }
