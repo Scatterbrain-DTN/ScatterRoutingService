@@ -47,9 +47,7 @@ class WifiDirectTest {
     @Rule
     val wifiDirectGrantRule: GrantPermissionRule = GrantPermissionRule.grant(
         Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION,
-        Manifest.permission.NEARBY_WIFI_DEVICES
+        Manifest.permission.ACCESS_COARSE_LOCATION
     )
 
     private lateinit var radioModule: WifiDirectRadioModule
@@ -65,11 +63,6 @@ class WifiDirectTest {
         ctx = ApplicationProvider.getApplicationContext()
         FirebaseApp.initializeApp(ctx)
         manager = ctx.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val manager = ctx.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
-        val channel = manager.initialize(ctx, ctx.mainLooper, null)
-
-
-        //TODO: inject here
 
         database = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
             .fallbackToDestructiveMigration()
@@ -89,16 +82,7 @@ class WifiDirectTest {
             .timeoutConfiguration(TimeoutConfiguration(5, TimeUnit.SECONDS, scheduler))
             .build()
             .transaction()
-            .device(RxBleDeviceMock.Builder()
-            .deviceMacAddress("ff:ff:ff:ff:ff:ff")
-            .deviceName("")
-            .connection(
-                RxBleConnectionMock.Builder()
-                    .rssi(1)
-                    .build()
-            )
-            .scanRecord(RxBleScanRecordMock.Builder().build())
-            .build()!!)
+            .device(getBogusRxBleDevice("ff:ff:ff:ff:ff:ff"))
             .luid(UUID.randomUUID())
         .build()!!.wifiDirectRadioModule()
         radioModule.registerReceiver()

@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.db
 
+import android.content.Context
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
@@ -18,7 +19,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
+class MockScatterbrainDatastore @Inject constructor(
+    private val ctx: Context
+): ScatterbrainDatastore {
     override fun insertMessages(message: DbMessage): Completable {
         return Completable.complete()
     }
@@ -145,7 +148,7 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
     }
 
     override fun getApiMessages(id: Long): net.ballmerlabs.scatterbrainsdk.ScatterMessage {
-        return net.ballmerlabs.scatterbrainsdk.ScatterMessage.Builder.newInstance(byteArrayOf()).build()
+        return net.ballmerlabs.scatterbrainsdk.ScatterMessage.Builder.newInstance(ctx,byteArrayOf()).build()
     }
 
     override fun getApiMessagesSendDate(application: String, start: Date, end: Date): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {

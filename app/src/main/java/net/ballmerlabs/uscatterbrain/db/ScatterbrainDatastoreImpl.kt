@@ -18,6 +18,7 @@ import io.reactivex.functions.BiFunction
 import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
+import net.ballmerlabs.scatterbrainsdk.newShm
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackend.Applications
@@ -58,10 +59,8 @@ class ApiMessageBuilder(from: UUID?, id: UUID) : ScatterMessage.Builder(
          * @param from sender fingerprints
          * @return builder class
          */
-        fun newInstance(data: ByteArray, id: UUID, from: UUID?): ScatterMessage.Builder {
-            val shared = SharedMemory.create("scatterMessage", data.size)
-            val buf = shared.mapReadWrite()
-            buf.put(data)
+        fun newInstance(context: Context, data: ByteArray, id: UUID, from: UUID?): ScatterMessage.Builder {
+            val shared = context.newShm("scatterbrain", data)
             return ApiMessageBuilder(from, id).setShm(shared)
         }
 
@@ -812,6 +811,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .build()
         } else {
             ApiMessageBuilder.newInstance(
+                ctx,
                 body,
                 message.file.global.uuid,
                 message.fromFingerprint.firstOrNull()
@@ -936,7 +936,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 }
                         }.subscribeOn(databaseScheduler)
                 } else {
-                    val buf = message.shm!!.mapReadOnly()
+                    val buf = message.shm!!.readOnly()
                     val body = ByteArray(buf.remaining())
                     buf.get(body)
                     hashData(body, blocksize)

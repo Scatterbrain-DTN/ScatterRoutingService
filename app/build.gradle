@@ -12,7 +12,7 @@ def protobuf_version = "3.18.0"
 android {
     buildToolsVersion "30.0.3"
     defaultConfig {
-        minSdkVersion 27
+        minSdkVersion 26
         targetSdkVersion 34
         compileSdkVersion 34
         multiDexEnabled true

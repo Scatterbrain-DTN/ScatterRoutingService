@@ -69,7 +69,7 @@ class DatastoreTest {
 
     @Test
     fun insertMessage() {
-        val apiMessage = ScatterMessage.Builder.newInstance(byteArrayOf(1))
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1))
                 .setApplication("fmef")
                 .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE,"").blockingAwait()
@@ -79,7 +79,7 @@ class DatastoreTest {
 
     @Test
     fun insertMessageHash() {
-        val apiMessage = ScatterMessage.Builder.newInstance(byteArrayOf(1, 2, 3))
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1, 2, 3))
             .setApplication("fmef")
             .build()
         for(x in 0..5) {
@@ -190,7 +190,7 @@ class DatastoreTest {
         assertEquals(oldmessage.size - 1, 0)
         for (x in 0 until size) {
             val apiMessage =
-                ScatterMessage.Builder.newInstance(ByteBuffer.allocate(Int.SIZE_BYTES).apply {
+                ScatterMessage.Builder.newInstance(ctx, ByteBuffer.allocate(Int.SIZE_BYTES).apply {
                     putInt(x)
                 }.array())
                     .setApplication("com.fmef")
@@ -226,7 +226,7 @@ class DatastoreTest {
         val size = 10
         for (x in 0 until size) {
             val apiMessage =
-                ScatterMessage.Builder.newInstance(ByteBuffer.allocate(Int.SIZE_BYTES).apply {
+                ScatterMessage.Builder.newInstance(ctx, ByteBuffer.allocate(Int.SIZE_BYTES).apply {
                     putInt(x)
                 }.array())
                     .setApplication("com.fmef")

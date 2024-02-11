@@ -36,6 +36,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnec
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.MockWifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
+import net.ballmerlabs.uscatterbrain.util.getBogusRxBleDevice
 import net.ballmerlabs.uscatterbrain.util.logger
 import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
 import org.junit.After
@@ -57,22 +58,6 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
-
-fun getBogusRxBleDevice(mac: String): RxBleDevice {
-    return RxBleDeviceMock.Builder()
-        .deviceMacAddress(mac)
-        .deviceName("")
-        .bluetoothDevice(mock {
-            on { address } doReturn mac
-        })
-        .connection(
-            RxBleConnectionMock.Builder()
-                .rssi(1)
-                .build()
-        )
-        .scanRecord(RxBleScanRecordMock.Builder().build())
-        .build()
-}
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [Build.VERSION_CODES.TIRAMISU])

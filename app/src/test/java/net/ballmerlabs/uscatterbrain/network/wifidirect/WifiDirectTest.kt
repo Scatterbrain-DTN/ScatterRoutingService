@@ -25,8 +25,8 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.MockCachedLeConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.MockGattServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.MockLeState
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.getBogusRxBleDevice
 import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
+import net.ballmerlabs.uscatterbrain.util.getBogusRxBleDevice
 import net.ballmerlabs.uscatterbrain.util.logger
 import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
 import org.junit.After
@@ -47,6 +47,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.InetAddress
+import java.sql.Time
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -125,10 +126,10 @@ class WifiDirectTest {
                 ioScheduler = delayScheduler,
                 bleDevice = getBogusRxBleDevice("ff:ff:ff:ff:ff:ff"),
                 state = MockLeState(
-                    serverConnection = component.gattConnectionBuilder()
-                        .timeoutConfiguration(TimeoutConfiguration(5, TimeUnit.SECONDS, delayScheduler))
-                        .gattServer(mock {  }).build(),
-                    connectionFactory = Observable.empty()
+                    serverConnection = component.gattConnectionBuilder().timeoutConfiguration(
+                        TimeoutConfiguration(0, TimeUnit.SECONDS, delayScheduler)
+                    ).gattServer(mock {  }).build(),
+                    connectionFactory = Observable.never()
                 ),
                 leAdvertiser = mock {  },
                 luid = UUID.randomUUID()

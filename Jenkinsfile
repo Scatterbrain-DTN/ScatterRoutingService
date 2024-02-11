@@ -23,7 +23,7 @@ void setBuildStatus(String message, String state) {
 }
 
 pipeline {
-    agent { label 'build' }
+    agent none
     environment {
       GRADLE_USER_HOME = '/build'
       ANDROID_HOME = '/opt/android-sdk-linux'
@@ -34,6 +34,7 @@ pipeline {
     }
     stages {
         stage('Build') {
+            agent { label 'build' }
             steps {
                 echo 'Building..'
                 setBuildStatus("Build started", "PENDING")
@@ -52,6 +53,7 @@ pipeline {
             }
         }
         stage('Test') {
+          agent { label 'phone' }
           steps {
             echo 'Testing'
             recursiveCheckout()
@@ -67,8 +69,10 @@ pipeline {
               ./gradlew jacocoTestReport --stacktrace
               """
               */
-              sh './gradlew testDebugUnitTest'
-              jacoco()
+              sh './gradlew testDebugUnitTest jacocoTestReport'
+              recordCoverage(tools: [[parser: 'JACOCO']],
+                      id: 'jacoco', name: 'JaCoCo Coverage',
+                      sourceCodeRetention: 'EVERY_BUILD')
             }
           }
           post {
