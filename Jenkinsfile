@@ -28,7 +28,7 @@ pipeline {
       GRADLE_USER_HOME = '/build'
       ANDROID_HOME = '/opt/android-sdk-linux'
       ANDROID_SDK_ROOT = "$ANDROID_HOME"
-      TARGET_VERSION = 31
+      TARGET_VERSION = 33
       EMULATOR_PID = "/build/$BUILD_ID-emu.pid"
       AVD_NAME = "${EXECUTOR_NUMBER}-avd"
     }
