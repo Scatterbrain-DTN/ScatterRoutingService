@@ -744,7 +744,7 @@ class ScatterRoutingService : LifecycleService() {
             .setTicker("fmef am tire")
             .build()
 
-            startForeground(1, notification)
+        startForeground(1, notification)
         try {
             mBackend.leState.connectionCache.clear()
 
@@ -763,7 +763,7 @@ class ScatterRoutingService : LifecycleService() {
         super.onDestroy()
         LOG.e("onDestroy called")
         mBackend.scheduler.stop()
-       // mBackend.radioModule.clearPeers()
+        // mBackend.radioModule.clearPeers()
         //mBackend.wifiDirect.unregisterReceiver()
     }
 
@@ -780,7 +780,7 @@ val component = AtomicReference<RoutingServiceComponent?>(null)
 
 fun Context.getComponent(): RoutingServiceComponent? {
     return component.updateAndGet { c ->
-        c?: DaggerRoutingServiceComponent
+        c ?: DaggerRoutingServiceComponent
             .builder()
             .applicationContext(this)?.build()
     }!!

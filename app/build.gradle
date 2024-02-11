@@ -70,6 +70,8 @@ android {
     namespace 'net.ballmerlabs.uscatterbrain'
 }
 
+apply from: "../scatterbrainSDK/gradle/jacoco.gradle"
+
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:$protobuf_version"

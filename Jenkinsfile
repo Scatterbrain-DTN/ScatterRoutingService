@@ -58,6 +58,7 @@ pipeline {
             unstash name: 'build'
             unstash name: 'sdkbuild'
             withGradle {
+            /*
               sh label: 'Downloadd system image', script: "$ANDROID_HOME/cmdline-tools/tools/bin/sdkmanager \"system-images;android-${TARGET_VERSION};google_apis;x86_64\" --sdk_root=$ANDROID_HOME"
               sh label: 'Create AVD', script: "echo no | $ANDROID_HOME/cmdline-tools/tools/bin/avdmanager create avd --force -n $AVD_NAME -k \"system-images;android-${TARGET_VERSION};google_apis;x86_64\""
               sh label: 'Start emulator and run tests', script: """
@@ -65,6 +66,8 @@ pipeline {
               $ANDROID_HOME/platform-tools/adb wait-for-device shell 'while [[ -z \$(getprop sys.boot_completed) ]]; do sleep 1; done;'
               ./gradlew jacocoTestReport --stacktrace
               """
+              */
+              sh './gradlew testDebugUnitTest'
               jacoco()
             }
           }

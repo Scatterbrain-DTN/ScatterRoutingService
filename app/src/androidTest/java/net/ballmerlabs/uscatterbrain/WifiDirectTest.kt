@@ -85,7 +85,7 @@ class WifiDirectTest {
         val component = DaggerRoutingServiceComponent.builder()
             .applicationContext(ctx)
             ?.build()!!
-        radioModule =component.gattConnectionBuilder()
+        radioModule = component.gattConnectionBuilder()
             .timeoutConfiguration(TimeoutConfiguration(5, TimeUnit.SECONDS, scheduler))
             .build()
             .transaction()
