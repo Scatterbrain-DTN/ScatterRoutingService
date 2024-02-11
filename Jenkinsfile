@@ -23,6 +23,7 @@ void setBuildStatus(String message, String state) {
 }
 
 pipeline {
+    agent any
     environment {
       GRADLE_USER_HOME = '/build'
       ANDROID_HOME = '/opt/android-sdk-linux'
