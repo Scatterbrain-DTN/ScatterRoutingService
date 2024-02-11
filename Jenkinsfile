@@ -25,7 +25,7 @@ void setBuildStatus(String message, String state) {
 pipeline {
     agent any
       tools {
-            gradle "8.2"
+            gradle "GRADLE_LATEST"
       }
     environment {
       ANDROID_HOME = '/opt/android-sdk-linux'
