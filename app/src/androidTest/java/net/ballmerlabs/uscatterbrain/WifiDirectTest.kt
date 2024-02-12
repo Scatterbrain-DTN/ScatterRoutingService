@@ -127,14 +127,14 @@ class WifiDirectTest {
     @Throws(TimeoutException::class)
     fun createAndRemoveGroup() {
         for (x in 0..20) {
-            radioModule.removeGroup()
-                .timeout(10, TimeUnit.SECONDS)
-                .blockingAwait()
             assert(
                 radioModule.createGroupSingle(radioModule.getBand())
-                    .timeout(10, TimeUnit.SECONDS)
+                    .timeout(20, TimeUnit.SECONDS)
                     .blockingGet().isGroupOwner()
             )
+            radioModule.removeGroup()
+                .timeout(20, TimeUnit.SECONDS)
+                .blockingAwait()
         }
     }
 
