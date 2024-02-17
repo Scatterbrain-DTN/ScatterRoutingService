@@ -372,7 +372,8 @@ class LeStateImpl @Inject constructor(
                             v
                         }
                     }
-                    val rawConnection = device.establishConnection(false)
+                    val rawConnection = device
+                        .establishConnection(false)
                         .flatMapSingle { v ->
                             v.discoverServices()
                                 .flatMap {

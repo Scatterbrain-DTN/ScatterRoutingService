@@ -121,7 +121,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 .setScanMode(SCAN_MODE_LOW_POWER)
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .setShouldCheckLocationServicesState(true)
-                .setLegacy(false)
+                .setLegacy(true)
                 .build(),
             ScanFilter.Builder()
                 .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))

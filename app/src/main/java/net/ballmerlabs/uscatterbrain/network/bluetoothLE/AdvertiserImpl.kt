@@ -4,7 +4,9 @@ import android.Manifest
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.bluetooth.BluetoothManager
+import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
+import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.AdvertisingSet
 import android.bluetooth.le.AdvertisingSetCallback
 import android.bluetooth.le.AdvertisingSetParameters
@@ -54,7 +56,7 @@ class AdvertiserImpl @Inject constructor(
 
     private val LOG by scatterLog()
     private val advertisingLock = AtomicReference(false)
-    private val isAdvertising = BehaviorSubject.create<Pair<Optional<AdvertisingSet>, Int>>()
+    private val isAdvertising = BehaviorSubject.create<Pair<Optional<AdvertiseSettings>, Int>>()
     private val advertisingDataUpdated = PublishSubject.create<Int>()
     // luid is a temporary unique identifier used for a single transaction.
     private val myLuid: AtomicReference<UUID> = AtomicReference(UUID.randomUUID())
@@ -93,6 +95,33 @@ class AdvertiserImpl @Inject constructor(
     }
 
     // map advertising state to rxjava2
+    private val advertiseCallback = object  : AdvertiseCallback() {
+        override fun onStartFailure(errorCode: Int) {
+            super.onStartFailure(errorCode)
+            isAdvertising.onNext(Pair(Optional.empty(), errorCode))
+
+        }
+
+        override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+            if (settingsInEffect != null) {
+                isAdvertising.onNext(
+                    Pair(
+                        Optional.of(settingsInEffect),
+                        AdvertisingSetCallback.ADVERTISE_SUCCESS
+                    )
+                )
+            } else {
+                isAdvertising.onNext(
+                    Pair(
+                        Optional.empty(),
+                        AdvertisingSetCallback.ADVERTISE_SUCCESS
+                    )
+                )
+            }
+            super.onStartSuccess(settingsInEffect)
+        }
+    }
+
     private val advertiseSetCallback = object : AdvertisingSetCallback() {
         override fun onAdvertisingSetStarted(
             advertisingSet: AdvertisingSet?,
@@ -101,7 +130,7 @@ class AdvertiserImpl @Inject constructor(
         ) {
             LOG.v("successfully started advertise $status")
             if (advertisingSet != null) {
-                isAdvertising.onNext(Pair(Optional.of(advertisingSet), status))
+                //isAdvertising.onNext(Pair(Optional.of(advertisingSet), status))
             } else {
                 isAdvertising.onNext(Pair(Optional.empty(), status))
             }
@@ -162,22 +191,9 @@ class AdvertiserImpl @Inject constructor(
                 .flatMapCompletable { v ->
                     if (v.first.isPresent) {
                         awaitAdvertiseDataUpdate()
-                            .mergeWith(Completable.fromAction {
+                            .mergeWith(Completable.defer {
                                 try {
-                                    val shrink = shrinkUkes(ukes)
-                                    val u = shrink.packet.toByteArray()
-                                    val builder = AdvertiseData.Builder()
-                                        .setIncludeDeviceName(false)
-                                        .setIncludeTxPowerLevel(false)
-                                        .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
-                                        .addServiceData(ParcelUuid(LUID_DATA), luid.toBytes())
-                                    if(clear.get())
-                                        builder.addServiceData(ParcelUuid(CLEAR_DATA), byteArrayOf())
-
-                                    // TODO: why the absolute fuck did I do this?
-                                    if(shrink.packet.ukesCount > 0 && false)
-                                        builder.addServiceData(ParcelUuid(UKES_DATA), u)
-                                    v.first.item!!.setAdvertisingData(builder.build())
+                                    stopAdvertise().andThen(startAdvertise(luid))
                                 } catch (exc: SecurityException) {
                                     throw exc
                                 }
@@ -233,15 +249,9 @@ class AdvertiserImpl @Inject constructor(
                 .flatMapCompletable { v ->
                     if (v.first.isPresent) {
                         awaitAdvertiseDataUpdate()
-                            .mergeWith(Completable.fromAction {
+                            .mergeWith(Completable.defer {
                                 try {
-                                    v.first.item?.setAdvertisingData(
-                                        AdvertiseData.Builder()
-                                            .setIncludeDeviceName(false)
-                                            .setIncludeTxPowerLevel(false)
-                                            .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
-                                            .build()
-                                    )
+                                    stopAdvertise().andThen(startAdvertise(luid = null))
                                 } catch (exc: SecurityException) {
                                     throw exc
                                 }
@@ -261,11 +271,11 @@ class AdvertiserImpl @Inject constructor(
         LOG.v("stopping LE advertise")
         return Completable.fromAction {
             try {
-                manager.adapter?.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseSetCallback)
+                manager.adapter?.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
             } catch (exc: SecurityException) {
                 throw exc
             }
-            mapAdvertiseComplete(false)
+            isAdvertising.onNext(Pair(Optional.empty(), AdvertisingSetCallback.ADVERTISE_SUCCESS))
         }.subscribeOn(scheduler)
     }
 
@@ -294,33 +304,38 @@ class AdvertiserImpl @Inject constructor(
                     Completable.complete()
                 else
                     Completable.fromAction {
-                        LOG.v("Starting LE advertise")
-                        val settings = AdvertisingSetParameters.Builder()
-                            .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                            .setLegacyMode(false)
+                        LOG.v("Starting LE advertise $luid")
+                        val settings = AdvertiseSettings.Builder()
+                            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
                             .setConnectable(true)
-                            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                             .build()
-                        val serviceDataBuilder = AdvertiseData.Builder()
+
+                        val serviceData = AdvertiseData.Builder()
                             .setIncludeDeviceName(false)
                             .setIncludeTxPowerLevel(false)
                             .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
+                            .build()
 
-                        val serviceData = if (luid != null) {
-                            serviceDataBuilder.addServiceData(ParcelUuid(LUID_DATA), luid.toBytes())
+                        val serviceDataResponse = if (luid != null) {
+                            AdvertiseData. Builder()
+                                .setIncludeDeviceName(false)
+                                .setIncludeTxPowerLevel(false)
+                                .addServiceData(ParcelUuid(LUID_DATA), luid.toBytes())
                                 .build()
                         } else {
-                            serviceDataBuilder.build()
+                            AdvertiseData. Builder()
+                                .setIncludeDeviceName(false)
+                                .setIncludeTxPowerLevel(false)
+                                .build()
                         }
 
                         try {
-                            manager.adapter.bluetoothLeAdvertiser.startAdvertisingSet(
+                            manager.adapter.bluetoothLeAdvertiser.startAdvertising(
                                 settings,
                                 serviceData,
-                                null,
-                                null,
-                                null,
-                                advertiseSetCallback
+                                serviceDataResponse,
+                                advertiseCallback
                             )
                         } catch (exc: SecurityException) {
                             throw exc
