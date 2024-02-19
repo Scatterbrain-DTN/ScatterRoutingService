@@ -55,6 +55,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
     private var pendingIntent = ScanBroadcastReceiver.newPendingIntent(context)
+    private var pendingIntentLegacy = ScanBroadcastReceiver.newPendingIntentLegacy(context)
     private val discoveryLock = AtomicReference(false)
     override val isDiscovering: Boolean
         get() = discoveryLock.get()
@@ -76,6 +77,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     override fun pauseScan() {
         client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
+        client.backgroundScanner.stopBackgroundBleScan(pendingIntentLegacy)
         /*
         PendingIntent.getBroadcast(
             context,
@@ -117,6 +119,19 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     override fun unpauseScan() {
         client.backgroundScanner.scanBleDeviceInBackground(
             pendingIntent,
+            ScanSettings.Builder()
+                .setScanMode(SCAN_MODE_LOW_POWER)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .setShouldCheckLocationServicesState(true)
+                .setLegacy(true)
+                .build(),
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
+                .build()
+        )
+
+        client.backgroundScanner.scanBleDeviceInBackground(
+            pendingIntentLegacy,
             ScanSettings.Builder()
                 .setScanMode(SCAN_MODE_LOW_POWER)
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
@@ -179,6 +194,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         val lock = discoveryLock.getAndSet(false)
         if (lock) {
             client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
+            client.backgroundScanner.stopBackgroundBleScan(pendingIntentLegacy)
             val disp = unregisterReceiver().andThen(advertiser.stopAdvertise()).subscribe(
                 {
                     //broadcastReceiverState.dispose()

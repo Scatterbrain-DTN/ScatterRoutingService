@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 public const val SCAN_REQUEST_CODE = 44
+public const val SCAN_REQUEST_LEGACY = 45
 
 interface ScanBroadcastReceiver {
     companion object {
@@ -19,5 +20,17 @@ interface ScanBroadcastReceiver {
                     PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 )
             }
+        @SuppressLint("UnspecifiedImmutableFlag")
+        fun newPendingIntentLegacy(context: Context): PendingIntent =
+            Intent(context, ScanBroadcastReceiverImpl::class.java).let {
+                PendingIntent.getBroadcast(
+                    context,
+                    SCAN_REQUEST_LEGACY,
+                    it,
+                    PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            }
     }
+
+
 }
