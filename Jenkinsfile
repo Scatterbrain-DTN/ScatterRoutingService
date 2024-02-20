@@ -13,7 +13,7 @@ def recursiveCheckout() {
 }
 
 void setBuildStatus(String message, String state) {
-  step([
+  retry count: 5 step([
       $class: "GitHubCommitStatusSetter",
       reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/Scatterbrain-DTN/ScatterRoutingService"],
       contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status"],
