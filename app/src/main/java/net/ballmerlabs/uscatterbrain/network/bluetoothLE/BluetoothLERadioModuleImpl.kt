@@ -612,6 +612,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         blockHeaderPacket,
                                         conn.readBlockSequence()
                                             .repeat()
+                                            .timeout(20, TimeUnit.SECONDS, ioScheduler)
                                             .doOnNext { v -> LOG.w("ble sequence packet ${v.data.size} ${v.isEnd}") }
                                             .takeWhile { p -> !p.isEnd },
                                         datastore.cacheDir
@@ -626,6 +627,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                             }
                             .repeat()
+                            .timeout(20, TimeUnit.SECONDS, ioScheduler)
                             .takeWhile { stream ->
                                 val end = stream.isEndOfStream
                                 if (end) {

@@ -547,22 +547,20 @@ class GattServerConnectionImpl @Inject constructor(
                     setupNotificationsDelay(clientconfig, characteristic, isIndication, device.macAddress)
                         .toFlowable()
                 }
-                .serialize()
+                .delay(0, TimeUnit.SECONDS, callbackScheduler)
                 .flatMapSingle { bytes ->
                     Log.v("processing bytes length: " + bytes.size)
                     try {
+                        characteristic.value = bytes
+                        val res = gattServer.get().notifyCharacteristicChanged(
+                            device.bluetoothDevice,
+                            characteristic,
+                            isIndication
+                        )
+                        if (!res) {
+                            throw IllegalStateException("notifyCharacteristicChanged returned false")
+                        }
                         getOnNotification(device.macAddress)
-                            .mergeWith(Completable.fromAction {
-                                characteristic.value = bytes
-                                val res = gattServer.get().notifyCharacteristicChanged(
-                                    device.bluetoothDevice,
-                                    characteristic,
-                                    isIndication
-                                )
-                                if (!res) {
-                                    throw IllegalStateException("notifyCharacteristicChanged returned false")
-                                }
-                            }.subscribeOn(serverScheduler))
                             .firstOrError()
                             .flatMapCompletable { integer ->
                                 Log.v("notification result: $integer")
