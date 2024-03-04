@@ -24,6 +24,7 @@ interface CachedLeConnection: Disposable {
     fun awaitNotificationsSetup(): Completable
     fun subscribeConnection(rawConnection: Observable<RxBleConnection>)
     fun setOnDisconnect(callback: () -> Completable)
+    fun sendForget(): Completable
     /**
      * reads a single advertise packet
      * @return single emitting advertise packet

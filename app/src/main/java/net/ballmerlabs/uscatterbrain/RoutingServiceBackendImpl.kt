@@ -7,10 +7,12 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.net.Uri
 import android.os.RemoteException
+import com.akaita.java.rxjava2debug.RxJava2Debug
 import com.goterl.lazysodium.interfaces.Sign
 import com.polidea.rxandroidble2.internal.RxBleLog
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
+import com.uber.rxdogtag.RxDogTag
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Scheduler
@@ -29,6 +31,7 @@ import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
+import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.io.File
 import java.util.*
@@ -51,6 +54,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     override val leState: LeState,
     val datastoreFile: File,
     val context: Context,
+    val firebaseWrapper: FirebaseWrapper,
     @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) val ioScheduler: Scheduler
 ) : RoutingServiceBackend {
     private val LOG by scatterLog()
@@ -59,10 +63,15 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     init {
         LOG.e("initializing backend")
-        RxJavaPlugins.setErrorHandler { e: Throwable ->
+        RxJavaPlugins.setErrorHandler { e ->
             LOG.e("received an unhandled exception: $e")
+            e.printStackTrace()
+            firebaseWrapper.recordException(e)
+            leState.dumpPeers().subscribe()
         }
        //RxBleLog.setLogLevel(RxBleLog.VERBOSE)
+        RxDogTag.install()
+        //RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
     }
 
     override fun dumpDatastore(uri: Uri): Completable {

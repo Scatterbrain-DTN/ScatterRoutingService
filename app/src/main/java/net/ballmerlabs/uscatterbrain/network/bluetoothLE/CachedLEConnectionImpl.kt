@@ -35,7 +35,7 @@ import javax.inject.Named
  */
 @ScatterbrainTransactionScope
 open class CachedLEConnectionImpl @Inject constructor(
-    @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.TRANS_IO) private val ioScheduler: Scheduler,
+    @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_PARSE) private val ioScheduler: Scheduler,
     val device: RxBleDevice,
     val advertiser: Advertiser,
     val leState: LeState,
@@ -46,7 +46,7 @@ open class CachedLEConnectionImpl @Inject constructor(
     private val disposable = CompositeDisposable()
     override val connection = BehaviorSubject.create<RxBleConnection>()
     private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
-    protected open val channelNotif = InputStreamObserver(8000)
+    protected open val channelNotif = InputStreamObserver(1024*1024)
     private val notificationsSetup = BehaviorSubject.create<Boolean>()
     private var subscribed = AtomicBoolean(false)
     private val notifs = AtomicReference<Disposable?>(null)
@@ -73,6 +73,16 @@ open class CachedLEConnectionImpl @Inject constructor(
         }
     }
 
+    override fun sendForget(): Completable {
+        return connection.firstOrError().flatMapCompletable { c ->
+            LOG.v("sending forget")
+            c.writeCharacteristic(
+                BluetoothLERadioModuleImpl.UUID_FORGET,
+                BluetoothLERadioModuleImpl.uuid2bytes(advertiser.getHashLuid())!!
+            ).ignoreElement()
+        }
+    }
+
     override fun awaitNotificationsSetup(): Completable {
         return notificationsSetup.takeUntil { v -> v }.ignoreElements()
     }
@@ -81,12 +91,6 @@ open class CachedLEConnectionImpl @Inject constructor(
         rawConnection.doOnSubscribe { disp ->
             disposable.add(disp)
             LOG.v("subscribed to connection subject")
-        }.onErrorResumeNext { err: Throwable ->
-            if (err is BleDisconnectedException) {
-                Observable.empty()
-            } else {
-                Observable.error(err)
-            }
         }
             .doOnError { err ->
                 LOG.e("raw connection error: $err")
@@ -152,7 +156,7 @@ open class CachedLEConnectionImpl @Inject constructor(
             parser,
             channelNotif,
             ioScheduler
-        ).timeout(44, TimeUnit.SECONDS, ioScheduler)
+        ).timeout(70, TimeUnit.SECONDS, ioScheduler)
             .doOnError { err -> LOG.w("failed to receive packet ${parser.parser} for $luid $err") }
             .doOnSuccess { p -> LOG.e("parsed packet len ${p.bytes.size}") }
     }

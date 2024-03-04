@@ -86,10 +86,6 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun wifiDirectRadioModule(wifiDirectRadioModuleImpl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
-
-        @Binds
-        @Singleton
         abstract fun bindScatterbrainScheduler(impl: ScatterbrainSchedulerImpl): ScatterbrainScheduler
 
         @Binds
@@ -248,14 +244,6 @@ interface FakeRoutingServiceComponent {
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_READ)
             fun provideWifiReadScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-client"))
-            }
-
-            @Provides
-            @JvmStatic
-            @Singleton
-            @Named(RoutingServiceComponent.NamedSchedulers.WIFI_WRITE)
-            fun provideWifiWriteScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-client"))
             }
 

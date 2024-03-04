@@ -11,6 +11,7 @@ import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanSettings
 import com.polidea.rxandroidble2.scan.ScanSettings.SCAN_MODE_LOW_POWER
 import io.reactivex.Completable
+import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -49,7 +50,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val state: BroadcastReceiverState,
     private val leState: LeState,
     private val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
-    private val wifiDirectRadioModule: WifiDirectRadioModule,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val operationsScheduler: Scheduler,
     private val powerManager: WakeLockProvider
 ) : ScatterbrainScheduler {
@@ -76,6 +76,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     }
 
     override fun pauseScan() {
+        LOG.w("pauseScan")
         client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
         client.backgroundScanner.stopBackgroundBleScan(pendingIntentLegacy)
         /*
@@ -117,31 +118,36 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     }
 
     override fun unpauseScan() {
-        client.backgroundScanner.scanBleDeviceInBackground(
-            pendingIntent,
-            ScanSettings.Builder()
-                .setScanMode(SCAN_MODE_LOW_POWER)
-                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                .setShouldCheckLocationServicesState(true)
-                .setLegacy(true)
-                .build(),
-            ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
-                .build()
-        )
+        LOG.w("unpauseScan")
 
         client.backgroundScanner.scanBleDeviceInBackground(
             pendingIntentLegacy,
             ScanSettings.Builder()
                 .setScanMode(SCAN_MODE_LOW_POWER)
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                .setShouldCheckLocationServicesState(true)
+                .setLegacy(true)
+                .build(),
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID_LEGACY))
+                .build()
+        )
+
+
+
+        client.backgroundScanner.scanBleDeviceInBackground(
+            pendingIntent,
+            ScanSettings.Builder()
+                .setScanMode(SCAN_MODE_LOW_POWER)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .setLegacy(false)
                 .build(),
             ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID))
+                .setServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT))
                 .build()
         )
+
+
+
     }
 
     /*
@@ -154,7 +160,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     }
 
     override fun releaseWakeLock() {
-        powerManager.releaseAll()
+        powerManager.release()
     }
 
     override fun start() {
@@ -165,12 +171,28 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         }
         pauseScan()
         state.shouldScan = true
-        val disp = registerReceiver()
-            .andThen(wifiDirectRadioModule.removeGroup().onErrorComplete())
-            .andThen(advertiser.startAdvertise())
-            .andThen(leState.startServer())
-            .timeout(10, TimeUnit.SECONDS)
-            .doOnComplete { unpauseScan() }
+        val disp = Observable.just(client.state).concatWith(client.observeStateChanges())
+            .switchMapCompletable { state ->
+            LOG.w("RxAndroidBle state change $state")
+            when(state) {
+                RxBleClient.State.READY -> {
+                    unpauseScan()
+                    registerReceiver()
+                        .andThen(advertiser.startAdvertise())
+                        .andThen(leState.startServer())
+                        .timeout(10, TimeUnit.SECONDS)
+                }
+                else -> {
+                    pauseScan()
+                    leState.dumpPeers().andThen(unregisterReceiver())
+                        .andThen(advertiser.stopAdvertise())
+                        .doOnComplete {
+                            leState.stopServer()
+                        }
+                }
+
+            }
+        }
             .subscribe(
                 {
                     LOG.v("started advertise")

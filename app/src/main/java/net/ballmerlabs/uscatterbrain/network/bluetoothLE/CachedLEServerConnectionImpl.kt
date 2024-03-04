@@ -48,7 +48,7 @@ data class SessionHandle(
 class CachedLEServerConnectionImpl @Inject constructor (
     override val connection: GattServerConnection,
     private val state: LeState,
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val scheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.WIFI_READ) private val scheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val ioScheduler: Scheduler,
     private val firebaseWrapper: FirebaseWrapper,
     private val advertiser: Advertiser
@@ -61,6 +61,7 @@ class CachedLEServerConnectionImpl @Inject constructor (
     private val cookieCompleteRelay = PublishRelay.create<Int>()
     private val luidRegisteredSubject =
         PublishSubject.create<Pair<UUID, BehaviorSubject<QueueItem>>>()
+    private val busySubject = BehaviorSubject.create<Boolean>()
 
     private fun getCookie(): Int {
         return cookies.getAndUpdate { v ->
@@ -101,7 +102,8 @@ class CachedLEServerConnectionImpl @Inject constructor (
                     val notif = connection.setupNotifications(
                         characteristic.uuid,
                         subject.toFlowable(BackpressureStrategy.BUFFER)
-                            .flatMap { item ->
+                            .delay(0, TimeUnit.SECONDS, scheduler)
+                            .concatMap { item ->
                                 if (!characteristic.isLocked()) {
                                     Flowable.error(IllegalStateException("characteristic not owned"))
                                 } else {
@@ -114,10 +116,7 @@ class CachedLEServerConnectionImpl @Inject constructor (
                                         }
                                 }.doOnCancel { cookieCompleteRelay.accept(item.cookie) }
                             }
-                            .doOnError { err -> LOG.e("server notification error for $luid $err") }
-                            .doFinally {
-                                characteristic.release()
-                            },
+                            .doOnError { err -> LOG.e("server notification error for $luid $err") },
                         device
                     )
                         .doFinally {
@@ -216,6 +215,7 @@ class CachedLEServerConnectionImpl @Inject constructor (
 
     init {
         LOG.e("server connection init")
+        busySubject.onNext(false)
         /*
          * When a client reads from the semaphor characteristic, take the following steps
          * 
@@ -229,7 +229,6 @@ class CachedLEServerConnectionImpl @Inject constructor (
          */
         val d =
             connection.getEvents()
-                .observeOn(ioScheduler)
                 .flatMapCompletable { req ->
                     when (req.operation) {
                         GattServerConnection.Operation.CHARACTERISTIC_READ -> {

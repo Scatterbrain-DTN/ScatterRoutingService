@@ -7,6 +7,7 @@ import android.net.wifi.WifiManager
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
 import android.os.Parcel
 import android.util.Log
 import androidx.room.Room
@@ -15,6 +16,7 @@ import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.rule.GrantPermissionRule
 import com.google.firebase.FirebaseApp
+import com.goterl.lazysodium.BuildConfig
 import com.polidea.rxandroidble2.internal.RxBleLog
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
@@ -45,10 +47,16 @@ class WifiDirectTest {
 
     @JvmField
     @Rule
-    val wifiDirectGrantRule: GrantPermissionRule = GrantPermissionRule.grant(
+    val wifiDirectGrantRule: GrantPermissionRule = if(Build.VERSION.SDK_INT >= 33)
+        GrantPermissionRule.grant(
         Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION
-    )
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.NEARBY_WIFI_DEVICES
+    ) else
+        GrantPermissionRule.grant(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
 
     private lateinit var radioModule: WifiDirectRadioModule
     private lateinit var datastore: ScatterbrainDatastore
@@ -121,6 +129,17 @@ class WifiDirectTest {
         val res = retryDelay( radioModule.createGroupSingle(radioModule.getBand()), 5, 10).timeout(60, TimeUnit.SECONDS).blockingGet()
         assert(retryDelay( radioModule.wifiDirectIsUsable().timeout(20, TimeUnit.SECONDS), 5, 10).blockingGet())
         assert(res.groupFormed())
+    }
+
+    @Test
+    @Throws(TimeoutException::class)
+    fun createGroupBands() {
+        radioModule.createGroupSingle(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+            .timeout(20, TimeUnit.SECONDS)
+            .blockingGet().isGroupOwner()
+        radioModule.createGroupSingle(FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
+            .timeout(20, TimeUnit.SECONDS)
+            .blockingGet().isGroupOwner()
     }
 
     @Test

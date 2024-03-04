@@ -6,8 +6,7 @@ import java.util.UUID
 
 // scatterbrain gatt service object
 val gattService =
-    BluetoothGattService(BluetoothLERadioModuleImpl.SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-
+    BluetoothGattService(BluetoothLERadioModuleImpl.SERVICE_UUID_LEGACY, BluetoothGattService.SERVICE_TYPE_PRIMARY)
 
 /**
  * shortcut to generate a characteristic with the required permissions

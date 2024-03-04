@@ -57,7 +57,7 @@ interface GattServerConnection: Disposable {
     fun setOnDisconnect(device: RxBleDevice, func: () -> Unit)
 
     fun resetMtu(address: String)
-
+    fun forceMtu(address: String, mtu: Int)
     fun setOnMtuChanged(device: BluetoothDevice, callback: (Int)->Unit)
 
     fun observeOnMtuChanged(device: BluetoothDevice): Observable<Int>

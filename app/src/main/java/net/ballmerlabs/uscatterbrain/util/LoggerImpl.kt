@@ -13,7 +13,6 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
     private val scheduler: Lazy<Scheduler> = loggerScheduler
     private val buffer = ConcurrentLinkedQueue<Disposable>()
 
-
     private fun getFileName(number: Int = 0): String {
         val num = if(number == 0) {
             ""
@@ -42,6 +41,7 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
                 f.createNewFile()
                 return f
             } else {
+                Log.w("loggermeta", "logsDir was null")
                 null
             }
         } catch (exc: Exception) {

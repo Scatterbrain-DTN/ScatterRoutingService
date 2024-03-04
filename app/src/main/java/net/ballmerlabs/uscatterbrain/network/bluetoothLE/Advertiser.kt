@@ -41,6 +41,9 @@ interface Advertiser {
      */
     fun setAdvertisingLuid(luid: UUID = getHashLuid(), ukes: Map<UUID, UpgradePacket> = mapOf()): Completable
 
+    fun checkForget(luid: UUID): Boolean
+
+    fun forget(luid: UUID)
 
     /**
      * If the current luid has been around for LUID_RANDOMIZE_DELAY, randomize it

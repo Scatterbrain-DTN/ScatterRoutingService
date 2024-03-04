@@ -28,7 +28,7 @@ data class VotingResult(
 )
 class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDeviceSession.Stage {
     private val LOG by scatterLog()
-    val serverPackets = CompletableSubject.create()
+    var serverPackets = CompletableSubject.create()
     private val hashedPackets = ArrayList<ElectLeaderPacket>()
     private val unhashedPackets = ArrayList<ElectLeaderPacket>()
     private var tiebreaker = UUID.randomUUID()
@@ -56,6 +56,7 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
     }
 
     override fun reset() {
+        serverPackets = CompletableSubject.create()
         hashedPackets.clear()
         unhashedPackets.clear()
         tiebreaker = UUID.randomUUID()
@@ -74,6 +75,43 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
         }
     }
 
+    fun getBand(): Int {
+        return unhashedPackets
+            .fold(mutableMapOf<Int, Int>()) { acc, electLeaderPacket ->
+                val v = acc[electLeaderPacket.band]?:FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
+                acc[electLeaderPacket.band] = v+1
+                acc
+            }
+            .filter { v -> v.value != FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO }
+            .maxBy { v -> v.value }
+            .key
+    }
+
+    fun getForce(): Map<UUID, UpgradePacket> {
+        return unhashedPackets
+            .flatMap { p -> p.force.entries }
+            .filter { p -> p.key != me && p.key != remoteLuid }
+            .associate { (t, u) -> Pair(t, u) }
+    }
+
+    fun hashPackets(): BigInteger {
+        var choice = BigInteger.ONE
+        for (packet in unhashedPackets) {
+            val newval = BigInteger(ElectLeaderPacket.uuidToBytes(packet.tieBreak))
+            choice = choice.multiply(newval)
+        }
+        val hash = ByteArray(GenericHash.BYTES)
+        LibsodiumInterface.sodium.crypto_generichash(
+            hash,
+            hash.size,
+            choice.toByteArray(),
+            choice.toByteArray().size.toLong(),
+            null,
+            0
+        )
+        return BigInteger(hash)
+    }
+
     /**
      * Currently voting is done by committing to a UUID representing the device and then
      * choosing the uuid with the minimum distance to a collectively chosen random value
@@ -88,36 +126,12 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
      */
     fun selectUke(): BluetoothLEModule.ConnectionRole {
         stale.set(true)
-        var `val` = BigInteger.ONE
-        for (packet in unhashedPackets) {
-            val newval = BigInteger(ElectLeaderPacket.uuidToBytes(packet.tieBreak))
-            `val` = `val`.multiply(newval)
-        }
-        val hash = ByteArray(GenericHash.BYTES)
-        LibsodiumInterface.sodium.crypto_generichash(
-            hash,
-            hash.size,
-            `val`.toByteArray(),
-            `val`.toByteArray().size.toLong(),
-            null,
-            0
-        )
-        var compare = BigInteger(hash)
-        var ret = mutableMapOf<UUID, UpgradePacket>()
+        var compare = hashPackets()
+        val ret = mutableMapOf<UUID, UpgradePacket>()
         var role: BluetoothLEModule.Role? = null
-        val forces =
-            unhashedPackets
-                .flatMap { p -> p.force.entries }
-                .filter { p -> p.key != me && p.key != remoteLuid }
-                .associate { (t, u) -> Pair(t, u) }
+        val forces = getForce()
         LOG.e("voting forces ${forces.size}")
-        val band = unhashedPackets
-            .fold(mutableMapOf<Int, Int>()) { acc, electLeaderPacket ->
-                val v = acc[electLeaderPacket.band]?:0
-                acc[electLeaderPacket.band] = v+1
-                acc
-            }.maxBy { v -> v.value }
-            .key
+        val band = getBand()
         when (forces.size) {
             0 -> {
                 val ukes = unhashedPackets.filter { r -> r.role == Role.UKE }
@@ -160,21 +174,15 @@ class VotingStage(private val me: UUID, private val remoteLuid: UUID) : LeDevice
     }
 
     fun determineUpgrade(): Single<VotingResult> {
-        return Observable.fromIterable(unhashedPackets)
-            .map { p -> VotingResult(provides = p.provides, band = p.band) }
-            .reduce(VotingResult(
-                provides = AdvertisePacket.Provides.BLE,
-                band = FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO)
-            ) { _, n ->
-                if (n.provides == AdvertisePacket.Provides.BLE) {
-                    VotingResult(
-                        provides = AdvertisePacket.Provides.BLE,
-                        band = n.band
-                    )
-                } else {
-                    n
-                }
+        return Single.fromCallable {
+            val counts = mutableMapOf<Int, Int>()
+            for (packet in unhashedPackets) {
+                if (packet.provides == AdvertisePacket.Provides.BLE)
+                    return@fromCallable VotingResult(provides = packet.provides, band = FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO)
+                counts.compute(packet.band) { b, v -> (v?:0) + 1 }
             }
+            VotingResult(provides = AdvertisePacket.Provides.WIFIP2P, band = counts.maxBy { v -> v.value }.key )
+        }
     }
 
     /**

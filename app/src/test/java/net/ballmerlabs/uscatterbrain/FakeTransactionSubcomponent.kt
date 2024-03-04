@@ -14,6 +14,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLeConnection
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
 import javax.inject.Named
+import javax.inject.Singleton
 
 @ScatterbrainTransactionScope
 @Subcomponent(modules = [FakeTransactionSubcomponent.ScatterbrainTransactionModule::class])
@@ -39,6 +40,11 @@ interface FakeTransactionSubcomponent: ScatterbrainTransactionSubcomponent {
         abstract fun bindRadioModuleInternal(impl: BluetoothLERadioModuleImpl): BluetoothLEModule
 
 
+        @Binds
+        @ScatterbrainTransactionScope
+        abstract fun wifiDirectRadioModule(wifiDirectRadioModuleImpl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
+
+
         @Module
         companion object {
             @Provides
@@ -58,14 +64,6 @@ interface FakeTransactionSubcomponent: ScatterbrainTransactionSubcomponent {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(
                     ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_PARSE))
             }
-            @Provides
-            @JvmStatic
-            @ScatterbrainTransactionScope
-            @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.TRANS_IO)
-            fun providesTransIoScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(
-                    ScatterbrainTransactionSubcomponent.NamedSchedulers.TRANS_IO))
-            }
 
             @Provides
             @JvmStatic
@@ -75,6 +73,16 @@ interface FakeTransactionSubcomponent: ScatterbrainTransactionSubcomponent {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(
                     ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_WRITE))
             }
+
+            @Provides
+            @JvmStatic
+            @ScatterbrainTransactionScope
+            @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.TRANS_IO)
+            fun providesTransIoScheduler(): Scheduler {
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(
+                    ScatterbrainTransactionSubcomponent.NamedSchedulers.TRANS_IO))
+            }
+
 
             @Provides
             @JvmStatic

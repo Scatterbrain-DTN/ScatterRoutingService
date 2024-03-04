@@ -8,10 +8,12 @@ import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.FakeGattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.util.toUuid
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -25,6 +27,8 @@ class MockLeState(
     override val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> = ConcurrentHashMap(),
     override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic> = ConcurrentHashMap(),
 ) : LeState {
+
+    override val createGroupCache: AtomicReference<BehaviorSubject<WifiDirectBootstrapRequest>> = AtomicReference()
 
     private val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
     private var server: GattServerConnectionSubcomponent? = null
@@ -106,6 +110,12 @@ class MockLeState(
 
     override fun startTransaction(): Int {
         return transactionInProgress.incrementAndGet()
+    }
+
+    override fun dumpPeers(): Completable {
+        return Completable.fromAction {
+            connectionCache.clear()
+        }
     }
 
     override fun stopTransaction(): Int {

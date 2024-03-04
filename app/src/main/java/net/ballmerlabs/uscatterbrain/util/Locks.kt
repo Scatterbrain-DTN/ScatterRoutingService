@@ -1,38 +1,42 @@
 package net.ballmerlabs.uscatterbrain.util
 import io.reactivex.Completable
+import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
+import java.util.concurrent.BlockingQueue
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.atomic.AtomicReference
 
 val LOCKS = ConcurrentHashMap<String, CompletableMutex>()
 
 class CompletableMutex(
-    private val lock: AtomicReference<CompletableSubject?> = AtomicReference(null),
+    private val lock: LinkedBlockingDeque<CompletableSubject> = LinkedBlockingDeque(),
     val name: String,
+    val scheduler: Scheduler
 ){
 
     fun await(): Single<CompletableMutex> {
         return Completable.defer {
-            lock.getAndUpdate { v ->
-                when(v) {
-                    null -> CompletableSubject.create()
-                    else -> v
-                }
-            }?:Completable.complete()
+            val subject = CompletableSubject.create()
+            if (lock.size == 0) {
+                subject.onComplete()
+            }
+            lock.push(subject)
+            subject
         }.toSingleDefault(this)
     }
 
     fun release()  {
         LOCKS.remove(name)
-        lock.getAndSet(null)?.onComplete()
+        lock.poll()?.onComplete()
     }
 }
 
-fun getMutex(name: String): CompletableMutex {
+fun getMutex(name: String, scheduler: Scheduler): CompletableMutex {
     return LOCKS.compute(name) { k, v ->
         when(v) {
-            null -> CompletableMutex(name = k)
+            null -> CompletableMutex(name = k, scheduler = scheduler)
             else -> v
         }
     }!!

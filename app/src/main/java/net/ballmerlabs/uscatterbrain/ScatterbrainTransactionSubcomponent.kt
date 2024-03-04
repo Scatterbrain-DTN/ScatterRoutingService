@@ -13,8 +13,10 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleI
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLEConnectionImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLeConnection
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
 import java.util.UUID
 import javax.inject.Named
+import javax.inject.Singleton
 
 @ScatterbrainTransactionScope
 @Subcomponent(modules = [ScatterbrainTransactionSubcomponent.ScatterbrainTransactionModule::class])
@@ -46,6 +48,12 @@ interface ScatterbrainTransactionSubcomponent {
         @Binds
         @ScatterbrainTransactionScope
         abstract fun bindsCachedLeConnection(impl: CachedLEConnectionImpl): CachedLeConnection
+
+
+        @Binds
+        @ScatterbrainTransactionScope
+        abstract fun bindWifiDirectRadioModule(impl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
+
 
         @Module
         companion object {

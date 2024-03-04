@@ -105,11 +105,12 @@ dependencies {
     implementation 'com.akaita.java:rxjava2-debug:1.4.0'
 
     //reflect for logging
-    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.9.0'
+    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.9.20'
 
     implementation project(':scatterbrainSDK')
     androidTestImplementation project(':scatterbrainSDK')
     implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.1'
+    implementation "com.uber.rxdogtag:rxdogtag:1.0.2"
     implementation "com.polidea.rxandroidble2:rxandroidble:1.18.0"
     testImplementation "com.polidea.rxandroidble2:mockclient:1.18.0"
     androidTestImplementation "com.polidea.rxandroidble2:mockclient:1.18.0"
@@ -128,7 +129,7 @@ dependencies {
     // Optional -- UI testing with Espresso
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     // Optional -- UI testing with UI Automator
-    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.2.0'
+    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.3.0'
     androidTestImplementation "androidx.room:room-testing:2.6.1"
 
     //lazysodium cryptographic library
@@ -143,11 +144,11 @@ dependencies {
     testImplementation 'net.java.dev.jna:jna:5.11.0@aar'
     testImplementation 'net.java.dev.jna:jna-platform:5.11.0'
 
-    implementation "com.google.dagger:dagger:2.48.1"
-    testImplementation "com.google.dagger:dagger:2.48.1"
+    implementation "com.google.dagger:dagger:2.51"
+    testImplementation "com.google.dagger:dagger:2.51"
 
-    ksp "com.google.dagger:dagger-compiler:2.48.1"
-    kspTest "com.google.dagger:dagger-compiler:2.48.1"
+    ksp "com.google.dagger:dagger-compiler:2.51"
+    kspTest "com.google.dagger:dagger-compiler:2.51"
 
 
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
@@ -168,8 +169,8 @@ dependencies {
     implementation "androidx.core:core-ktx:1.12.0"
     androidTestImplementation 'androidx.test:core:1.5.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation 'com.google.firebase:firebase-crashlytics:18.6.1'
-    androidTestImplementation 'com.google.firebase:firebase-crashlytics:18.6.1'
+    implementation 'com.google.firebase:firebase-crashlytics:18.6.2'
+    androidTestImplementation 'com.google.firebase:firebase-crashlytics:18.6.2'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1'
     // Required -- JUnit 4 framework
     testImplementation "junit:junit:4.13.2"

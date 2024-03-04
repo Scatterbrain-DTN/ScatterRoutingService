@@ -5,16 +5,20 @@ import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Single
+import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 
 interface LeState {
     val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>
     // a "channel" is a characteristc that protobuf messages are written to.
     val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>
+    val createGroupCache: AtomicReference<BehaviorSubject<WifiDirectBootstrapRequest>>
 
     fun disconnectServer(device: RxBleDevice?)
     fun startServer(): Completable
@@ -41,6 +45,8 @@ interface LeState {
 
     fun updateGone(luid: UUID)
     fun startTransaction(): Int
+
+    fun dumpPeers(): Completable
 
     fun stopTransaction(): Int
     fun updateActive(uuid: UUID?): Boolean
@@ -71,7 +77,7 @@ interface LeState {
     fun setupChannels() {
         for (i in 0 until BluetoothLERadioModuleImpl.NUM_CHANNELS) {
             val channel = BluetoothLERadioModuleImpl.incrementUUID(
-                BluetoothLERadioModuleImpl.SERVICE_UUID,
+                BluetoothLERadioModuleImpl.SERVICE_UUID_LEGACY,
                 i + 1
             )
             channels[channel] =

@@ -12,6 +12,7 @@ import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
@@ -21,6 +22,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.LU
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
@@ -40,9 +42,6 @@ import javax.inject.Singleton
 @Singleton
 class LeStateImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val ioScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_CLIENT) private val connectScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
-    private val radioModule: WifiDirectRadioModule,
     private val firebase: FirebaseWrapper,
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val newServer: GattServer,
@@ -51,6 +50,8 @@ class LeStateImpl @Inject constructor(
     ) : LeState {
     private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
     private val transactionInProgress: AtomicInteger = AtomicInteger(0)
+
+    override val createGroupCache: AtomicReference<BehaviorSubject<WifiDirectBootstrapRequest>> =  AtomicReference<BehaviorSubject<WifiDirectBootstrapRequest>>()
 
     //avoid triggering concurrent peer refreshes
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
@@ -67,10 +68,28 @@ class LeStateImpl @Inject constructor(
     private val server = AtomicReference<Pair<GattServerConnectionSubcomponent, Disposable>?>(null)
 
 
+    private fun forget(serverConnnection: GattServerConnection): Completable {
+        return serverConnnection.getEvents()
+            .filter{ p -> p.uuid == BluetoothLERadioModuleImpl.UUID_FORGET && p.operation == GattServerConnection.Operation.CHARACTERISTIC_WRITE }
+            .flatMapCompletable { trans ->
+                val luid = BluetoothLERadioModuleImpl.bytes2uuid(trans.value)
+                if (luid != null && connectionCache[luid] != null) {
+                    LOG.w("remote peer $luid reset luid")
+                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_SUCCESS)
+                        .delay(10, TimeUnit.SECONDS, ioScheduler)
+                        .andThen(Completable.fromAction {
+                            updateDisconnected(luid)
+                        })
+                } else {
+                    LOG.w("remote peer tried to reset nonexistent luid $luid")
+                    trans.sendReply(byteArrayOf(), BluetoothGatt.GATT_FAILURE)
+                }
+            }.onErrorComplete()
+    }
+
     private fun helloRead(serverConnection: GattServerConnection): Completable {
         return serverConnection.getEvents()
             .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO && p.operation == GattServerConnection.Operation.CHARACTERISTIC_READ }
-            .subscribeOn(ioScheduler)
             .doOnSubscribe { LOG.v("hello characteristic read subscribed") }
             .flatMapCompletable { trans ->
                 val luid = advertiser.getHashLuid()
@@ -103,7 +122,6 @@ class LeStateImpl @Inject constructor(
     private fun helloWrite(serverConnection: CachedLeServerConnection): Observable<HandshakeResult> {
         return serverConnection.connection.getEvents()
             .filter { p -> p.uuid == BluetoothLERadioModuleImpl.UUID_HELLO && p.operation == GattServerConnection.Operation.CHARACTERISTIC_WRITE }
-            .subscribeOn(ioScheduler)
             .flatMapMaybe { trans ->
                 scheduler.get().acquireWakelock()
                 LOG.e("hello from ${trans.remoteDevice.macAddress}")
@@ -113,7 +131,6 @@ class LeStateImpl @Inject constructor(
                     LOG.e("server onDisconnect $luid")
                     updateDisconnected(luid)
                     serverConnection.unlockLuid(luid)
-                    radioModule.removeUke(luid)
                 }
 
                 LOG.v("server handling luid $luid")
@@ -121,7 +138,6 @@ class LeStateImpl @Inject constructor(
 
 
                 establishConnectionCached(trans.remoteDevice, luid)
-                    .subscribeOn(ioScheduler)
                     .flatMapMaybe { connection ->
 
                         LOG.e("this is a reverse connection")
@@ -130,7 +146,6 @@ class LeStateImpl @Inject constructor(
                                 connection.bluetoothLeRadioModule()
                                     .handleConnection(luid)
                             )
-                            .subscribeOn(ioScheduler)
                     }
                     .onErrorComplete()
                     .doFinally {
@@ -174,6 +189,7 @@ class LeStateImpl @Inject constructor(
         channels.clear()
         makeCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
         makeCharacteristic(BluetoothLERadioModuleImpl.UUID_HELLO)
+        makeCharacteristic(BluetoothLERadioModuleImpl.UUID_FORGET)
         setupChannels()
         val config = ServerConfig(operationTimeout = Timeout(5, TimeUnit.SECONDS))
             .addService(gattService)
@@ -203,8 +219,11 @@ class LeStateImpl @Inject constructor(
 
                     val write = helloWrite(connectionRaw.cachedConnection())
                     val read = helloRead(connectionRaw.connection())
+                    val forget = forget(connectionRaw.connection())
 
-                    val disp = write.mergeWith(read)
+                    val disp = write
+                        .mergeWith(read)
+                        .mergeWith(forget)
                         .ignoreElements()
                         .subscribe(
                             { LOG.e("server handler completed") },
@@ -311,12 +330,16 @@ class LeStateImpl @Inject constructor(
                 getServerSync()?.connection()?.resetMtu(device.macAddress)
             }
         }
+
+        if (advertiser.checkForget(luid)) {
+           activeLuids.remove(luid)
+        }
         transactionLock.set(null)
 
     }
 
     override fun updateGone(luid: UUID) {
-        activeLuids.remove(luid)
+        advertiser.forget(luid)
     }
 
     override fun shouldConnect(res: ScanResult): Boolean {
@@ -349,12 +372,23 @@ class LeStateImpl @Inject constructor(
         return scanResult.scanRecord.serviceData[ParcelUuid(LUID_DATA)]?.toUuid()
     }
 
+    override fun dumpPeers(): Completable {
+        return Completable.fromAction {
+            val entries = connectionCache.entries
+            for ((luid, connection) in entries) {
+                updateGone(luid)
+                connection.connection().dispose()
+            }
+            connectionCache.clear()
+        }
+    }
+
     override fun establishConnectionCached(
         device: RxBleDevice,
         luid: UUID
     ): Single<ScatterbrainTransactionSubcomponent> {
         val connectSingle =
-            Single.fromCallable {
+            Single.defer {
                 val connection = connectionCache[luid]
                 if (connection != null) {
                     LOG.e("establishing cached connection to ${device.macAddress} ${device.name}, $luid, ${connectionCache.size} devices connected")
@@ -384,6 +418,7 @@ class LeStateImpl @Inject constructor(
                                                 v
                                             }
                                             LOG.w("actual mtu $m")
+                                            server.get()?.first?.connection()?.forceMtu(device.macAddress, m)
                                             v
                                         }
                                 }.timeout(60, TimeUnit.SECONDS)
@@ -398,7 +433,6 @@ class LeStateImpl @Inject constructor(
                             LOG.w("connection error $err, updating disconnected")
                             updateDisconnected(luid)
                         }
-                        .doFinally { connectionCache.remove(luid) }
 
                     newconnection.connection().subscribeConnection(rawConnection)
                     connectionCache[luid] = newconnection
@@ -407,7 +441,6 @@ class LeStateImpl @Inject constructor(
                         LOG.e("client onDisconnect $luid")
                         updateDisconnected(luid)
                         newconnection.bluetoothLeRadioModule().cancelTransaction()
-                        radioModule.removeUke(luid)
                         if (connectionCache.isEmpty()) {
                             // LOG.e("connectionCache empty, removing luid")
                             // advertiser.removeLuid()
@@ -420,7 +453,7 @@ class LeStateImpl @Inject constructor(
                     newconnection.connection().connection.firstOrError().ignoreElement()
                         .toSingleDefault(newconnection)
                 }
-            }.flatMap { c -> c }.subscribeOn(ioScheduler)
+            }
 
         return connectSingle
             .doOnError { updateGone(luid) }

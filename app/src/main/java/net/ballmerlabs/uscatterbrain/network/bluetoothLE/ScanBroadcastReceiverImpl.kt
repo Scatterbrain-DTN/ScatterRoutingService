@@ -39,9 +39,6 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
     lateinit var scatterbrainScheduler: ScatterbrainScheduler
 
     @Inject
-    lateinit var wifiDirectRadioModule: WifiDirectRadioModule
-
-    @Inject
     lateinit var bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>
 
     @Inject
@@ -57,6 +54,7 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
         for (result in r) {
             val uuid = leState.getAdvertisedLuid(result)
             if (uuid != null) {
+                //LOG.v("scanResult $uuid ${leState.shouldConnect(result)}")
                 if (result.scanRecord.serviceData[ParcelUuid(CLEAR_DATA)] != null)
                     clear = true
                 val ukes = result.scanRecord.serviceData[ParcelUuid(uuid)]
@@ -120,15 +118,17 @@ class ScanBroadcastReceiverImpl : ScanBroadcastReceiver, BroadcastReceiver() {
                                 if (luid != null && leState.updateActive(luid)) {
                                     leState.processScanResult(luid, result.bleDevice)
                                         .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
-                                        .doOnError { err ->
-                                            LOG.e("process scan result error $err")
-                                        }
                                 } else {
                                     Maybe.empty()
                                 }
                                     .ignoreElement()
                                     .doOnError { err ->
                                         LOG.e("process scan result error $err")
+                                        if (luid != null) {
+                                            leState.updateGone(luid)
+                                            leState.updateDisconnected(luid)
+                                        }
+                                        err.printStackTrace()
                                     }
                                     .onErrorComplete()
                             } else {

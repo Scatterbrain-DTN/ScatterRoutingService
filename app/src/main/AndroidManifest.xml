@@ -29,13 +29,12 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -52,7 +51,7 @@
         <service
             android:name=".ScatterRoutingService"
             android:exported="true"
-            android:foregroundServiceType="dataSync"
+            android:foregroundServiceType="location"
             android:permission="net.ballmerlabs.scatterroutingservice.permission.ACCESS">
             <intent-filter>
                 <action android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService.BIND" />

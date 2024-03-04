@@ -23,12 +23,16 @@ class ServerSocketManagerImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val operationsScheduler: Scheduler
 ) : ServerSocketManager {
     private val LOG by scatterLog()
-    private val serverSocket = AtomicReference(ServerSocket(0,32, InetAddress.getByName("0.0.0.0")))
+    private val serverSocket = AtomicReference<ServerSocket?>(null)
     override fun getServerSocket(): Single<PortSocket> {
         return Single.fromCallable {
             LOG.v("called getServerSocket")
+
             PortSocket(
-                socket = serverSocket.get(),
+                socket = serverSocket.updateAndGet { v -> when(v) {
+                    null -> ServerSocket(0,32, InetAddress.getByName("0.0.0.0"))
+                    else -> v
+                } }!!,
                 scheduler = operationsScheduler
             )
         }

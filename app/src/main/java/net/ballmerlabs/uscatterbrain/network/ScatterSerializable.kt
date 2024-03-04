@@ -1,18 +1,19 @@
 package net.ballmerlabs.uscatterbrain.network
 
 import android.content.res.Resources
-import android.util.Log
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
+import com.google.protobuf.CodedInputStream
 import com.google.protobuf.MessageLite
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
+import java.util.zip.CRC32
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.ScatterProto
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
@@ -106,16 +107,32 @@ abstract class ScatterSerializable<T : MessageLite>(
 
     val bytes: ByteArray
         get() {
-            val os = ByteArrayOutputStream(packet.serializedSize)
-            packet.writeDelimitedTo(os)
-            return os.toByteArray()
+            val size = packet.serializedSize + Int.SIZE_BYTES * 2
+            val buf = ByteBuffer.allocate(size)
+            buf.order(ByteOrder.BIG_ENDIAN).putInt(packet.serializedSize)
+            val crc32 = CRC32()
+            val bytes = packet.toByteArray()
+            crc32.update(ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.BIG_ENDIAN).putInt(packet.serializedSize).array())
+            crc32.update(bytes, 0, bytes.size)
+            buf.put(bytes)
+            buf.put(longToByte(crc32.value))
+            return buf.array()
         }
 
     val byteString: ByteString
         get() = ByteString.copyFrom(bytes)
 
     private fun writeToStreamBlocking(outputStream: OutputStream) {
-        packet.writeDelimitedTo(outputStream)
+        val stream = CRCOutputStream(outputStream)
+        stream.write(
+                ByteBuffer.allocate(Int.SIZE_BYTES)
+                        .order(ByteOrder.BIG_ENDIAN)
+                        .putInt(packet.serializedSize)
+                        .array()
+        )
+        packet.writeTo(stream)
+        outputStream.write(longToByte(stream.crc.value))
+        outputStream.flush()
     }
 
     /**
@@ -127,8 +144,6 @@ abstract class ScatterSerializable<T : MessageLite>(
     fun writeToStream(os: OutputStream, scheduler: Scheduler): Completable {
         return Completable.fromAction { writeToStreamBlocking(os) }
             .subscribeOn(scheduler)
-            .observeOn(scheduler)
-
     }
 
     /**
@@ -140,8 +155,6 @@ abstract class ScatterSerializable<T : MessageLite>(
     fun writeToStream(fragsize: Int, scheduler: Scheduler): Flowable<ByteArray> {
         return Bytes.from(ByteArrayInputStream(bytes), fragsize)
             .subscribeOn(scheduler)
-            .observeOn(scheduler)
-
     }
 
     /**
@@ -200,15 +213,11 @@ abstract class ScatterSerializable<T : MessageLite>(
         ): Single<T> {
             return Single.just(flowable)
                     .map { obs ->
-                        Log.e("debug", "observable")
-                        val subscriber = InputStreamFlowableSubscriber(11024) //TODO: optimize buffer size
+                        val subscriber = InputStreamFlowableSubscriber(4096) //TODO: optimize buffer size
                         obs.subscribe(subscriber)
                         val message = parseFromCRC(parser.parser, subscriber)
                         T::class.java.getConstructor(V::class.java).newInstance(message)
-                    }
-                .subscribeOn(scheduler)
-                .observeOn(scheduler)
-
+                    }.subscribeOn(scheduler)
         }
 
         /**
@@ -234,8 +243,6 @@ abstract class ScatterSerializable<T : MessageLite>(
                         T::class.java.getConstructor(V::class.java).newInstance(message)
                     }
                 .subscribeOn(scheduler)
-                .observeOn(scheduler)
-
         }
 
         /**
@@ -245,7 +252,28 @@ abstract class ScatterSerializable<T : MessageLite>(
          * @return protobuf message
          */
         fun <T : MessageLite> parseFromCRC(parser: com.google.protobuf.Parser<T>, inputStream: InputStream): T {
-            return parser.parseDelimitedFrom(inputStream)
+            val crc = ByteArray(Int.SIZE_BYTES)
+            val size = ByteArray(Int.SIZE_BYTES)
+            if (inputStream.read(size) != Int.SIZE_BYTES) {
+                throw IOException("end of stream")
+            }
+            val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).int
+            if (s > MESSAGE_SIZE_CAP) {
+                throw IOException("invalid message size")
+            }
+            val co = CodedInputStream.newInstance(inputStream, s + 1)
+            val messageBytes = co.readRawBytes(s)
+            val message = parser.parseFrom(messageBytes)
+            if (inputStream.read(crc) != crc.size) {
+                throw IOException("end of stream")
+            }
+            val crc32 = CRC32()
+            crc32.update(size)
+            crc32.update(messageBytes)
+            if (crc32.value != bytes2long(crc)) {
+                throw IOException("invalid crc: " + crc32.value + " " + bytes2long(crc))
+            }
+            return message
         }
     }
 }

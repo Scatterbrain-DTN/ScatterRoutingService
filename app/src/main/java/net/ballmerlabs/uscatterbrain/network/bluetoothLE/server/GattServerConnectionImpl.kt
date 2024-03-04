@@ -10,6 +10,7 @@ import io.reactivex.*
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.Function
+import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.GattServerConnectionScope
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Companion.CLIENT_CONFIG
@@ -21,6 +22,7 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
@@ -31,7 +33,6 @@ class GattServerConnectionImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val serverScheduler: Scheduler,
     private val serverState: ServerState,
     private val client: RxBleClient,
-    private val bluetoothManager: BluetoothManager,
     private val serverTransactionFactory: ServerTransactionFactory,
     private val firebaseWrapper: FirebaseWrapper,
     private val gattServer: Provider<BluetoothGattServer>
@@ -39,6 +40,7 @@ class GattServerConnectionImpl @Inject constructor(
     private val Log by scatterLog()
     private val compositeDisposable = CompositeDisposable()
     private val currentMtu = ConcurrentHashMap<String, Int>()
+    private val addingService = BehaviorSubject.create<Boolean>()
     private val mtuChangedCallback = ConcurrentHashMap<String, (Int)->Unit>()
     private var onDisconnect: (device: RxBleDevice) -> Unit = {}
 
@@ -60,6 +62,7 @@ class GattServerConnectionImpl @Inject constructor(
 
     private fun registerService(service: BluetoothGattService): Completable {
         return Completable.fromAction {
+            addingService.onNext(true)
             for (characteristic in service.characteristics) {
                 if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY == 0
                     || characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE == 0
@@ -102,7 +105,7 @@ class GattServerConnectionImpl @Inject constructor(
 
         override fun onServiceAdded(status: Int, service: BluetoothGattService) {
             super.onServiceAdded(status, service)
-            //TODO:
+            addingService.onNext(false)
         }
 
         override fun onCharacteristicReadRequest(
@@ -375,8 +378,8 @@ class GattServerConnectionImpl @Inject constructor(
                 ServerConfig.BluetoothPhy.PHY_LE_1M, ServerConfig.BluetoothPhy.PHY_LE_2M, ServerConfig.BluetoothPhy.PHY_LE_CODED -> {}
             }
         }
-        return Observable.fromIterable(config.getServices().values).flatMapCompletable { service ->
-            registerService(service)
+        return Observable.fromIterable(config.getServices().values).concatMapCompletable { service ->
+            registerService(service).andThen(addingService.takeUntil{ v-> !v}.ignoreElements())
         }
     }
 
@@ -499,7 +502,7 @@ class GattServerConnectionImpl @Inject constructor(
                 Log.v("immediate start notification")
                 Completable.complete()
             } else {
-                withDisconnectionHandling(events)
+                getEvents()
                     .filter { v -> v.remoteDevice.macAddress == mac}
                     .filter { e -> e.operation == GattServerConnection.Operation.DESCRIPTOR_WRITE }
                     .filter { transaction ->
@@ -559,7 +562,7 @@ class GattServerConnectionImpl @Inject constructor(
                                 if (!res) {
                                     throw IllegalStateException("notifyCharacteristicChanged returned false")
                                 }
-                            })
+                            }.subscribeOn(serverScheduler))
                             .firstOrError()
                             .flatMapCompletable { integer ->
                                 Log.v("notification result: $integer")
@@ -591,22 +594,30 @@ class GattServerConnectionImpl @Inject constructor(
         return connectionStatePublishRelay
             .filter { pair -> pair.second == RxBleConnectionState.DISCONNECTED }
             .map { pair -> pair.first }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun observeConnect(): Observable<RxBleDevice> {
         return connectionStatePublishRelay
             .filter { pair -> pair.second == RxBleConnectionState.CONNECTED }
             .map { pair -> pair.first }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
+    }
+
+    override fun forceMtu(address: String, mtu: Int) {
+        currentMtu[address] = mtu
     }
 
     override fun getEvents(): Observable<ServerResponseTransaction> {
         return withDisconnectionHandling(events)
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     fun getOnNotification(mac: String): Observable<Int> {
         return withDisconnectionHandling(notificationPublishRelay)
             .filter { p -> p.first == mac }
             .map { p -> p.second }
+            .delay(0, TimeUnit.SECONDS, callbackScheduler)
     }
 
     override fun disconnect(device: RxBleDevice): Completable {
@@ -616,7 +627,7 @@ class GattServerConnectionImpl @Inject constructor(
             } catch (exc: SecurityException) {
                 throw exc
             }
-        }
+        }.subscribeOn(callbackScheduler)
     }
 
     override fun setOnDisconnect(func: (device: RxBleDevice) -> Unit) {
@@ -639,7 +650,7 @@ class GattServerConnectionImpl @Inject constructor(
             } catch (exc: SecurityException) {
                 throw exc
             }
-        }
+        }.subscribeOn(callbackScheduler)
     }
 
     override fun dispose() {
@@ -657,7 +668,7 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     init {
-
+        addingService.onNext(false)
     }
 
 }

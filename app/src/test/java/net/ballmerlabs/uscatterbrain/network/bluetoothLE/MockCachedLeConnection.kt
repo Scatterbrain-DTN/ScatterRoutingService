@@ -35,4 +35,8 @@ class MockCachedLeConnection(
     leAdvertiser,
     state,
     luid) {
+
+    override fun sendForget(): Completable {
+        return Completable.complete()
+    }
 }

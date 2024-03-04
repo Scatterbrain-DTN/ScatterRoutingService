@@ -27,6 +27,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Optional
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
@@ -36,6 +37,7 @@ import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.sql.Time
 import java.util.Random
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -65,14 +67,14 @@ data class GroupHandle(
  *
  * Manually setting the group passphrase requires a very new API level (android 10 or above)
  */
-@Singleton
+@ScatterbrainTransactionScope
 class WifiDirectRadioModuleImpl @Inject constructor(
     private val mContext: Context,
     private val datastore: ScatterbrainDatastore,
     private val preferences: RouterPreferences,
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val timeoutScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val readScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.WIFI_WRITE) private val writeScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_IO) private val writeScheduler: Scheduler,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
     private val infoComponentProvider: Provider<WifiDirectInfoSubcomponent.Builder>,
@@ -89,7 +91,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     private val connectedPeers = ConcurrentHashMap<InetSocketAddress, InetSocketAddress>()
     private val connectedAddressSet = ConcurrentHashMap<InetSocketAddress, UUID>()
-    private val createGroupCache = AtomicReference<BehaviorSubject<WifiDirectBootstrapRequest>>()
     private val connects = ConcurrentHashMap<Disposable, Boolean>()
     private val altUke = BehaviorSubject.create<Pair<UUID, UpgradePacket>>()
 
@@ -133,7 +134,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun createGroupSingle(band: Int): Single<WifiDirectInfo> {
-        return Single.defer {
+        val res = Single.defer {
             val channel = provider.getChannel()!!
             val subject = CompletableSubject.create()
             try {
@@ -156,7 +157,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         )
                     }
                 }
-                retryDelay( subject, 10, 10).andThen(mBroadcastReceiver.observeConnectionInfo())
+
+                subject.andThen(mBroadcastReceiver.observeConnectionInfo())
+                    .doOnError { err -> LOG.e("createGroupSingle error: $err") }
+                    .doOnNext { v -> LOG.v("waiting for group creation ${v.groupFormed()} ${v.isGroupOwner()} ${v.groupOwnerAddress()}") }
+                    .takeUntil { wifiP2pInfo ->
+                        wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner() && wifiP2pInfo.groupOwnerAddress() != null
+                    }
+                    .doOnComplete { LOG.w("createGroupSingle return success") }
                     .mergeWith(Completable.fromAction {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                             val builder = infoComponentProvider.get()
@@ -167,7 +175,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
                             )
                             val newpass = base64pass.replace("-", "b")
-                            LOG.w("createGroup with band $band $newpass")
+                            LOG.w("createGroup with band ${FakeWifiP2pConfig.bandToStr(band)} $newpass")
                             val fakeConfig = builder.fakeWifiP2pConfig(
                                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
                                     passphrase = newpass,
@@ -175,24 +183,19 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                     band = band
                                 )
                             ).build()!!.fakeWifiP2pConfig()
-                            provider.getManager()?.createGroup(channel, fakeConfig.asConfig(), listener)
+                            provider.getManager()
+                                ?.createGroup(channel, fakeConfig.asConfig(), listener)
                         } else {
                             provider.getManager()?.createGroup(channel, listener)
                         }
-                       // provider.getManager()?.createGroup(provider.getChannel()?, listener)
+                        // provider.getManager()?.createGroup(provider.getChannel()?, listener)
                     })
-                    .doOnError { err -> LOG.e("createGroupSingle error: $err") }
-                    .doOnNext { v -> LOG.v("waiting for group creation ${v.groupFormed()} ${v.isGroupOwner()} ${v.groupOwnerAddress()}") }
-                    .takeUntil { wifiP2pInfo ->
-                        wifiP2pInfo.groupFormed() && wifiP2pInfo.isGroupOwner() && wifiP2pInfo.groupOwnerAddress() != null
-                    }
-                    .doOnComplete { LOG.w("createGroupSingle return success") }
                     .lastOrError()
             } catch (exc: SecurityException) {
                 Single.error(exc)
             }
         }
-
+        return removeGroup().andThen(res)
     }
 
     override fun registerReceiver() {
@@ -239,7 +242,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
             }
             try {
-                provider.getManager()?.requestGroupInfo(channel, listener)
+                provider.getManager()!!.requestGroupInfo(channel, listener)
             } catch (exc: SecurityException) {
                 firebaseWrapper.recordException(exc)
                 subject.onError(exc)
@@ -327,12 +330,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 socket.getInputStream(),
                 readScheduler
             )
-                .toObservable()
-                .mergeWith(
+                .flatMap { v ->
                     builder.writeToStream(socket.getOutputStream(), writeScheduler)
-                )
-                .firstOrError()
-
+                        .toSingleDefault(v)
+                }
         }
     }
 
@@ -357,7 +358,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Flowable<WifiDirectBootstrapRequest> {
         val create = retryDelay(
             retryDelay(createGroupSingle(band).ignoreElement(), 10, 1)
-                .andThen(retryDelay(requestGroupInfo().toSingle(), 10, 1)), 10, 1
+                .andThen(retryDelay(requestGroupInfo(), 10, 1)), 10, 1
         )
             .doOnDispose { LOG.e("createGroup disposed") }
             .flatMapPublisher { groupInfo ->
@@ -375,9 +376,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                         ).build()!!.wifiBootstrapRequest()
                     serverSocket.accept()
+                        .observeOn(timeoutScheduler)
                         .repeat()
                         .retry()
-                        .subscribeOn(timeoutScheduler)
                         .mergeWith(Completable.defer {
                             advertiser.clear(false)
                             advertiser.setAdvertisingLuid(luid = advertiser.getHashLuid())
@@ -395,8 +396,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                 .ignoreElement()
                                 .andThen(bootstrapUkeSocket(sock.socket)
                                     .doOnError { err -> LOG.w("uke bootstrapUkeSocket failed $err") })
-                                .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
-                        }.subscribeOn(timeoutScheduler)
+                                .onErrorReturnItem(
+                                    HandshakeResult(
+                                        0,
+                                        0,
+                                        HandshakeResult.TransactionStatus.STATUS_FAIL
+                                    )
+                                )
+                        }
                         .flatMap { Flowable.never<WifiDirectBootstrapRequest>() }
                         .mergeWith(Flowable.just(request))
                         .materialize()
@@ -469,19 +476,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun getForceUke(): Boolean {
-        return createGroupCache.get() != null
+        return leState.get().createGroupCache.get() != null
     }
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
-        return Single.just(true)
-        return createGroupDryRun(getBand())
-            .doOnError { err ->
-                LOG.e("cry $err")
-                err.printStackTrace()
-            }
-            .timeout(10, TimeUnit.SECONDS)
-            .toSingleDefault(true)
-            .onErrorReturnItem(false)
+        return Single.fromCallable {
+            manager.isWifiEnabled && manager.isP2pSupported
+        }
     }
 
     override fun removeGroup(retries: Int, delay: Int): Completable {
@@ -497,7 +498,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
                 override fun onFailure(p0: Int) {
                     LOG.e("failed to remove group: ${reasonCodeToString(p0)}")
-                    subject.onError(IllegalStateException("failed ${reasonCodeToString(p0)}"))
+                    when(p0) {
+                        WifiP2pManager.BUSY -> subject.onComplete()
+                        else ->  subject.onError(IllegalStateException("failed ${reasonCodeToString(p0)}"))
+                    }
                 }
 
             }
@@ -507,6 +511,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 })
                 .doOnSubscribe { LOG.w("awaiting removeGroup") }
                 .doOnError { err -> LOG.e("removeGroup error: $err") }
+                .doOnNext { v -> LOG.v("removegroup saw ${v.groupFormed()} ${v.isGroupOwner()}") }
                 .takeUntil { wifiP2pInfo -> !wifiP2pInfo.groupFormed() && !wifiP2pInfo.isGroupOwner() }
                 .ignoreElements()
                 .doOnComplete { LOG.v("removeGroup return success") }
@@ -515,18 +520,16 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         }
 
 
-
         return requestGroupInfo()
             .isEmpty
             .flatMapCompletable { empty ->
                 if (!empty)
-                    retryDelay(c, 10, 5)
+                    retryDelay(c, 5, 5)
                         .doOnError { err -> firebaseWrapper.recordException(err) }
                 else
                     Completable.complete()
 
             }
-
     }
 
     override fun connectToGroup(
@@ -535,49 +538,52 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         timeout: Int,
         band: Int
     ): Single<WifiDirectInfo> {
-        LOG.w("connectToGroup $name $passphrase")
-        return Single.defer {
-            val connection = Single.defer {
-                val builder = infoComponentProvider.get()
-                val fakeConfig = builder.fakeWifiP2pConfig(
-                    WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
-                        passphrase = passphrase,
-                        networkName = name,
-                        band = band
-                    )
-                ).build()!!.fakeWifiP2pConfig()
-                //TODO: potentially remove group here?
-                initiateConnection(fakeConfig.asConfig())
-                    .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
+        LOG.w("connectToGroup $name $passphrase ")
+        val s = Single.defer {
+            val builder = infoComponentProvider.get()
+            val fakeConfig = builder.fakeWifiP2pConfig(
+                WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
+                    passphrase = passphrase,
+                    networkName = name,
+                    band = band
+                )
+            ).build()!!.fakeWifiP2pConfig()
+            initiateConnection(fakeConfig.asConfig())
+                .andThen(awaitConnection(timeout).doOnSuccess { LOG.v("connection awaited") })
 
-            }.doOnError { err ->
-                err.printStackTrace()
-                firebaseWrapper.recordException(err)
-            }
+        }.doOnError { err ->
+            err.printStackTrace()
+            firebaseWrapper.recordException(err)
+        }
 
-            requestConnectionInfo().flatMap { info ->
-                if (info.isGroupOwner || mBroadcastReceiver.connectedDevices()
-                        .isNotEmpty()
-                ) {
-                    LOG.w("was group owner when initiating connection, removing group")
-                    removeGroup().andThen(connection.toMaybe())
-                } else {
-                    connection.toMaybe()
-                }
-            }.switchIfEmpty(connection)
+        return removeGroup().andThen(s)
+    }
+
+    fun getConnected(): Optional<Int> {
+        //   return FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
+        val connected = manager.connectionInfo?.networkId != -1
+        //    LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported} $connected")
+        val freq = manager.connectionInfo?.frequency
+        return if (connected && (freq in 5_150..5_350))
+            Optional.of(FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
+        else if (connected && (freq in 2_400..2_483))
+            Optional.of(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+        else if (!connected)
+            Optional.empty()
+        else {
+            LOG.e("wifi connected with invalid frequency $freq")
+            firebaseWrapper.recordException(IllegalStateException("wifi connected with invalid frequency $freq"))
+            Optional.empty()
         }
     }
 
     override fun getBand(): Int {
-     //   return FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
-        val connected = manager.connectionInfo?.networkId != -1
-        //    LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported} $connected")
-        return if (manager.is5GHzBandSupported && !connected)
-            FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-        else if (manager.is5GHzBandSupported && connected)
+        val ret = getConnected()
+        return if (ret.isPresent) {
+            ret.item!!
+        } else {
             FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
-        else
-            FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+        }
     }
 
     private fun cancelConnection(): Completable {
@@ -728,25 +734,24 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Observable<RoutingMetadataPacket> {
         return Observable.just(socket)
             .flatMap { sock ->
-                packets.concatMapCompletable { p ->
-                    p.writeToStream(sock.getOutputStream(), writeScheduler)
-                }.toObservable<RoutingMetadataPacket>()
-                    .mergeWith(
-                        ScatterSerializable.parseWrapperFromCRC(
-                            RoutingMetadataPacket.parser(),
-                            sock.getInputStream(),
-                            readScheduler
-                        )
-                            .toObservable()
-                            .repeat()
-                            .takeWhile { routingMetadataPacket ->
-                                val end = !routingMetadataPacket.isEmpty
-                                if (!end) {
-                                    LOG.v("routingMetadata seme end of stream")
-                                }
-                                end
-                            })
-
+                ScatterSerializable.parseWrapperFromCRC(
+                    RoutingMetadataPacket.parser(),
+                    sock.getInputStream(),
+                    readScheduler
+                )
+                    .toObservable()
+                    .repeat()
+                    .takeWhile { routingMetadataPacket ->
+                        val end = !routingMetadataPacket.isEmpty
+                        if (!end) {
+                            LOG.v("routingMetadata seme end of stream")
+                        }
+                        end
+                    }.mergeWith(
+                        packets.concatMapCompletable { p ->
+                            p.writeToStream(sock.getOutputStream(), writeScheduler)
+                        }.toObservable()
+                    )
             }.doOnComplete { LOG.w("routingMetadata Complete") }
     }
 
@@ -765,27 +770,25 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Observable<IdentityPacket> {
         return Single.just(socket)
             .flatMapObservable { sock ->
-                packets.concatMapCompletable { p ->
-                    p.writeToStream(sock.getOutputStream(), writeScheduler)
-                        .doOnComplete { LOG.v("wrote single identity packet") }
-                }.toObservable<IdentityPacket>()
-                    .mergeWith(
-                    ScatterSerializable.parseWrapperFromCRC(
-                        IdentityPacket.parser(),
-                        sock.getInputStream(),
-                        readScheduler
+                ScatterSerializable.parseWrapperFromCRC(
+                    IdentityPacket.parser(),
+                    sock.getInputStream(),
+                    readScheduler
+                )
+                    .toObservable()
+                    .repeat()
+                    .takeWhile { identityPacket ->
+                        val end = !identityPacket.isEnd
+                        if (!end) {
+                            LOG.v("identitypacket seme end of stream")
+                        }
+                        end
+                    }.mergeWith(
+                        packets.concatMapCompletable { p ->
+                            p.writeToStream(sock.getOutputStream(), writeScheduler)
+                                .doOnComplete { LOG.v("wrote single identity packet") }
+                        }.toObservable()
                     )
-                        .toObservable()
-                        .repeat()
-                        .takeWhile { identityPacket ->
-                            val end = !identityPacket.isEnd
-                            if (!end) {
-                                LOG.v("identitypacket seme end of stream")
-                            }
-                            end
-                        })
-
-
             }.doOnComplete { LOG.w("identity packets complete") }
     }
 
@@ -864,7 +867,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         remoteLuid: UUID,
         selfLuid: UUID,
     ): Single<WifiDirectBootstrapRequest> {
-        return createGroupCache.updateAndGet { v ->
+        return leState.get().createGroupCache.updateAndGet { v ->
             when (v) {
                 null -> {
                     val createGroupObs = BehaviorSubject.create<WifiDirectBootstrapRequest>()
@@ -873,9 +876,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             LOG.e("failed to get server socket: $err")
                             firebaseWrapper.recordException(err)
                         }
+                        .doOnCancel { leState.get().createGroupCache.set(null) }
                         .doFinally {
                             LOG.w("uke completed")
-                            createGroupCache.set(null)
+                            leState.get().createGroupCache.set(null)
                         }
                     obs.toObservable().subscribe(createGroupObs)
                     createGroupObs
@@ -889,6 +893,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
             }
         }.firstOrError()
             .timeout(68, TimeUnit.SECONDS)
+            .doOnError { leState.get().createGroupCache.set(null) }
     }
 
     private fun bootstrapSemeSocket(socket: Socket): Single<HandshakeResult> {
@@ -959,7 +964,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         ownerPort: Int,
         self: UUID
     ) {
-        val mutex = getMutex("semeConnect")
+        val mutex = getMutex("semeConnect", writeScheduler)
         val d = mutex.await()
             .doOnSubscribe { LOG.w("wifi direct connection: $name $passphrase $ownerPort waiting on lock") }
             .flatMapPublisher { m ->
@@ -967,7 +972,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 Completable.defer {
                     advertiser.clear(false)
                     advertiser.setAdvertisingLuid(luid = advertiser.getHashLuid())
-                }.andThen(connectToGroup(name, passphrase, 60, band))
+                }.andThen(retryDelay(connectToGroup(name, passphrase, 30, band), 3, 3))
                     .flatMapPublisher { info ->
                         serverSocketManager.getServerSocket().flatMapPublisher { socket ->
                             LOG.v("seme listening for inter-seme connections")
@@ -1043,7 +1048,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                                         }
 
                                 }
-                        }
+                        }.timeout(60, TimeUnit.SECONDS)
+
                     }
                     .concatWith(
                         removeGroup().onErrorComplete()
@@ -1053,7 +1059,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             .onErrorComplete()
                             .andThen(Flowable.error(err))
                     }
-                    .timeout(128, TimeUnit.SECONDS)
                     .doOnError { err ->
                         LOG.w("seme error: $err")
                         err.printStackTrace()
@@ -1071,9 +1076,12 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 { v -> LOG.v("wifi seme client next ${v.success}") },
                 { err ->
                     LOG.w("wifi seme client error $err")
+                    err.printStackTrace()
+                    /*
                     connects.forEach { (v, _) ->
                         v.dispose()
                     }
+                     */
                 }
             )
         connects[d] = true

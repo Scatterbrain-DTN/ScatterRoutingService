@@ -31,6 +31,10 @@ class MockGattServerConnection(
         return Completable.complete()
     }
 
+    override fun forceMtu(address: String, mtu: Int) {
+        this.mtu[address] = mtu
+    }
+
     override fun getOnConnectionStateChange(): Observable<Pair<RxBleDevice, RxBleConnection.RxBleConnectionState>> {
         return mockState
     }

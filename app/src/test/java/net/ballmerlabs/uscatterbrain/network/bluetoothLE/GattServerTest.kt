@@ -14,6 +14,7 @@ import com.polidea.rxandroidble2.mockrxandroidble.RxBleClientMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
+import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
@@ -158,7 +159,13 @@ class GattServerTest {
                 on { uuid } doReturn UUID.randomUUID()
             })
 
-        connection.initializeServer(config).blockingAwait()
+        connection.initializeServer(config)
+            .mergeWith(Completable.fromAction {
+                connection.gattServerCallback.onServiceAdded(BluetoothGatt.GATT_SUCCESS, mock {
+                    on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT
+                })
+            })
+            .blockingAwait()
     }
 
 
@@ -208,7 +215,13 @@ class GattServerTest {
         setupModule()
 
         val connection = getConnection()
-        connection.initializeServer(config).blockingAwait()
+        connection.initializeServer(config)
+            .mergeWith(Completable.fromAction {
+                connection.gattServerCallback.onServiceAdded(BluetoothGatt.GATT_SUCCESS, mock {
+                    on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT
+                })
+            })
+            .blockingAwait()
 
         val replay = ReplaySubject.create<T>()
         get(connection)
@@ -224,7 +237,7 @@ class GattServerTest {
     ): ServerConfig {
         return ServerConfig()
             .addService(mock {
-                on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID
+                on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT
                 on { characteristics } doReturn arrayListOf(characteristic)
             })
 
@@ -380,7 +393,14 @@ class GattServerTest {
 
             connection = getConnection()
 
-            connection.initializeServer(config).timeout(1, TimeUnit.SECONDS).blockingAwait()
+            connection.initializeServer(config).timeout(1, TimeUnit.SECONDS)
+                .mergeWith(Completable.fromAction {
+                    connection.gattServerCallback.onServiceAdded(BluetoothGatt.GATT_SUCCESS, mock {
+                        on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT
+                        on { characteristics } doReturn arrayListOf(characteristic)
+                    })
+                })
+                .blockingAwait()
 
             connection.gattServerCallback.onDescriptorWriteRequest(
                 device.bluetoothDevice,

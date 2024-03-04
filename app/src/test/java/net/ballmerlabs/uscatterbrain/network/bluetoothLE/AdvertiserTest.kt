@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.app.AlarmManager
 import android.bluetooth.*
+import android.bluetooth.le.AdvertisingSetCallback
 import android.content.Context
 import android.os.Build
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
@@ -108,7 +109,8 @@ class AdvertiserTest {
             leState = { leState },
             manager = manager,
             scheduler = ioScheduler,
-            alarmManager = alarmmanager
+            alarmManager = alarmmanager,
+            timeoutScheduler = scheduler
         )
     }
 
@@ -180,6 +182,8 @@ class AdvertiserTest {
         leState.connectionCache[luid] = fakeConnection
         val hash = advertiser.getHashLuid()
         advertiser.randomizeLuidAndRemove()
+        advertiser.isAdvertising.onNext(Pair(Optional.of(mock {  }), AdvertisingSetCallback.ADVERTISE_SUCCESS))
+        advertiser.advertisingDataUpdated.onNext(AdvertisingSetCallback.ADVERTISE_SUCCESS)
         advertiser.awaitNotBusy().blockingAwait()
         assertNotEquals(hash, advertiser.getHashLuid())
 

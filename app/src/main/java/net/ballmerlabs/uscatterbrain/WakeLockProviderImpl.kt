@@ -25,9 +25,10 @@ class WakeLockProviderImpl @Inject constructor(
     }
 
     override fun release(): Int {
-        if(wakeLock.isHeld)
+        val count =  counter.decrementAndGet()
+        if(wakeLock.isHeld && count == 0)
             wakeLock.release()
-        return counter.decrementAndGet()
+        return count
     }
 
     override fun releaseAll() {
