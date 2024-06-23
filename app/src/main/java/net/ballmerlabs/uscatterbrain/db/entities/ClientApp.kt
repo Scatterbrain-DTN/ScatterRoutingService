@@ -11,7 +11,8 @@ import androidx.room.PrimaryKey
  */
 @Entity(indices = [
     Index(value = ["packageName"], unique = true),
-    Index(value = ["packageSignature"], unique = true)
+    Index(value = ["packageSignature"], unique = true),
+    Index(value = ["packageName", "packageSignature"], unique = true),
 ])
 data class ClientApp(
     @ColumnInfo
@@ -21,7 +22,10 @@ data class ClientApp(
     var packageName: String,
 
     @ColumnInfo
-    var packageSignature: String? = null
+    var packageSignature: String? = null,
+
+    @ColumnInfo(defaultValue = "false")
+    var isDesktop: Boolean = false
 ) {
     @PrimaryKey(autoGenerate = true)
     var clientAppID: Long? = null
@@ -32,4 +36,8 @@ data class ClientApp(
  */
 data class JustPackageName(
         var packageName: String
+)
+
+data class JustPackageSig(
+    var packageSignature: String
 )

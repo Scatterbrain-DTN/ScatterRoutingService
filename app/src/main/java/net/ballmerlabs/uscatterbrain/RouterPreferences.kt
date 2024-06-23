@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import io.reactivex.Maybe
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
@@ -49,13 +50,13 @@ suspend fun setPassive(context: Context) {
  * dagger2 interface for RouterPreferences
  */
 interface RouterPreferences {
-    fun getBoolean(key: String, def: Boolean?): Boolean?
-    fun getFloat(key: String, def: Float?): Float?
-    fun getLong(key: String, def: Long?): Long?
-    fun getInt(key: String, def: Int?): Int?
-    fun getString(key: String, def: String?): String?
-    fun getStringSet(key: String, def: Set<String?>?): Set<String?>?
-    val all: Map<Preferences.Key<*>, Any>?
+    fun getBoolean(key: String, def: Boolean?): Maybe<Boolean>
+    fun getFloat(key: String, def: Float?): Maybe<Float>
+    fun getLong(key: String, def: Long?): Maybe<Long>
+    fun getInt(key: String, def: Int?): Maybe<Int>
+    fun getString(key: String, def: String?): Maybe<String>
+    fun getStringSet(key: String, def: Set<String?>?): Maybe<Set<String?>>
+    val all: Maybe<Map<Preferences.Key<*>, Any>>
     operator fun <T> contains(key: Preferences.Key<T>): Boolean
 
     companion object {

@@ -2,17 +2,15 @@ package net.ballmerlabs.uscatterbrain.util
 
 import android.util.Log
 import io.reactivex.Completable
-import io.reactivex.Scheduler
 import io.reactivex.disposables.Disposable
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentLinkedQueue
 
-class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
-    private val scheduler: Lazy<Scheduler> = loggerScheduler
+class LoggerImpl(c: Class<*>, private val bufSize: Int = 32): Logger(c) {
+   // private val scheduler: Scheduler = loggerScheduler
     private val buffer = ConcurrentLinkedQueue<Disposable>()
-
 
     private fun getFileName(number: Int = 0): String {
         val num = if(number == 0) {
@@ -24,40 +22,51 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 4096): Logger(c) {
         val text = date.format(DateTimeFormatter.ISO_DATE)
         return "$text.log$num"
     }
-    override fun getCurrentLog(): File? {
-        val file = logsDir
-        return if (file != null) {
-            var num = 1
 
-            if (!file.exists()) {
-                file.mkdir()
+    override fun getCurrentLog(): File? {
+        return try {
+            val file = logsDir
+            if (file != null) {
+                var num = 1
+
+                if (!file.exists()) {
+                    file.mkdir()
+                }
+                var it = File(file, getFileName(num))
+                while (it.exists() && it.length() < LOGS_SIZE) {
+                    num++
+                    it = File(file, getFileName(num))
+                }
+                val f = File(file, getFileName(num - 1))
+                f.createNewFile()
+                return f
+            } else {
+                Log.w("loggermeta", "logsDir was null")
+                null
             }
-            var it = File(file, getFileName(num))
-            while(it.exists() && it.length() < LOGS_SIZE) {
-                num++
-                it = File(file, getFileName(num))
-            }
-            val f = File(file, getFileName(num-1))
-            f.createNewFile()
-            return f
-        } else {
+        } catch (exc: Exception) {
+            Log.e("loggermeta", "failed to get current log: $exc")
             null
         }
     }
 
     private fun asyncWrite(text: String) {
-        val disp = Completable.fromAction{
-            val t = "[$name]: $text\n"
-            val f = getCurrentLog()
-            f?.appendBytes(t.encodeToByteArray())
+        try {
+            val disp = Completable.fromAction {
+                val t = "[$name]: $text\n"
+                val f = getCurrentLog()
+                f?.appendBytes(t.encodeToByteArray())
+            }.subscribeOn(loggerScheduler)
+                .observeOn(loggerScheduler)
+                .unsubscribeOn(loggerScheduler)
+                .subscribe({ }, { err -> Log.e("loggermeta", "failed to log: $err") })
+            if (buffer.size > bufSize) {
+                buffer.remove()?.dispose()
+            }
+            buffer.add(disp)
+        } catch (exc: ConcurrentModificationException) {
+            Log.w("loggermeta", "failed to log $exc")
         }
-            .doOnError { e -> Log.e("loggermeta", "failed to log: $e") }
-            .subscribeOn(scheduler.value)
-            .subscribe()
-        if(buffer.size > bufSize) {
-            buffer.remove()?.dispose()
-        }
-        buffer.add(disp)
     }
 
     override fun d(text: String) {

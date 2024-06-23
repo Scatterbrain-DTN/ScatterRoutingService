@@ -3,38 +3,50 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import com.goterl.lazysodium.interfaces.GenericHash
 import io.reactivex.Completable
 import io.reactivex.Observable
-import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
-import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
-import net.ballmerlabs.uscatterbrain.network.ElectLeaderPacket
+import net.ballmerlabs.scatterproto.Optional
+import net.ballmerlabs.scatterproto.Provides
+import net.ballmerlabs.uscatterbrain.network.proto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.math.BigInteger
-import java.util.*
+import java.util.UUID
 
 /**
  * the voting stage handles the logic for the leader election algorithm which determines
  * in a semi-trustless fashion if a transport layer bootstrap is required and, if so,
  * to which transport to switch to.
  */
-class VotingStage : LeDeviceSession.Stage {
+class VotingStage(private val me: UUID) : LeDeviceSession.Stage {
     private val LOG by scatterLog()
-    val serverPackets = CompletableSubject.create()
+    var serverPackets = CompletableSubject.create()
     private val hashedPackets = ArrayList<ElectLeaderPacket>()
     private val unhashedPackets = ArrayList<ElectLeaderPacket>()
     private var tiebreaker = UUID.randomUUID()
-    fun getSelf(hashed: Boolean, provides: AdvertisePacket.Provides): ElectLeaderPacket {
-        val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder()
+    var myUpgrade: Optional<UpgradePacket> = Optional.empty()
+
+
+    fun getSelf(
+        hashed: Boolean,
+        provides: Provides,
+        sender: UUID?,
+        upgrade: Optional<UpgradePacket>,
+    ): ElectLeaderPacket {
+        val builder: ElectLeaderPacket.Builder = ElectLeaderPacket.newBuilder(sender)
         if (hashed) {
             builder.enableHashing()
         }
+        if (upgrade.isPresent) {
+            builder.setUpgrade(upgrade.item!!)
+        }
         return builder
-                .setProvides(provides)
-                .setTiebreaker(tiebreaker)
-                .build()
+            .setProvides(provides)
+            .setTiebreaker(tiebreaker)
+            .build()
     }
 
     override fun reset() {
+        serverPackets = CompletableSubject.create()
         hashedPackets.clear()
         unhashedPackets.clear()
         tiebreaker = UUID.randomUUID()
@@ -45,11 +57,30 @@ class VotingStage : LeDeviceSession.Stage {
      * @param packet
      */
     fun addPacket(packet: ElectLeaderPacket) {
+        LOG.w("adding vote packet ${packet.isHashed}")
         if (packet.isHashed) {
             hashedPackets.add(packet)
         } else {
             unhashedPackets.add(packet)
         }
+    }
+
+    private fun hashPackets(): BigInteger {
+        var choice = BigInteger.ONE
+        for (packet in unhashedPackets) {
+            val newval = BigInteger(ElectLeaderPacket.uuidToBytes(packet.tieBreak))
+            choice = choice.multiply(newval)
+        }
+        val hash = ByteArray(GenericHash.BYTES)
+        LibsodiumInterface.sodium.crypto_generichash(
+            hash,
+            hash.size,
+            choice.toByteArray(),
+            choice.toByteArray().size.toLong(),
+            null,
+            0
+        )
+        return BigInteger(hash)
     }
 
     /**
@@ -64,63 +95,99 @@ class VotingStage : LeDeviceSession.Stage {
      * they want to (which could allow easier data collection / spying for some transports)
      * or by executing a downgrade attack by forcing devices into a less secure transport
      */
-    private fun selectLeader(): ElectLeaderPacket {
-        var `val` = BigInteger.ONE
+    fun selectUke(): BluetoothLEModule.ConnectionRole {
+        var compare = hashPackets()
+        var role: BluetoothLEModule.Role? = null
+        val provides: Provides =
+            if (unhashedPackets.all { p -> p.provides == Provides.WIFIP2P })
+                Provides.WIFIP2P
+            else
+                Provides.BLE
+        val upgrade = unhashedPackets
+            .filter { p -> p.upgrade.isPresent }
+        var r: UUID? = null
         for (packet in unhashedPackets) {
-            val newval = BigInteger(ElectLeaderPacket.uuidToBytes(packet.tieBreak))
-            `val` = `val`.multiply(newval)
-        }
-        val hash = ByteArray(GenericHash.BYTES)
-        LibsodiumInterface.sodium.crypto_generichash(
-                hash,
-                hash.size,
-                `val`.toByteArray(),
-                `val`.toByteArray().size.toLong(),
-                null,
-                0
-        )
-        var compare = BigInteger(hash)
-        var ret: ElectLeaderPacket? = null
-        for (packet in unhashedPackets) {
-            val uuid = packet.luid
-            if (uuid != null) {
-                val c = BigInteger(ElectLeaderPacket.uuidToBytes(uuid))
-                if (c.abs() < compare.abs()) {
-                    ret = packet
-                    compare = c
-                }
-            } else {
-                LOG.w("luid tag was null in tiebreak")
+            val uuid = packet.from
+            val c = BigInteger(ElectLeaderPacket.uuidToBytes(uuid))
+            if (c.abs() < compare.abs()) {
+                r = uuid
+                compare = c
             }
         }
-        if (ret == null) {
+
+        if (r != null) {
+            role = if (r == me) {
+                BluetoothLEModule.Role.ROLE_UKE
+            } else {
+                BluetoothLEModule.Role.ROLE_SEME
+            }
+        }
+
+        if (role == null) {
             throw MiracleException()
         }
-        return ret
-    }
-
-    private fun tieBreak(): AdvertisePacket.Provides {
-        return selectLeader().provides
-    }
-
-    fun selectSeme(): UUID? {
-        return selectLeader().luid
-    }
-
-    private fun countVotes(): Single<AdvertisePacket.Provides> {
-        return Observable.fromIterable(unhashedPackets)
-            .map { p -> p.provides }
-            .reduce(AdvertisePacket.Provides.WIFIP2P) { _, n ->
-                if (n == AdvertisePacket.Provides.BLE) {
-                    AdvertisePacket.Provides.BLE
-                } else {
-                    n
-                }
+        LOG.w("voting with upgrade size ${upgrade.size} me=$me")
+        return when (upgrade.size) {
+            1 -> {
+                BluetoothLEModule.ConnectionRole(
+                    role = if (upgrade[0].upgrade.item?.from == me)
+                        BluetoothLEModule.Role.ROLE_SUPERUKE
+                    else
+                        BluetoothLEModule.Role.ROLE_SUPERSEME,
+                    provides = provides,
+                    drop = false,
+                    upgrade = upgrade[0].upgrade
+                )
             }
-    }
 
-    fun determineUpgrade(): Single<AdvertisePacket.Provides> {
-        return countVotes()
+            0 -> {
+                BluetoothLEModule.ConnectionRole(
+                    role = role,
+                    provides = provides,
+                    drop = false,
+                    upgrade = Optional.empty()
+                )
+            }
+
+            else -> {
+                for (u in upgrade) {
+                    LOG.v("got compare upgrade ${u.upgrade}")
+                }
+
+                val isUke = upgrade.any { v -> v.upgrade.item?.from == me }
+                val drop = upgrade.any { v -> v.upgrade.item?.from != me } && isUke
+                val u = if (upgrade.zipWithNext { a, b ->
+                        a.upgrade.item?.compare(b.upgrade.item!!)
+                    }.all { v ->
+                        val n = v == true
+                        LOG.v("comparing upgrades: $n  me=$me")
+                        n
+                    }) {
+                    Optional.of(upgrade[0])
+                } else if (!isUke) {
+                    Optional.of(upgrade[0])
+                } else {
+                    Optional.empty()
+                }
+
+                LOG.v("got compare upgrade ${u.item?.upgrade?.item?.from}")
+
+
+                val nr = if (isUke && !drop)
+                    BluetoothLEModule.Role.ROLE_SUPERUKE
+                else
+                    BluetoothLEModule.Role.ROLE_SUPERSEME
+
+                BluetoothLEModule.ConnectionRole(
+                    role = nr,
+                    drop = drop,
+                    provides = provides,
+                    upgrade = u.item?.upgrade?: Optional.empty()
+                )
+            }
+        }
+
+
     }
 
     /**

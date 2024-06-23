@@ -1,76 +1,50 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Completable
 import io.reactivex.Maybe
-import io.reactivex.Observable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import java.util.*
+import net.ballmerlabs.scatterproto.Optional
+import net.ballmerlabs.scatterproto.Provides
+import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
+import proto.Scatterbrain
+import java.util.UUID
 
 interface BluetoothLEModule {
     /**
-     * Stops active discovery
-     */
-    fun stopDiscover()
-
-    /**
-     * Returns a completable that completes when the current transaction is finished or emits an error
-     * on a fatal failure to complete the transaction
-     * @return Completable
-     */
-    fun awaitTransaction(): Completable
-
-    /**
-     * Returns an observable that emits a HandshakeResult for every completed transaction.
-     * onError should only be called if this transport module is unable to complete future
-     * transactions
+     * Run a transaction with an already connected peer. This requires
+     * both a forward and a reverse connection setup.
+     * To start a transaction first run initiateOutgoingConnection
      *
-     * if this transport module is not actively discovering or advertising, the observable
-     * will not emit any values and no attempt at enabling disovery or advertisement will be made
-     * @return Observable emitting handshake results
+     * @param luid: the remote peer's luid
+     * @param reverse set this to true if the connection is a reverse connection
+     * @return the HandshakeResult from the transaction
      */
-    fun observeCompletedTransactions(): Observable<HandshakeResult>
-
-    /**
-     * Returns an observable that emits a boolean, true if a transaction is in progress and false
-     * if it has ended (completed or failed)
-     *
-     * @return Observable
-     */
-    fun observeTransactionStatus(): Observable<Boolean>
-
-    /**
-     * Clears the list of nearby peers, nearby devices currently in range will
-     * be reconnected to if possible
-     */
-    fun clearPeers()
-
-    /**
-     * Removes the current wifi direct group if it exists
-     * @param shouldRemove do nothing if false (what?)
-     * @return completable
-     */
-    fun removeWifiDirectGroup(shouldRemove: Boolean): Completable
-
-
-
-    /**
-     * Handle an existing scan result
-     * @param scanResult scan result
-     * @return maybe for transaction
-     */
-    fun processScanResult(remoteUuid: UUID, bleDevice: RxBleDevice): Maybe<HandshakeResult>
-
     fun handleConnection(
-        clientConnection: CachedLEConnection,
-        device: RxBleDevice,
-        luid: UUID
+        luid: UUID,
+        reverse: Boolean = false
     ): Maybe<HandshakeResult>
 
+    /**
+     * Returns true if there is an ongoing transaction
+     */
+    fun isBusy(): Boolean
+
+    /**
+     * Disposes of and shuts down the current transaction, even
+     * if it hasn't completed yet
+     */
+    fun cancelTransaction()
+
+    /**
+     * Poke the remote peer's hello characteristic to start a transaction.
+     * The remote peer should make a reverse connection to us before starting
+     * the transaction
+     * @param luid the remote peer's luid
+     * @return completeable of success
+     */
     fun initiateOutgoingConnection(
-        cachedConnection: CachedLEConnection,
         luid: UUID
-    ): Maybe<HandshakeResult>
+    ): Completable
 
     /**
      * role is a generalized concept of "initiator" vs "acceptor"
@@ -82,12 +56,38 @@ interface BluetoothLEModule {
      *
      * This is decided via the leader election process
      */
-    enum class ConnectionRole {
-        ROLE_UKE, ROLE_SEME
+    enum class Role {
+        ROLE_SUPERUKE,
+        ROLE_SUPERSEME,
+        ROLE_UKE,
+        ROLE_SEME;
+        fun toSuper(): Role {
+            return when(this) {
+                ROLE_UKE -> ROLE_SUPERUKE
+                ROLE_SEME -> ROLE_SUPERSEME
+                else -> this
+            }
+        }
+
+        fun toProto(): Scatterbrain.Role {
+            return when(this) {
+                ROLE_SUPERSEME -> Scatterbrain.Role.SUPER_SEME
+                ROLE_SEME -> Scatterbrain.Role.SEME
+                ROLE_SUPERUKE -> Scatterbrain.Role.SUPER_UKE
+                ROLE_UKE -> Scatterbrain.Role.UKE
+            }
+        }
     }
 
+    data class ConnectionRole(
+        val role: Role,
+        val drop: Boolean,
+        val provides: Provides,
+        val upgrade: Optional<net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket>
+    )
+
     companion object {
-        const val GATT_SIZE = 20
-        const val TIMEOUT = 20
+        const val GATT_SIZE = 19
+        const val TIMEOUT = 45
     }
 }

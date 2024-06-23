@@ -1,7 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
-import java.util.*
+
+import net.ballmerlabs.scatterproto.Provides
+import net.ballmerlabs.uscatterbrain.network.proto.AdvertisePacket
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -19,10 +20,10 @@ class AdvertiseStage : LeDeviceSession.Stage {
     }
     
     companion object {
-        private val provides: ArrayList<AdvertisePacket.Provides> = object : ArrayList<AdvertisePacket.Provides>() {
+        private val provides: ArrayList<Provides> = object : ArrayList<Provides>() {
             init {
-                add(AdvertisePacket.Provides.BLE)
-                add(AdvertisePacket.Provides.WIFIP2P)
+                add(Provides.BLE)
+                add(Provides.WIFIP2P)
             }
         }
         val self: AdvertisePacket = AdvertisePacket.newBuilder()

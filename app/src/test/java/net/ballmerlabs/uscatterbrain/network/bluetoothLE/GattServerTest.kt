@@ -4,6 +4,8 @@ import android.bluetooth.*
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
+import android.util.Pair
 import com.google.protobuf.MessageLite
 import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.RxBleDevice
@@ -12,6 +14,7 @@ import com.polidea.rxandroidble2.mockrxandroidble.RxBleClientMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
+import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
@@ -21,17 +24,20 @@ import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
+import net.ballmerlabs.uscatterbrain.network.proto.*
+import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.FakeGattServerConnectionSubcomponent
-import net.ballmerlabs.uscatterbrain.network.AckPacket
-import net.ballmerlabs.uscatterbrain.network.ScatterSerializable
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Companion.CLIENT_CONFIG
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnectionImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.MockWifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
+import net.ballmerlabs.uscatterbrain.util.getBogusRxBleDevice
 import net.ballmerlabs.uscatterbrain.util.logger
 import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
 import org.junit.After
@@ -46,13 +52,16 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
+
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [Build.VERSION_CODES.TIRAMISU])
 class GattServerTest {
     init {
         System.setProperty("jna.library.path", "/opt/homebrew/lib")
@@ -60,7 +69,8 @@ class GattServerTest {
     }
 
 
-    private val scheduler = Schedulers.single()
+    private val scheduler = RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-single"))
+    private val ioScheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test-io"))
 
     private lateinit var disposable: CompositeDisposable
 
@@ -120,7 +130,7 @@ class GattServerTest {
         connectionBuilder = component.gattConnectionBuilder()
     }
 
-    private fun getConnection(): GattServerConnection {
+    private fun getConnection(): GattServerConnectionImpl {
         return connectionBuilder
             .gattServer(androidGattServer)
             .timeoutConfiguration(
@@ -149,24 +159,15 @@ class GattServerTest {
                 on { uuid } doReturn UUID.randomUUID()
             })
 
-        connection.initializeServer(config).blockingAwait()
+        connection.initializeServer(config)
+            .mergeWith(Completable.fromAction {
+                connection.gattServerCallback.onServiceAdded(BluetoothGatt.GATT_SUCCESS, mock {
+                    on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT
+                })
+            })
+            .blockingAwait()
     }
 
-    private fun getBogusRxBleDevice(mac: String): RxBleDevice {
-        return RxBleDeviceMock.Builder()
-            .deviceMacAddress(mac)
-            .deviceName("")
-            .bluetoothDevice(mock {
-                on { address } doReturn mac
-            })
-            .connection(
-                RxBleConnectionMock.Builder()
-                    .rssi(1)
-                    .build()
-            )
-            .scanRecord(RxBleScanRecordMock.Builder().build())
-            .build()
-    }
 
     private fun getCharacteristic(
         char: UUID,
@@ -214,7 +215,13 @@ class GattServerTest {
         setupModule()
 
         val connection = getConnection()
-        connection.initializeServer(config).blockingAwait()
+        connection.initializeServer(config)
+            .mergeWith(Completable.fromAction {
+                connection.gattServerCallback.onServiceAdded(BluetoothGatt.GATT_SUCCESS, mock {
+                    on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT
+                })
+            })
+            .blockingAwait()
 
         val replay = ReplaySubject.create<T>()
         get(connection)
@@ -230,7 +237,7 @@ class GattServerTest {
     ): ServerConfig {
         return ServerConfig()
             .addService(mock {
-                on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID
+                on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT
                 on { characteristics } doReturn arrayListOf(characteristic)
             })
 
@@ -247,7 +254,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnCharacteristicWriteRequest(char)
+                connection.getEvents().filter { c -> c.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onCharacteristicWriteRequest(
@@ -273,7 +280,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnCharacteristicReadRequest(char)
+                connection.getEvents().filter { c -> c.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onCharacteristicReadRequest(
@@ -301,7 +308,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnDescriptorWriteRequest(char, des)
+                connection.getEvents().filter { c -> c.uuid == des && c.characteristic.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onDescriptorWriteRequest(
@@ -330,7 +337,7 @@ class GattServerTest {
         val res = mockGattConnection(
             config,
             get = { connection ->
-                connection.getOnDescriptorReadRequest(char, des)
+                connection.getEvents().filter { c -> c.uuid == des && c.characteristic.uuid == char }
             },
             trigger = { connection, device ->
                 connection.gattServerCallback.onDescriptorReadRequest(
@@ -367,7 +374,7 @@ class GattServerTest {
                     getConnectionState(device.bluetoothDevice, BluetoothProfile.GATT_SERVER)
                 } doReturn BluetoothProfile.STATE_CONNECTED
             }
-            var connection: GattServerConnection? = null
+            var connection: GattServerConnectionImpl? = null
             setupModule()
 
             androidGattServer = mock {
@@ -379,14 +386,34 @@ class GattServerTest {
                     )
                 } doAnswer { c ->
                     println("answering notifyCharacteristicChanged")
-                    connection!!.getNotificationPublishRelay().valueRelay.onNext(BluetoothGatt.GATT_SUCCESS)
+                    connection!!.getNotificationPublishRelay().valueRelay.accept(Pair(mac, BluetoothGatt.GATT_SUCCESS))
                     true
                 }
+                on {
+                    notifyCharacteristicChanged(
+                        any(),
+                        any(),
+                        any(),
+                        any()
+                    )
+                } doAnswer { c ->
+                    println("answering notifyCharacteristicChanged")
+                    connection!!.getNotificationPublishRelay().valueRelay.accept(Pair(mac, BluetoothGatt.GATT_SUCCESS))
+                    BluetoothGatt.GATT_SUCCESS
+                }
+
             }
 
             connection = getConnection()
 
-            connection.initializeServer(config).timeout(1, TimeUnit.SECONDS).blockingAwait()
+            connection.initializeServer(config).timeout(1, TimeUnit.SECONDS)
+                .mergeWith(Completable.fromAction {
+                    connection.gattServerCallback.onServiceAdded(BluetoothGatt.GATT_SUCCESS, mock {
+                        on { uuid } doReturn BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT
+                        on { characteristics } doReturn arrayListOf(characteristic)
+                    })
+                })
+                .blockingAwait()
 
             connection.gattServerCallback.onDescriptorWriteRequest(
                 device.bluetoothDevice,
@@ -400,14 +427,15 @@ class GattServerTest {
             val notif= connection.setupNotifications(
                     characteristic,
                     Flowable.just(packets)
-                        .flatMap { packet -> packet.writeToStream(GATT_SIZE, Schedulers.io()) },
+                        .flatMapMaybe { packet -> packet.writeToStream(GATT_SIZE, scheduler) }
+                        .flatMap { v -> v },
                     isIndication,
                     device
                 )
                     .timeout(10, TimeUnit.SECONDS)
                     .doOnNext { b -> println("new bytes $b") }
 
-            ScatterSerializable.parseWrapperFromCRC(parser, notif, Schedulers.io())
+            ScatterSerializable.parseWrapperFromCRC(parser, notif, ioScheduler)
                 .timeout(9, TimeUnit.SECONDS)
         }
     }
@@ -416,7 +444,7 @@ class GattServerTest {
     fun notifications() {
         for (x in 0..45) {
             val packet = AckPacket.newBuilder(true).setMessage("message").build()
-            val newpacket = testNotify(false, packet, AckPacket.parser()).blockingGet() as AckPacket
+            val newpacket = testNotify(false, packet, AckPacketParser.parser).blockingGet() as AckPacket
             assert(newpacket.message == packet.message)
             assert(newpacket.success)
         }
@@ -426,7 +454,7 @@ class GattServerTest {
     fun indications() {
         for (x in 0..45) {
             val packet = AckPacket.newBuilder(true).setMessage("message").build()
-            val newpacket = testNotify(true, packet, AckPacket.parser()).blockingGet() as AckPacket
+            val newpacket = testNotify(true, packet, AckPacketParser.parser).blockingGet() as AckPacket
             assert(newpacket.message == packet.message)
             assert(newpacket.success)
         }

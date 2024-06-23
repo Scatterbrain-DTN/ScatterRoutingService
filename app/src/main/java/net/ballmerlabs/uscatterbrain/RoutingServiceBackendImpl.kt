@@ -3,16 +3,18 @@ package net.ballmerlabs.uscatterbrain
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.Signature
-import android.net.wifi.p2p.WifiP2pManager
+import android.net.Uri
 import android.os.RemoteException
+import com.akaita.java.rxjava2debug.extensions.RxJavaAssemblyException
 import com.goterl.lazysodium.interfaces.Sign
+import com.polidea.rxandroidble2.internal.RxBleLog
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import io.reactivex.Completable
 import io.reactivex.Observable
+import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import io.reactivex.plugins.RxJavaPlugins
@@ -25,16 +27,21 @@ import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeStateImpl
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
+import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
+import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import java.io.File
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
@@ -47,9 +54,13 @@ class RoutingServiceBackendImpl @Inject constructor(
     override val scheduler: ScatterbrainScheduler,
     override val prefs: RouterPreferences,
     override val leState: LeState,
-    val transactionBuilder: ScatterbrainTransactionFactory,
-    val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
-    val context: Context
+    override val advertiser: Advertiser,
+    val datastoreFile: File,
+    val context: Context,
+    val serverSocketManager: ServerSocketManager,
+    val firebaseWrapper: FirebaseWrapper,
+    @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) val ioScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
 ) : RoutingServiceBackend {
     private val LOG by scatterLog()
     private val protocolDisposableSet =
@@ -57,24 +68,47 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     init {
         LOG.e("initializing backend")
-        RxJavaPlugins.setErrorHandler { e: Throwable ->
+        RxJavaPlugins.setErrorHandler { e ->
             LOG.e("received an unhandled exception: $e")
-            e.printStackTrace()
+            try {
+                e.printStackTrace()
+                firebaseWrapper.recordException(e)
+                if (e is RxJavaAssemblyException) {
+                    LOG.e(e.stacktrace())
+                }
+            } catch (exc: Exception) {
+                LOG.cry("triple fault $exc")
+            }
         }
-        // RxBleLOG.setLogLevel(RxBleLOG.VERBOSE)
+       RxBleLog.setLogLevel(RxBleLog.DEBUG)
+      //RxDogTag.install()
+      //RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
+    }
+
+
+
+
+    override fun dumpDatastore(uri: Uri): Completable {
+        return Completable.fromAction {
+            val f = datastoreFile.inputStream()
+            val out = context.contentResolver.openOutputStream(uri)
+            if (out != null) {
+                f.copyTo(out)
+                out.close()
+            }
+        }.subscribeOn(ioScheduler)
     }
 
     /**
      * verify the signature of the calling package to determine if it can
      * access the current api call.
-     *
+     *'
      * TODO: on devices lower than api28 we do NOT support multiple signatures
      * This is a workaround for
      * https://android.googlesource.com/platform/tools/base/+/master/lint/libs/lint-checks/src/main/java/com/android/tools/lint/checks/GetSignaturesDetector.java#62
      *
      */
     @SuppressLint("PackageManagerGetSignatures")
-    @Synchronized
     @Throws(RemoteException::class)
     private fun verifyCallingSig(acl: ACL, callingPackageName: String): Completable {
         return Completable.fromAction {
@@ -113,26 +147,6 @@ class RoutingServiceBackendImpl @Inject constructor(
             } catch (e: PackageManager.NameNotFoundException) {
                 throw RemoteException("invalid package name")
             }
-        }
-    }
-
-    override fun registerReceiver() {
-        try {
-            LOG.v("registering broadcast receiver")
-            val intentFilter = IntentFilter()
-            intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
-
-            // Indicates a change in the list of available peers.
-            intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
-
-            // Indicates the state of Wi-Fi P2P connectivity has changed.
-            intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
-
-            // Indicates this device's details have changed.
-            intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
-            context.registerReceiver(wifiDirectBroadcastReceiver.asReceiver(), intentFilter)
-        } catch (exc: Exception) {
-            LOG.e("failed to register receiver, ignoring $exc")
         }
     }
 
@@ -222,7 +236,7 @@ class RoutingServiceBackendImpl @Inject constructor(
             }
     }
 
-    override fun generateIdentity(name: String, callingPackageName: String): Single<Identity> {
+    override fun generateIdentity(name: String, callingPackageName: String, desktop: Boolean): Single<Identity> {
         return Single.defer {
             val apiidentity = ApiIdentity.newBuilder()
                 .setName(name)
@@ -230,7 +244,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .build()
             val identity = apiidentity.identity
             datastore.insertApiIdentity(apiidentity)
-                .andThen(authorizeApp(identity.fingerprint, callingPackageName))
+                .andThen(authorizeApp(identity.fingerprint, callingPackageName, desktop))
                 .toSingleDefault(identity)
                 .doOnSuccess {
                     val stats =
@@ -300,44 +314,44 @@ class RoutingServiceBackendImpl @Inject constructor(
             }
     }
 
-    override fun authorizeApp(fingerprint: UUID, packageName: String): Completable {
+    override fun authorizeApp(fingerprint: UUID, packageName: String, desktop: Boolean): Completable {
         return Observable.just(packageName).flatMap { name -> getSigs(name) }
             .flatMapCompletable { signature ->
                 val sig = signature.toCharsString()
-                datastore.addACLs(fingerprint, packageName, sig)
+                LOG.v("authorizeApp got sigs $sig")
+                datastore.addACLs(fingerprint, packageName, sig, desktop)
             }
 
     }
 
     override fun refreshPeers(): Completable {
-        return leState.refreshPeers()
-            .ignoreElements()
-            .timeout(
-                prefs.getLong(
-                    context.getString(R.string.pref_transactiontimeout),
-                    RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
-                )!!,
-                TimeUnit.SECONDS
-            )
+        return prefs.getLong(
+            context.getString(R.string.pref_transactiontimeout),
+            RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
+        ).flatMapCompletable { l ->
+            leState.refreshPeers()
+                .timeout(
+                    l,
+                    TimeUnit.SECONDS,
+                    timeoutScheduler
+                )
+        }
     }
 
     private fun asyncRefreshPeers() {
         LOG.v("asyncRefreshPeers")
         val disp = AtomicReference<Disposable>()
-        val d = refreshPeers()
-            .doFinally {
-                val d = disp.get()
-                if (d != null) {
-                    protocolDisposableSet.remove(d)
-                }
-            }
-            .timeout(
-                prefs.getLong(
-                    context.getString(R.string.pref_transactiontimeout),
-                    RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
-                )!!,
-                TimeUnit.SECONDS
-            )
+        val d = prefs.getLong(
+            context.getString(R.string.pref_transactiontimeout),
+            RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
+        ).flatMapCompletable { l ->
+            refreshPeers()
+                .timeout(
+                    l,
+                    TimeUnit.SECONDS,
+                    timeoutScheduler
+                )
+        }
             .doFinally {
                 val d = disp.get()
                 if (d != null) {

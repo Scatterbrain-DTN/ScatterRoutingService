@@ -1,0 +1,410 @@
+syntax = "proto3";
+package proto;
+/*
+ * Common messages between all protocols
+ */
+
+// Generic status response with optional error code
+message Ack {
+    bool success = 1;
+    int32 status = 2;
+    oneof message {
+        string text = 3;
+    }
+}
+
+// Protobuf has no native uuid type. This is 128 bit uuid.
+message UUID {
+    uint64 lower = 1;
+    uint64 upper = 2;
+}
+
+/*
+ * Scatterbrain DTN protocol
+ *
+ * used for p2p networking between scattebrain routers
+ * currently bluetooth and wifi direct
+*/
+
+enum MessageType {
+    // p2p types
+    ADVERTISE = 0;
+    DECLARE_HASHES = 1;
+    BLOCK_HEADER = 2;
+    BLOCK_SEQUENCE = 3;
+    ELECT_LEADER = 4;
+    UPGRADE = 5;
+    ROUTING_METADATA = 6;
+    IP_ANNOUNCE = 7;
+    IDENTITY = 8;
+    LUID = 9;
+    JUST_UKES = 10;
+    ACK = 11;
+    INVALID = 12;
+
+    // desktop types
+    GET_MESSAGE = 51;
+    GET_IDENTITY = 52;
+    SEND_MESSAGE = 53;
+    MESSAGE = 54;
+    UNIT_RESPONSE = 55;
+    CRYPTO_MESSAGE = 56;
+    PAIRING_REQUEST = 57;
+    PAIRING_INITIATE = 58;
+    PAIRING_COMPLETED = 59;
+    PAIRING_ACK = 60;
+    IDENTITY_RESPONSE = 61;
+    API_IDENTITY = 62;
+    MESSAGE_RESPONSE = 63;
+    API_HEADER = 64;
+    GENERATE_IDENTITY = 65;
+    IMPORT_IDENTITY = 66;
+    IMPORT_IDENTITY_RESPONSE = 67;
+    GENERATE_IDENTITY_RESPONSE = 68;
+    GET_EVENTS = 69;
+    DESKTOP_EVENTS = 70;
+    DESKTOP_EVENT = 71;
+    NO_BODY_MESSAGE = 72;
+}
+
+message TypePrefix {
+    MessageType type = 1;
+}
+
+// used to advertise the presence of a scatterbrain device
+// and to request the exchange of identities and blockdata
+message Advertise {
+   // ScatterType type = 1;
+    repeated uint32 provides = 1;
+}
+
+// Used for avoiding retransmitting messages already on remote peer.
+// yes I am aware i should have used a merkle tree. I was sleepy.
+message DeclareHashes {
+   // ScatterType type = 1;
+    bool optout = 1;
+    repeated bytes hashes = 2;
+}
+
+// header + metadata for a file, message or data stream
+message BlockData {
+    repeated UUID from_fingerprint = 2;
+    repeated UUID to_fingerprint = 3;
+    string application = 4;
+    string filename = 5;
+    uint32 ttl = 6;
+    string extension = 7;
+    string mime = 8;
+    uint32 sessionid = 9;
+    bool todisk = 10;
+    bool endofstream = 11;
+    uint64 send_date = 12;
+    repeated bytes nexthashes= 13; //size of this is fragment count
+    bytes sig = 14;
+}
+
+// body of file, message, or data stream.
+message BlockSequence {
+    uint32 seqnum = 2;
+    bool end = 3;
+    oneof data {
+        bytes data_contents = 4;
+        bool data_native = 5;
+    }
+}
+
+// For declaring local router identity.
+message Luid {
+    message hashed {
+        uint32 protoversion = 2;
+        bytes hash = 3;
+    }
+    oneof val {
+        UUID val_uuid = 4;
+        hashed val_hash = 5;
+    }
+}
+
+// For gossiping about wifi direct "ukes" in area. Currently unused
+message ExtraUke {
+    UUID luid = 2;
+    Upgrade upgrade = 3;
+}
+
+// Symmetry breaking role used for bootstrapping to another protocol
+enum Role {
+    UKE = 0;
+    SEME = 1;
+    SUPER_UKE = 2;
+    SUPER_SEME = 3;
+}
+
+// Packet for voting in distributed elections. Used for bootstrapping
+message ElectLeader {
+    UUID sender = 2;
+    message Body {
+        bytes salt = 3;
+        uint32 provides = 4;
+        UUID tiebreaker_val = 5;
+        oneof maybe_upgrade { Upgrade upgrade = 6; };
+    }
+    oneof val {
+        Body val_body = 7;
+        bytes val_hash = 8;
+    }
+}
+
+// used to request switching to a different physical transport
+message Upgrade {
+    uint32 provides = 2;
+    uint32 sessionid = 3;
+    map<string, string> metadata = 4;
+    UUID from = 5;
+    Role role = 6;
+}
+
+
+// a user identity with name and one or more keys
+message Identity {
+    message Body {
+        string givenname = 2;
+        map<string, bytes> keys = 3;
+        bytes sig = 4;
+    }
+    oneof message {
+        bool end = 5;
+        Body val = 6;
+    }
+}
+
+// Currently unused, part of old "gossip" based wifi direct bootstrap method
+message JustUkes  {
+    repeated ExtraUke ukes = 1;
+    bool too_small = 2;
+}
+
+// arbitrary metadata about the network
+// used for building more complex routing algorithms someday
+message RoutingMetadata {
+    UUID id = 1;
+    bool endofstream = 2;
+    map<string, bytes> keyval = 3;
+}
+
+// Used for informing new wifi direct peers about neighbors
+message IpAnnounceItem {
+    UUID id = 1;
+    string address = 2;
+    uint32 port = 3;
+    bool uke = 4;
+}
+
+// Used for informing new wifi direct peers about neighbors
+message IpAnnounce {
+    UUID self = 1;
+    repeated IpAnnounceItem items = 2;
+}
+
+
+/*
+ * Desktop control protocol. Used for controlling one or more scatterbrain routers
+ * from desktop apps
+ */
+
+// Response code for pairing operations
+enum RespCode {
+    OK = 0;
+    ERR = 1;
+    DENIED = 2;
+}
+
+// Header for all messages sent in the context of a session
+message ApiHeader {
+   // ScatterType type = 1;
+    UUID session = 1;
+    oneof stream { int32 stream_id = 2; }
+}
+
+// Sent by a desktop app to initiate a pairing request, offering
+// public key
+message PairingInitiate {
+    bytes pubkey = 1;
+}
+
+message PairingAck {
+    ApiHeader session = 1;
+    bytes pubkey = 2;
+}
+
+
+message PairingRequest {
+    ApiHeader session = 1;
+    string name = 2;
+}
+
+// Response sent once by the device and once by the desktop app to indicate
+// whether the button has been pressed
+// this is sent as a CryptoMessage
+message UnitResponse {
+    ApiHeader header = 1;
+    RespCode code = 2;
+    oneof maybeMessage {
+        string message = 3;
+    }
+}
+
+// Wrapper for libsodium secret boxes (authenticated encryption)
+message CryptoMessage {
+    bytes nonce = 1;
+    bytes encrypted = 2;
+}
+
+// Scattermessage stored on device
+message ApiMessage {
+    UUID fromFingerprint = 1;
+    UUID toFingerprint = 2;
+    string application = 3;
+    string extension = 4;
+    string mime = 5;
+    int64  sendDate = 6;
+    int64 receiveDate = 7;
+    bool isFile = 8;
+    UUID id = 9;
+    bytes body = 10;
+    string fileName = 11;
+}
+
+// Identity stored on device
+message ApiIdentity {
+    UUID fingerprint = 1;
+    string name = 2;
+    bytes publicKey = 3;
+    bool isOwned = 4;
+    map<string, bytes> extra = 5;
+    bytes sig = 6;
+}
+
+// command to send messages
+message SendMessageCmd {
+    ApiHeader header = 1;
+    repeated ApiMessage messages = 2;
+    oneof signIdentity {
+        UUID identity = 3;
+    }
+}
+
+message GetMessagesCmd {
+    ApiHeader header = 1;
+    oneof timeSlice {
+        TimeRange sendDate = 2;
+        TimeRange receiveDate = 3;
+    };
+    oneof maybeApplication {
+        string application = 5;
+    }
+    int32 limit = 6;
+    message Start {
+        int64 start = 1;
+    }
+    message End {
+        int64 end = 1;
+    }
+    message TimeRange {
+        int64 start = 1;
+        int64 end = 2;
+    }
+}
+
+// Get an identity by id
+message GetIdentityCommand {
+    ApiHeader header = 1;
+    oneof id { UUID identity = 2; }
+    bool owned = 3;
+}
+
+// Identity with response code
+message IdentityResponse {
+    ApiHeader header = 1;
+    repeated ApiIdentity identity = 2;
+    RespCode code = 3;
+}
+
+// Message with response code
+message MessageResponse {
+    ApiHeader header = 1;
+    repeated ApiMessage messsage = 2;
+    RespCode code = 3;
+}
+
+message GenerateIdentityCommand {
+    ApiHeader header = 1;
+    string name = 2;
+}
+
+message ImportIdentityCommand {
+    ApiHeader header = 1;
+    oneof maybeHandle {
+        UUID handle = 2;
+    }
+}
+
+
+message GenerateIdentityResponse {
+    ApiHeader header = 1;
+    UUID identity = 2;
+    RespCode code = 3;
+}
+
+message ImportIdentityResponse {
+    ApiHeader header = 1;
+    RespCode code = 2;
+    oneof state {
+        FinalResponse final = 3;
+        UUID handle = 4;
+    }
+    message FinalResponse {
+        UUID handle = 5;
+        UUID identity = 6;
+    }
+}
+
+message GetEvents {
+    ApiHeader header = 1;
+    bool block = 2;
+    oneof maybeCount {
+        uint32 count = 3;
+    }
+}
+
+message Events {
+    ApiHeader header = 1;
+    repeated Event events = 2;
+}
+
+message Event {
+    oneof Event {
+        NewMessage newMessage = 21;
+        NewIdentity newIdentities = 2;
+    }
+
+    message NewMessage {
+        repeated NoBodyMessage messages = 1;
+    }
+
+    message NoBodyMessage {
+        UUID fromFingerprint = 1;
+        UUID toFingerprint = 2;
+        string application = 3;
+        string extension = 4;
+        string mime = 5;
+        int64  sendDate = 6;
+        int64 receiveDate = 7;
+        bool isFile = 8;
+        UUID id = 9;
+        string fileName = 10;
+    }
+
+    message NewIdentity {
+        repeated ApiIdentity identities = 1;
+    }
+}

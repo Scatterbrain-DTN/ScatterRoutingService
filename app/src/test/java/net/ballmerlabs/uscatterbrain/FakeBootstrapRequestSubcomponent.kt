@@ -7,6 +7,8 @@ import dagger.Subcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
+import java.net.InetAddress
+import java.util.UUID
 import javax.inject.Named
 
 
@@ -48,8 +50,31 @@ interface FakeBootstrapRequestSubcomponent : BootstrapRequestSubcomponent {
             @Provides
             @JvmStatic
             @BootstrapRequestScope
-            fun providesRole(args: BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs): BluetoothLEModule.ConnectionRole {
+            fun providesFrom(args: BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs): UUID {
+                return args.from
+            }
+
+            @Provides
+            @JvmStatic
+            @BootstrapRequestScope
+            @Named(BootstrapRequestSubcomponent.PORT)
+            fun providesPort(): Int {
+                return 9999
+            }
+
+            @Provides
+            @JvmStatic
+            @BootstrapRequestScope
+            fun providesRole(args: BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs): BluetoothLEModule.Role {
                 return args.role
+            }
+
+            @Provides
+            @JvmStatic
+            @BootstrapRequestScope
+            @Named(BootstrapRequestSubcomponent.OWNER_ADDRESS)
+            fun providesGroupOwner(args: BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs): InetAddress {
+                return args.ownerAddress
             }
 
 

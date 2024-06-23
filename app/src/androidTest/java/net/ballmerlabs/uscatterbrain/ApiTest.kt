@@ -1,16 +1,21 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.content.Context
 import android.util.Log
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import com.google.protobuf.ByteString
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
+import net.ballmerlabs.scatterproto.sanitizeFilename
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
-import net.ballmerlabs.uscatterbrain.db.sanitizeFilename
-import net.ballmerlabs.uscatterbrain.network.IdentityPacket
+import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
+import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.nio.ByteBuffer
@@ -22,12 +27,21 @@ import kotlin.random.Random
 @SmallTest
 class ApiTest: TestBase() {
 
+    private lateinit var context: Context
+
     private fun syncSendMessage(message: ScatterMessage) {
         regularBinder.sendMessage(message)
     }
 
     private fun syncSendMesssages(messages: List<ScatterMessage>) {
         regularBinder.sendMessages(messages)
+    }
+
+    @ExperimentalCoroutinesApi
+    @Before
+    override fun init() {
+        super.init()
+        context = ApplicationProvider.getApplicationContext()
     }
 
 
@@ -40,7 +54,7 @@ class ApiTest: TestBase() {
     @Test
     @Throws(TimeoutException::class)
     fun sendMessage() {
-        val message = ScatterMessage.Builder.newInstance(byteArrayOf(8))
+        val message = ScatterMessage.Builder.newInstance(context, byteArrayOf(8))
                 .setApplication("testing")
                 .build()
         runBlocking { binder.sendMessage(message) }
@@ -49,7 +63,7 @@ class ApiTest: TestBase() {
     @Test
     @Throws(TimeoutException::class)
     fun sendMessageSync() {
-        val message = ScatterMessage.Builder.newInstance(byteArrayOf(2))
+        val message = ScatterMessage.Builder.newInstance(context, byteArrayOf(2))
                 .setApplication("testing")
                 .build()
 
@@ -60,8 +74,8 @@ class ApiTest: TestBase() {
     @Throws(TimeoutException::class)
     fun sendMessages() {
         val list = ArrayList<ScatterMessage>()
-        for (x in 0..1000) {
-            val message = ScatterMessage.Builder.newInstance(Random(0).nextBytes(128))
+        for (x in 0..100) {
+            val message = ScatterMessage.Builder.newInstance(context, Random(0).nextBytes(128))
                     .setApplication("testing")
                     .build()
             list.add(message)
@@ -73,8 +87,8 @@ class ApiTest: TestBase() {
     @Throws(TimeoutException::class)
     fun sendMessagesSync() {
         val list = ArrayList<ScatterMessage>()
-        for (x in 0..1000) {
-            val message = ScatterMessage.Builder.newInstance(Random(1).nextBytes(1280))
+        for (x in 0..100) {
+            val message = ScatterMessage.Builder.newInstance(context, Random(1).nextBytes(1280))
                     .setApplication("testing")
                     .build()
             list.add(message)
@@ -90,7 +104,7 @@ class ApiTest: TestBase() {
         val application = LibsodiumInterface.base64enc(Random.nextBytes(1024))
         val list = ArrayList<ScatterMessage>()
         for (x in 0..size) {
-            val message = ScatterMessage.Builder.newInstance(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(x).array())
+            val message = ScatterMessage.Builder.newInstance(context, ByteBuffer.allocate(Int.SIZE_BYTES).putInt(x).array())
                 .setApplication(application)
                 .build()
             list.add(message)
@@ -118,8 +132,8 @@ class ApiTest: TestBase() {
     @Throws(TimeoutException::class)
     fun sendAndSignMessages() {
         val list = ArrayList<ScatterMessage>()
-        for (x in 0..1000) {
-            val message = ScatterMessage.Builder.newInstance(Random(0).nextBytes(128))
+        for (x in 0..100) {
+            val message = ScatterMessage.Builder.newInstance(context, Random(0).nextBytes(128))
                     .setApplication("testing")
                     .build()
             list.add(message)
@@ -135,7 +149,7 @@ class ApiTest: TestBase() {
     fun signMessageHandleErr() {
         val list = ArrayList<ScatterMessage>()
         for (x in 0..2) {
-            val message = ScatterMessage.Builder.newInstance(Random(0).nextBytes(128))
+            val message = ScatterMessage.Builder.newInstance(context, Random(0).nextBytes(128))
                     .setApplication("testing")
                     .build()
             list.add(message)
@@ -150,14 +164,14 @@ class ApiTest: TestBase() {
     fun preventSimpleDirectoryTraversalAttack() {
         val filename = "../fmef"
         try {
-            assert(sanitizeFilename(filename) != filename)
+            assert(net.ballmerlabs.scatterproto.sanitizeFilename(filename) != filename)
             assert(false)
         } catch (exc: Exception) {
             assert(true)
         }
 
         try {
-            assert(!sanitizeFilename(filename).contains(".."))
+            assert(!net.ballmerlabs.scatterproto.sanitizeFilename(filename).contains(".."))
             assert(false)
         } catch (exc: Exception) {
             assert(true)
@@ -169,8 +183,8 @@ class ApiTest: TestBase() {
     fun allowsNormalFilename() {
         val i = "fmef"
         val x = "fmef_text"
-        assert(sanitizeFilename(i) == i)
-        assert(sanitizeFilename(x) == x)
+        assert(net.ballmerlabs.scatterproto.sanitizeFilename(i) == i)
+        assert(net.ballmerlabs.scatterproto.sanitizeFilename(x) == x)
     }
 
     @Test

@@ -1,44 +1,50 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions
 
+import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattServer
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Completable
-import io.reactivex.Scheduler
 import net.ballmerlabs.uscatterbrain.GattServerTransactionScope
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ServerTransactionSubcomponent
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerOperationsProvider
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.ServerConnectionOperationQueue
+import java.util.UUID
 import javax.inject.Inject
-import javax.inject.Named
 import javax.inject.Provider
 
 @GattServerTransactionScope
 class ServerResponseTransactionImpl @Inject constructor(
-        override val remoteDevice: RxBleDevice,
-        private val config: ServerTransactionSubcomponent.TransactionConfig,
-        private val server: Provider<BluetoothGattServer>,
-        @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER) private val scheduler: Scheduler
-): ServerResponseTransaction {
+    override val remoteDevice: RxBleDevice,
+    private val config: ServerTransactionSubcomponent.TransactionConfig,
+    private val server: Provider<BluetoothGattServer>,
+    private val operationQueue: ServerConnectionOperationQueue,
+    private val operationsProvider: ServerOperationsProvider,
+    override val uuid: UUID,
+        ): ServerResponseTransaction {
     override val requestID: Int
         get() = config.requestID
     override val offset: Int
         get() = config.offset
     override val value: ByteArray?
         get() = config.value
-
+    override val operation: GattServerConnection.Operation
+        get() = config.operation
+    override val characteristic: BluetoothGattCharacteristic
+        get() = config.characteristic
 
     override fun sendReply(value: ByteArray?, status: Int): Completable {
-        return Completable.fromAction {
+        return Completable.defer {
             try {
-                server.get().sendResponse(
+                operationQueue.queue(operationsProvider.provideSendResponseOperation(
                     remoteDevice.bluetoothDevice,
                     config.requestID,
                     status,
-                    config.offset,
-                    value
-                )
+                    value?: byteArrayOf()
+                )).ignoreElements()
             } catch (exc: SecurityException) {
                 throw exc
             }
-        }.subscribeOn(scheduler)
+        }
     }
 }

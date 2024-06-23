@@ -4,12 +4,14 @@ import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.room.Embedded
 import androidx.room.Relation
+import net.ballmerlabs.scatterproto.Verifiable
 import net.ballmerlabs.uscatterbrain.db.getGlobalHash
-import net.ballmerlabs.uscatterbrain.db.hashAsUUID
-import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
-import net.ballmerlabs.uscatterbrain.network.Verifiable
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
+import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacket
+import net.ballmerlabs.uscatterbrain.util.hashAsUUID
 import java.io.File
-import java.util.*
+import java.util.Date
+import java.util.UUID
 
 /**
  * helper class representing a relation between a message and its hashes
@@ -60,7 +62,6 @@ data class DbMessage(
 
     companion object {
 
-
         fun from(
             headerPacket: BlockHeaderPacket,
             prefix: File,
@@ -110,6 +111,7 @@ data class DbMessage(
         ): File {
             return getPath(prefix, message, getGlobalHash(hashes))
         }
+
         fun getPath(
             prefix: File,
             message: net.ballmerlabs.scatterbrainsdk.ScatterMessage,
@@ -120,6 +122,60 @@ data class DbMessage(
             )
         }
 
+        fun getPath(
+            prefix: File,
+            message: DesktopMessage,
+            globalHash: ByteArray
+        ): File {
+            return  File(
+                prefix, hashAsUUID(globalHash).toString() + message.extension
+            )
+        }
+
+        fun from(
+            message: DesktopMessage,
+            hashes: List<ByteArray>,
+            prefix: File,
+            packageName: String = "",
+            bytes: ByteArray? = null
+        ): DbMessage {
+
+            val globalhash = getGlobalHash(hashes)
+            val newFile = getPath(prefix, message, globalhash)
+            val hm = HashlessScatterMessage(
+                body = bytes,
+                application = message.application,
+                sig = null,
+                sessionid = 0,
+                extension = message.extension,
+                fileGlobalHash = globalhash,
+                mimeType = message.mime,
+                sendDate = Date().time,
+                receiveDate = Date().time,
+                fileSize = message.body.size.toLong(),
+                packageName = packageName
+            )
+            val dbmessage = DbMessage(
+                hm,
+                DiskFile(
+                    messageHashes = HashlessScatterMessage.hash2hashs(hashes, globalhash),
+                    global = GlobalHash(
+                        globalhash = globalhash,
+                        filePath = newFile.absolutePath //TODO: this needs to change to cacheDir
+                    )
+                ),
+                if (message.toFingerprint == null)
+                    arrayListOf()
+                else
+                    arrayListOf(IdentityId(message.toFingerprint!!)),
+                if (message.fromFingerprint == null)
+                    arrayListOf()
+                else
+                    arrayListOf(IdentityId(message.fromFingerprint!!))
+            )
+            dbmessage.message = hm
+            return dbmessage
+        }
 
         fun from(
             message: net.ballmerlabs.scatterbrainsdk.ScatterMessage,

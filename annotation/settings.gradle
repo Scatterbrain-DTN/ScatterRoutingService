@@ -1,0 +1,2 @@
+include ':ScatterRoutingService'
+project(':ScatterRoutingService').projectDir = new File('../')

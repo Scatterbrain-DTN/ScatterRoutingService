@@ -5,11 +5,14 @@ import com.goterl.lazysodium.interfaces.GenericHash
 import com.goterl.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
+import kotlinx.collections.immutable.toImmutableMap
 import net.ballmerlabs.scatterbrainsdk.Identity
-import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
-import net.ballmerlabs.uscatterbrain.db.hashAsUUID
+import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
-import java.util.*
+import net.ballmerlabs.uscatterbrain.util.hashAsUUID
+import java.util.SortedSet
+import java.util.TreeSet
+import java.util.UUID
 
 /**
  * ApiIdentity is a mutable handle to an identity that allows more privileged
@@ -24,12 +27,12 @@ open class ApiIdentity protected constructor(val builder: Builder) {
 
     val identity: Identity
     get() = Identity(
-            builder.mPubKeymap,
-            builder.mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]!!,
-            builder.name!!,
-            builder.sig!!,
-            builder.fingerprint!!,
-            builder.hasPrivateKey
+        builder.mPubKeymap.toImmutableMap(),
+        builder.mPubKeymap[PROTOBUF_PRIVKEY_KEY]!!,
+        builder.name!!,
+        builder.sig!!,
+        builder.fingerprint!!,
+        builder.hasPrivateKey
     )
 
 
@@ -78,7 +81,6 @@ open class ApiIdentity protected constructor(val builder: Builder) {
          * @param secretkey the secretkey
          * @return the boolean
          */
-        @Synchronized
         private fun signEd25519(secretkey: ByteArray): Boolean {
             if (secretkey.size != Sign.SECRETKEYBYTES) return false
             val messagebytes = sumBytes()
@@ -126,13 +128,13 @@ open class ApiIdentity protected constructor(val builder: Builder) {
             if (signPair != null) {
                 require(signPair?.publickey != null) { "public key must be non-null" }
                 require(signPair?.secretkey != null) { "secret key must be non-null" }
-                mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY] = signPair!!.publickey
+                mPubKeymap[PROTOBUF_PRIVKEY_KEY] = signPair!!.publickey
                 pubkey = signPair!!.publickey
                 privkey = signPair!!.secretkey
                 signEd25519(signPair!!.secretkey)
                 hasPrivateKey = true
             } else {
-                pubkey = mPubKeymap[ScatterbrainApi.PROTOBUF_PRIVKEY_KEY]
+                pubkey = mPubKeymap[PROTOBUF_PRIVKEY_KEY]
             }
             fingerprint = getPubkeyFingerprint()
             return ApiIdentity(this)

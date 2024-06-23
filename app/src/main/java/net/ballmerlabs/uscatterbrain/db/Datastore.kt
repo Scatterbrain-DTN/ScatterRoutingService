@@ -1,9 +1,28 @@
 package net.ballmerlabs.uscatterbrain.db
 
-import androidx.room.*
+import androidx.room.AutoMigration
+import androidx.room.Database
+import androidx.room.DeleteColumn
+import androidx.room.DeleteTable
+import androidx.room.RenameColumn
+import androidx.room.RoomDatabase
+import androidx.room.TypeConverter
+import androidx.room.TypeConverters
 import androidx.room.migration.AutoMigrationSpec
-import net.ballmerlabs.uscatterbrain.db.entities.*
-import java.util.*
+import net.ballmerlabs.uscatterbrain.db.entities.ClientApp
+import net.ballmerlabs.uscatterbrain.db.entities.GlobalHash
+import net.ballmerlabs.uscatterbrain.db.entities.Hashes
+import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
+import net.ballmerlabs.uscatterbrain.db.entities.IdentityDao
+import net.ballmerlabs.uscatterbrain.db.entities.IdentityId
+import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
+import net.ballmerlabs.uscatterbrain.db.entities.Keys
+import net.ballmerlabs.uscatterbrain.db.entities.Metrics
+import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessageDao
+import net.ballmerlabs.uscatterbrain.db.migration.Migrate21
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopClientDao
+import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
+import java.util.UUID
 
 
 class UuidTypeConverter {
@@ -29,16 +48,32 @@ class UuidTypeConverter {
         Keys::class,
         ClientApp::class,
         IdentityId::class,
-        GlobalHash::class
+        GlobalHash::class,
+        Metrics::class,
+        DesktopClient::class
     ],
-    version = 16,
+    version = 21,
     exportSchema = true,
-    autoMigrations = []
+    autoMigrations = [
+        AutoMigration(
+            from = 17,
+            to = 18
+        ),
+        AutoMigration(
+            from = 18,
+            to = 19
+        ),
+        AutoMigration(
+            from = 19,
+            to = 20
+        )
+    ]
 )
 @TypeConverters(UuidTypeConverter::class)
 abstract class Datastore : RoomDatabase() {
     abstract fun identityDao(): IdentityDao
     abstract fun scatterMessageDao(): ScatterMessageDao
+    abstract fun desktopClientDao(): DesktopClientDao
 
     @DeleteColumn(
         tableName = "messages",
@@ -50,4 +85,6 @@ abstract class Datastore : RoomDatabase() {
         toColumnName = "recipient_fingerprint"
     )
     class MigrationSpec9 : AutoMigrationSpec
+
+
 }

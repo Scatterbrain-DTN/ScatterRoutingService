@@ -1,10 +1,12 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.app.AlarmManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.ConnectivityManager
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.PowerManager
@@ -13,6 +15,7 @@ import com.polidea.rxandroidble2.RxBleClient
 import dagger.*
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
+import io.reactivex.schedulers.Schedulers
 import net.ballmerlabs.uscatterbrain.db.DATABASE_NAME
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.MockScatterbrainDatastore
@@ -22,15 +25,23 @@ import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
+import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
+import net.ballmerlabs.uscatterbrain.network.desktop.FakeDesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import javax.inject.Named
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -74,7 +85,8 @@ interface FakeRoutingServiceComponent {
         FakeWifiDirectInfoSubcomponent::class,
         FakeBootstrapRequestSubcomponent::class,
         FakeGattServerConnectionSubcomponent::class,
-        FakeTransactionSubcomponent::class
+        FakeWifiGroupSubcompoment::class,
+        FakeDesktopApiSubcomponent::class
     ])
     abstract class FakeRoutingServiceModule {
         @Binds
@@ -96,10 +108,6 @@ interface FakeRoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindsDatastoreImportProvider(impl: DatastoreImportProviderImpl): DatastoreImportProvider
-
-        @Binds
-        @Singleton
-        abstract fun bindsTransactionFactory(impl: ScatterbrainTransactionFactoryImpl): ScatterbrainTransactionFactory
 
         @Binds
         @Singleton
@@ -131,7 +139,15 @@ interface FakeRoutingServiceComponent {
 
         @Binds
         @Singleton
-        abstract fun bindsManagedServer(impl: ManagedGattServerImpl): ManagedGattServer
+        abstract fun bindsWifiDirectManager(impl: FakeWifiDirectProvider): WifiDirectProvider
+
+        @Binds
+        @Singleton
+        abstract fun bindsWakeLockManager(impl: FakeWakeLockProvider): WakeLockProvider
+
+        @Binds
+        @Singleton
+        abstract fun bindsBroadcaster(impl: FakeBroadcaster): Broadcaster
 
         @Module
         companion object {
@@ -144,6 +160,28 @@ interface FakeRoutingServiceComponent {
                         .build()
             }
 
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesAlarmManager(context: Context): AlarmManager {
+                return mock {  }
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesConnectivityManager(context: Context): ConnectivityManager {
+                return mock {  }
+            }
+
+
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesDatabaseFile(datastore:Datastore): File {
+                return File(datastore.openHelper.readableDatabase.path!!)
+            }
 
             @Provides
             @JvmStatic
@@ -158,6 +196,34 @@ interface FakeRoutingServiceComponent {
             @Singleton
             fun providesBootstrapRequestbuilder(builder: FakeBootstrapRequestSubcomponent.Builder): BootstrapRequestSubcomponent.Builder {
                 return builder
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT)
+            fun provideGlobalTimeoutScheduler(): Scheduler {
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(
+                    RoutingServiceComponent.NamedSchedulers.TIMEOUT))
+            }
+
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.WIFI_SERVER)
+            fun provideWifiDirectOperationsScheduler(): Scheduler {
+                return RxJavaPlugins.createComputationScheduler(ScatterbrainThreadFactory(
+                    RoutingServiceComponent.NamedSchedulers.WIFI_SERVER))
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.BLE_ADVERTISE)
+            fun providesAdvertiseScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(
+                    RoutingServiceComponent.NamedSchedulers.BLE_ADVERTISE))
             }
 
             @Provides
@@ -185,6 +251,13 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
+            fun providesFakeDesktopBuilder(builder: FakeDesktopApiSubcomponent.Builder): DesktopApiSubcomponent.Builder {
+                return builder
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
             fun providesChannel(ctx: Context?, wifiP2pManager: WifiP2pManager?): WifiP2pManager.Channel {
                 return mock {  }
             }
@@ -200,18 +273,16 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             @Singleton
-            @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION)
-            fun provideComputeScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test-computation"))
+            fun providesTransactionBuilder(builder: FakeWifiGroupSubcompoment.Builder): WifiGroupSubcomponent.Builder {
+                return builder
             }
-
 
             @Provides
             @JvmStatic
             @Singleton
-            @Named(RoutingServiceComponent.NamedSchedulers.IO)
-            fun provideWifiDirectOperationsScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test-ops"))
+            @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION)
+            fun provideComputeScheduler(): Scheduler {
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test-computation"))
             }
 
             @Provides
@@ -230,18 +301,28 @@ interface FakeRoutingServiceComponent {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-callbacks"))
             }
 
+
             @Provides
             @JvmStatic
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.BLE_SERVER)
-            fun provideBleServerScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test-server"))
+            fun provideBleServerScheduler(@Named(RoutingServiceComponent.NamedExecutors.SERVER_INTERACTION) executor: ExecutorService): Scheduler {
+                return Schedulers.from(executor)
             }
+
 
             @Provides
             @JvmStatic
             fun provideLeAdvertiser(): BluetoothLeAdvertiser {
                 return BluetoothAdapter.getDefaultAdapter().bluetoothLeAdvertiser
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedExecutors.SERVER_INTERACTION)
+            fun provideServerExecutor(): ExecutorService {
+                return Executors.newSingleThreadExecutor()
             }
 
             @Provides
@@ -253,7 +334,13 @@ interface FakeRoutingServiceComponent {
             @Provides
             @JvmStatic
             fun providesPowerManager(context: Context?): PowerManager {
-                return context!!.getSystemService(Context.POWER_SERVICE) as PowerManager
+                return mock {
+                    on { newWakeLock(any(), any()) } doReturn mock {
+                        on { acquire() } doReturn Unit
+                        on { acquire(any()) } doReturn Unit
+                        on { release() } doReturn Unit
+                    }
+                }
             }
         }
 
@@ -263,8 +350,8 @@ interface FakeRoutingServiceComponent {
     fun gattServer(): GattServer
     fun gattConnectionBuilder(): FakeGattServerConnectionSubcomponent.Builder
     fun bootstrapSubcomponent(): Provider<BootstrapRequestSubcomponent.Builder>
-    fun getTransactionBuilder(): ScatterbrainTransactionSubcomponent.Builder
     fun inject(provider: DatastoreImportProviderImpl?)
+
 
     companion object {
         const val SHARED_PREFS = "scatterbrainprefs"

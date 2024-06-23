@@ -6,14 +6,15 @@ import android.os.Parcel
 import android.os.Parcelable
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoScope
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
-import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.GROUP_OWNER_BAND_2GHZ
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.GROUP_OWNER_INTENT_AUTO
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.NETWORK_ID_PERSISTENT
 import javax.inject.Inject
 import javax.inject.Named
 
 fun getWpsInfo(): WpsInfo {
-    return WpsInfo()
+    return WpsInfo().apply {
+        setup = WpsInfo.PBC
+    }
 }
 
 /**
@@ -31,14 +32,14 @@ fun getWpsInfo(): WpsInfo {
  */
 @WifiDirectInfoScope
 class FakeWifiP2pConfigImpl @Inject constructor(
-        @Named(WifiDirectInfoSubcomponent.PASSPHRASE) val passphrase: String? = "",
-        @Named(WifiDirectInfoSubcomponent.MAC_ADDRESS) val deviceAddress: String? = "02:00:00:00:00:00",
-        @Named(WifiDirectInfoSubcomponent.NETWORK_NAME) val networkName: String? = "",
-        val wpsInfo: WpsInfo?,
-        @Named(WifiDirectInfoSubcomponent.BAND) var suggestedband: Int
+    @Named(WifiDirectInfoSubcomponent.PASSPHRASE) val passphrase: String? = "",
+    @Named(WifiDirectInfoSubcomponent.MAC_ADDRESS) val deviceAddress: String? = "02:00:00:00:00:00",
+    @Named(WifiDirectInfoSubcomponent.NETWORK_NAME) val networkName: String? = "",
+    val wpsInfo: WpsInfo? = getWpsInfo(),
+    @Named(WifiDirectInfoSubcomponent.BAND) var suggestedband: Int
 ) : FakeWifiP2pConfig {
 
-   var groupOwnerBand: Int = GROUP_OWNER_BAND_2GHZ
+   var groupOwnerBand: Int = suggestedband
 
     var netId: Int = NETWORK_ID_PERSISTENT
     var groupownerIntent: Int = GROUP_OWNER_INTENT_AUTO

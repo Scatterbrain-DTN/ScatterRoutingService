@@ -13,27 +13,32 @@ def recursiveCheckout() {
 }
 
 void setBuildStatus(String message, String state) {
-  step([
-      $class: "GitHubCommitStatusSetter",
-      reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/Scatterbrain-DTN/ScatterRoutingService"],
-      contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status"],
-      errorHandlers: [[$class: "ChangingBuildStatusErrorHandler", result: "UNSTABLE"]],
-      statusResultSource: [ $class: "ConditionalStatusResultSource", results: [[$class: "AnyBuildResult", message: message, state: state]] ]
-  ]);
+  retry(5) {
+    step([
+        $class: "GitHubCommitStatusSetter",
+        reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/Scatterbrain-DTN/ScatterRoutingService"],
+        contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status"],
+        errorHandlers: [[$class: "ChangingBuildStatusErrorHandler", result: "UNSTABLE"]],
+        statusResultSource: [ $class: "ConditionalStatusResultSource", results: [[$class: "AnyBuildResult", message: message, state: state]] ]
+    ]);
+  }
 }
 
 pipeline {
-    agent { label 'build' }
+    agent any
+      tools {
+            gradle "8.4"
+      }
     environment {
-      GRADLE_USER_HOME = '/build'
       ANDROID_HOME = '/opt/android-sdk-linux'
       ANDROID_SDK_ROOT = "$ANDROID_HOME"
-      TARGET_VERSION = 31
+      TARGET_VERSION = 34
       EMULATOR_PID = "/build/$BUILD_ID-emu.pid"
       AVD_NAME = "${EXECUTOR_NUMBER}-avd"
     }
     stages {
         stage('Build') {
+            agent { label 'build' }
             steps {
                 echo 'Building..'
                 setBuildStatus("Build started", "PENDING")
@@ -52,12 +57,14 @@ pipeline {
             }
         }
         stage('Test') {
+          agent { label 'phone' }
           steps {
             echo 'Testing'
             recursiveCheckout()
             unstash name: 'build'
             unstash name: 'sdkbuild'
             withGradle {
+            /*
               sh label: 'Downloadd system image', script: "$ANDROID_HOME/cmdline-tools/tools/bin/sdkmanager \"system-images;android-${TARGET_VERSION};google_apis;x86_64\" --sdk_root=$ANDROID_HOME"
               sh label: 'Create AVD', script: "echo no | $ANDROID_HOME/cmdline-tools/tools/bin/avdmanager create avd --force -n $AVD_NAME -k \"system-images;android-${TARGET_VERSION};google_apis;x86_64\""
               sh label: 'Start emulator and run tests', script: """
@@ -65,7 +72,11 @@ pipeline {
               $ANDROID_HOME/platform-tools/adb wait-for-device shell 'while [[ -z \$(getprop sys.boot_completed) ]]; do sleep 1; done;'
               ./gradlew jacocoTestReport --stacktrace
               """
-              jacoco()
+              */
+              sh './gradlew testDebugUnitTest jacocoTestReport'
+              recordCoverage(tools: [[parser: 'JACOCO']],
+                      id: 'jacoco', name: 'JaCoCo Coverage',
+                      sourceCodeRetention: 'EVERY_BUILD')
             }
           }
           post {

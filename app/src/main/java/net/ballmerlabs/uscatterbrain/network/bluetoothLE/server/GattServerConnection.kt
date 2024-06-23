@@ -1,73 +1,30 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server
 
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGattCharacteristic
-import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothGattServer
 import android.bluetooth.BluetoothGattServerCallback
 import android.util.Pair
+import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleConnection.RxBleConnectionState
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
-import io.reactivex.Single
 import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.SingleSubject
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.GattServerTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction
-import java.util.*
+import java.util.UUID
 
 interface GattServerConnection: Disposable {
 
     val gattServerCallback: BluetoothGattServerCallback
 
-    fun getReadCharacteristicOutput(): Output<GattServerTransaction<UUID>>
-
-    fun getWriteCharacteristicOutput(): Output<GattServerTransaction<UUID>>
-
-    fun getReadDescriptorOutput(): Output<GattServerTransaction<BluetoothGattDescriptor>>
-
-    fun getWriteDescriptorOutput(): Output<GattServerTransaction<BluetoothGattDescriptor>>
-
-    fun getNotificationPublishRelay(): Output<Int>
-
-    fun getChangedMtuOutput(): Output<Int>
-
-    fun openLongWriteCharacteristicOutput(requestid: Int, characteristic: BluetoothGattCharacteristic): Output<ByteArray>
-
-    fun openLongWriteDescriptorOutput(requestid: Int, descriptor: BluetoothGattDescriptor): Output<ByteArray>
-
-    fun closeLongWriteCharacteristicOutput(requestid: Int): Single<ByteArray>
-
-    fun closeLongWriteDescriptorOutput(requestid: Int): Single<ByteArray>
-
-    fun resetDescriptorMap()
-
-    fun resetCharacteristicMap()
-
-    fun getOnNotification(): Observable<Int>
-    
-    fun getOnConnectionStateChange(): Observable<Pair<RxBleDevice, RxBleConnectionState>>
-
     fun initializeServer(config: ServerConfig): Completable
 
-    fun prepareDescriptorTransaction(
-            descriptor: BluetoothGattDescriptor,
-            requestID: Int,
-            offset: Int,
-            device: RxBleDevice,
-            valueRelay: PublishSubject<GattServerTransaction<BluetoothGattDescriptor>>,
-            value: ByteArray?
-    )
+    fun getOnConnectionStateChange(): Observable<Pair<RxBleDevice, RxBleConnectionState>>
 
-    fun prepareCharacteristicTransaction(
-            descriptor: BluetoothGattCharacteristic,
-            requestID: Int,
-            offset: Int,
-            device: RxBleDevice,
-            valueRelay: PublishSubject<GattServerTransaction<UUID>>,
-            value: ByteArray?
-    )
+    fun getOnNotification(mac: String): Observable<Int>
 
     fun blindAck(
             requestID: Int,
@@ -87,15 +44,7 @@ interface GattServerConnection: Disposable {
 
     fun setupIndication(ch: UUID, indications: Flowable<ByteArray>, device: RxBleDevice): Completable
 
-    fun getOnMtuChanged(): Observable<Int>
-
-    fun getOnCharacteristicReadRequest(characteristic: UUID): Observable<ServerResponseTransaction>
-
-    fun getOnDescriptorWriteRequest(characteristic: UUID, descriptor: UUID): Observable<ServerResponseTransaction>
-
-    fun getOnCharacteristicWriteRequest(characteristic: UUID): Observable<ServerResponseTransaction>
-
-    fun getOnDescriptorReadRequest(characteristic: UUID, descriptor: UUID): Observable<ServerResponseTransaction>
+    fun getEvents(): Observable<ServerResponseTransaction>
 
     fun disconnect(device: RxBleDevice): Completable
 
@@ -105,11 +54,24 @@ interface GattServerConnection: Disposable {
 
     fun setOnDisconnect(func: (device: RxBleDevice) -> Unit)
 
-    fun setOnDisconnect(device: RxBleDevice, func: () -> Unit)
+    fun getMtu(address: String): Int
+    fun setOnDisconnect(device: String, func: () -> Unit)
+
+    fun resetMtu(address: String)
+    fun forceMtu(address: String, mtu: Int)
+    fun setOnMtuChanged(device: BluetoothDevice, callback: (Int)->Unit)
+
+    fun observeOnMtuChanged(device: BluetoothDevice): Observable<Int>
+
+    fun awaitPhyUpdate(): Observable<Pair<Int, Int>>
+
+    fun clearMtu()
+
+    fun server(): BluetoothGattServer
 
     open class Output<T> {
-        open val valueRelay: PublishSubject<T> = PublishSubject.create()
-        val errorRelay: PublishSubject<Throwable> = PublishSubject.create()
+        open val valueRelay: PublishRelay<T> = PublishRelay.create()
+        val errorRelay: PublishRelay<Throwable> = PublishRelay.create()
         fun hasObservers(): Boolean {
             return valueRelay.hasObservers() || errorRelay.hasObservers()
         }
@@ -117,12 +79,14 @@ interface GattServerConnection: Disposable {
     }
 
     class LongWriteClosableOutput<T> : Output<T>() {
-        override val valueRelay: PublishSubject<T> = PublishSubject.create()
+        override val valueRelay: PublishRelay<T> = PublishRelay.create()
         val out: SingleSubject<T> = SingleSubject.create()
-        fun finalize() {
-            valueRelay.onComplete()
-        }
-
+    }
+    enum class Operation {
+        CHARACTERISTIC_READ,
+        CHARACTERISTIC_WRITE,
+        DESCRIPTOR_READ,
+        DESCRIPTOR_WRITE
     }
 
     companion object {

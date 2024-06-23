@@ -4,41 +4,86 @@ import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
-import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
+import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
-import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
-import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
+import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import java.io.File
+import java.util.UUID
+import net.ballmerlabs.uscatterbrain.network.proto.*
+import java.util.concurrent.TimeUnit
 
 /**
  * dagger2 interface for WifiDirectRadioModule
  */
 interface WifiDirectRadioModule {
     /**
-     * Connects to an existing wifi direct group manually
-     * @param name group name. MUST start with DIRECT-*
-     * @param passphrase group PSK. minimum 8 characters
-     * @param timeout emits error from single if no connection is established within this many seconds
-     * @return single emitting WifiP2pInfo if connection is successful, called onError if failed or timed out
+     * Returns the suggested wifi band that we should used, based on internal metrics
+     * @return band from FakeWifiP2pConfig
      */
-    fun connectToGroup(name: String, passphrase: String, timeout: Int, band: Int): Single<WifiDirectInfo>
+    fun getBand(): Int
 
     /**
-     * performs an automatic handshake with a peer specified by a WifiDirectBootstrapRequest object
-     * from another transport module.
-     * @param upgradeRequest bootstrap request generated with WifiDirectBootstrapRequest
-     * @return Single emitting handshake result with transaction stats
+     * connect to a wifi direct group, initializing the global group state if the connection is successful.
+     * This connection will remain active for as long as possible until the remote peer moves out of range or
+     * removeCurrentGroup is called
+     *
+     * @param name ssid of the group to connect to
+     * @param passphrase group passphrase
+     * @param timeout fail and return error after this many seconds
+     * @param band what band to attempt to connect on. If failed, this function will retry on other bands
+     *
+     * @return single emitting WifiDirectInfo of current group
      */
-    fun bootstrapFromUpgrade(upgradeRequest: BootstrapRequest): Single<HandshakeResult>
+    fun connectToGroup(
+        name: String,
+        passphrase: String,
+        timeout: Int,
+        band: Int
+    ): Single<WifiDirectInfo>
 
     /**
-     * Manually creates a wifi direct group, autogenerating the username/passphrase and
-     * returning them as a BootstrapRequest
-     * @return WifiDirectBootstrapRequest
+     * Create a group using createGroup() if it is not present, then handle transactions from remote peers
+     * This group will remain active until all peers move out of range or removeCurrentGroup is called
+     *
+     * @param band band from FakeWifP2pConfig to connect on
+     * @param remoteLuid remote peer's luid
+     * @param selfLuid this peer's luid. This will remain the same until the group is removed, even if our actual luid changes
+     *
+     * @return single returning WifiDirectBootstrapRequest to share with remote peer
      */
-    fun createGroup(band: Int): Single<WifiDirectBootstrapRequest>
+    fun bootstrapUke(band: Int, remoteLuid: UUID, selfLuid: UUID): Single<WifiDirectBootstrapRequest>
+
+    /**
+     * Connects to a wifi direct group or reuses an existing connection, then executes a transaction
+     * with all connected peers. The connection remains active until removed with removeCurrentGroup
+     * or the remote peer moves out of range.
+     *
+     * @param req bootstrap request sent by the remote peer
+     * @param remote luid of the remote peer
+     *
+     * @return completable completing when transaction is complete
+     */
+    fun bootstrapSeme(req: WifiDirectBootstrapRequest, remote: UUID)
+
+    /**
+     * Waits until no peers are connecte via wifi for the specified timeout, then removes the current
+     * wifi direct connection.
+     *
+     * @param timeout time to wait before giving up
+     * @param timeUnit time unit for timeout parameter
+     *
+     * @return completable completing when group is removed
+     */
+    fun safeShutdownGroup(timeout: Long, timeUnit: TimeUnit): Completable
+
+
+    /**
+     * Create a wifi direct group and start a server for handling requests from remore peers.
+     * This group will remain active until all peers move out of range or removeCurrentGroup is called
+     */
+    fun createGroup(band: Int, remoteLuid: UUID, selfLuid: UUID): Single<WifiGroupSubcomponent>
+
+    fun isCreatedGroup(): Boolean
 
     /**
      * Removes an existing wifi direct group if it exists
@@ -54,8 +99,14 @@ interface WifiDirectRadioModule {
      */
     fun wifiDirectIsUsable(): Single<Boolean>
 
+    /**
+     * Registers the wifi direct BroadcastReceiver
+     */
     fun registerReceiver()
 
+    /**
+     * Unregisters the wifi direct BroadcastReceiver
+     */
     fun unregisterReceiver()
 
     /**

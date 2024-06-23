@@ -1,24 +1,79 @@
 package net.ballmerlabs.uscatterbrain.db
 
+import android.content.Context
+import com.goterl.lazysodium.interfaces.Sign
 import io.reactivex.Completable
 import io.reactivex.Flowable
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
-import net.ballmerlabs.scatterbrainsdk.Identity
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 import net.ballmerlabs.uscatterbrain.db.entities.*
-import net.ballmerlabs.uscatterbrain.network.BlockHeaderPacket
-import net.ballmerlabs.uscatterbrain.network.BlockSequencePacket
-import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
-import net.ballmerlabs.uscatterbrain.network.IdentityPacket
+import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import java.io.File
 import java.io.Serializable
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
-
+import net.ballmerlabs.uscatterbrain.network.proto.*
 @Singleton
-class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
+class MockScatterbrainDatastore @Inject constructor(
+    private val ctx: Context
+): ScatterbrainDatastore {
+
+    override fun deleteApp(sig: String): Completable {
+        return Completable.complete()
+    }
+
+    override fun getDesktopIdentitiesByFingerprint(identity: UUID?): Single<List<DesktopApiIdentity>> {
+        return Single.just(
+            listOf( DesktopApiIdentity(
+                fingerprint = UUID.randomUUID(),
+                isOwned = false,
+                name = "test",
+                sig = ByteArray(Sign.BYTES),
+                extraKeys = mapOf(),
+                publicKey = ByteArray(Sign.PUBLICKEYBYTES)
+            ))
+        )
+    }
+
+    override fun getApps(): Observable<SbApp> {
+        return Observable.just(SbApp(
+            name = "",
+            desktop = false,
+            id = null
+        ))
+    }
+
+    override fun updateStats(metrics: Metrics): Completable {
+        return Completable.complete()
+    }
+
+    override fun insertMessageFromDesktop(
+        message: List<DesktopMessage>,
+        callingId: String,
+        sign: UUID?,
+    ): Completable {
+        TODO("Not yet implemented")
+    }
+
+    override fun addACLs(packagename: String, packageSig: String?, desktop: Boolean): Completable {
+        return Completable.complete()
+    }
+
+    override fun getStats(): Single<HandshakeResult> {
+        return Single.just(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+    }
+
+    override fun getStats(handshakeResult: HandshakeResult): Maybe<HandshakeResult> {
+        return Maybe.empty()
+    }
+
     override fun insertMessages(message: DbMessage): Completable {
         return Completable.complete()
     }
@@ -46,7 +101,7 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
         return Completable.complete()
     }
 
-    override fun getIdentity(ids: List<Long>): Observable<IdentityPacket> {
+    override fun getIdentity(ids: List<Long>, owned: Boolean): Observable<IdentityPacket> {
         return Observable.empty()
     }
 
@@ -66,7 +121,7 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
         return Completable.complete()
     }
 
-    override fun insertApiIdentities(identities: List<Identity>): Completable {
+    override fun insertApiIdentities(identities: List<net.ballmerlabs.scatterbrainsdk.Identity>): Completable {
         return Completable.complete()
     }
 
@@ -74,7 +129,7 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
         return Single.error(IllegalStateException("no identities for u, cry noises"))
     }
 
-    override fun addACLs(identityFingerprint: UUID, packagename: String, appsig: String): Completable {
+    override fun addACLs(identityFingerprint: UUID, packagename: String, appsig: String, desktop: Boolean): Completable {
         return Completable.complete()
     }
 
@@ -137,22 +192,22 @@ class MockScatterbrainDatastore @Inject constructor(): ScatterbrainDatastore {
         return path.length()
     }
 
-    override val allIdentities: List<Identity>
+    override val allIdentities: List<net.ballmerlabs.scatterbrainsdk.Identity>
         get() = listOf()
 
-    override fun getApiMessages(application: String): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {
+    override fun getApiMessages(application: String, limit: Int): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {
         return Single.error(IllegalStateException("no apiMessages for u, cry noises"))
     }
 
     override fun getApiMessages(id: Long): net.ballmerlabs.scatterbrainsdk.ScatterMessage {
-        return net.ballmerlabs.scatterbrainsdk.ScatterMessage.Builder.newInstance(byteArrayOf()).build()
+        return net.ballmerlabs.scatterbrainsdk.ScatterMessage.Builder.newInstance(ctx,byteArrayOf()).build()
     }
 
-    override fun getApiMessagesSendDate(application: String, start: Date, end: Date): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {
+    override fun getApiMessagesSendDate(application: String, start: Date, end: Date, limit: Int): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {
         return Single.error(IllegalStateException("no apiMessages for u, cry noises"))
     }
 
-    override fun getApiMessagesReceiveDate(application: String, start: Date, end: Date): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {
+    override fun getApiMessagesReceiveDate(application: String, start: Date, end: Date, limit: Int): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {
         return Single.error(IllegalStateException("no apiMessages for u, cry noises"))
     }
 

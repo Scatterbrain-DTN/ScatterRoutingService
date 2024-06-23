@@ -1,8 +1,8 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
-    ext.kotlin_version = '1.7.20'
+    ext.kotlin_version = '1.9.25'
     ext.kotlinVersion = kotlin_version
-    ext.hilt_version = '2.43.2'
+    ext.hilt_version = '2.47'
 
 
     ext.rxJavaVersion = '2.2.17'
@@ -15,42 +15,25 @@ buildscript {
         gradlePluginPortal()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.3.1'
-        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.12'
+        classpath 'com.android.tools.build:gradle:8.3.0'
+        classpath "org.jacoco:org.jacoco.core:0.8.9"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath 'com.dicedmelon.gradle:jacoco-android:0.1.5'
         classpath "com.google.dagger:hilt-android-gradle-plugin:$hilt_version"
-        classpath 'com.google.gms:google-services:4.3.15'  // Google Services plugin
+        classpath 'com.google.gms:google-services:4.4.1'  // Google Services plugin
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
 
     }
 }
 
-
-
-task clean(type: Delete) {
-    delete rootProject.buildDir
+plugins {
+    id 'com.google.devtools.ksp' version '1.9.25-1.0.20' apply false
 }
 
+allprojects {
+    apply plugin: 'jacoco'
+}
 
-subprojects { project ->
-
-    apply plugin: 'checkstyle'
-
-    checkstyle {
-        toolVersion = '8.20'
-    }
-
-    if (!project.tasks.findByName("checkstyle")) {
-        task checkstyle(type: Checkstyle) {
-            configFile rootProject.file('RxAndroidBle/checkstyle.xml')
-            source 'src/main/java'
-            ignoreFailures false
-            showViolations true
-            include '**/*.java'
-
-            classpath = files()
-        }
-    }
+tasks.register('clean', Delete) {
+    delete rootProject.buildDir
 }

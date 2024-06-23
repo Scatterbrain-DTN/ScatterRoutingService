@@ -1,17 +1,17 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import android.bluetooth.BluetoothDevice
 import android.util.Pair
+import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
-import net.ballmerlabs.uscatterbrain.network.AdvertisePacket
-import net.ballmerlabs.uscatterbrain.network.DeclareHashesPacket
+import net.ballmerlabs.uscatterbrain.network.proto.*
+import net.ballmerlabs.scatterproto.Optional
+import net.ballmerlabs.scatterproto.Provides
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.ConnectionRole
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 
 /*
  * server and client transactions are represented as functions taking a GATT connection
@@ -25,8 +25,8 @@ import java.util.concurrent.TimeUnit
  * if the bootstrap request is present, Scatterbrain will attempt to handle data transfer on
  * a new transport
  */
-typealias ServerTransaction = (connection: CachedLEServerConnection) -> Single<TransactionResult<BootstrapRequest>>
-typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionResult<BootstrapRequest>>
+typealias ServerTransaction = (connection: CachedLeServerConnection) -> Single<TransactionResult<BootstrapRequest>>
+typealias ClientTransaction = (conn: CachedLeConnection) -> Single<TransactionResult<BootstrapRequest>>
 
 /**
  * LeDeviceSession holds the state for the finite state machine managing a scatterbrain connection
@@ -38,28 +38,33 @@ typealias ClientTransaction = (conn: CachedLEConnection) -> Single<TransactionRe
  * @property remoteLuid local identifier of remote device
  */
 class LeDeviceSession(
-    val device: BluetoothDevice,
+    val device: RxBleDevice,
     luid: UUID,
-    val client: CachedLEConnection,
-    val server: CachedLEServerConnection,
-    val remoteLuid: UUID
+    val client: CachedLeConnection,
+    val server: CachedLeServerConnection,
+    val remoteLuid: UUID,
+    val hashedSelf: UUID
 ) {
     private val LOG by scatterLog()
     val luidStage: LuidStage = LuidStage(luid, remoteLuid) //exchange hashed and unhashed luids
     val advertiseStage: AdvertiseStage = AdvertiseStage() //advertise router capabilities
-    val votingStage: VotingStage = VotingStage() //determine if an upgrade takes place
+    val votingStage: VotingStage = VotingStage(hashedSelf) //determine if an upgrade takes place
     var upgradeStage: UpgradeStage? = null //possibly upgrade to new transport
     private val transactionMap =
         ConcurrentHashMap<String, Pair<ClientTransaction, ServerTransaction>>()
     private val stageChanges = BehaviorSubject.create<String>()
     var locked = BehaviorSubject.create<Boolean>()
-    val luidMap = ConcurrentHashMap<String, UUID>()
     var stage: String = TransactionResult.STAGE_START
         set(value) {
             stageChanges.onNext(value)
             field = value
         }
-    var role = ConnectionRole.ROLE_UKE
+    var role = ConnectionRole(
+        role = BluetoothLEModule.Role.ROLE_UKE,
+        provides = Provides.WIFIP2P,
+        drop = false,
+        upgrade = Optional.empty()
+        )
     private var declareHashesPacket: DeclareHashesPacket? = DeclareHashesPacket.newBuilder().build()
 
     /**
@@ -111,19 +116,13 @@ class LeDeviceSession(
     fun observeStage(): Observable<String> {
         return stageChanges
             .takeWhile { s -> s.compareTo(TransactionResult.STAGE_TERMINATE) != 0 }
-            .filter { s -> s.compareTo(TransactionResult.STAGE_SUSPEND) != 0 }
-            .zipWith(locked.filter { v -> !v }) { v, _ ->
-                locked.onNext(true)
-                v
-            }
-            .delay(0, TimeUnit.SECONDS)
     }
 
     /**
      * register an upgrade stage if we decide to upgrade
      * @param provides what transport to upgrade to
      */
-    fun setUpgradeStage(provides: AdvertisePacket.Provides) {
+    fun setUpgradeStage(provides: net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket) {
         upgradeStage = UpgradeStage(provides)
     }
 

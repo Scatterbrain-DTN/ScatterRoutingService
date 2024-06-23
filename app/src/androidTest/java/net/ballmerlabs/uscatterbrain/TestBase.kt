@@ -5,6 +5,10 @@ import android.content.Intent
 import android.os.IBinder
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.rule.ServiceTestRule
+import com.polidea.rxandroidble2.RxBleDevice
+import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
+import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
+import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,6 +21,21 @@ import net.ballmerlabs.scatterbrainsdk.internal.MockBinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.ScatterbrainBroadcastReceiverImpl
 import org.junit.Before
 import org.junit.Rule
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+
+fun getBogusRxBleDevice(mac: String): RxBleDevice {
+    return RxBleDeviceMock.Builder()
+        .deviceMacAddress("ff:ff:ff:ff:ff:ff")
+        .deviceName("")
+        .connection(
+            RxBleConnectionMock.Builder()
+                .rssi(1)
+                .build()
+        )
+        .scanRecord(RxBleScanRecordMock.Builder().build())
+        .build()!!
+}
 
 abstract class TestBase {
     protected val testCoroutineScope = CoroutineScope(Dispatchers.Default)
@@ -29,7 +48,6 @@ abstract class TestBase {
     @ExperimentalCoroutinesApi
     @Before
     open fun init() {
-        val ctx = ApplicationProvider.getApplicationContext<Context>()
         val bindIntet = Intent(
                 ApplicationProvider.getApplicationContext(),
                 ScatterRoutingService::class.java
@@ -43,7 +61,8 @@ abstract class TestBase {
         binder = BinderWrapperImpl(
                 ApplicationProvider.getApplicationContext(),
                 broadcastReceiver,
-                binderProvider
+                binderProvider,
+            testCoroutineScope
         )
         runBlocking { binder.startService() }
         regularBinder = ScatterbrainBinderApi.Stub.asInterface(b)

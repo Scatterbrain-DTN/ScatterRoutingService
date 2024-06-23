@@ -3,8 +3,9 @@ package net.ballmerlabs.uscatterbrain.db.entities
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import net.ballmerlabs.uscatterbrain.db.hashAsUUID
-import java.util.*
+import net.ballmerlabs.uscatterbrain.util.hashAsUUID
+
+import java.util.UUID
 
 @Entity(
     tableName = "globalhash",

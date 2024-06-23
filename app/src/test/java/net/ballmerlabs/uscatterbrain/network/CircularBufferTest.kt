@@ -1,12 +1,18 @@
 package net.ballmerlabs.uscatterbrain.network
 
+import android.os.Build
 import com.github.davidmoten.rx2.Bytes
 import com.google.android.gms.common.util.Hex
 import io.reactivex.Observable
 import io.reactivex.schedulers.Schedulers
+import net.ballmerlabs.uscatterbrain.network.proto.*
+import net.ballmerlabs.scatterproto.InputStreamFlowableSubscriber
+import net.ballmerlabs.scatterproto.InputStreamObserver
+import net.ballmerlabs.scatterproto.ScatterSerializable
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
@@ -17,6 +23,7 @@ import kotlin.concurrent.thread
 import kotlin.random.Random
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [Build.VERSION_CODES.TIRAMISU])
 class CircularBufferTest {
     @Test
     fun inputStreamCallbackWorks() {
@@ -47,7 +54,7 @@ class CircularBufferTest {
             complete.set(true)
         }
         try {
-            thread.join(100)
+            thread.join(1000)
             assert(!complete.get())
             assert(written.get())
         } catch (timeout: TimeoutException) {
@@ -66,7 +73,7 @@ class CircularBufferTest {
             }
         }
 
-        val packet = ScatterSerializable.parseWrapperFromCRC(AckPacket.parser(), stream, Schedulers.io())
+        val packet = ScatterSerializable.parseWrapperFromCRC(AckPacketParser.parser, stream, Schedulers.io())
         val testpacket = packet.timeout(2, TimeUnit.SECONDS)
             .test()
             .awaitDone(3, TimeUnit.SECONDS)
@@ -106,8 +113,8 @@ class CircularBufferTest {
     fun readBeforeWriteWorks() {
         val written = AtomicBoolean(false)
         val started = AtomicBoolean(false)
-        val callback = InputStreamObserver(256)
-        val validate = Random.nextBytes(10)
+        val callback = InputStreamFlowableSubscriber(256)
+        val validate = Random.nextBytes(255)
         val thread = thread(start = true) {
             started.set(true)
             Thread.sleep(2000)
@@ -115,14 +122,20 @@ class CircularBufferTest {
             written.set(true)
         }
         try {
-            val bytes = ByteArray(10)
+            val bytes = ByteArray(255)
             assert(!written.get())
             callback.read(bytes)
             assert(started.get())
             thread.join(4000)
             assert(written.get())
+            val vs = org.bouncycastle.util.encoders.Hex.toHexString(validate)
+            val bs = org.bouncycastle.util.encoders.Hex.toHexString(bytes)
+            println(vs)
+            println(bs)
+            assert(bytes.contentEquals(validate))
         } catch (timeout: TimeoutException) {
-            assert(true)
+            timeout.printStackTrace()
+            assert(false)
         }
     }
 }

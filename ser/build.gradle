@@ -1,0 +1,52 @@
+buildscript {
+    ext.rxJavaVersion = '2.2.17'
+}
+
+plugins {
+    id 'java-library'
+    id 'org.jetbrains.kotlin.jvm'
+    id 'com.google.protobuf' version '0.9.4'
+}
+
+def protobuf_version = "3.18.0"
+
+
+
+protobuf {
+
+    protoc {
+        artifact = "com.google.protobuf:protoc:$protobuf_version"
+    }
+        plugins {
+                javalite {
+                        artifact = "com.google.protobuf:protoc-gen-javalite:$protobuf_version"
+                    }
+            }
+    generateProtoTasks {
+        all().each { task ->
+            task.builtins {
+              java{
+                  option "lite"
+              }
+            }
+        }
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+dependencies {
+    implementation("com.google.protobuf:protobuf-javalite:$protobuf_version")
+    implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
+    implementation "com.github.davidmoten:rxjava2-extras:0.1.38"
+}
+
+repositories {
+    mavenCentral()
+    google()
+    maven { url "https://jitpack.io" }
+    gradlePluginPortal()
+}

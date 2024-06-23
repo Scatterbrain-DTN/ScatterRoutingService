@@ -2,8 +2,13 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import java.net.InetAddress
 
-interface WifiDirectInfo {
-    fun groupFormed(): Boolean
-    fun groupOwnerAddress(): InetAddress?
-    fun isGroupOwner(): Boolean
+
+data class WifiDirectInfo(
+    val groupFormed: Boolean,
+    val groupOwnerAddress: InetAddress?,
+    val isGroupOwner: Boolean,
+) {
+    companion object {
+
+    }
 }

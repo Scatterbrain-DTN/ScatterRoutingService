@@ -16,8 +16,8 @@ interface IdentityDao {
     val all: Single<List<Identity>>
 
     @Transaction
-    @Query("SELECT * FROM identities WHERE identityID IN (:ids)")
-    fun getIdentitiesWithRelations(ids: List<Long>): Single<List<Identity>>
+    @Query("SELECT * FROM identities WHERE identityID IN (:ids) AND (privatekey IS NOT NULL) = :owned ")
+    fun getIdentitiesWithRelations(ids: List<Long>, owned: Boolean): Single<List<Identity>>
 
     @Transaction
     @Query("SELECT * FROM identities WHERE fingerprint IN (:fingerprint)")
@@ -44,6 +44,8 @@ interface IdentityDao {
             "SELECT identityID FROM identities WHERE fingerprint = :fp)")
     fun getClientApps(fp: UUID): Single<List<ClientApp>>
 
+    @Query("SELECT * FROM clientapp")
+    fun getClientApps(): Single<List<ClientApp>>
 
     @Query("SELECT packageName FROM clientapp")
     fun getAllPackageNames(): Single<List<String>>
@@ -58,13 +60,13 @@ interface IdentityDao {
     fun insertClientAppsIgnore(clientApps: List<ClientApp>): Single<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    fun insertClientAppIgnore(vararg apps: ClientApp): Completable
+    fun insertClientAppIgnore(vararg apps: ClientApp): Single<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertClientAppsReplace(clientApps: List<ClientApp>): Single<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertClientAppReplace(vararg apps: ClientApp): Completable
+    fun insertClientAppReplace(vararg apps: ClientApp): Single<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun __insertAll(identities: KeylessIdentity): Long
@@ -86,6 +88,9 @@ interface IdentityDao {
 
     @Delete
     fun delete(identity: KeylessIdentity): Completable
+
+    @Delete(entity = ClientApp::class)
+    fun deleteBySignature(packageSig: JustPackageSig): Completable
 
     @Delete(entity = ClientApp::class)
     fun deleteClientApps(vararg apps: JustPackageName): Completable

@@ -1,69 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="net.ballmerlabs.uscatterbrain">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <permission
         android:name="net.ballmerlabs.scatterroutingservice.permission.ACCESS"
         android:label="Scatterbrain access"
-        android:protectionLevel="normal"
-        />
+        android:protectionLevel="normal" />
     <permission
         android:name="net.ballmerlabs.scatterroutingservice.permission.ADMIN"
         android:label="Scatterbrain admin"
-        android:protectionLevel="dangerous"
-        />
+        android:protectionLevel="dangerous" />
     <permission
         android:name="net.ballmerlabs.scatterroutingservice.permission.SUPERUSER"
         android:label="Scatterbrain superuser"
-        android:protectionLevel="signature"
-        />
+        android:protectionLevel="signature" />
 
     <uses-permission android:name="net.ballmerlabs.scatterroutingservice.permission.SUPERUSER" />
-    <uses-permission android:name="net.ballmerlabs.scatterroutingservice.permission.ACCESS"/>
-    <uses-permission android:name="android.permission.BLUETOOTH"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE"/>
+    <uses-permission android:name="net.ballmerlabs.scatterroutingservice.permission.ACCESS" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
-    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"/>
-
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        tools:replace="android:allowBackup"
-        android:targetSdkVersion="23">
+        tools:replace="android:allowBackup">
+        <receiver
+            android:name=".network.bluetoothLE.LuidRandomizeReceiver"
+            android:enabled="true"
+            android:exported="true"/>
+        <receiver android:name=".network.bluetoothLE.ScanBroadcastReceiverImpl" />
 
-        <receiver android:name=".network.bluetoothLE.ScanBroadcastReceiverImpl"/>
         <service
-            android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService"
-            android:foregroundServiceType="location"
+            android:name=".ScatterRoutingService"
             android:exported="true"
+            android:foregroundServiceType="location"
             android:permission="net.ballmerlabs.scatterroutingservice.permission.ACCESS">
             <intent-filter>
-                <action android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService.BIND"/>
+                <action android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService.BIND" />
             </intent-filter>
         </service>
 
         <provider
+            android:name=".db.file.DatastoreImportProviderImpl"
             android:authorities="net.ballmerlabs.uscatterbrain.documents"
-            android:name="net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl"
-            android:grantUriPermissions="true"
             android:exported="true"
+            android:grantUriPermissions="true"
             android:permission="android.permission.MANAGE_DOCUMENTS">
             <intent-filter>
-                <action android:name="android.content.action.DOCUMENTS_PROVIDER"/>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
     </application>
+
 </manifest>

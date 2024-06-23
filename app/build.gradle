@@ -1,21 +1,17 @@
 plugins {
     id 'com.android.library'
     id 'kotlin-android'
-    id 'kotlin-kapt'
-    id 'com.google.protobuf'
-    id("org.jetbrains.dokka") version "1.7.10"
+    id 'com.google.devtools.ksp'
+    id("org.jetbrains.dokka") version "1.8.20"
 }
 
-def protobuf_version = "3.18.0"
-
-apply from: "../scatterbrainSDK/gradle/jacoco.gradle"
 
 android {
     buildToolsVersion "30.0.3"
     defaultConfig {
-        minSdkVersion 27
-        targetSdkVersion 33
-        compileSdkVersion 33
+        minSdkVersion 26
+        targetSdkVersion 34
+        compileSdkVersion 34
         multiDexEnabled true
         javaCompileOptions {
             annotationProcessorOptions {
@@ -25,6 +21,10 @@ android {
                 ]
             }
         }
+        ksp {
+            arg("room.incremental", "true")
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -33,11 +33,14 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            //proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
+            minifyEnabled false
         }
     }
+
+    namespace 'net.ballmerlabs.uscatterbrain'
 
     testOptions {
         unitTests {
@@ -51,12 +54,11 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = 1.8
-        targetCompatibility = 1.8
+        sourceCompatibility = 17
+        targetCompatibility = 17
     }
 
     sourceSets{
-        main.java.srcDirs += "${protobuf.generatedFilesBaseDir}/main/javalite"
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
     }
 
@@ -66,48 +68,50 @@ android {
         abortOnError false
         disable 'JvmStaticProvidesInObjectDetector', 'FieldSiteTargetOnQualifierAnnotation', 'ModuleCompanionObjects', 'ModuleCompanionObjectsNotInModuleParent'
     }
+    namespace 'net.ballmerlabs.uscatterbrain'
 }
 
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:$protobuf_version"
-    }
-    plugins {
-        javalite {
-            artifact = "com.google.protobuf:protoc-gen-javalite:$protobuf_version"
-        }
-    }
-    generateProtoTasks {
-        all().each { task ->
-            task.builtins {
-                java {
-                    option "lite"
-                }
-            }
+apply from: "../scatterbrainSDK/gradle/jacoco.gradle"
+
+def protobuf_version = "3.18.0"
+/*
+configurations {
+    configureEach {
+        resolutionStrategy {
+            force "com.goterl:lazysodium-android:5.1.0@aar"
+            force "net.java.dev.jna:jna:5.12.1@aar"
         }
     }
 }
+
+ */
 
 dependencies {
-    def lifecycle_version = "2.5.1"
-    implementation 'androidx.appcompat:appcompat:1.6.1'
+    def lifecycle_version = "2.8.2"
+    implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation "com.google.protobuf:protobuf-javalite:$protobuf_version"
-    implementation "androidx.room:room-runtime:2.5.0"
+    implementation "androidx.room:room-runtime:2.6.1"
     // Because RxAndroid releases are few and far between, it is recommended you also
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     // (see https://github.com/ReactiveX/RxJava/releases for latest 3.x.x version)
-    implementation("androidx.security:security-crypto:1.1.0-alpha05")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    implementation 'com.akaita.java:rxjava2-debug:1.4.0'
 
     //reflect for logging
-    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.7.20'
+    implementation 'org.jetbrains.kotlin:kotlin-reflect:1.9.20'
 
     implementation project(':scatterbrainSDK')
     androidTestImplementation project(':scatterbrainSDK')
     implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.1'
-    implementation "com.polidea.rxandroidble2:rxandroidble:1.17.0"
-    testImplementation "com.polidea.rxandroidble2:mockclient:1.17.0"
+    implementation "com.uber.rxdogtag:rxdogtag:1.0.2"
+    implementation "com.polidea.rxandroidble2:rxandroidble:1.18.1"
+    implementation "org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7"
 
-    kapt "androidx.room:room-compiler:2.5.0" // For Kotlin use kapt instead of annotationProcessor
+    testImplementation "com.polidea.rxandroidble2:mockclient:1.18.1"
+    androidTestImplementation "com.polidea.rxandroidble2:mockclient:1.18.1"
+
+    ksp "androidx.room:room-compiler:2.6.1" // For Kotlin use kapt instead of annotationProcessor
     implementation "androidx.lifecycle:lifecycle-service:$lifecycle_version"
     // The following Espresso dependency can be either "implementation"
     // or "androidTestImplementation", depending on whether you want the
@@ -121,49 +125,49 @@ dependencies {
     // Optional -- UI testing with Espresso
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     // Optional -- UI testing with UI Automator
-    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.2.0'
-    androidTestImplementation "androidx.room:room-testing:2.5.0"
+    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.3.0'
+    androidTestImplementation "androidx.room:room-testing:2.6.1"
 
     //lazysodium cryptographic library
-    implementation "com.goterl:lazysodium-android:5.0.2@aar"
-    implementation 'net.java.dev.jna:jna:5.11.0@aar'
-    implementation "androidx.datastore:datastore-preferences:1.0.0"
-    implementation "androidx.datastore:datastore-preferences-rxjava2:1.0.0"
+    implementation("com.goterl:lazysodium-android:5.1.0@aar")
+    implementation 'net.java.dev.jna:jna:5.12.1@aar'
+    implementation "androidx.datastore:datastore-preferences:1.1.1"
+    implementation "androidx.datastore:datastore-preferences-rxjava2:1.1.1"
 
 
     //lazysodium cryptographic library
-    testImplementation "com.goterl:lazysodium-android:5.0.2@aar"
-    testImplementation 'net.java.dev.jna:jna:5.11.0@aar'
+    testImplementation "com.goterl:lazysodium-android:5.1.0@aar"
+    testImplementation 'net.java.dev.jna:jna:5.12.1@aar'
     testImplementation 'net.java.dev.jna:jna-platform:5.11.0'
 
-    implementation "com.google.dagger:dagger:2.44"
-    testImplementation "com.google.dagger:dagger:2.44"
+    implementation "com.google.dagger:dagger:2.51.1"
+    testImplementation "com.google.dagger:dagger:2.51.1"
 
-    kapt "com.google.dagger:dagger-compiler:2.44"
-    kaptTest "com.google.dagger:dagger-compiler:2.44"
+    ksp "com.google.dagger:dagger-compiler:2.51.1"
+    kspTest "com.google.dagger:dagger-compiler:2.51.1"
 
 
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
 
     implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
 
-    implementation "androidx.room:room-rxjava2:2.5.0"
+    implementation "androidx.room:room-rxjava2:2.6.1"
 
     implementation "com.github.davidmoten:rxjava2-extras:0.1.38"
     testImplementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
 
     testImplementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
 
-    testImplementation "androidx.room:room-rxjava2:2.5.0"
+    testImplementation "androidx.room:room-rxjava2:2.6.1"
 
     testImplementation "com.github.davidmoten:rxjava2-extras:0.1.38"
 
-    implementation "androidx.core:core-ktx:1.9.0"
+    implementation "androidx.core:core-ktx:1.13.1"
     androidTestImplementation 'androidx.test:core:1.5.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation 'com.google.firebase:firebase-crashlytics:18.3.5'
-    androidTestImplementation 'com.google.firebase:firebase-crashlytics:18.3.5'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4'
+    implementation 'com.google.firebase:firebase-crashlytics:19.0.2'
+    androidTestImplementation 'com.google.firebase:firebase-crashlytics:19.0.2'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1'
     // Required -- JUnit 4 framework
     testImplementation "junit:junit:4.13.2"
     // Optional -- Robolectric environment
@@ -173,13 +177,43 @@ dependencies {
     testImplementation "org.mockito:mockito-core:4.0.0"
     // Optional -- mockito-kotlin
     testImplementation "org.mockito.kotlin:mockito-kotlin:4.0.0"
+
+    // Optional -- Mockito framework
+    androidTestImplementation "org.mockito:mockito-core:4.0.0"
+    // Optional -- mockito-kotlin
+    androidTestImplementation "org.mockito.kotlin:mockito-kotlin:4.0.0"
     // Optional -- Mockk framework
     testImplementation "io.mockk:mockk:1.9.1"
     testImplementation "androidx.test:monitor:1.6.1"
     testImplementation "androidx.test:core-ktx:1.5.0"
     testImplementation "androidx.test:core:1.5.0"
+    androidTestImplementation "junit:junit:4.13.2"
 
-    kapt "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.5.0"
+    ksp "org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.5.0"
+    def work_version = "2.9.0"
+
+    // (Java only)
+    implementation("androidx.work:work-runtime:$work_version")
+
+    // Kotlin + coroutines
+    implementation("androidx.work:work-runtime-ktx:$work_version")
+
+    // optional - RxJava2 support
+    implementation("androidx.work:work-rxjava2:$work_version")
+
+    // optional - GCMNetworkManager support
+    implementation("androidx.work:work-gcm:$work_version")
+
+    // optional - Test helpers
+    androidTestImplementation("androidx.work:work-testing:$work_version")
+
+    // optional - Multiprocess support
+    implementation "androidx.work:work-multiprocess:$work_version"
+
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-rx2:1.8.1"
+    implementation(project(':annotation'))
+    ksp(project(':annotation'))
+    implementation(project(':ser'))
 }
 repositories {
     google()

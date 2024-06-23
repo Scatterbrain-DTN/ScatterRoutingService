@@ -1,3 +1,6 @@
 [submodule "scatterbrainSDK"]
 	path = scatterbrainSDK
 	url = https://github.com/Scatterbrain-DTN/ScatterbrainSDK.git
+[submodule "lazysodium-android"]
+	path = lazysodium-android
+	url = https://github.com/terl/lazysodium-android

@@ -1,27 +1,41 @@
 package net.ballmerlabs.uscatterbrain.util
 
-import io.reactivex.*
+import io.reactivex.Completable
+import io.reactivex.Flowable
+import io.reactivex.Maybe
+import io.reactivex.Observable
+import io.reactivex.Single
 import java.util.concurrent.TimeUnit
 
-fun <T> retryDelay(observable: Observable<T>, count: Int, seconds: Int): Observable<T> {
-    return observable
-            .retryWhen { errors: Observable<Throwable> ->
-                errors
-                        .zipWith(Observable.range(1, count)) { _: Throwable, i: Int -> i }
-                        .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
-            }
-}
-
-fun <T> retryDelay(observable: Observable<T>, seconds: Int): Observable<T> {
-    return observable
+fun <T> Observable<T>.retryDelay(count: Int, seconds: Int): Observable<T> {
+    return this
         .retryWhen { errors: Observable<Throwable> ->
             errors
+                .zipWith(Observable.range(1, count)) { _: Throwable, i: Int -> i}
                 .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
         }
 }
 
-fun retryDelay(completable: Completable, count: Int, seconds: Int): Completable {
-    return completable
+fun <T> Observable<T>.retryDelay(count: Int, seconds: Int, timeUnit: TimeUnit): Observable<T> {
+    return this
+        .retryWhen { errors: Observable<Throwable> ->
+            errors
+                .zipWith(Observable.range(1, count)) { _: Throwable, i: Int -> i}
+                .concatMapSingle { Single.timer(seconds.toLong(), timeUnit) }
+        }
+}
+
+fun <T> Flowable<T>.retryDelay(count: Int, seconds: Int): Flowable<T> {
+    return this
+        .retryWhen { errors: Flowable<Throwable> ->
+            errors
+                .zipWith(Flowable.range(1, count)) { _: Throwable, i: Int -> i }
+                .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
+}
+
+fun Completable.retryDelay(count: Int, seconds: Int): Completable {
+    return this
             .retryWhen { errors: Flowable<Throwable> ->
                 errors
                         .zipWith(Flowable.range(1, count)) { _: Throwable, i: Int -> i }
@@ -29,8 +43,8 @@ fun retryDelay(completable: Completable, count: Int, seconds: Int): Completable 
             }
 }
 
-fun <T> retryDelay(single: Single<T>, count: Int, seconds: Int): Single<T> {
-    return single
+fun <T> Single<T>.retryDelay(count: Int, seconds: Int): Single<T> {
+    return this
             .retryWhen { errors ->
                 errors
                         .zipWith(Flowable.range(1, count)) { _, i: Int -> i }
@@ -38,18 +52,11 @@ fun <T> retryDelay(single: Single<T>, count: Int, seconds: Int): Single<T> {
             }
 }
 
-fun <T> retryDelay(maybe: Maybe<T>, count: Int, seconds: Int): Maybe<T> {
-    return maybe
+fun <T> Maybe<T>.retryDelay(count: Int, seconds: Int): Maybe<T> {
+    return this
         .retryWhen { errors ->
             errors
                 .zipWith(Flowable.range(1, count)) { _, i: Int -> i }
                 .concatMapMaybe{ Maybe.timer(seconds.toLong(), TimeUnit.SECONDS) }
         }
-}
-
-fun <T> retryDelay(single: Single<T>, seconds: Int): Single<T> {
-    return single
-            .retryWhen { errors ->
-                errors.concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
-            }
 }

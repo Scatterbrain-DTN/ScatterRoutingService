@@ -1,214 +1,75 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import com.google.protobuf.MessageLite
-import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
-import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Completable
 import io.reactivex.Observable
-import io.reactivex.Scheduler
 import io.reactivex.Single
-import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
-import net.ballmerlabs.uscatterbrain.network.*
-import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.io.InputStream
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
+import net.ballmerlabs.uscatterbrain.network.proto.*
+import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
 
-/**
- * Convenience class wrapping an RxBleConnection
- *
- * This class manages channel selection and protobuf stream parsing
- * for a BLE client connection
- *
- * @property connection raw connection object being wrapped by this class
- */
-class CachedLEConnection(
-    private val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>,
-    private val scheduler: Scheduler,
-    val device: RxBleDevice,
-    val advertiser: Advertiser
-) : Disposable {
-    private val LOG by scatterLog()
-    private val disposable = CompositeDisposable()
-    private val timeout: Long = 20
+import java.util.UUID
 
-    val connection = BehaviorSubject.create<RxBleConnection>()
-    private val disconnectCallbacks = ConcurrentHashMap<() -> Completable, Boolean>()
-    private val channelNotifs = ConcurrentHashMap<UUID, InputStreamObserver>()
-
-    init {
-        for (id in channels.keys()) {
-            channelNotifs[id] = InputStreamObserver(4096)
-        }
-    }
-
-    fun subscribeConnection(rawConnection: Observable<RxBleConnection>) {
-        rawConnection.doOnSubscribe { disp ->
-            disposable.add(disp)
-            LOG.v("subscribed to connection subject")
-        }
-            .doOnError { err ->
-                LOG.e("raw connection error: $err")
-                onDisconnect().subscribeOn(scheduler).blockingAwait()
-            }
-            .doOnComplete { LOG.e("raw connection completed") }
-            .concatWith(onDisconnect())
-            .subscribe(connection)
-    }
-
-    private fun onDisconnect(): Completable {
-        return Observable.fromIterable(disconnectCallbacks.keys)
-            .flatMapCompletable { k -> k() }
-    }
-
-    fun setOnDisconnect(callback: () -> Completable) {
-        disconnectCallbacks[callback] = true
-    }
-
-
-    /**
-     * read from the semaphor characteristic to determine what channel
-     * we are allowed to use
-     * @return Single emitting uuid of channel selected
-     */
-    private fun selectChannel(): Single<UUID> {
-        return connection
-            .firstOrError()
-            .flatMap { c ->
-                c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
-                    .map { bytes ->
-                        val uuid = BluetoothLERadioModuleImpl.bytes2uuid(bytes)!!
-                        if (!channelNotifs.containsKey(uuid)) {
-                            throw IllegalStateException("gatt server returned invalid uuid")
-                        }
-                        uuid
-                    }
-            }
-            .doOnSuccess { uuid -> LOG.v("client selected channel $uuid") }
-    }
-
-    /**
-     * select a free channel and read protobuf data from it.
-     * use characteristic reads for timing to tell the server we are ready
-     * to receive data
-     * @return observable emitting bytes received
-     */
-    private inline fun <reified T : ScatterSerializable<R>, reified R : MessageLite> cachedNotification(
-        parser: ScatterSerializable.Companion.Parser<R, T>
-    ): Single<T> {
-        return selectChannel()
-            .flatMap { uuid ->
-                connection.firstOrError().flatMap { conn ->
-                    conn.setupNotification(uuid, NotificationSetupMode.QUICK_SETUP)
-                        .flatMapSingle { obs ->
-                            LOG.v("indication setup")
-                            val o = InputStreamObserver(10000)
-                            obs
-                                .doOnNext { b -> LOG.v("client read bytes ${b.size}") }
-                                .subscribe(o)
-                            ScatterSerializable.parseWrapperFromCRC(
-                                parser,
-                                o as InputStream,
-                                scheduler
-                            )
-                        }
-                        .mergeWith(conn.writeCharacteristic(uuid, BluetoothLERadioModuleImpl.uuid2bytes(getHashUuid( advertiser.myLuid.get()))!!)
-                            .ignoreElement())
-                        .firstOrError()
-                        .doOnSuccess { p -> LOG.e("cachedNotification read ${p.type}") }
-                }
-                    .timeout(BluetoothLEModule.TIMEOUT.toLong(), TimeUnit.SECONDS)
-            }
-    }
-
+interface CachedLeConnection {
+    val connection: BehaviorSubject<RxBleConnection>
+    fun subscribeNotifs(): Completable
+    fun awaitNotificationsSetup(): Completable
+    fun subscribeConnection(rawConnection: Observable<RxBleConnection>)
+    fun setOnDisconnect(callback: () -> Completable)
+    fun sendForget(luid: UUID): Completable
     /**
      * reads a single advertise packet
      * @return single emitting advertise packet
      */
-    fun readAdvertise(): Single<AdvertisePacket> {
-        return cachedNotification(AdvertisePacket.parser())
-    }
+    fun readAdvertise(): Single<AdvertisePacket>
 
     /**
      * reads a single upgrade packet
      * @return single emitting upgrade packet
      */
-    fun readUpgrade(): Single<UpgradePacket> {
-        return cachedNotification(UpgradePacket.parser())
-    }
+    fun readUpgrade(): Single<UpgradePacket>
 
     /**
      * reads a single blockheader packet
      * @return single emitting blockheader packet
      */
-    fun readBlockHeader(): Single<BlockHeaderPacket> {
-        return cachedNotification(BlockHeaderPacket.parser())
-    }
+    fun readBlockHeader(): Single<BlockHeaderPacket>
 
     /**
      * reads a single blocksequence packet
      * @return single emitting blocksequence packet
      */
-    fun readBlockSequence(): Single<BlockSequencePacket> {
-        return cachedNotification(BlockSequencePacket.parser())
-    }
+    fun readBlockSequence(): Single<BlockSequencePacket>
 
     /**
      * reads a single declarehashes packet
      * @return single emitting delcarehashes packet
      */
-    fun readDeclareHashes(): Single<DeclareHashesPacket> {
-        return cachedNotification(DeclareHashesPacket.parser())
-    }
+    fun readDeclareHashes(): Single<DeclareHashesPacket>
 
     /**
      * reads a single electleader packet
      * @return single emitting electleader packet
      */
-    fun readElectLeader(): Single<ElectLeaderPacket> {
-        return cachedNotification(ElectLeaderPacket.parser())
-    }
+    fun readElectLeader(): Single<ElectLeaderPacket>
 
     /**
      * reads a single identity packet
      * @return single emitting identity packet
      */
-    fun readIdentityPacket(): Single<IdentityPacket> {
-        return cachedNotification(IdentityPacket.parser())
-    }
+    fun readIdentityPacket(): Single<IdentityPacket>
 
     /**
      * reads a single luid packet
      * @return single emitting luid packet
      */
-    fun readLuid(): Single<LuidPacket> {
-        return cachedNotification(LuidPacket.parser())
-    }
+    fun readLuid(): Single<LuidPacket>
 
     /**
      * reads a single ack packet
      * @return single emititng ack packet
      */
-    fun readAck(): Single<AckPacket> {
-        return cachedNotification(AckPacket.parser())
-    }
+    fun readAck(): Single<AckPacket>
 
-    /**
-     * dispose this connection
-     */
-    override fun dispose() {
-        LOG.e("CachedLEConnection disposed")
-        disposable.dispose()
-    }
-
-    /**
-     * returns true if this connection is disposed
-     */
-    override fun isDisposed(): Boolean {
-        return disposable.isDisposed
-    }
+    fun disconnect()
 }

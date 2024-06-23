@@ -7,32 +7,35 @@ import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import io.reactivex.Completable
 import io.reactivex.Flowable
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
-import net.ballmerlabs.scatterbrainsdk.Identity
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
+import net.ballmerlabs.scatterbrainsdk.internal.SbApp
+import net.ballmerlabs.uscatterbrain.network.proto.*
+import net.ballmerlabs.scatterproto.Verifiable
 import net.ballmerlabs.uscatterbrain.db.entities.*
 import net.ballmerlabs.uscatterbrain.network.*
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import java.io.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
-import java.util.regex.Pattern
 
 const val DATABASE_NAME = "scatterdb"
 const val DEFAULT_BLOCKSIZE = 1024 * 512
-val FILE_SANITIZE: Pattern = Pattern.compile("^[a-zA-Z0-9_()-]*$")
 const val USER_FILES_PATH = "userFiles"
 const val CACHE_FILES_PATH = "systemFiles"
 
-class ACL(val packageName: String, val appsig: String)
+data class ACL(val packageName: String, val appsig: String)
 
 class OpenFile(path: File, append: Boolean) : Closeable {
     private val inputStream: FileInputStream
     private var mOs: FileOutputStream
     private val mFile: File = path
-    private val mMode: ScatterbrainDatastore.WriteMode = ScatterbrainDatastore.WriteMode.OVERWRITE
     private var mLocked: Boolean
 
     @Throws(IOException::class)
@@ -48,18 +51,8 @@ class OpenFile(path: File, append: Boolean) : Closeable {
     }
 }
 
-fun sanitizeFilename(name: String): String {
-    return if (FILE_SANITIZE.matcher(name).matches()) {
-        name
-    } else {
-        throw SecurityException("invalid filename")
-    }
-}
 
 
-fun isValidFilename(name: String): Boolean {
-    return FILE_SANITIZE.matcher(name).matches()
-}
 
 
 fun sigSize(message: Verifiable): Int {
@@ -143,7 +136,7 @@ fun signEd25519(secretkey: ByteArray, message: Verifiable): ByteArray {
 
 
 fun getNoFilename(body: ByteArray): String {
-    val outhash = ByteArray(GenericHash.BYTES)
+    val outhash = ByteArray(GenericHash.BYTES_MIN)
     val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
     LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
     LibsodiumInterface.sodium.crypto_generichash_update(state, body, body.size.toLong())
@@ -154,7 +147,7 @@ fun getNoFilename(body: ByteArray): String {
 }
 
 fun getGlobalHash(hashes: List<ByteArray>): ByteArray {
-    val outhash = ByteArray(GenericHash.BYTES)
+    val outhash = ByteArray(GenericHash.BYTES_MIN)
     val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
     LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
     for (bytes in hashes) {
@@ -164,21 +157,8 @@ fun getGlobalHash(hashes: List<ByteArray>): ByteArray {
     return outhash
 }
 
-fun hashAsUUID(hash: ByteArray): UUID {
-    return when {
-        hash.size != GenericHash.BYTES -> {
-            throw IllegalArgumentException("hash size wrong: ${hash.size}")
-        }
-        else -> {
-            val buf = ByteBuffer.wrap(hash)
-            //note: this only is safe because crypto_generichash_BYTES_MIN is 16
-            UUID(buf.long, buf.long)
-        }
-    }
-}
-
 fun getGlobalHashDb(hashes: List<Hashes>): ByteArray {
-    val outhash = ByteArray(GenericHash.BYTES)
+    val outhash = ByteArray(GenericHash.BYTES_MIN)
     val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
     LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, outhash.size)
     for (bytes in hashes) {
@@ -248,7 +228,7 @@ interface ScatterbrainDatastore {
      * @param ids
      * @return observable of IdentityPacket (completes even if none)
      */
-    fun getIdentity(ids: List<Long>): Observable<IdentityPacket>
+    fun getIdentity(ids: List<Long>, owned: Boolean = false): Observable<IdentityPacket>
 
     /**
      * gets file metadata for use in DocumentsProvider
@@ -284,7 +264,7 @@ interface ScatterbrainDatastore {
      * @param identities list of identities
      * @return completable
      */
-    fun insertApiIdentities(identities: List<Identity>): Completable
+    fun insertApiIdentities(identities: List<net.ballmerlabs.scatterbrainsdk.Identity>): Completable
 
     /**
      * gets an identity by fingerprint in api form
@@ -293,6 +273,14 @@ interface ScatterbrainDatastore {
      */
     fun getApiIdentityByFingerprint(identity: UUID): Single<ApiIdentity>
 
+
+    /**
+     * Gets desktop flavored identities by fingerprint
+     * @param identity
+     * @return identity
+     */
+    fun getDesktopIdentitiesByFingerprint(identity: UUID?): Single<List<DesktopApiIdentity>>
+
     /**
      * adds permission ACLs to the database
      * @param identityFingerprint identity
@@ -300,7 +288,9 @@ interface ScatterbrainDatastore {
      * @param appsig signature of application. NOTE: make sure to get this right
      * @return completable
      */
-    fun addACLs(identityFingerprint: UUID, packagename: String, appsig: String): Completable
+    fun addACLs(identityFingerprint: UUID, packagename: String, appsig: String, desktop: Boolean): Completable
+
+    fun addACLs(packagename: String, packageSig: String? = null, desktop: Boolean = false): Completable
 
     /**
      * removes permission ACLs from database
@@ -387,14 +377,14 @@ interface ScatterbrainDatastore {
     /**
      * gets dump of all identities in database. Potentially expensive.
      */
-    val allIdentities: List<Identity>
+    val allIdentities: List<net.ballmerlabs.scatterbrainsdk.Identity>
 
     /**
      * gets messages by application in api form
      * @param application
      * @return list of api messages
      */
-    fun getApiMessages(application: String): Single<ArrayList<ScatterMessage>>
+    fun getApiMessages(application: String, limit: Int = -1): Single<ArrayList<ScatterMessage>>
 
     /**
      * Filter messages by start and end date when message was sent
@@ -404,7 +394,7 @@ interface ScatterbrainDatastore {
      *
      * @return list of api messages
      */
-    fun getApiMessagesSendDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>>
+    fun getApiMessagesSendDate(application: String, start: Date, end: Date, limit: Int = -1): Single<ArrayList<ScatterMessage>>
 
     /**
      * Filter messages by start and end date when message was received
@@ -414,7 +404,7 @@ interface ScatterbrainDatastore {
      *
      * @return list of api messages
      */
-    fun getApiMessagesReceiveDate(application: String, start: Date, end: Date): Single<ArrayList<ScatterMessage>>
+    fun getApiMessagesReceiveDate(application: String, start: Date, end: Date, limit: Int = -1): Single<ArrayList<ScatterMessage>>
 
     /**
      * gets random identities from database (in network form)
@@ -533,6 +523,19 @@ interface ScatterbrainDatastore {
      * @return completable that calls onError if the share count failed to increment
      */
     fun incrementShareCount(message: BlockHeaderPacket): Completable
+
+    fun getStats(handshakeResult: HandshakeResult): Maybe<HandshakeResult>
+
+    fun updateStats(metrics: Metrics):  Completable
+
+    fun getStats(): Single<HandshakeResult>
+
+    fun getApps(): Observable<SbApp>
+
+    fun deleteApp(sig: String): Completable
+
+    fun insertMessageFromDesktop(message: List<DesktopMessage>, callingId: String, sign: UUID?): Completable
+
 
 
     enum class WriteMode {

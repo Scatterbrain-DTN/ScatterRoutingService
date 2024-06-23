@@ -9,6 +9,15 @@ interface FakeWifiP2pConfig: Parcelable {
 
     companion object {
 
+        fun bandToStr(band: Int): String {
+            return when(band) {
+                GROUP_OWNER_BAND_AUTO -> "auto"
+                GROUP_OWNER_BAND_2GHZ -> "2.4ghz"
+                GROUP_OWNER_BAND_5GHZ -> "5ghz"
+                else -> "invalid band"
+            }
+        }
+
         /**
          * Allow the system to pick the operating frequency from all supported bands.
          */

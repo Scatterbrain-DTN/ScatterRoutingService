@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.db.entities
 
 import androidx.room.*
 import io.reactivex.Completable
+import io.reactivex.Maybe
 import io.reactivex.Single
 import java.util.*
 
@@ -27,12 +28,17 @@ abstract class ScatterMessageDao {
     abstract fun getByUUID(uuids: UUID): Single<DbMessage>
 
     @Transaction
-    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (application = :application) AND (receiveDate BETWEEN :start AND :end)")
-    abstract fun getByReceiveDate(application: String, start: Long, end: Long): Single<List<DbMessage>>
+    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (application = :application) AND (receiveDate BETWEEN :start AND :end) LIMIT :limit")
+    abstract fun getByReceiveDate(application: String, start: Long, end: Long, limit: Int = -1): Single<List<DbMessage>>
+
 
     @Transaction
-    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (receiveDate BETWEEN :start AND :end)")
-    abstract fun getByReceiveDate(start: Long, end: Long): Single<List<DbMessage>>
+    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (application = :application) AND (receiveDate BETWEEN :start AND :end) ORDER BY receiveDate LIMIT :limit")
+    abstract fun getByReceiveDateChrono(application: String, start: Long, end: Long, limit: Int = -1): Single<List<DbMessage>>
+
+    @Transaction
+    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (receiveDate BETWEEN :start AND :end) LIMIT :limit")
+    abstract fun getByReceiveDate(start: Long, end: Long, limit: Int = -1): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (receiveDate BETWEEN :start AND :end) ORDER BY shareCount DESC LIMIT :limit")
@@ -43,8 +49,8 @@ abstract class ScatterMessageDao {
     abstract fun getByReceiveDatePriority(packageName: String, limit: Int): Single<List<DbMessage>>
 
     @Transaction
-    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (application = :application) AND (sendDate BETWEEN :start AND :end)")
-    abstract fun getBySendDate(application: String, start: Long, end: Long): Single<List<DbMessage>>
+    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (application = :application) AND (sendDate BETWEEN :start AND :end) LIMIT :limit")
+    abstract fun getBySendDate(application: String, start: Long, end: Long, limit: Int = -1): Single<List<DbMessage>>
 
     @Transaction
     @Query("DELETE FROM messages WHERE receiveDate BETWEEN :start AND :end")
@@ -57,6 +63,10 @@ abstract class ScatterMessageDao {
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash where application IN (:application)")
     abstract fun getByApplication(application: String): Single<List<DbMessage>>
+
+    @Transaction
+    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash where application IN (:application) ORDER BY receiveDate LIMIT :limit")
+    abstract fun getByApplicationChrono(application: String, limit: Int = -1): Single<List<DbMessage>>
 
     @get:Query("SELECT filepath FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash")
     abstract val allFiles: Single<List<String>>
@@ -78,13 +88,13 @@ abstract class ScatterMessageDao {
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE globalhash NOT IN (:globalhashes)" +
-            "ORDER BY RANDOM() LIMIT :count")
+            "ORDER BY fileSize ASC, shareCount ASC LIMIT :count")
     abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>): Single<List<DbMessage>>
 
     @Transaction
     @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash " +
             "WHERE fileGlobalHash NOT IN (:globalhashes)" +
-            "AND fileSize < :sizeLimit ORDER BY RANDOM() LIMIT :count")
+            "AND fileSize < :sizeLimit ORDER BY fileSize ASC, shareCount ASC LIMIT :count")
     abstract fun getTopRandomExclusingHash(count: Int, globalhashes: List<ByteArray>, sizeLimit: Long): Single<List<DbMessage>>
 
     @Transaction
@@ -97,7 +107,7 @@ abstract class ScatterMessageDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertMessages(message: HashlessScatterMessage): Single<Long>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun __insertHashes(h: List<Hashes>): Single<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -105,6 +115,48 @@ abstract class ScatterMessageDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract fun insertGlobalHash(hash: GlobalHash): Completable
+
+    @Query("select * from metrics where application = :application")
+    abstract fun getMetricsByApplication(application: String): Maybe<Metrics>
+
+    @Query("select * from metrics order by messages desc limit :limit ")
+    abstract fun getAllMetrics(limit: Int): Single<List<Metrics>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract fun insertMetrics(metrics: Metrics): Completable
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract fun insertMetricsIgnore(metrics: Metrics): Completable
+
+    @Transaction
+    @Insert
+    fun updateMetrics(application: String, messages: Long = 0, signed: Long = 0): Maybe<Metrics> {
+        return insertMetricsIgnore(
+            Metrics(
+                application = application,
+                messages = messages,
+                signed = signed
+            )
+        ).andThen(getMetricsByApplication(application)).flatMap { m ->
+            m.messages += messages
+            m.signed += signed
+            m.lastSeen = Date().time
+            insertMetrics(m).toSingleDefault(m).toMaybe()
+        }
+    }
+
+    @Transaction
+    @Insert
+    fun updateMetrics(metrics: Metrics): Maybe<Metrics> {
+        return insertMetricsIgnore(metrics)
+            .andThen(getMetricsByApplication(metrics.application))
+            .flatMap { m ->
+            m.messages += metrics.messages
+            m.signed += metrics.signed
+            m.lastSeen = Date().time
+            insertMetrics(m).toSingleDefault(m).toMaybe()
+        }
+    }
 
     @Transaction
     @Insert
