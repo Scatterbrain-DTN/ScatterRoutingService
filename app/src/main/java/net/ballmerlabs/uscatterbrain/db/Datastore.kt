@@ -52,7 +52,7 @@ class UuidTypeConverter {
         Metrics::class,
         DesktopClient::class
     ],
-    version = 21,
+    version = 22,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(
@@ -66,6 +66,10 @@ class UuidTypeConverter {
         AutoMigration(
             from = 19,
             to = 20
+        ),
+        AutoMigration(
+            from = 21,
+            to = 22
         )
     ]
 )

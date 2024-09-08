@@ -11,7 +11,6 @@ import androidx.room.PrimaryKey
  */
 @Entity(indices = [
     Index(value = ["packageName"], unique = true),
-    Index(value = ["packageSignature"], unique = true),
     Index(value = ["packageName", "packageSignature"], unique = true),
 ])
 data class ClientApp(
