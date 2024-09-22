@@ -132,8 +132,7 @@ class WifiDirectTest {
                     state = MockLeState(
                         serverConnection = component.gattConnectionBuilder().timeoutConfiguration(
                             TimeoutConfiguration(0, TimeUnit.SECONDS, delayScheduler)
-                        ).gattServer(mock { }).build(),
-                        connectionFactory = Observable.never()
+                        ).gattServer(mock { }).build()
                     ),
                     leAdvertiser = mock { },
                     luid = UUID.randomUUID()

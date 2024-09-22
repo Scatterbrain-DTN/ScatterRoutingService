@@ -7,6 +7,7 @@ import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.FakeGattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
@@ -19,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 class MockLeState(
     private val serverConnection: FakeGattServerConnectionSubcomponent,
-    private val connectionFactory: Observable<CachedLeConnection>,
+    val connectionFactory: PublishSubject<CachedLeConnection> = PublishSubject.create(),
     private val resultFactory: Observable<HandshakeResult> = Observable.just(HandshakeResult(1, 1, HandshakeResult.TransactionStatus.STATUS_SUCCESS)),
     val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> = ConcurrentHashMap(),
     override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic> = ConcurrentHashMap(),

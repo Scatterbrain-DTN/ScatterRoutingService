@@ -28,9 +28,9 @@ fun getHashUuid(uuid: UUID?): UUID? {
  * @property hashAsUUID hash of this packet represented as UUID
  */
 @SbPacket(messageType = MessageType.LUID)
-class LuidPacket (
-    packet: Luid
-) : ScatterSerializable<Luid>(packet, MessageType.LUID) {
+data class LuidPacket (
+    private val p: Luid
+) : ScatterSerializable<Luid>(p, MessageType.LUID) {
     val isHashed: Boolean
     get() = packet.valCase == Luid.ValCase.VAL_HASH
 

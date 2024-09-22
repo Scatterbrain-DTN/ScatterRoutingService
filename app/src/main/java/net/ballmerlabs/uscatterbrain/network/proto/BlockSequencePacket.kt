@@ -19,9 +19,9 @@ import proto.Scatterbrain.MessageType
  * @property isEnd is this packet the last in a stream
  */
 @SbPacket(messageType = MessageType.BLOCK_SEQUENCE)
-class BlockSequencePacket(
-    packet: BlockSequence
-) : ScatterSerializable<BlockSequence>(packet, MessageType.BLOCK_SEQUENCE) {
+data class BlockSequencePacket(
+    private val p: BlockSequence
+) : ScatterSerializable<BlockSequence>(p, MessageType.BLOCK_SEQUENCE) {
 
     val data: ByteArray
         get() = if (isNative) {

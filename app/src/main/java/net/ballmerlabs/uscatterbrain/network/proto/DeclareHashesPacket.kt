@@ -13,9 +13,9 @@ import proto.Scatterbrain.MessageType
  * @property hashes list of "globalhash" values of Scatterbrain messages
  */
 @SbPacket(messageType = MessageType.DECLARE_HASHES)
-class DeclareHashesPacket(
-    packet: Scatterbrain.DeclareHashes
-) : ScatterSerializable<Scatterbrain.DeclareHashes>(packet, MessageType.DECLARE_HASHES) {
+data class DeclareHashesPacket(
+    val p: Scatterbrain.DeclareHashes
+) : ScatterSerializable<Scatterbrain.DeclareHashes>(p, MessageType.DECLARE_HASHES) {
 
     val optout: Boolean
         get() = packet.optout

@@ -8,13 +8,13 @@ package proto;
 message Ack {
     bool success = 1;
     int32 status = 2;
-    oneof message {
+    oneof ack_maybe_message {
         string text = 3;
     }
 }
 
-// Protobuf has no native uuid type. This is 128 bit uuid.
-message UUID {
+// Protobuf has no native ProtoUuid type. This is 128 bit ProtoUuid.
+message ProtoUuid {
     uint64 lower = 1;
     uint64 upper = 2;
 }
@@ -88,8 +88,8 @@ message DeclareHashes {
 
 // header + metadata for a file, message or data stream
 message BlockData {
-    repeated UUID from_fingerprint = 2;
-    repeated UUID to_fingerprint = 3;
+    repeated ProtoUuid from_fingerprint = 2;
+    repeated ProtoUuid to_fingerprint = 3;
     string application = 4;
     string filename = 5;
     uint32 ttl = 6;
@@ -120,14 +120,14 @@ message Luid {
         bytes hash = 3;
     }
     oneof val {
-        UUID val_uuid = 4;
+        ProtoUuid val_uuid = 4;
         hashed val_hash = 5;
     }
 }
 
 // For gossiping about wifi direct "ukes" in area. Currently unused
 message ExtraUke {
-    UUID luid = 2;
+    ProtoUuid luid = 2;
     Upgrade upgrade = 3;
 }
 
@@ -141,11 +141,11 @@ enum Role {
 
 // Packet for voting in distributed elections. Used for bootstrapping
 message ElectLeader {
-    UUID sender = 2;
+    ProtoUuid sender = 2;
     message Body {
         bytes salt = 3;
         uint32 provides = 4;
-        UUID tiebreaker_val = 5;
+        ProtoUuid tiebreaker_val = 5;
         oneof maybe_upgrade { Upgrade upgrade = 6; };
     }
     oneof val {
@@ -159,7 +159,7 @@ message Upgrade {
     uint32 provides = 2;
     uint32 sessionid = 3;
     map<string, string> metadata = 4;
-    UUID from = 5;
+    ProtoUuid from = 5;
     Role role = 6;
 }
 
@@ -186,14 +186,14 @@ message JustUkes  {
 // arbitrary metadata about the network
 // used for building more complex routing algorithms someday
 message RoutingMetadata {
-    UUID id = 1;
+    ProtoUuid id = 1;
     bool endofstream = 2;
     map<string, bytes> keyval = 3;
 }
 
 // Used for informing new wifi direct peers about neighbors
 message IpAnnounceItem {
-    UUID id = 1;
+    ProtoUuid id = 1;
     string address = 2;
     uint32 port = 3;
     bool uke = 4;
@@ -201,7 +201,7 @@ message IpAnnounceItem {
 
 // Used for informing new wifi direct peers about neighbors
 message IpAnnounce {
-    UUID self = 1;
+    ProtoUuid self = 1;
     repeated IpAnnounceItem items = 2;
 }
 
@@ -221,7 +221,7 @@ enum RespCode {
 // Header for all messages sent in the context of a session
 message ApiHeader {
    // ScatterType type = 1;
-    UUID session = 1;
+    ProtoUuid session = 1;
     oneof stream { int32 stream_id = 2; }
 }
 
@@ -248,8 +248,8 @@ message PairingRequest {
 message UnitResponse {
     ApiHeader header = 1;
     RespCode code = 2;
-    oneof maybeMessage {
-        string message = 3;
+    oneof unitresponse_maybe_message {
+        string message_code = 3;
     }
 }
 
@@ -261,22 +261,22 @@ message CryptoMessage {
 
 // Scattermessage stored on device
 message ApiMessage {
-    UUID fromFingerprint = 1;
-    UUID toFingerprint = 2;
+    ProtoUuid fromFingerprint = 1;
+    ProtoUuid toFingerprint = 2;
     string application = 3;
     string extension = 4;
     string mime = 5;
     int64  sendDate = 6;
     int64 receiveDate = 7;
     bool isFile = 8;
-    UUID id = 9;
+    ProtoUuid id = 9;
     bytes body = 10;
     string fileName = 11;
 }
 
 // Identity stored on device
 message ApiIdentity {
-    UUID fingerprint = 1;
+    ProtoUuid fingerprint = 1;
     string name = 2;
     bytes publicKey = 3;
     bool isOwned = 4;
@@ -289,7 +289,7 @@ message SendMessageCmd {
     ApiHeader header = 1;
     repeated ApiMessage messages = 2;
     oneof signIdentity {
-        UUID identity = 3;
+        ProtoUuid identity = 3;
     }
 }
 
@@ -318,7 +318,7 @@ message GetMessagesCmd {
 // Get an identity by id
 message GetIdentityCommand {
     ApiHeader header = 1;
-    oneof id { UUID identity = 2; }
+    oneof id { ProtoUuid identity = 2; }
     bool owned = 3;
 }
 
@@ -344,14 +344,14 @@ message GenerateIdentityCommand {
 message ImportIdentityCommand {
     ApiHeader header = 1;
     oneof maybeHandle {
-        UUID handle = 2;
+        ProtoUuid handle = 2;
     }
 }
 
 
 message GenerateIdentityResponse {
     ApiHeader header = 1;
-    UUID identity = 2;
+    ProtoUuid identity = 2;
     RespCode code = 3;
 }
 
@@ -360,11 +360,11 @@ message ImportIdentityResponse {
     RespCode code = 2;
     oneof state {
         FinalResponse final = 3;
-        UUID handle = 4;
+        ProtoUuid handle = 4;
     }
     message FinalResponse {
-        UUID handle = 5;
-        UUID identity = 6;
+        ProtoUuid handle = 5;
+        ProtoUuid identity = 6;
     }
 }
 
@@ -376,13 +376,13 @@ message GetEvents {
     }
 }
 
-message Events {
+message SbEvents {
     ApiHeader header = 1;
-    repeated Event events = 2;
+    repeated SbEvent events = 2;
 }
 
-message Event {
-    oneof Event {
+message SbEvent {
+    oneof MaybeEvent {
         NewMessage newMessage = 21;
         NewIdentity newIdentities = 2;
     }
@@ -392,15 +392,15 @@ message Event {
     }
 
     message NoBodyMessage {
-        UUID fromFingerprint = 1;
-        UUID toFingerprint = 2;
+        ProtoUuid fromFingerprint = 1;
+        ProtoUuid toFingerprint = 2;
         string application = 3;
         string extension = 4;
         string mime = 5;
         int64  sendDate = 6;
         int64 receiveDate = 7;
         bool isFile = 8;
-        UUID id = 9;
+        ProtoUuid id = 9;
         string fileName = 10;
     }
 

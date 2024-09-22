@@ -27,8 +27,8 @@ import proto.Scatterbrain.MessageType
  * @property keymap associative array of user-defined keys in any format
  */
 @SbPacket(messageType = MessageType.IDENTITY)
-class IdentityPacket(packet: Scatterbrain.Identity) :
-        ScatterSerializable<Scatterbrain.Identity>(packet, MessageType.IDENTITY),
+data class IdentityPacket(private val p: Scatterbrain.Identity) :
+        ScatterSerializable<Scatterbrain.Identity>(p, MessageType.IDENTITY),
         MutableMap<String, ByteString> {
     val name: String
         get() = packet.`val`.givenname

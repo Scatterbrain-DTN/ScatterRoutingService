@@ -63,6 +63,7 @@ open class CachedLEConnectionImpl @Inject constructor(
             val n = notifs.get()
             if (n == null) {
                 // channelNotif.clear()
+                LOG.v("try select channeld")
                 selectChannel()
                     .doOnSubscribe { disp -> disposable.add(disp) }
                     // .takeWhile { (channel === null || channel == currentChannel.get()) || currentChannel.get() == null }
@@ -81,6 +82,7 @@ open class CachedLEConnectionImpl @Inject constructor(
                     .subscribe(channelNotif)
                 awaitNotificationsSetup()
             } else {
+                LOG.v("notifs were null?")
                 Completable.complete()
             }
         }
@@ -119,6 +121,7 @@ open class CachedLEConnectionImpl @Inject constructor(
             LOG.v("subscribed to connection subject")
         }
             .doOnComplete { LOG.e("raw connection completed") }
+            .doOnNext { LOG.w("got connection") }
             .onErrorResumeNext{ err: Throwable -> onDisconnect().andThen(Observable.error(err)) }
             .concatWith(onDisconnect())
             .subscribe(connection)
@@ -148,12 +151,12 @@ open class CachedLEConnectionImpl @Inject constructor(
     private fun selectChannel(): Observable<ByteArray> {
         return connection
             .flatMap { c ->
-
+                LOG.v("selectChannel")
                 c.readCharacteristic(BluetoothLERadioModuleImpl.UUID_SEMAPHOR)
                     .flatMapObservable { bytes ->
-                        val uuid = bytes2uuid(bytes)!!
+                        val uuid = bytes2uuid(bytes)
                         LOG.e("client selected channel $uuid for $luid")
-                        c.setupIndication(uuid, NotificationSetupMode.QUICK_SETUP)
+                        c.setupIndication(uuid!!, NotificationSetupMode.QUICK_SETUP)
                             .flatMap { obs ->
                                 LOG.e("client notifications setup")
                                 notificationsSetup.onNext(Optional.of(uuid))

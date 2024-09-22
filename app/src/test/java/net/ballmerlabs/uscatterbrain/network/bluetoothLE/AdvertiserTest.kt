@@ -9,6 +9,7 @@ import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.plugins.RxJavaPlugins
+import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.FakeGattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.FakeRoutingServiceComponent
@@ -103,8 +104,7 @@ class AdvertiserTest {
         disposable = CompositeDisposable()
         setupModule()
         leState = MockLeState(
-            serverConnection = fakeGattServerConnection,
-            connectionFactory = Observable.empty()
+            serverConnection = fakeGattServerConnection
         )
         advertiser = AdvertiserImpl(
             context = context,

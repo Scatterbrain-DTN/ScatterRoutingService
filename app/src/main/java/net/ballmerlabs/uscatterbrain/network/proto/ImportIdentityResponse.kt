@@ -4,12 +4,10 @@ import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
-import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import proto.Scatterbrain
 import proto.Scatterbrain.ImportIdentityResponse.FinalResponse
 import proto.Scatterbrain.MessageType
 import proto.Scatterbrain.RespCode
-import proto.Scatterbrain.UUID
 
 data class FinalResult(
     val handle: java.util.UUID,

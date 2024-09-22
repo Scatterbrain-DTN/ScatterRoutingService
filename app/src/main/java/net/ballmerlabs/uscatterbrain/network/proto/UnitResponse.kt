@@ -24,12 +24,14 @@ class UnitResponse(
         else
             Scatterbrain.UnitResponse.newBuilder()
                 .setCode(success)
-                .setMessage(message)
+                .setMessageCode(message)
                 .build()
     )
 
-    val message: String? = if(packet.maybeMessageCase == Scatterbrain.UnitResponse.MaybeMessageCase.MESSAGE)
-        packet.message
+    val message: String? = if(
+        packet.unitresponseMaybeMessageCase == Scatterbrain.UnitResponse.UnitresponseMaybeMessageCase.MESSAGE_CODE
+        )
+        packet.messageCode
     else
         null
 

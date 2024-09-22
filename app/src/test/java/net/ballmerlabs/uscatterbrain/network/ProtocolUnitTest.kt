@@ -104,6 +104,110 @@ class ProtocolUnitTest {
     }
 
     @Test
+    fun equalityAck() {
+        val ack = AckPacket.newBuilder(true)
+            .setMessage("hi")
+            .build()
+
+        val acksame = AckPacket.newBuilder(true)
+            .setMessage("hi")
+            .build()
+        val n = AckPacket.newBuilder(false)
+            .setMessage("hi")
+            .build()
+        assert(ack != n)
+        assert(acksame == ack)
+    }
+
+    @Test
+    fun equalityBlockSequence() {
+        val bs = BlockSequencePacket.newBuilder()
+            .setSequenceNumber(42)
+            .setData(ByteString.copyFrom(byteArrayOf(1, 2, 3 ,4)))
+            .build()
+
+        val bssame = BlockSequencePacket.newBuilder()
+            .setSequenceNumber(42)
+            .setData(ByteString.copyFrom(byteArrayOf(1, 2, 3 ,4)))
+            .build()
+
+        val n = BlockSequencePacket.newBuilder()
+            .setSequenceNumber(42)
+            .setData(ByteString.copyFrom(byteArrayOf(1, 2, 3 , 5)))
+            .build()
+
+        assert(bs != n)
+        assert(bssame == bs)
+    }
+
+    @Test
+    fun equalityIdentityPacket() {
+        val id = IdentityPacket.newBuilder()
+            .setName("test")
+            .setSig(byteArrayOf(1, 2, 3))
+            .setScatterbrainPubkey(ByteString.copyFrom(byteArrayOf(1, 2, 3)))
+            .build()
+
+        val idsame = IdentityPacket.newBuilder()
+            .setName("test")
+            .setSig(byteArrayOf(1, 2, 3))
+            .setScatterbrainPubkey(ByteString.copyFrom(byteArrayOf(1, 2, 3)))
+            .build()
+
+        val n = IdentityPacket.newBuilder()
+            .setName("test")
+            .setSig(byteArrayOf(1, 2, 4))
+            .setScatterbrainPubkey(ByteString.copyFrom(byteArrayOf(1, 2, 3)))
+            .build()
+
+        val n2 = IdentityPacket.newBuilder()
+            .setName("test")
+            .setSig(byteArrayOf(1, 2, 3))
+            .setScatterbrainPubkey(ByteString.copyFrom(byteArrayOf(1, 2, 4)))
+            .build()
+
+        assert(id == idsame)
+        assert(id != n)
+        assert(id != n2)
+    }
+
+    @Test
+    fun equalityLuidPacket() {
+        val l = UUID.randomUUID()
+        val luid = LuidPacket.newBuilder()
+            .setLuid(l)
+            .build()
+        val luidsame = LuidPacket.newBuilder()
+            .setLuid(l)
+            .build()
+
+        val n = LuidPacket.newBuilder()
+            .setLuid(UUID.randomUUID())
+            .build()
+
+        assert(luid == luidsame)
+        assert(luid != n)
+    }
+
+    @Test
+    fun declareHashesEquality() {
+        val hash = DeclareHashesPacket.newBuilder()
+            .setHashesByte(listOf(byteArrayOf(1, 2, 3), byteArrayOf(3, 2, 1)))
+            .build()
+
+        val same = DeclareHashesPacket.newBuilder()
+            .setHashesByte(listOf(byteArrayOf(1, 2, 3), byteArrayOf(3, 2, 1)))
+            .build()
+
+        val n = DeclareHashesPacket.newBuilder()
+            .setHashesByte(listOf(byteArrayOf(3, 2, 1), byteArrayOf(1, 2, 3)))
+            .build()
+
+        assert(hash == same)
+        assert(hash != n)
+    }
+
+    @Test
     fun hashAsUuidTest() {
         val bytes = byteArrayOf( 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8,
             0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8)

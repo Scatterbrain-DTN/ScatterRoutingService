@@ -67,7 +67,7 @@ class RoutingMetadataPacket(packet: RoutingMetadata):
             val packet = RoutingMetadata.newBuilder()
                 .putAllKeyval(map.mapKeys { entry -> entry.key.toString()}
                     .mapValues { v -> ByteString.copyFrom(v.value) })
-                .setId(Scatterbrain.UUID.newBuilder()
+                .setId(Scatterbrain.ProtoUuid.newBuilder()
                     .setLower(uuid!!.leastSignificantBits)
                     .setUpper(uuid!!.mostSignificantBits))
                 .setEndofstream(empty)

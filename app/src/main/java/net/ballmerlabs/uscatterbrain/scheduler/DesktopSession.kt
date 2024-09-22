@@ -22,7 +22,7 @@ import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
 import net.ballmerlabs.uscatterbrain.network.desktop.getAll
 import net.ballmerlabs.uscatterbrain.network.proto.CryptoMessage
 import net.ballmerlabs.uscatterbrain.network.proto.CryptoMessageParser
-import net.ballmerlabs.uscatterbrain.network.proto.EventsResponse
+import net.ballmerlabs.uscatterbrain.network.proto.SbEventsResponse
 import net.ballmerlabs.uscatterbrain.network.proto.GenerateIdentityCommand
 import net.ballmerlabs.uscatterbrain.network.proto.GenerateIdentityResponse
 import net.ballmerlabs.uscatterbrain.network.proto.GetEventsCommand
@@ -222,15 +222,15 @@ class DesktopSession @Inject constructor(
             LOG.v("getEvents ${head.size}")
             if (packet.block) {
                 if (head.isNotEmpty()) {
-                    encrypt(EventsResponse(head))
+                    encrypt(SbEventsResponse(head))
                 } else {
                     stateEntry.events.firstOrError().flatMapCompletable {
                         val h2 = stateEntry.queue.getAll(packet.count)
-                        encrypt(EventsResponse(h2))
+                        encrypt(SbEventsResponse(h2))
                     }
                 }
             } else {
-                encrypt(EventsResponse(head))
+                encrypt(SbEventsResponse(head))
             }
         }
     }

@@ -6,13 +6,13 @@ import net.ballmerlabs.scatterproto.*
 import proto.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.ACK)
-class AckPacket(ack: Ack) : ScatterSerializable<Ack>(ack, MessageType.ACK) {
+data class AckPacket(private val ack: Ack) : ScatterSerializable<Ack>(ack, MessageType.ACK) {
 
     val status: Int
         get() = packet.status
 
     val message: String?
-        get() = if (packet.messageCase.equals(Ack.MessageCase.TEXT))
+        get() = if (packet.ackMaybeMessageCase.equals(Ack.AckMaybeMessageCase.TEXT))
             packet.text
         else
             null

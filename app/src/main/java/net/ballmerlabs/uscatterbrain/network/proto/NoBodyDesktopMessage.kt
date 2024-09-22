@@ -7,7 +7,7 @@ import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
-import proto.Scatterbrain.Event.NoBodyMessage
+import proto.Scatterbrain.SbEvent.NoBodyMessage
 import proto.Scatterbrain.MessageType
 import java.util.UUID
 

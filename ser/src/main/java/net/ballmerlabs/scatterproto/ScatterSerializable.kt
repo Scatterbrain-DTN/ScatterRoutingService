@@ -70,12 +70,12 @@ fun valToProvides(v: Int): Provides {
 }
 
 
-fun Scatterbrain.UUID.toUuid(): UUID {
+fun Scatterbrain.ProtoUuid.toUuid(): UUID {
     return UUID(upper, lower)
 }
 
-fun UUID.toProto(): Scatterbrain.UUID {
-    return Scatterbrain.UUID.newBuilder().setLower(leastSignificantBits)
+fun UUID.toProto(): Scatterbrain.ProtoUuid {
+    return Scatterbrain.ProtoUuid.newBuilder().setLower(leastSignificantBits)
         .setUpper(mostSignificantBits).build()
 }
 
