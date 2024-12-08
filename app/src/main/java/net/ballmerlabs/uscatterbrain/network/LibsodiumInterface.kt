@@ -5,7 +5,9 @@ import com.goterl.lazysodium.Sodium
 import com.goterl.lazysodium.SodiumAndroid
 import com.goterl.lazysodium.interfaces.GenericHash
 import com.goterl.lazysodium.interfaces.Hash
+import com.goterl.lazysodium.interfaces.KeyExchange
 import com.goterl.lazysodium.interfaces.SecretBox
+import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 
 /**
  * Singleton interface to libsodium/lazysodium over JNA
@@ -48,22 +50,6 @@ object LibsodiumInterface {
     fun base64decUrl(data: String): ByteArray {
         return android.util.Base64.decode(data, android.util.Base64.URL_SAFE)
     }
-
-    fun getFingerprint(key: ByteArray): ByteArray {
-        val hash = ByteArray(Hash.BYTES)
-        val state = ByteArray(sodium.crypto_generichash_statebytes())
-        sodium.crypto_generichash_init(
-            state,
-            null,
-            0,
-            hash.size
-        )
-        sodium.crypto_generichash_update(state, key, key.size.toLong())
-        sodium.crypto_generichash_final(state, hash, hash.size)
-
-        return hash
-    }
-
     fun secretboxKey(): ByteArray {
         val key = ByteArray(SecretBox.KEYBYTES)
         sodium.crypto_secretbox_keygen(key)
@@ -77,4 +63,8 @@ fun ByteArray.b64(): String {
 
 fun String.b64(): ByteArray {
     return LibsodiumInterface.base64dec(this)
+}
+
+fun ByteArray.fingerprint(): ByteArray {
+    return LibsodiumInterface.fingerprint(this)
 }

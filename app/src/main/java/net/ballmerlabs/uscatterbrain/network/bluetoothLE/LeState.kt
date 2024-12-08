@@ -52,11 +52,6 @@ interface LeState {
      */
     fun getServerSync(): GattServerConnectionSubcomponent?
 
-    /**
-     * Returns a single that emits the gatt server when it is started, waiting
-     * indefinitely until it is started by startServer()
-     */
-    fun getServer(): Single<GattServerConnectionSubcomponent>
 
     /**
      * Returns true if internal logic suggests we should connect to this peer

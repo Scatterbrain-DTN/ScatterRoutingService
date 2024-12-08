@@ -16,6 +16,55 @@ fun <T> Observable<T>.retryDelay(count: Int, seconds: Int): Observable<T> {
         }
 }
 
+fun <T> Observable<T>.retryDelay(seconds: Int, timeUnit: TimeUnit): Observable<T> {
+    return this
+        .retryWhen { errors: Observable<Throwable> ->
+            errors
+                .concatMapSingle { Single.timer(seconds.toLong(), timeUnit) }
+        }
+}
+
+fun <T> Flowable<T>.retryDelay(seconds: Int): Flowable<T> {
+    return this
+        .retryWhen { errors: Flowable<Throwable> ->
+            errors
+                .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
+}
+
+fun Completable.retryDelay(seconds: Int): Completable {
+    return this
+        .retryWhen { errors: Flowable<Throwable> ->
+            errors
+                .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
+}
+
+fun <T> Single<T>.retryDelay(seconds: Int): Single<T> {
+    return this
+        .retryWhen { errors ->
+            errors
+                .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
+}
+
+fun <T> Maybe<T>.retryDelay(seconds: Int): Maybe<T> {
+    return this
+        .retryWhen { errors ->
+            errors
+                .concatMapMaybe{ Maybe.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
+}
+
+
+fun <T> Observable<T>.retryDelay(seconds: Int): Observable<T> {
+    return this
+        .retryWhen { errors: Observable<Throwable> ->
+            errors
+                .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
+}
+
 fun <T> Observable<T>.retryDelay(count: Int, seconds: Int, timeUnit: TimeUnit): Observable<T> {
     return this
         .retryWhen { errors: Observable<Throwable> ->

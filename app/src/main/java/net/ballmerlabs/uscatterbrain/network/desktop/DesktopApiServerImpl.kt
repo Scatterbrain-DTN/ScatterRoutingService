@@ -1,35 +1,40 @@
 package net.ballmerlabs.uscatterbrain.network.desktop
 
+
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.ConnectivityManager.NetworkCallback
 import android.net.LinkProperties
 import android.net.Network
-import android.net.NetworkRequest
 import androidx.lifecycle.AtomicReference
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import net.ballmerlabs.scatterbrainsdk.PairingStage
 import net.ballmerlabs.scatterbrainsdk.PairingState
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainBroadcastReceiver
-import net.ballmerlabs.uscatterbrain.network.proto.*
-
-
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.b64
+import net.ballmerlabs.uscatterbrain.network.proto.AckPacket
+import net.ballmerlabs.uscatterbrain.network.proto.DesktopEvent
+import net.ballmerlabs.uscatterbrain.network.proto.FinalResult
+import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
+import net.ballmerlabs.uscatterbrain.network.proto.ImportIdentityResponse
+import net.ballmerlabs.uscatterbrain.network.proto.PairingAck
+import net.ballmerlabs.uscatterbrain.network.proto.PairingInitiateParser
+import net.ballmerlabs.uscatterbrain.network.proto.PairingRequest
+import net.ballmerlabs.uscatterbrain.network.proto.PairingSynAck
 import net.ballmerlabs.uscatterbrain.network.wifidirect.PortSocket
-import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.scheduler.DesktopSession
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import proto.Scatterbrain
@@ -42,7 +47,6 @@ import javax.inject.Named
 
 @DesktopApiScope
 class DesktopApiServerImpl @Inject constructor(
-    val serverSocketManager: ServerSocketManager,
     val state: DesktopKeyManager,
     val datastore: Datastore,
     val sbDatatore: ScatterbrainDatastore,
@@ -59,7 +63,7 @@ class DesktopApiServerImpl @Inject constructor(
 
     private val LOG by scatterLog()
     private val serveDisposable = AtomicReference<Disposable?>(null)
-    private val ackSubject = PublishSubject.create<Pair<ByteArray, Boolean>>()
+    private val ackSubject = BehaviorSubject.create<Pair<ByteArray, Boolean>>()
     private val sessions = ConcurrentHashMap<String, DesktopSession>()
     private val networkCallback = object : NetworkCallback() {
         override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
@@ -74,6 +78,7 @@ class DesktopApiServerImpl @Inject constructor(
             )
         }
     }
+
     init {
         connectivityManager.registerDefaultNetworkCallback(networkCallback)
     }
@@ -143,7 +148,7 @@ class DesktopApiServerImpl @Inject constructor(
                     LOG.v("got client from db ${client.paired}")
                     val sessionConfig = kp.session(v.pubkey, client)
                     val stateEntry = sessionState.eventState.compute(v.pubkey.b64()) { k, v ->
-                        when(v) {
+                        when (v) {
                             null -> StateEntry()
                             else -> v
                         }
@@ -157,16 +162,71 @@ class DesktopApiServerImpl @Inject constructor(
                         pubkey = kp.pubkey,
                         session = client.getHeader(0)
                     ).writeToStream(socket.getOutputStream(), scheduler)
-                        .flatMapSingle { s -> s.toSingleDefault(session) }
+                        .flatMapCompletable { s -> s }
+                        .toSingleDefault(session)
                 }
             }
     }
 
-    private fun handlePairingRequst(
+    private fun handlePairingSynAck(
+        message: PairingSynAck,
+        session: DesktopSession,
+    ): Completable {
+        return ackSubject.takeUntil { v -> v.first.contentEquals(session.fingerprint) }
+            .flatMapSingle { v ->
+                LOG.v("updating paired: ${v.second} ${session.db.name}")
+                session.db.paired = v.second
+                val c = if (v.second) {
+                    sbDatatore.addACLs(session.db.name, session.db.remotekey.b64(), desktop = true)
+                } else {
+                    Completable.complete()
+                }.andThen(datastore.desktopClientDao().updateClient(session.db))
+                c.toSingleDefault(v)
+            }
+            .flatMapCompletable { v ->
+                if (session.db.paired && !message.success) {
+                    LOG.v("pairing failed not message success")
+                    session.db.paired = false
+                    broadcastPairingState(
+                        PairingState(
+                            appName = session.db.name,
+                            stage = PairingStage.FAILED,
+                            identity = session.fingerprint
+                        )
+                    )
+                    datastore.desktopClientDao().updateClient(session.db)
+                } else if (session.db.paired && v.second) {
+                    LOG.v("pairing succeeded!")
+                    broadcastPairingState(
+                        PairingState(
+                            appName = session.db.name,
+                            stage = PairingStage.ACK,
+                            identity = session.fingerprint
+                        )
+                    )
+                    broadcaster.broadcastState(clientApps = true)
+                    Completable.complete()
+                } else {
+                    LOG.v("pairing failed other")
+                    broadcastPairingState(
+                        PairingState(
+                            appName = session.db.name,
+                            stage = PairingStage.FAILED,
+                            identity = session.fingerprint
+                        )
+                    )
+                    Completable.complete()
+                }
+
+            }
+    }
+
+    private fun handlePairingRequest(
         message: PairingRequest,
         session: DesktopSession,
     ): Completable {
         LOG.w("pairing request from ${message.packet.name}")
+        session.db.name = message.packet.name
         broadcastPairingState(
             PairingState(
                 appName = message.packet.name,
@@ -174,57 +234,62 @@ class DesktopApiServerImpl @Inject constructor(
                 identity = session.fingerprint
             )
         )
-        return ackSubject.takeUntil { v -> v.first.contentEquals(session.fingerprint) }
-            .flatMapSingle { v ->
-                LOG.v("updating paired: ${v.second}")
-                session.db.paired = v.second
-                val c = if(v.second) {
-                    sbDatatore.addACLs(message.packet.name, session.fingerprint.b64(), desktop = true)
-                } else {
-                    Completable.complete()
-                }
-                c.andThen(datastore.desktopClientDao().updateClient(session.db).toSingleDefault(v))
-            }
-            .flatMapCompletable { v ->
-                session.encrypt(AckPacket.newBuilder(v.second).build())
-            }
+        return  datastore.desktopClientDao().updateClient(session.db).andThen(
+            session.encrypt(AckPacket.newBuilder(true).build()))
+
     }
 
     override fun serve() {
-        val disp = advertiser.startAdvertise()
-            .retry(5)
-            .andThen(
-                serverSocket
-                    .accept(scheduler)
-                    .repeat()
-                    .retry()
-                    .subscribeOn(scheduler)
-                    .doOnSubscribe { broadcaster.broadcastState(
-                        power = DesktopPower.ENABLED
-                    ) }
-                    .flatMapCompletable { s ->
-                        state.getKeypair().flatMapCompletable {kp ->
-                            handleKeyExchange(s.socket, kp).flatMapCompletable { session ->
-                                session.session().parseTypePrefix(s.socket.getInputStream(), scheduler)
-                                    .repeat()
-                                    .concatMapCompletable { v ->
-                                        LOG.v("got packet type ${v.type}")
-                                        when (v.type) {
-                                            Scatterbrain.MessageType.PAIRING_REQUEST-> handlePairingRequst(
-                                                v.get(),
-                                                session.session()
-                                            )
+        val disp = serverSocket
+            .accept(scheduler)
+            .mergeWith(advertiser.startAdvertise())
+            .repeat()
+            .subscribeOn(scheduler)
+            .retry()
+            .subscribeOn(scheduler)
+            .doOnSubscribe {
+                broadcaster.broadcastState(
+                    power = DesktopPower.ENABLED
+                )
+            }
+            .flatMapCompletable { s ->
+                LOG.v("got desktop connection ${s.socket.remoteSocketAddress}")
+                state.getKeypair().flatMapCompletable { kp ->
+                    handleKeyExchange(s.socket, kp).flatMapCompletable { session ->
+                        session.session().parseTypePrefix(s.socket.getInputStream(), scheduler)
+                            .repeat()
+                            .subscribeOn(scheduler)
+                            .concatMapCompletable { v ->
+                                LOG.v("got packet type ${v.type}")
+                                when (v.type) {
+                                    Scatterbrain.MessageType.PAIRING_REQUEST -> handlePairingRequest(
+                                        v.get(),
+                                        session.session()
+                                    )
 
-                                            else -> session.session().handleMessage(v)
-                                        }
-                                    }
-                            }.doOnError { err ->
-                                LOG.e("error in desktop client stream: $err")
-                                err.printStackTrace()
+                                    Scatterbrain.MessageType.PAIRING_SYNACK -> handlePairingSynAck(
+                                        v.get(),
+                                        session.session()
+                                    )
+
+                                    else ->  if (session.session().db.paired)
+                                        session.session().handleMessage(v)
+                                    else
+                                        session.session()
+                                            .encrypt(
+                                                AckPacket.newBuilder(false)
+                                                    .setMessage("not authorized")
+                                                    .build()
+                                            )
+                                }.subscribeOn(scheduler)
                             }
-                                .onErrorComplete()
-                        }
-                    })
+                    }.doOnError { err ->
+                        LOG.e("error in desktop client stream: $err")
+                        err.printStackTrace()
+                    }
+                        .onErrorComplete()
+                }
+            }
             .subscribe(
                 { LOG.w("desktop server completed") },
                 { err -> LOG.e("desktop server error $err") }
@@ -253,13 +318,6 @@ class DesktopApiServerImpl @Inject constructor(
             val id = LibsodiumInterface.base64encUrl(fingerprint)
             LOG.w("authorize $id $authorize")
             ackSubject.onNext(Pair(fingerprint, authorize))
-            broadcastPairingState(
-                PairingState(
-                    appName = "",
-                    stage = PairingStage.ACK,
-                    identity = fingerprint
-                )
-            )
         }
     }
 }

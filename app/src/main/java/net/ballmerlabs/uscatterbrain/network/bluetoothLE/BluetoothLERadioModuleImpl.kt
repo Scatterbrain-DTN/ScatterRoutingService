@@ -800,15 +800,15 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     }.flatMapMaybe { v -> v }
                 }
                     .flatMapMaybe { v -> v }
-                    .flatMapSingle { v ->
+                    .concatMap { v ->
                         ackBarrier(
                             serverConnection,
                             clientConnection,
                             v,
                             luid,
                             device
-                        )
-                    }
+                        ).toMaybe()
+                    }.toSingle(TransactionResult.err(IllegalStateException("no stage selected")))
             }
             .doOnNext { transactionResult ->
                 val stage = transactionResult.stage ?: TransactionResult.STAGE_TERMINATE

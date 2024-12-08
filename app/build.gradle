@@ -7,11 +7,10 @@ plugins {
 
 
 android {
-    buildToolsVersion "30.0.3"
     defaultConfig {
         minSdkVersion 26
-        targetSdkVersion 34
-        compileSdkVersion 34
+        targetSdkVersion 35
+        compileSdkVersion 35
         multiDexEnabled true
         javaCompileOptions {
             annotationProcessorOptions {
@@ -54,9 +53,18 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = 17
-        targetCompatibility = 17
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
 
     sourceSets{
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
@@ -101,15 +109,18 @@ dependencies {
     //reflect for logging
     implementation 'org.jetbrains.kotlin:kotlin-reflect:1.9.20'
 
+    // websockets
+    implementation 'io.ktor:ktor-server-websockets:3.0.0-rc-1'
+
     implementation project(':scatterbrainSDK')
     androidTestImplementation project(':scatterbrainSDK')
     implementation 'com.jakewharton.rxrelay2:rxrelay:2.1.1'
     implementation "com.uber.rxdogtag:rxdogtag:1.0.2"
-    implementation "com.polidea.rxandroidble2:rxandroidble:1.18.1"
+    implementation "com.polidea.rxandroidble2:rxandroidble:1.19.0"
     implementation "org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7"
 
-    testImplementation "com.polidea.rxandroidble2:mockclient:1.18.1"
-    androidTestImplementation "com.polidea.rxandroidble2:mockclient:1.18.1"
+    testImplementation "com.polidea.rxandroidble2:mockclient:1.19.0"
+    androidTestImplementation "com.polidea.rxandroidble2:mockclient:1.19.0"
 
     ksp "androidx.room:room-compiler:2.6.1" // For Kotlin use kapt instead of annotationProcessor
     implementation "androidx.lifecycle:lifecycle-service:$lifecycle_version"

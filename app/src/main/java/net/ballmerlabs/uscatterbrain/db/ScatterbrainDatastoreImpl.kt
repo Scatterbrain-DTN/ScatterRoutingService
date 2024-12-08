@@ -10,6 +10,7 @@ import android.util.Pair
 import android.webkit.MimeTypeMap
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
+import com.goterl.lazysodium.interfaces.KeyExchange
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
@@ -19,10 +20,12 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.BiFunction
+import net.ballmerlabs.scatterbrainsdk.DesktopApp
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
+import net.ballmerlabs.scatterbrainsdk.internal.b64
 import net.ballmerlabs.scatterbrainsdk.newShm
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
@@ -35,13 +38,16 @@ import net.ballmerlabs.uscatterbrain.db.entities.DiskFile
 import net.ballmerlabs.uscatterbrain.db.entities.GlobalHash
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.Identity
+import net.ballmerlabs.uscatterbrain.db.entities.IdentityDao
 import net.ballmerlabs.uscatterbrain.db.entities.JustFingerprint
+import net.ballmerlabs.uscatterbrain.db.entities.JustPackageName
 import net.ballmerlabs.uscatterbrain.db.entities.JustPackageSig
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Keys
 import net.ballmerlabs.uscatterbrain.db.entities.Metrics
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopClientDao
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
@@ -208,25 +214,33 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun deleteApp(sig: String): Completable {
-        return mDatastore.identityDao().deleteBySignature(JustPackageSig(sig))
+        return mDatastore.desktopClientDao().deleteBySignature(JustPackageSig(sig))
             .doOnComplete {
                 broadcaster.broadcastState(clientApps = true)
             }
     }
 
-    override fun getApps(): Observable<SbApp> {
-        val pm = ctx.packageManager
-        return mDatastore.identityDao().getClientApps()
+    override fun deleteDesktopApp(pubkey: ByteArray): Completable {
+        LOG.v("got client app")
+        return Completable.fromAction{
+            mDatastore.desktopClientDao().deleteAndGet(pubkey)
+        }.subscribeOn(databaseScheduler)
+    }
+
+    override fun getDesktopApps(): Observable<DesktopApp> {
+        return mDatastore.desktopClientDao().getDesktopApps()
             .subscribeOn(databaseScheduler)
             .flatMapObservable { v -> Observable.fromIterable(v) }
+            .map { v -> v.toApi() }
+    }
+
+    override fun getApps(): Observable<SbApp> {
+        val pm = ctx.packageManager
+        return mDatastore.desktopClientDao().getClientApps()
+            .subscribeOn(databaseScheduler)
+            .flatMapObservable { v -> Observable.fromIterable(v) }
+            .filter{ p -> !p.isDesktop }
             .map { i ->
-                if (i.isDesktop) {
-                    SbApp(
-                        name = i.packageName,
-                        id = i.packageSignature,
-                        desktop = true
-                    )
-                } else {
                     try {
                         SbApp(
                             name = pm.getApplicationLabel(pm.getApplicationInfo(i.packageName, 0)).toString(),
@@ -241,7 +255,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             desktop = false
                         )
                     }
-                }
             }
     }
 
@@ -251,7 +264,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 Completable.complete()
             } else {
                 cachedPackages.add(packageName)
-                mDatastore.identityDao().insertClientAppIgnore(
+                mDatastore.desktopClientDao().insertClientAppIgnore(
                     ClientApp(
                         null,
                         packageName,
@@ -538,7 +551,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 list
                             }
                             .flatMapCompletable { a ->
-                                mDatastore.identityDao().insertClientAppsReplace(a)
+                                mDatastore.desktopClientDao().insertClientAppsReplace(a)
                                     .subscribeOn(databaseScheduler)
                                     .ignoreElement()
                             }
@@ -610,15 +623,17 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     appsig,
                     desktop
                 )
-                mDatastore.identityDao().insertClientAppReplace(app)
+                mDatastore.desktopClientDao().insertClientAppReplace(app)
+                    .doOnSuccess { v ->
+                        if (v.isNotEmpty())
+                            broadcaster.broadcastState(clientApps = true)
+                    }
                     .ignoreElement()
                     .subscribeOn(databaseScheduler)
-            }.doOnComplete {
-                broadcaster.broadcastState(clientApps = true)
             }
     }
 
-    override fun addACLs(packagename: String, packageSig: String?, desktop: Boolean): Completable {
+    override fun addACLs(packagename: String, packageSig: String, desktop: Boolean): Completable {
         return Completable.defer {
             val app = ClientApp(
                 null,
@@ -626,7 +641,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 packageSignature = packageSig,
                 isDesktop = desktop
             )
-            mDatastore.identityDao().insertClientAppIgnore(app)
+            mDatastore.desktopClientDao().insertClientAppIgnore(app)
                 .subscribeOn(databaseScheduler)
                 .doOnSuccess { v ->
                     if (v.first() > 0)
@@ -649,7 +664,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     packageName,
                     appsig
                 )
-                mDatastore.identityDao().insertClientAppReplace(
+                mDatastore.desktopClientDao().insertClientAppReplace(
                     ClientApp(
                         packageName = app.packageName
                     )
@@ -889,7 +904,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun getACLs(identity: UUID): Single<MutableList<ACL>> {
-        return mDatastore.identityDao().getClientApps(identity)
+        return mDatastore.desktopClientDao().getClientApps(identity)
             .subscribeOn(databaseScheduler)
             .flatMapObservable { source -> Observable.fromIterable(source) }
             .filter { app -> app.identityFK != null && app.packageSignature != null }

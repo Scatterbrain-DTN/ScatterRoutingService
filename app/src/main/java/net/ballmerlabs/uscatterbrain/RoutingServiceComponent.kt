@@ -28,6 +28,7 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastoreImpl
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate21
+import net.ballmerlabs.uscatterbrain.db.migration.Migrate23
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.AdvertiserImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
@@ -180,9 +181,10 @@ interface RoutingServiceComponent {
             @Singleton
             fun provideDatastore(ctx: Context?): Datastore {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
-                        .addMigrations(Migrate21())
-                        .fallbackToDestructiveMigration()
-                        .build()
+                    .addMigrations(Migrate21())
+                    //.addMigrations(Migrate23())
+                    .fallbackToDestructiveMigration()
+                    .build()
             }
 
             @Provides

@@ -17,12 +17,16 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
+import com.akaita.java.rxjava2debug.RxJava2Debug
+import com.akaita.java.rxjava2debug.extensions.RxJavaAssemblyException
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.*
+import net.ballmerlabs.uscatterbrain.network.b64
 import net.ballmerlabs.uscatterbrain.util.initDiskLogging
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
@@ -48,7 +52,7 @@ class ScatterRoutingService : LifecycleService() {
         private fun checkPermission(permName: String): Boolean {
             val pm = applicationContext.packageManager
             val handle = generateNewHandle()
-            val disp = mBackend.datastore.addACLs(callingPackageName)
+            val disp = mBackend.datastore.addACLs(callingPackageName, callingPackageName)
                 .doOnDispose { callbackHandles.remove(handle) }
                 .doFinally { callbackHandles.remove(handle) }
                 .subscribe(
@@ -341,14 +345,23 @@ class ScatterRoutingService : LifecycleService() {
         override fun onAppCallback(callback: SbAppCallback) {
             checkSuperuserPermission()
             val handle = generateNewHandle()
-            val disp = mBackend.datastore.getApps()
+            val disp =
+                mBackend.datastore.getDesktopApps()
+                    .map { v->
+                        //LOG.v("got desktop app ${v.name} ${v.remoteFingerprint.b64()}")
+                        callback.onDesktopApp(v)
+                    }.ignoreElements()
+                    .andThen(mBackend.datastore.getApps())
                 .doOnDispose { callbackHandles.remove(handle) }
                 .doFinally { callbackHandles.remove(handle) }
                 .doOnComplete {
+                   // LOG.v("desktop get complete")
                     callback.onApp(null)
                 }
                 .subscribe(
-                    { v -> callback.onApp(v) },
+                    { v ->
+                        callback.onApp(v)
+                    },
                     { err -> callback.onError(err.message) }
                 )
 
@@ -364,6 +377,27 @@ class ScatterRoutingService : LifecycleService() {
                 .subscribe(
                     { callback.onComplete() },
                     { err -> callback.onError(err.message) }
+                )
+
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
+        override fun removeDesktopApp(pubkey: ByteArray, callback: UnitCallback) {
+            checkSuperuserPermission()
+            LOG.v("removeDesktopApp ${pubkey.size}")
+            val handle = generateNewHandle()
+            val disp = mBackend.deleteDesktopApp(pubkey)
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err ->
+                        if (err is RxJavaAssemblyException) {
+                            err.fillInStackTrace()
+                            LOG.e(err.stacktrace())
+                        }
+                        callback.onError(err.message)
+                    }
                 )
 
             callbackHandles[handle] = Callback(callingPackageName, disp)

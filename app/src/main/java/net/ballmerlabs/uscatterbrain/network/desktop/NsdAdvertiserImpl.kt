@@ -62,6 +62,7 @@ class NsdAdvertiserImpl @Inject constructor(
     }
 
     override fun startAdvertise(): Completable {
+        stopAdvertise()
         return advertiseObs
             .mergeWith(Completable.fromAction {
                 manager.registerService(

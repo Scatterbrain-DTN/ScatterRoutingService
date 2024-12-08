@@ -10,6 +10,9 @@ ext.rxJavaVersion = '2.2.17'
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
 }
 def protobuf_version = "3.18.0"
 

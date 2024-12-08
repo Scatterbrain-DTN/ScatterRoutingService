@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.db
 import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.DeleteColumn
-import androidx.room.DeleteTable
 import androidx.room.RenameColumn
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
@@ -19,7 +18,6 @@ import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Keys
 import net.ballmerlabs.uscatterbrain.db.entities.Metrics
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessageDao
-import net.ballmerlabs.uscatterbrain.db.migration.Migrate21
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopClientDao
 import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
 import java.util.UUID
@@ -52,7 +50,7 @@ class UuidTypeConverter {
         Metrics::class,
         DesktopClient::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(

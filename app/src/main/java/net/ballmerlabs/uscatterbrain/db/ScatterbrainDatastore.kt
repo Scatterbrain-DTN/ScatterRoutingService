@@ -10,6 +10,7 @@ import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
+import net.ballmerlabs.scatterbrainsdk.DesktopApp
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
@@ -290,7 +291,7 @@ interface ScatterbrainDatastore {
      */
     fun addACLs(identityFingerprint: UUID, packagename: String, appsig: String, desktop: Boolean): Completable
 
-    fun addACLs(packagename: String, packageSig: String? = null, desktop: Boolean = false): Completable
+    fun addACLs(packagename: String, packageSig: String, desktop: Boolean = false): Completable
 
     /**
      * removes permission ACLs from database
@@ -306,6 +307,11 @@ interface ScatterbrainDatastore {
      * @return single of keypair
      */
     fun getIdentityKey(identity: UUID): Single<ApiIdentity.KeyPair>
+
+    /**
+     * Returns all currently registered desktop apps
+     */
+    fun getDesktopApps(): Observable<DesktopApp>
 
     /**
      * gets total message count
@@ -512,6 +518,14 @@ interface ScatterbrainDatastore {
      * @return Completable
      */
     fun deleteMessage(message: ScatterMessage): Completable
+
+
+    /**
+     * Deletes a desktop app
+     * @param pubkey public key of the app to delete
+     * @return completable
+     */
+    fun deleteDesktopApp(pubkey: ByteArray): Completable
 
     /**
      * Increment the share count for a message counting the number of times

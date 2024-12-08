@@ -7,11 +7,13 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.net.Uri
 import android.os.RemoteException
+import com.akaita.java.rxjava2debug.RxJava2Debug
 import com.akaita.java.rxjava2debug.extensions.RxJavaAssemblyException
 import com.goterl.lazysodium.interfaces.Sign
 import com.polidea.rxandroidble2.internal.RxBleLog
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
+import com.uber.rxdogtag.RxDogTag
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Scheduler
@@ -29,6 +31,7 @@ import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
+import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
@@ -59,6 +62,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     val context: Context,
     val serverSocketManager: ServerSocketManager,
     val firebaseWrapper: FirebaseWrapper,
+    private val broadcaster: Broadcaster,
     @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) val ioScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
 ) : RoutingServiceBackend {
@@ -80,9 +84,9 @@ class RoutingServiceBackendImpl @Inject constructor(
                 LOG.cry("triple fault $exc")
             }
         }
-       RxBleLog.setLogLevel(RxBleLog.DEBUG)
-      //RxDogTag.install()
-      //RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
+     //  RxBleLog.setLogLevel(RxBleLog.DEBUG)
+     // RxDogTag.install()
+     // RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
     }
 
 
@@ -122,7 +126,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                         PackageManager.GET_SIGNING_CERTIFICATES
                     )
                     var failed = true
-                    for (signature in info.signingInfo.signingCertificateHistory) {
+                    for (signature in info.signingInfo!!.signingCertificateHistory) {
                         val sigtoverify = signature.toCharsString()
                         if (sigtoverify == acl.appsig) {
                             failed = false
@@ -136,7 +140,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                         callingPackageName,
                         PackageManager.GET_SIGNATURES
                     )
-                    for (sig in info.signatures) {
+                    for (sig in info.signatures!!) {
                         if (sig.toCharsString() != acl.appsig) {
                             throw RemoteException("invalid signature, access denied")
                         }
@@ -161,6 +165,11 @@ class RoutingServiceBackendImpl @Inject constructor(
                 )
                 status == 0
             }
+    }
+
+    override fun deleteDesktopApp(pubkey: ByteArray): Completable {
+        return datastore.deleteDesktopApp(pubkey)
+            .doOnComplete { broadcaster.broadcastState(clientApps = true) }
     }
 
     override fun signDataDetached(
@@ -297,11 +306,11 @@ class RoutingServiceBackendImpl @Inject constructor(
                     name,
                     PackageManager.GET_SIGNING_CERTIFICATES
                 )
-                Observable.fromIterable(info.signingInfo.signingCertificateHistory.asIterable())
+                Observable.fromIterable(info.signingInfo!!.signingCertificateHistory.asIterable())
             } else {
                 val info =
                     context.packageManager.getPackageInfo(name, PackageManager.GET_SIGNATURES)
-                Observable.fromIterable(info.signatures.toMutableList())
+                Observable.fromIterable(info.signatures!!.toMutableList())
             }
         }
     }

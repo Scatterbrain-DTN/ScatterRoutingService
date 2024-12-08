@@ -48,6 +48,7 @@ class LuidRandomizeWorker(
                 LOG.w("timer fired, randomizing luid ${advertiser.getHashLuid()}")
                // scheduler.unpauseScan()
                 advertiser.randomizeLuidAndRemove()
+                scheduler.pauseScan()
                 scheduler.unpauseScan()
                 advertiser.clear(true)
                 Result.success()

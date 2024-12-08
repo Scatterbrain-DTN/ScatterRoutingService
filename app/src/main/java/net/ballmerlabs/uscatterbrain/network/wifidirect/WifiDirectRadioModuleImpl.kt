@@ -245,7 +245,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Single<WifiGroupSubcomponent> {
         val create = requestGroupInfo().switchIfEmpty(
                 createGroupSingle(band).ignoreElement().andThen(requestGroupInfo())
-            ).doOnSubscribe {
+            ).retryDelay(3, 1).doOnSubscribe {
                 advertiser.clear(false)
             }.doOnDispose { LOG.e("createGroup disposed") }.flatMapSingle { groupInfo ->
                 requestConnectionInfo().flatMapSingle { connectionInfo ->

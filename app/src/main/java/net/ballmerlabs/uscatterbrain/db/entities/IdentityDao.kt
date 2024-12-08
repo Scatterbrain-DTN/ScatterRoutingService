@@ -40,12 +40,7 @@ interface IdentityDao {
     @Query("SELECT * FROM identities ORDER BY RANDOM() LIMIT :count")
     fun getTopRandom(count: Int): Single<List<Identity>>
 
-    @Query("SELECT * FROM clientapp WHERE identityFK = (" +
-            "SELECT identityID FROM identities WHERE fingerprint = :fp)")
-    fun getClientApps(fp: UUID): Single<List<ClientApp>>
 
-    @Query("SELECT * FROM clientapp")
-    fun getClientApps(): Single<List<ClientApp>>
 
     @Query("SELECT packageName FROM clientapp")
     fun getAllPackageNames(): Single<List<String>>
@@ -56,17 +51,6 @@ interface IdentityDao {
     @Insert
     fun insert(identity: KeylessIdentity): Single<Long>
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    fun insertClientAppsIgnore(clientApps: List<ClientApp>): Single<List<Long>>
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    fun insertClientAppIgnore(vararg apps: ClientApp): Single<List<Long>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertClientAppsReplace(clientApps: List<ClientApp>): Single<List<Long>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertClientAppReplace(vararg apps: ClientApp): Single<List<Long>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun __insertAll(identities: KeylessIdentity): Long
@@ -88,12 +72,6 @@ interface IdentityDao {
 
     @Delete
     fun delete(identity: KeylessIdentity): Completable
-
-    @Delete(entity = ClientApp::class)
-    fun deleteBySignature(packageSig: JustPackageSig): Completable
-
-    @Delete(entity = ClientApp::class)
-    fun deleteClientApps(vararg apps: JustPackageName): Completable
 
     @Transaction
     @Delete(entity = KeylessIdentity::class)

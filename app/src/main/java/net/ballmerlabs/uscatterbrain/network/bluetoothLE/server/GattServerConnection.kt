@@ -16,7 +16,7 @@ import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction
 import java.util.UUID
 
-interface GattServerConnection: Disposable {
+interface GattServerConnection{
 
     val gattServerCallback: BluetoothGattServerCallback
 
@@ -68,6 +68,8 @@ interface GattServerConnection: Disposable {
     fun clearMtu()
 
     fun server(): BluetoothGattServer
+
+    fun dispose()
 
     open class Output<T> {
         open val valueRelay: PublishRelay<T> = PublishRelay.create()

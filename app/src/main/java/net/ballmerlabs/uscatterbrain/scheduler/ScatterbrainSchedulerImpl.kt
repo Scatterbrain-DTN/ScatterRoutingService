@@ -76,7 +76,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     val preferences: RouterPreferences
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
-    private var pendingIntent = ScanBroadcastReceiver.newPendingIntent(context)
    // private var pendingIntentLegacy = ScanBroadcastReceiver.newPendingIntentLegacy(context)
     private val discoveryLock = AtomicReference(false)
     override val isDiscovering: Boolean
@@ -156,7 +155,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     override fun pauseScan() {
         LOG.w("pauseScan")
-        client.backgroundScanner.stopBackgroundBleScan(pendingIntent)
+      client.backgroundScanner.stopBackgroundBleScan(ScanBroadcastReceiver.newPendingIntent(context))
+      //  ScanBroadcastReceiver.newPendingIntent(context).cancel()
        // client.backgroundScanner.stopBackgroundBleScan(pendingIntentLegacy)
         /*
         PendingIntent.getBroadcast(
@@ -197,6 +197,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     }
 
     override fun unpauseScan() {
+        if (!isDiscovering)
+            return
         LOG.w("unpauseScan")
         /*
         client.backgroundScanner.scanBleDeviceInBackground(
@@ -216,7 +218,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
 
         client.backgroundScanner.scanBleDeviceInBackground(
-            pendingIntent,
+            ScanBroadcastReceiver.newPendingIntent(context),
             ScanSettings.Builder()
                 .setScanMode(SCAN_MODE_LOW_POWER)
                 .setShouldCheckLocationServicesState(true)
@@ -309,21 +311,22 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     }
 
     override fun stop(): Boolean {
-        LOG.e("stop")
         val lock = discoveryLock.getAndSet(false)
         if (lock) {
+            LOG.e("stop")
             pauseScan()
             val disp = unregisterReceiver().andThen(advertiser.stopAdvertise()).subscribe(
                 {
                     //broadcastReceiverState.dispose()
                     state.shouldScan = false
-                    leState.stopServer().blockingAwait()
-                    leState.dumpPeers(true).blockingAwait()
+                    leState.dumpPeers(true).andThen(leState.stopServer()).blockingAwait()
                     globalDisposable.getAndSet(null)?.dispose()
                     broadcastRouterState(RouterState.OFFLINE)
                 },
                 { err -> LOG.e("failed to stop advertise ") }
             )
+        } else {
+            LOG.w("locked, not stopping")
         }
         return lock
     }

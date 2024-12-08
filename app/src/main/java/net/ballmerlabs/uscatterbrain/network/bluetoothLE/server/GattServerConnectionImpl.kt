@@ -635,10 +635,11 @@ class GattServerConnectionImpl @Inject constructor(
     }
 
     protected fun finalize() {
+        Log.e( "gatt server finalize")
         dispose()
     }
 
-    override fun isDisposed(): Boolean {
+     fun isDisposed(): Boolean {
         return compositeDisposable.isDisposed
     }
 

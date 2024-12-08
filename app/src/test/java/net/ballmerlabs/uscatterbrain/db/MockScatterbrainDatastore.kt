@@ -7,6 +7,7 @@ import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
+import net.ballmerlabs.scatterbrainsdk.DesktopApp
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 import net.ballmerlabs.uscatterbrain.db.entities.*
@@ -25,7 +26,13 @@ class MockScatterbrainDatastore @Inject constructor(
     private val ctx: Context
 ): ScatterbrainDatastore {
 
+
+
     override fun deleteApp(sig: String): Completable {
+        return Completable.complete()
+    }
+
+    override fun deleteDesktopApp(pubkey: ByteArray): Completable {
         return Completable.complete()
     }
 
@@ -62,7 +69,7 @@ class MockScatterbrainDatastore @Inject constructor(
         TODO("Not yet implemented")
     }
 
-    override fun addACLs(packagename: String, packageSig: String?, desktop: Boolean): Completable {
+    override fun addACLs(packagename: String, packageSig: String, desktop: Boolean): Completable {
         return Completable.complete()
     }
 
@@ -139,6 +146,10 @@ class MockScatterbrainDatastore @Inject constructor(
 
     override fun getIdentityKey(identity: UUID): Single<ApiIdentity.KeyPair> {
         return Single.error(IllegalStateException("no identities for u, cry noises"))
+    }
+
+    override fun getDesktopApps(): Observable<DesktopApp> {
+      return Observable.empty()
     }
 
     override fun messageCount(): Int {

@@ -54,11 +54,6 @@ class MockLeState(
         return server
     }
 
-    override fun getServer(): Single<GattServerConnectionSubcomponent> {
-        return Single.fromCallable {
-            server!!
-        }
-    }
 
     override fun shouldConnect(res: ScanResult): Boolean {
         val advertisingLuid = getAdvertisedLuid(res)

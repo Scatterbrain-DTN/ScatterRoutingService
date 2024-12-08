@@ -2,11 +2,19 @@ package net.ballmerlabs.uscatterbrain.network.desktop.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
+import net.ballmerlabs.scatterbrainsdk.DesktopApp
+import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.proto.ApiHeader
 import java.util.UUID
 
-@Entity(tableName = "desktop_clients")
+@Entity(tableName = "desktop_clients", indices = [
+    Index(
+        value = ["remote_fingerprint"],
+        unique = true
+    )
+])
 data class DesktopClient(
     @PrimaryKey
     val remotekey: ByteArray,
@@ -19,7 +27,21 @@ data class DesktopClient(
     var paired: Boolean = false,
     @ColumnInfo(defaultValue = "false")
     var admin: Boolean = false,
-) {
+    @ColumnInfo(name = "remote_fingerprint")
+    val remoteFingerprint: ByteArray? = LibsodiumInterface.fingerprint(remotekey)
+    ) {
+
+    fun toApi(): DesktopApp {
+        return DesktopApp(
+            remotekey = this.remotekey,
+            pubkey = this.pubkey,
+            session = this.session,
+            name = this.name,
+            paired = this.paired,
+            admin = this.admin,
+            remoteFingerprint = this.remoteFingerprint!!
+        )
+    }
 
     fun getHeader(stream: Int): ApiHeader {
         return ApiHeader (
@@ -34,20 +56,24 @@ data class DesktopClient(
 
         other as DesktopClient
 
+        if (!remotekey.contentEquals(other.remotekey)) return false
+        if (!pubkey.contentEquals(other.pubkey)) return false
         if (session != other.session) return false
         if (!key.contentEquals(other.key)) return false
-        if (!pubkey.contentEquals(other.pubkey)) return false
         if (name != other.name) return false
+        if (paired != other.paired) return false
         if (admin != other.admin) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        var result = session.hashCode()
-        result = 31 * result + key.contentHashCode()
+        var result = remotekey.contentHashCode()
         result = 31 * result + pubkey.contentHashCode()
+        result = 31 * result + session.hashCode()
+        result = 31 * result + key.contentHashCode()
         result = 31 * result + name.hashCode()
+        result = 31 * result + paired.hashCode()
         result = 31 * result + admin.hashCode()
         return result
     }

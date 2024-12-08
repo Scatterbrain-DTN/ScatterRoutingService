@@ -49,7 +49,6 @@ class DesktopSession @Inject constructor(
     @Named(DesktopSessionSubcomponent.NamedKeys.FINGERPRINT) val fingerprint: ByteArray,
     @Named(DesktopSessionSubcomponent.NamedKeys.REMOTEPUB) val remotepub: ByteArray,
     val db: DesktopClient,
-    val kx: PublicKeyPair,
     val context: Context,
     val state: DesktopApiSessionState,
     @Named(DesktopApiSubcomponent.NamedSchedulers.API_SERVER_SCHEDULER) val scheduler: Scheduler,

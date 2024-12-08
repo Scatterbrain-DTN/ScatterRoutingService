@@ -17,8 +17,6 @@ import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionScope
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.proto.*
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnectionImpl
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -144,8 +142,8 @@ open class CachedLEConnectionImpl @Inject constructor(
 
 
     /**
-     * read from the semaphor characteristic to determine what channel
-     * we are allowed to use
+     * read from the semaphore characteristic to determine what channel
+     * we are allowedA to use
      * @return Single emitting uuid of channel selected
      */
     private fun selectChannel(): Observable<ByteArray> {

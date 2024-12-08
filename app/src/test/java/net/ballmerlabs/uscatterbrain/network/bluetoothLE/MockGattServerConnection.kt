@@ -152,7 +152,7 @@ class MockGattServerConnection(
         disp.dispose()
     }
 
-    override fun isDisposed(): Boolean {
+    fun isDisposed(): Boolean {
         return disp.isDisposed
     }
 }

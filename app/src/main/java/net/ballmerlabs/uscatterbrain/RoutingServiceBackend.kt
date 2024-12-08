@@ -41,4 +41,5 @@ interface RoutingServiceBackend {
     fun getIdentity(fingerprint: UUID): Single<Identity>
     fun refreshPeers(): Completable
     fun dumpDatastore(uri: Uri): Completable
+    fun deleteDesktopApp(pubkey: ByteArray): Completable
 }

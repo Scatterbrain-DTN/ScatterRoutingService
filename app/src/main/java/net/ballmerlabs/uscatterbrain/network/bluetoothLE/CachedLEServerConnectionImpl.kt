@@ -228,7 +228,6 @@ class CachedLEServerConnectionImpl @Inject constructor(
      */
     override fun dispose() {
         LOG.e("CachedLEServerConnection disposed")
-        connection.dispose()
         disposable.dispose()
     }
 

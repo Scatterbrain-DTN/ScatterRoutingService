@@ -34,6 +34,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import net.ballmerlabs.uscatterbrain.util.toBytes
 import net.ballmerlabs.uscatterbrain.util.toUuid
@@ -75,8 +76,7 @@ class LeStateImpl @Inject constructor(
         ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>()
     private val LOG by scatterLog()
 
-    private val server =
-        BehaviorSubject.create<AtomicReference<Pair<GattServerConnectionSubcomponent, Disposable>?>>()
+    private val server = AtomicReference<Pair<GattServerConnectionSubcomponent, Disposable>?>()
 
     override fun connection(): List<ScatterbrainTransactionSubcomponent> {
         return transactionCache.values.toList()
@@ -126,11 +126,10 @@ class LeStateImpl @Inject constructor(
     override fun stopServer(): Completable {
         //dumpPeers(false).blockingAwait()
 
-        return server.firstElement().flatMapCompletable { se ->
-            val s = se.getAndSet(null)
-            s?.first?.cachedConnection()?.dispose()
+        return Completable.fromAction {
+            val s = server.getAndSet(null)
+            s?.first?.connection()?.dispose()
             s?.second?.dispose()
-            Completable.complete()
         }
 
     }
@@ -222,7 +221,7 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun getServerSync(): GattServerConnectionSubcomponent? {
-        return server.value?.get()?.first
+        return server.get()?.first
     }
 
     /**
@@ -254,7 +253,6 @@ class LeStateImpl @Inject constructor(
         )
 
             .flatMapCompletable { connectionRaw ->
-                server.firstOrError().flatMapCompletable { s ->
                     LOG.v("gatt server initialized")
 
 
@@ -265,25 +263,25 @@ class LeStateImpl @Inject constructor(
 
                     val disp =
                         write.mergeWith(read).mergeWith(forget).mergeWith(reverse).ignoreElements()
+                            .doOnError { err ->
+                                LOG.e("gatt server fatal error: $err")
+                                firebase.recordException(err)
+                            }
+                            .retryDelay(2)
                             .subscribe({ LOG.e("server handler completed") },
                                 { err -> LOG.e("server handler error $err") })
 
-                    val old = s.getAndSet(Pair(connectionRaw, disp))
+                    val old = server.getAndSet(Pair(connectionRaw, disp))
+                    if (old != null)
+                        LOG.e("found old gatt server? disposing")
                     old?.first?.connection()?.dispose()
                     old?.second?.dispose()
                     Completable.complete()
 
-                }
             }.doOnError { e ->
                 LOG.e("failed to open server: $e")
             }
     }
-
-    override fun getServer(): Single<GattServerConnectionSubcomponent> {
-        return server.filter { v -> v.get() != null }.map { v -> v.get()!!.first }.firstOrError()
-    }
-
-
 
     override fun startTransaction(): Int {
         return transactionInProgress.incrementAndGet()
@@ -405,12 +403,10 @@ class LeStateImpl @Inject constructor(
                     .onErrorComplete().andThen(connection.requestMtu(512 - 3)
                         .doOnError { err -> LOG.e("failed to set mtu $err") })
                     .flatMapCompletable { m ->
-                        getServer().flatMapCompletable { server ->
                             Completable.fromAction {
                                 LOG.w("actual mtu $m")
-                                server.cachedConnection().mtu.set(m)
+                                server.get()!!.first.cachedConnection().mtu.set(m)
                             }
-                        }
 
                             .andThen(
                                 connection.discoverServices().ignoreElement()
@@ -447,13 +443,15 @@ class LeStateImpl @Inject constructor(
     override fun establishConnectionCached(
         device: RxBleDevice, luid: UUID, reverse: Boolean
     ): Single<ScatterbrainTransactionSubcomponent> {
-        val connectSingle = getServer().flatMap { s ->
+        val connectSingle = Single.defer {
             val c = transactionCache[luid]
 
             val res = when (c) {
                 null -> {
                     LOG.e("establishing NEW connection to ${device.macAddress} $reverse, $luid, ${transactionCache.size} devices connected")
-                    val newconnection = s.transaction().device(device).luid(luid).build()!!
+                    val newconnection =
+                        server.get()?.first?.transaction()?.device(device)?.luid(luid)?.build()
+                            ?: return@defer Single.error(IllegalStateException("can't connect, server shutdown"))
                     transactionCache[luid] = newconnection
                     //  connectionQueue.add(luid)
 
@@ -469,7 +467,6 @@ class LeStateImpl @Inject constructor(
 
                     val rawConnection =
                         Completable.fromAction {
-                            scheduler.get().pauseScan()
                             advertiser.setBusy(true)
                         }.andThen(Completable.timer(200, TimeUnit.MILLISECONDS, connectScheduler))
                             .andThen(
@@ -506,10 +503,10 @@ class LeStateImpl @Inject constructor(
                                 disconnectRelay.accept(device)
                                 advertiser.setBusy(false)
                                 cleanupConnection(device.macAddress, luid, false)
-                                scheduler.get().unpauseScan()
+                              // scheduler.get().unpauseScan()
                             }
                             .doOnNext {
-                                scheduler.get().unpauseScan()
+                            //    scheduler.get().unpauseScan()
                                 advertiser.setBusy(false)
                                 LOG.d("now connected ${device.macAddress}")
                             }
@@ -552,18 +549,17 @@ class LeStateImpl @Inject constructor(
                 .onErrorComplete()
         }.andThen(Completable.fromAction {
             LOG.v("refreshPeers called")
-            scheduler.get().pauseScan()
+        //    scheduler.get().pauseScan()
             activeLuids.clear()
         })
             .andThen(Completable.timer(2, TimeUnit.SECONDS, timeoutScheduler))
             .doFinally {
-                scheduler.get().unpauseScan()
+         //       scheduler.get().unpauseScan()
             }
     }
 
 
     init {
-        server.onNext(AtomicReference(null))
         setupChannels()
         refreshInProgresss.accept(false)
     }

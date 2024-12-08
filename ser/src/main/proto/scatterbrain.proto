@@ -65,6 +65,7 @@ enum MessageType {
     DESKTOP_EVENTS = 70;
     DESKTOP_EVENT = 71;
     NO_BODY_MESSAGE = 72;
+    PAIRING_SYNACK = 73;
 }
 
 message TypePrefix {
@@ -234,6 +235,12 @@ message PairingInitiate {
 message PairingAck {
     ApiHeader session = 1;
     bytes pubkey = 2;
+}
+
+message PairingSynAck {
+    ApiHeader session = 1;
+    bool success = 2;
+    string message = 3;
 }
 
 

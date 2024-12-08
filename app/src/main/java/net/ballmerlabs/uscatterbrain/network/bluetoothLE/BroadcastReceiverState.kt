@@ -77,8 +77,7 @@ class BroadcastReceiverState @Inject constructor(
                         if (luid != null) {
                             val d = batchDisposables.computeIfAbsent(luid) { d ->
                                 Completable.defer {
-                                    val luid = leState.get().getAdvertisedLuid(result)
-                                    if (luid != null && leState.get().updateActive(luid)) {
+                                    if ( leState.get().updateActive(luid)) {
                                         scatterbrainScheduler.get().acquireWakelock()
                                         leState.get().processScanResult(luid, result.bleDevice)
                                             .doOnComplete { LOG.w("processScanResult from scanner completed") }
@@ -89,10 +88,10 @@ class BroadcastReceiverState @Inject constructor(
                                     }
                                         .doOnError { e ->
                                             LOG.e("process scan result error $e $luid")
-                                            if (luid != null) {
-                                                leState.get().updateGone(luid, e)
-                                            } else if (e is TransactionError) {
+                                            if (e is TransactionError) {
                                                 leState.get().updateGone(e.luid, e)
+                                            } else {
+                                                leState.get().updateGone(luid, e)
                                             }
                                             if (e is RxJavaAssemblyException) {
                                                 LOG.e(e.stacktrace())
