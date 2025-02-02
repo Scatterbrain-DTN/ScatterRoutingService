@@ -240,13 +240,13 @@ class DesktopApiServerImpl @Inject constructor(
     }
 
     override fun serve() {
-        val disp = serverSocket
-            .accept(scheduler)
-            .mergeWith(advertiser.startAdvertise())
+        val disp = advertiser.startAdvertise().andThen(serverSocket
+            .accept(scheduler))
+            .doOnError { err -> LOG.e("serverSocket error $err") }
+            .doOnComplete { LOG.e("desktop server socket completed") }
             .repeat()
-            .subscribeOn(scheduler)
             .retry()
-            .subscribeOn(scheduler)
+            .observeOn(scheduler)
             .doOnSubscribe {
                 broadcaster.broadcastState(
                     power = DesktopPower.ENABLED
@@ -255,10 +255,13 @@ class DesktopApiServerImpl @Inject constructor(
             .flatMapCompletable { s ->
                 LOG.v("got desktop connection ${s.socket.remoteSocketAddress}")
                 state.getKeypair().flatMapCompletable { kp ->
-                    handleKeyExchange(s.socket, kp).flatMapCompletable { session ->
+                    handleKeyExchange(s.socket, kp)
+                        .observeOn(scheduler)
+                        .flatMapCompletable { session ->
                         session.session().parseTypePrefix(s.socket.getInputStream(), scheduler)
                             .repeat()
                             .subscribeOn(scheduler)
+                            .observeOn(scheduler)
                             .concatMapCompletable { v ->
                                 LOG.v("got packet type ${v.type}")
                                 when (v.type) {
