@@ -94,7 +94,7 @@ abstract class ScatterSerializable<T : MessageLite>(
 
     val bytes: ByteArray
         get() {
-            val type = Scatterbrain.TypePrefix.newBuilder().setType(type).build()
+            val type = Scatterbrain.TypePrefix.newBuilder().setMessageType(type).build()
 
             val size =
                 packet.serializedSize + type.serializedSize + Int.SIZE_BYTES + Int.SIZE_BYTES * 2
@@ -129,7 +129,7 @@ abstract class ScatterSerializable<T : MessageLite>(
     private fun writeToStreamBlocking(outputStream: OutputStream) {
         val stream = CRCOutputStream(outputStream)
 
-        val ts = Scatterbrain.TypePrefix.newBuilder().setType(type).build()
+        val ts = Scatterbrain.TypePrefix.newBuilder().setMessageType(type).build()
 
         stream.write(
             ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.BIG_ENDIAN)
@@ -304,7 +304,7 @@ abstract class ScatterSerializable<T : MessageLite>(
             val co = CodedInputStream.newInstance(inputStream, s + 1)
             val typeBytes = co.readRawBytes(s2)
             val type = TypePrefix.parseFrom(typeBytes)
-            val pt = type.type
+            val pt = type.messageType
             if (pt != parser.type) {
                 throw InvalidPacketException(
                     type = pt, expected = parser.type

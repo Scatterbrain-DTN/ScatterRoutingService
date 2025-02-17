@@ -36,6 +36,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.PairingRequest
 import net.ballmerlabs.uscatterbrain.network.proto.PairingSynAck
 import net.ballmerlabs.uscatterbrain.network.wifidirect.PortSocket
 import net.ballmerlabs.uscatterbrain.scheduler.DesktopSession
+import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import proto.Scatterbrain
 import java.net.Inet6Address
@@ -242,10 +243,11 @@ class DesktopApiServerImpl @Inject constructor(
     override fun serve() {
         val disp = advertiser.startAdvertise().andThen(serverSocket
             .accept(scheduler))
-            .doOnError { err -> LOG.e("serverSocket error $err") }
+            .doOnError { err ->
+                LOG.e("serverSocket error $err")
+                err.printStackTrace()
+            }
             .doOnComplete { LOG.e("desktop server socket completed") }
-            .repeat()
-            .retry()
             .observeOn(scheduler)
             .doOnSubscribe {
                 broadcaster.broadcastState(

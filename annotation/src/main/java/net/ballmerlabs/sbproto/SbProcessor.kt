@@ -117,7 +117,7 @@ class SbProcessor(
                             "          val type = Scatterbrain.TypePrefix.parseFrom(typeBytes)\n" +
                             "\n" +
                             "          val messageBytes = co.readRawBytes(s)\n" +
-                            "          val parser = when (type.type) {"
+                            "          val parser = when (type.messageType) {"
                 )
                 .returns(ScatterSerializable.Companion.TypedPacket::class)
 
@@ -126,7 +126,7 @@ class SbProcessor(
             }
 
             funSpecBuilder.addStatement(
-                "    else -> throw InvalidPacketException(type.type, expected = Scatterbrain.MessageType.INVALID)\n" +
+                "    else -> throw InvalidPacketException(type.messageType, expected = Scatterbrain.MessageType.INVALID)\n" +
                         "}\n" +
                         "val message = parser.parser.parseFrom(messageBytes)\n" +
                         "                if (inputStream.read(crc) != crc.size) {\n" +
@@ -141,7 +141,7 @@ class SbProcessor(
                         "                    throw IOException(\"invalid crc: \" + crc32.value + \" \" + bytes2long(crc))\n" +
                         "                }\n" +
                         "                return ScatterSerializable.Companion.TypedPacket(\n" +
-                        "                    type = type.type,\n" +
+                        "                    type = type.messageType,\n" +
                         "                    packet = message\n" +
                         "                )"
             )

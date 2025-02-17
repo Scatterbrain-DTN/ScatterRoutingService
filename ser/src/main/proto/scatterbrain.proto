@@ -69,7 +69,7 @@ enum MessageType {
 }
 
 message TypePrefix {
-    MessageType type = 1;
+    MessageType message_type = 1;
 }
 
 // used to advertise the presence of a scatterbrain device
@@ -317,8 +317,12 @@ message GetMessagesCmd {
         int64 end = 1;
     }
     message TimeRange {
-        int64 start = 1;
-        int64 end = 2;
+        oneof startPoint {
+            int64 start = 1;
+        }
+        oneof endPoint {
+            int64 end = 2;
+        }
     }
 }
 
