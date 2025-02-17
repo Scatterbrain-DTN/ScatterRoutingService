@@ -101,15 +101,15 @@ class DesktopApiServerImpl @Inject constructor(
             sessionState.eventState.forEach { (k, v) ->
                 v.onEvent(DesktopEvent.fromIdentities(
                     identities
-                        .filter { v -> !v.isEnd }
-                        .map { v ->
+                        .filter { n -> !n.isEnd }
+                        .map { n ->
                             DesktopApiIdentity(
-                                fingerprint = v.uuid!!,
+                                fingerprint = n.uuid!!,
                                 isOwned = false,
-                                name = v.name,
-                                sig = v.getSig(),
-                                extraKeys = v.keymap.mapValues { m -> m.value.toByteArray() },
-                                publicKey = v.pubkey!!
+                                name = n.name,
+                                sig = n.getSig(),
+                                extraKeys = n.keymap.mapValues { m -> m.value.toByteArray() },
+                                publicKey = n.pubkey!!
                             )
                         }
                 ))

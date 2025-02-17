@@ -11,8 +11,8 @@ import net.ballmerlabs.scatterproto.*
 import proto.Scatterbrain.MessageType
 
 data class TimeSlice(
-    val fromval: Date,
-    val toval: Date
+    val fromval: Date?,
+    val toval: Date?
 )
 
 @SbPacket(messageType = MessageType.GET_MESSAGE)
@@ -31,17 +31,29 @@ class GetMessageCommand(
     val sendDate: TimeSlice?
         get() = if(packet.timeSliceCase == TimeSliceCase.SENDDATE)
                     TimeSlice(
-                        fromval =  Date(packet.sendDate.start),
-                        toval = Date(packet.sendDate.end)
+                        fromval =  if (packet.sendDate.startPointCase == TimeRange.StartPointCase.START)
+                            Date(packet.sendDate.start)
+                        else
+                            null,
+                        toval = if (packet.sendDate.endPointCase == TimeRange.EndPointCase.END)
+                            Date(packet.sendDate.end)
+                        else
+                            null
                     )
                 else
                     null
 
     val receiveDate: TimeSlice?
-        get() = if(packet.timeSliceCase == GetMessagesCmd.TimeSliceCase.RECEIVEDATE)
+        get() = if(packet.timeSliceCase == TimeSliceCase.RECEIVEDATE)
             TimeSlice(
-                fromval =  Date(packet.receiveDate.start),
-                toval = Date(packet.receiveDate.end)
+                fromval =  if (packet.receiveDate.startPointCase == TimeRange.StartPointCase.START)
+                    Date(packet.receiveDate.start)
+                else
+                    null,
+                toval = if (packet.receiveDate.endPointCase == TimeRange.EndPointCase.END)
+                    Date(packet.receiveDate.end)
+                else
+                    null
             )
         else
             null

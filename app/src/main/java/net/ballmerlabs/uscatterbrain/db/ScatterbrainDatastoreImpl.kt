@@ -1076,13 +1076,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun getApiMessagesReceiveDate(
         application: String,
-        start: Date,
-        end: Date,
+        start: Date?,
+        end: Date?,
         limit: Int,
     ): Single<ArrayList<ScatterMessage>> {
         return getApiMessage(
             mDatastore.scatterMessageDao()
-                .getByReceiveDateChrono(application, start.time, end.time, limit = limit)
+                .getByReceiveDateChrono(application, start?.time?:0, end?.time?: Long.MAX_VALUE, limit = limit)
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable { s -> filterMessagesBySigCheck(Observable.fromIterable(s)) }
         )
@@ -1090,13 +1090,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun getApiMessagesSendDate(
         application: String,
-        start: Date,
-        end: Date,
+        start: Date?,
+        end: Date?,
         limit: Int,
     ): Single<ArrayList<ScatterMessage>> {
         return getApiMessage(
             mDatastore.scatterMessageDao()
-                .getBySendDate(application, start.time, end.time, limit = limit)
+                .getBySendDate(application, start?.time?:0, end?.time?:Long.MAX_VALUE, limit = limit)
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable { s -> filterMessagesBySigCheck(Observable.fromIterable(s)) }
         )

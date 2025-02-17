@@ -9,6 +9,7 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.DesktopApp
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 import net.ballmerlabs.uscatterbrain.db.entities.*
 import net.ballmerlabs.scatterproto.*
@@ -206,19 +207,19 @@ class MockScatterbrainDatastore @Inject constructor(
     override val allIdentities: List<net.ballmerlabs.scatterbrainsdk.Identity>
         get() = listOf()
 
-    override fun getApiMessages(application: String, limit: Int): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {
+    override fun getApiMessages(application: String, limit: Int): Single<ArrayList<ScatterMessage>> {
         return Single.error(IllegalStateException("no apiMessages for u, cry noises"))
     }
 
-    override fun getApiMessages(id: Long): net.ballmerlabs.scatterbrainsdk.ScatterMessage {
-        return net.ballmerlabs.scatterbrainsdk.ScatterMessage.Builder.newInstance(ctx,byteArrayOf()).build()
+    override fun getApiMessages(id: Long): ScatterMessage {
+        return ScatterMessage.Builder.newInstance(ctx,byteArrayOf()).build()
     }
 
-    override fun getApiMessagesSendDate(application: String, start: Date, end: Date, limit: Int): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {
+    override fun getApiMessagesSendDate(application: String, start: Date?, end: Date?, limit: Int): Single<ArrayList<ScatterMessage>> {
         return Single.error(IllegalStateException("no apiMessages for u, cry noises"))
     }
 
-    override fun getApiMessagesReceiveDate(application: String, start: Date, end: Date, limit: Int): Single<ArrayList<net.ballmerlabs.scatterbrainsdk.ScatterMessage>> {
+    override fun getApiMessagesReceiveDate(application: String, start: Date?, end: Date?, limit: Int): Single<ArrayList<ScatterMessage>> {
         return Single.error(IllegalStateException("no apiMessages for u, cry noises"))
     }
 
@@ -226,7 +227,7 @@ class MockScatterbrainDatastore @Inject constructor(
         return Flowable.empty()
     }
 
-    override fun insertAndHashFileFromApi(message: net.ballmerlabs.scatterbrainsdk.ScatterMessage, blocksize: Int, packageName: String, sign: UUID?): Completable {
+    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, packageName: String, sign: UUID?): Completable {
         return Completable.complete()
     }
 
@@ -269,7 +270,7 @@ class MockScatterbrainDatastore @Inject constructor(
         TODO("Not yet implemented")
     }
 
-    override fun deleteMessage(message: net.ballmerlabs.scatterbrainsdk.ScatterMessage): Completable {
+    override fun deleteMessage(message: ScatterMessage): Completable {
         TODO("Not yet implemented")
     }
 

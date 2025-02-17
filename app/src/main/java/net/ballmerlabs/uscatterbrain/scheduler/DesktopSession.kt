@@ -133,7 +133,7 @@ class DesktopSession @Inject constructor(
         } else if (packet.sendDate != null) {
             scatterbrainDatastore.getApiMessagesSendDate(
                 application,
-                packet.sendDate!!.fromval,
+                packet.sendDate!!.toval,
                 packet.sendDate!!.toval,
                 packet.limit
             ).flatMapCompletable { v ->

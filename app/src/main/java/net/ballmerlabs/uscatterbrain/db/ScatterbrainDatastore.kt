@@ -400,7 +400,7 @@ interface ScatterbrainDatastore {
      *
      * @return list of api messages
      */
-    fun getApiMessagesSendDate(application: String, start: Date, end: Date, limit: Int = -1): Single<ArrayList<ScatterMessage>>
+    fun getApiMessagesSendDate(application: String, start: Date? = null, end: Date? = null, limit: Int = -1): Single<ArrayList<ScatterMessage>>
 
     /**
      * Filter messages by start and end date when message was received
@@ -410,7 +410,7 @@ interface ScatterbrainDatastore {
      *
      * @return list of api messages
      */
-    fun getApiMessagesReceiveDate(application: String, start: Date, end: Date, limit: Int = -1): Single<ArrayList<ScatterMessage>>
+    fun getApiMessagesReceiveDate(application: String, start: Date? = null, end: Date? = null, limit: Int = -1): Single<ArrayList<ScatterMessage>>
 
     /**
      * gets random identities from database (in network form)
