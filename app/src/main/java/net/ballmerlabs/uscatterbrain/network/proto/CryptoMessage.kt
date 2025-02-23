@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
+import android.util.Log
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.SecretBox
@@ -58,10 +59,12 @@ class CryptoMessage(
 
     companion object {
 
+        @OptIn(ExperimentalStdlibApi::class)
         fun <T : MessageLite, U : ScatterSerializable<T>> fromMessage(
             secretKey: ByteArray, message: U
         ): CryptoMessage {
             val bytes = message.bytes
+
             val out = ByteArray(SecretBox.MACBYTES + bytes.size)
             val nonce = ByteArray(SecretBox.NONCEBYTES)
             LibsodiumInterface.sodium.randombytes_buf(nonce, nonce.size)
@@ -74,7 +77,26 @@ class CryptoMessage(
             val packet =
                 Scatterbrain.CryptoMessage.newBuilder().setNonce(ByteString.copyFrom(nonce))
                     .setEncrypted(ByteString.copyFrom(out)).build()
-            return CryptoMessage(packet)
+            val m =  CryptoMessage(packet)
+            /*
+            val st = m.bytes.toHexString(HexFormat {
+                upperCase = false
+                bytes {
+                    bytesPerGroup = 1
+                    groupSeparator = ","
+                    bytePrefix = "0x"
+
+                }
+                number {
+                    removeLeadingZeros = true
+                }
+            }) + "//"
+            for (st in st.chunked(900)) {
+                Log.v("message", st)
+            }
+
+             */
+            return m
         }
     }
 }
