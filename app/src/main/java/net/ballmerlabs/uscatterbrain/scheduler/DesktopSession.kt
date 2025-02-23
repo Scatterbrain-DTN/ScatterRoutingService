@@ -51,7 +51,8 @@ class DesktopSession @Inject constructor(
     val db: DesktopClient,
     val context: Context,
     val state: DesktopApiSessionState,
-    @Named(DesktopApiSubcomponent.NamedSchedulers.API_SERVER_SCHEDULER) val scheduler: Scheduler,
+    @Named(DesktopSessionSubcomponent.NamedSchedulers.API_SESSION_WRITE_SCHED) val writeScheduler: Scheduler,
+    @Named(DesktopApiSubcomponent.NamedSchedulers.API_SERVER_SCHEDULER) val readScheduler: Scheduler,
     val backend: RoutingServiceBackend,
     val scatterbrainDatastore: ScatterbrainDatastore,
     val stateEntry: StateEntry,
@@ -59,6 +60,11 @@ class DesktopSession @Inject constructor(
     val socket: Socket,
 ) {
     private val LOG by scatterLog()
+
+
+    init {
+        LOG.e("desktop session init")
+    }
 
     fun parseTypePrefix(
         inputStream: InputStream, scheduler: Scheduler,
@@ -237,8 +243,7 @@ class DesktopSession @Inject constructor(
     fun handleMessage(
         packet: ScatterSerializable.Companion.TypedPacket,
     ): Completable {
-        return Completable.defer {
-            if (isPaired()) {
+        return if (isPaired()) {
                 when (packet.type) {
                     Scatterbrain.MessageType.GET_IDENTITY -> getIdentity(packet.get())
                     Scatterbrain.MessageType.GET_MESSAGE -> getMessages(packet.get())
@@ -252,7 +257,6 @@ class DesktopSession @Inject constructor(
                 LOG.w("session ${db.session} not paired, disconnecting")
                 success()
             }
-        }
     }
 
 
@@ -263,11 +267,10 @@ class DesktopSession @Inject constructor(
 
 
     fun <T : MessageLite, U : ScatterSerializable<T>> encrypt(message: U): Completable {
-        return Completable.defer {
-            CryptoMessage.fromMessage(rx, message)
-                .writeToStream(socket.getOutputStream(), scheduler)
-                .flatMapCompletable { v -> v }
-        }
+        return CryptoMessage.fromMessage(rx, message)
+            .writeToStream(socket.getOutputStream(), writeScheduler)
+            .flatMapCompletable { v -> v }
+            .doOnError { err -> "failed to encrypt: $err" }
     }
 
     inline fun <reified T : ScatterSerializable<V>, reified V : MessageLite> parseWrapperFromCRC(

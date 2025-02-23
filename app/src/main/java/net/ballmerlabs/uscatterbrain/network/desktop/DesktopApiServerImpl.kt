@@ -60,6 +60,7 @@ class DesktopApiServerImpl @Inject constructor(
     private val broadcaster: Broadcaster,
     private val connectivityManager: ConnectivityManager,
     @Named(DesktopApiSubcomponent.NamedSchedulers.API_SERVER_SCHEDULER) val scheduler: Scheduler,
+    @Named(DesktopApiSubcomponent.NamedSchedulers.API_WRITE_SCHEDULER) val writeScheduler: Scheduler,
 ) : DesktopApiServer {
 
     private val LOG by scatterLog()
@@ -81,6 +82,7 @@ class DesktopApiServerImpl @Inject constructor(
     }
 
     init {
+        LOG.e("desktop api init")
         connectivityManager.registerDefaultNetworkCallback(networkCallback)
     }
 
@@ -162,7 +164,7 @@ class DesktopApiServerImpl @Inject constructor(
                     PairingAck(
                         pubkey = kp.pubkey,
                         session = client.getHeader(0)
-                    ).writeToStream(socket.getOutputStream(), scheduler)
+                    ).writeToStream(socket.getOutputStream(), writeScheduler)
                         .flatMapCompletable { s -> s }
                         .toSingleDefault(session)
                 }
@@ -241,14 +243,13 @@ class DesktopApiServerImpl @Inject constructor(
     }
 
     override fun serve() {
-        val disp = advertiser.startAdvertise().andThen(serverSocket
-            .accept(scheduler))
+        LOG.e("serve called")
+        val disp = advertiser.startAdvertise().andThen(serverSocket.accept(scheduler))
             .doOnError { err ->
                 LOG.e("serverSocket error $err")
                 err.printStackTrace()
             }
             .doOnComplete { LOG.e("desktop server socket completed") }
-            .observeOn(scheduler)
             .doOnSubscribe {
                 broadcaster.broadcastState(
                     power = DesktopPower.ENABLED
@@ -258,13 +259,11 @@ class DesktopApiServerImpl @Inject constructor(
                 LOG.v("got desktop connection ${s.socket.remoteSocketAddress}")
                 state.getKeypair().flatMapCompletable { kp ->
                     handleKeyExchange(s.socket, kp)
-                        .observeOn(scheduler)
                         .flatMapCompletable { session ->
                         session.session().parseTypePrefix(s.socket.getInputStream(), scheduler)
                             .repeat()
-                            .subscribeOn(scheduler)
-                            .observeOn(scheduler)
-                            .concatMapCompletable { v ->
+                            .retry()
+                            .flatMapCompletable { v ->
                                 LOG.v("got packet type ${v.type}")
                                 when (v.type) {
                                     Scatterbrain.MessageType.PAIRING_REQUEST -> handlePairingRequest(
@@ -286,7 +285,7 @@ class DesktopApiServerImpl @Inject constructor(
                                                     .setMessage("not authorized")
                                                     .build()
                                             )
-                                }.subscribeOn(scheduler)
+                                }
                             }
                     }.doOnError { err ->
                         LOG.e("error in desktop client stream: $err")

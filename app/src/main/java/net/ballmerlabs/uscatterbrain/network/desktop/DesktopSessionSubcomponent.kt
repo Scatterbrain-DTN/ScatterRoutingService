@@ -1,11 +1,12 @@
 package net.ballmerlabs.uscatterbrain.network.desktop
 
-import dagger.Binds
 import dagger.BindsInstance
 import dagger.Module
 import dagger.Provides
 import dagger.Subcomponent
-import dagger.internal.Beta
+import io.reactivex.Scheduler
+import io.reactivex.plugins.RxJavaPlugins
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
 import net.ballmerlabs.uscatterbrain.scheduler.DesktopSession
 import java.net.Socket
@@ -17,7 +18,7 @@ data class DesktopSessionConfig(
     val fingerprint: ByteArray,
     val remotepub: ByteArray,
     val db: DesktopClient,
-    val kx: PublicKeyPair
+    val kx: PublicKeyPair,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -57,6 +58,11 @@ interface DesktopSessionSubcomponent {
         const val RX = "rx"
     }
 
+
+    object NamedSchedulers {
+        const val API_SESSION_WRITE_SCHED = "session-write"
+    }
+
     @Subcomponent.Builder
     @DesktopSessionScope
     interface Builder {
@@ -90,6 +96,17 @@ interface DesktopSessionSubcomponent {
             @Named(NamedKeys.RX)
             fun providesRx(config: DesktopSessionConfig): ByteArray {
                 return config.rx
+            }
+
+            @Provides
+            @DesktopSessionScope
+            @Named(NamedSchedulers.API_SESSION_WRITE_SCHED)
+            fun providesApiSessionWriteScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(
+                    ScatterbrainThreadFactory(
+                        NamedSchedulers.API_SESSION_WRITE_SCHED
+                    )
+                )
             }
 
             @Provides

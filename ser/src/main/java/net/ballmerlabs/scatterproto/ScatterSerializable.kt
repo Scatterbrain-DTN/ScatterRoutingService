@@ -129,7 +129,7 @@ abstract class ScatterSerializable<T : MessageLite>(
     private fun writeToStreamBlocking(outputStream: OutputStream) {
         val stream = CRCOutputStream(outputStream)
 
-        val ts = Scatterbrain.TypePrefix.newBuilder().setMessageType(type).build()
+        val ts = TypePrefix.newBuilder().setMessageType(type).build()
 
         stream.write(
             ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.BIG_ENDIAN)
@@ -142,7 +142,6 @@ abstract class ScatterSerializable<T : MessageLite>(
         ts.writeTo(stream)
         packet.writeTo(stream)
         outputStream.write(longToByte(stream.crc.value))
-        outputStream.flush()
     }
 
     /**
@@ -152,14 +151,12 @@ abstract class ScatterSerializable<T : MessageLite>(
      * @return Completable
      */
     fun writeToStream(os: OutputStream, scheduler: Scheduler): Maybe<Completable> {
-        return Maybe.defer {
-            if (validate()) {
+        return if (validate()) {
                 Maybe.just(Completable.fromAction { writeToStreamBlocking(os) }
                     .subscribeOn(scheduler))
             } else {
                 Maybe.empty()
             }
-        }
     }
 
     /**
@@ -169,15 +166,13 @@ abstract class ScatterSerializable<T : MessageLite>(
      * @return Flowable emitting byte arrays with serialized message
      */
     fun writeToStream(fragsize: Int, scheduler: Scheduler): Maybe<Flowable<ByteArray>> {
-        return Maybe.defer {
-            if (validate()) {
+        return if (validate()) {
                 Maybe.just(
                     Bytes.from(ByteArrayInputStream(bytes), fragsize).subscribeOn(scheduler)
                 )
             } else {
                 Maybe.empty()
             }
-        }
     }
 
     /**

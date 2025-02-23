@@ -20,10 +20,11 @@ interface DesktopApiSubcomponent {
 
     object NamedSchedulers {
         const val API_SERVER_SCHEDULER = "apiserver"
+        const val API_WRITE_SCHEDULER = "apiserver-write"
     }
 
     data class ServiceConfig(
-        val name: String
+        val name: String,
     )
 
     @Subcomponent.Builder
@@ -39,59 +40,74 @@ interface DesktopApiSubcomponent {
         fun build(): DesktopApiSubcomponent
     }
 
-  @Module(subcomponents = [DesktopSessionSubcomponent::class])
-  abstract class DesktopApiModule {
+    @Module(subcomponents = [DesktopSessionSubcomponent::class])
+    abstract class DesktopApiModule {
 
-      @Binds
-      @DesktopApiScope
-      abstract fun bindsDesktopApiServer(desktopApiServerImpl: DesktopApiServerImpl): DesktopApiServer
+        @Binds
+        @DesktopApiScope
+        abstract fun bindsDesktopApiServer(desktopApiServerImpl: DesktopApiServerImpl): DesktopApiServer
 
-      @Binds
-      @DesktopApiScope
-      abstract fun bindsState(state: DesktopKeyManagerImpl): DesktopKeyManager
+        @Binds
+        @DesktopApiScope
+        abstract fun bindsState(state: DesktopKeyManagerImpl): DesktopKeyManager
 
-      @Binds
-      @DesktopApiScope
-      abstract fun bindsNsdAdvertiser(state: NsdAdvertiserImpl): NsdAdvertiser
+        @Binds
+        @DesktopApiScope
+        abstract fun bindsNsdAdvertiser(state: NsdAdvertiserImpl): NsdAdvertiser
 
-      @Module
-      companion object {
+        @Module
+        companion object {
 
-          @Provides
-          @DesktopApiScope
-          @Named(NamedSchedulers.API_SERVER_SCHEDULER)
-          fun providesApiServerScheduler(): Scheduler {
-              return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(
-                  NamedSchedulers.API_SERVER_SCHEDULER
-              ))
-          }
+            @Provides
+            @DesktopApiScope
+            @Named(NamedSchedulers.API_SERVER_SCHEDULER)
+            fun providesApiServerScheduler(): Scheduler {
+                return RxJavaPlugins.createIoScheduler(
+                    ScatterbrainThreadFactory(
+                        NamedSchedulers.API_SERVER_SCHEDULER
+                    )
+                )
+            }
 
-          @Provides
-          @DesktopApiScope
-          fun providesDesktopApiFinalizer(
-              @Named(NamedSchedulers.API_SERVER_SCHEDULER) scheduler: Scheduler,
-              serverSocket: PortSocket,
-              desktopApiServer: Provider<DesktopApiServer>
-          ): DesktopFinalizer {
-              return object : DesktopFinalizer {
-                  override fun onFinalize() {
-                      scheduler.shutdown()
-                      serverSocket.close()
-                      desktopApiServer.get().shutdown()
-                  }
 
-              }
-          }
+            @Provides
+            @DesktopApiScope
+            @Named(NamedSchedulers.API_WRITE_SCHEDULER)
+            fun providesApiServerWriteScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(
+                    ScatterbrainThreadFactory(
+                        NamedSchedulers.API_WRITE_SCHEDULER
+                    )
+                )
+            }
 
-          @Provides
-          @DesktopApiScope
-          fun providesNsdService(
-              context: Context
-          ): NsdManager {
-              return context.getSystemService(Context.NSD_SERVICE) as NsdManager
-          }
-      }
-  }
+            @Provides
+            @DesktopApiScope
+            fun providesDesktopApiFinalizer(
+                @Named(NamedSchedulers.API_SERVER_SCHEDULER) scheduler: Scheduler,
+                serverSocket: PortSocket,
+                desktopApiServer: Provider<DesktopApiServer>,
+            ): DesktopFinalizer {
+                return object : DesktopFinalizer {
+                    override fun onFinalize() {
+                        scheduler.shutdown()
+                        serverSocket.close()
+                        desktopApiServer.get().shutdown()
+                    }
+
+                }
+            }
+
+            @Provides
+            @DesktopApiScope
+            fun providesNsdService(
+                context: Context,
+            ): NsdManager {
+                return context.getSystemService(Context.NSD_SERVICE) as NsdManager
+            }
+        }
+    }
+
     fun desktopServer(): DesktopApiServer
     fun finalizer(): DesktopFinalizer
 }

@@ -9,6 +9,7 @@ import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent.NamedSchedulers
 import net.ballmerlabs.uscatterbrain.network.wifidirect.PortSocket
 import org.mockito.kotlin.mock
 import javax.inject.Named
@@ -17,10 +18,6 @@ import javax.inject.Provider
 @Subcomponent(modules = [FakeDesktopApiSubcomponent.DesktopApiModule::class])
 @DesktopApiScope
 interface FakeDesktopApiSubcomponent: DesktopApiSubcomponent {
-
-    object NamedSchedulers {
-        const val API_SERVER_SCHEDULER = "apiserver"
-    }
 
     object NamedPrefs {
         const val ENCRYPTED_PREFS = "encrypted-prefs"
@@ -66,13 +63,23 @@ interface FakeDesktopApiSubcomponent: DesktopApiSubcomponent {
 
             @Provides
             @DesktopApiScope
-            @Named(NamedSchedulers.API_SERVER_SCHEDULER)
+            @Named(DesktopApiSubcomponent.NamedSchedulers.API_SERVER_SCHEDULER)
             fun providesApiServerScheduler(): Scheduler {
                 return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(
-                    NamedSchedulers.API_SERVER_SCHEDULER
+                    DesktopApiSubcomponent.NamedSchedulers.API_SERVER_SCHEDULER
                 ))
             }
 
+            @Provides
+            @DesktopApiScope
+            @Named(NamedSchedulers.API_WRITE_SCHEDULER)
+            fun providesApiServerWriteScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(
+                    ScatterbrainThreadFactory(
+                        NamedSchedulers.API_WRITE_SCHEDULER
+                    )
+                )
+            }
 
             @Provides
             @DesktopApiScope

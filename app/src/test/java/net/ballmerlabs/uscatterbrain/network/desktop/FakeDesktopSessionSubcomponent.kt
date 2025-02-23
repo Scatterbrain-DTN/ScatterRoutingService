@@ -3,7 +3,11 @@ package net.ballmerlabs.uscatterbrain.network.desktop
 import dagger.Module
 import dagger.Provides
 import dagger.Subcomponent
+import io.reactivex.Scheduler
+import io.reactivex.plugins.RxJavaPlugins
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionSubcomponent.NamedKeys
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionSubcomponent.NamedSchedulers
 import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
 import javax.inject.Named
 
@@ -21,6 +25,18 @@ interface FakeDesktopSessionSubcomponent : DesktopSessionSubcomponent {
     abstract class FakeDesktopSessionModule {
         @Module
         companion object {
+
+            @Provides
+            @DesktopSessionScope
+            @Named(NamedSchedulers.API_SESSION_WRITE_SCHED)
+            fun providesApiSessionWriteScheduler(): Scheduler {
+                return RxJavaPlugins.createSingleScheduler(
+                    ScatterbrainThreadFactory(
+                        NamedSchedulers.API_SESSION_WRITE_SCHED
+                    )
+                )
+            }
+
             @Provides
             @DesktopSessionScope
             @Named(NamedKeys.TX)
