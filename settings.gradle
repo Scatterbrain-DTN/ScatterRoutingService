@@ -2,4 +2,8 @@
 include ':scatterbrainSDK'
 include ':app'
 project(':scatterbrainSDK').projectDir = new File('scatterbrainSDK/scatterbrainSDK')
+include ':annotation'
+project(':annotation').projectDir = new File('annotation')
+include ':ser'
+project(':ser').projectDir = new File('ser')
 
