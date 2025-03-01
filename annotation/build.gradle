@@ -14,7 +14,7 @@ java {
             languageVersion = JavaLanguageVersion.of(17)
         }
 }
-def protobuf_version = "3.18.0"
+def protobuf_version = "4.27.3"
 
 dependencies {
     annotationProcessor "com.google.dagger:dagger-compiler:2.51.1"
