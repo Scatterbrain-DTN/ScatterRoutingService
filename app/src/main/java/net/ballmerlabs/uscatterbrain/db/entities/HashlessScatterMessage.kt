@@ -20,6 +20,12 @@ import com.google.protobuf.ByteString
             onDelete = ForeignKey.CASCADE,
             onUpdate = ForeignKey.CASCADE,
             deferred = true
+        ),
+        ForeignKey(
+            entity = MerkleBundle::class,
+            parentColumns = [ "id" ],
+            childColumns = [ "bundle" ],
+            onDelete = ForeignKey.SET_NULL
         )
     ],
     indices = [
@@ -48,7 +54,8 @@ data class HashlessScatterMessage(
     var fileGlobalHash: ByteArray,
     @ColumnInfo(defaultValue = "-1") var fileSize: Long,
     @ColumnInfo(defaultValue = "0") var shareCount: Int = 0,
-    @ColumnInfo(defaultValue = "") var packageName: String
+    @ColumnInfo(defaultValue = "") var packageName: String,
+    var bundle: Long? = null
     ) {
     companion object {
         fun hash2hashs(hashes: List<ByteArray>, globalhash: ByteArray): List<Hashes> {

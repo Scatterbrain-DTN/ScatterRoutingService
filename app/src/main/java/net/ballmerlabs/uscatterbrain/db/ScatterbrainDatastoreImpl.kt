@@ -10,7 +10,6 @@ import android.util.Pair
 import android.webkit.MimeTypeMap
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
-import com.goterl.lazysodium.interfaces.KeyExchange
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
@@ -25,7 +24,6 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
-import net.ballmerlabs.scatterbrainsdk.internal.b64
 import net.ballmerlabs.scatterbrainsdk.newShm
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
@@ -38,16 +36,13 @@ import net.ballmerlabs.uscatterbrain.db.entities.DiskFile
 import net.ballmerlabs.uscatterbrain.db.entities.GlobalHash
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.Identity
-import net.ballmerlabs.uscatterbrain.db.entities.IdentityDao
 import net.ballmerlabs.uscatterbrain.db.entities.JustFingerprint
-import net.ballmerlabs.uscatterbrain.db.entities.JustPackageName
 import net.ballmerlabs.uscatterbrain.db.entities.JustPackageSig
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Keys
 import net.ballmerlabs.uscatterbrain.db.entities.Metrics
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
-import net.ballmerlabs.uscatterbrain.network.desktop.DesktopClientDao
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
@@ -405,7 +400,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     ): Observable<BlockDataStream> {
         return Observable.defer {
             LOG.v("called getTopRandomMessages $count")
-            mDatastore.scatterMessageDao().getTopRandomExclusingHash(count, delareHashes.hashes)
+            mDatastore.scatterMessageDao().getTopRandomExcludingHash(count, delareHashes.hashes)
                 .subscribeOn(databaseScheduler)
                 .doOnSubscribe { LOG.v("subscribed to getTopRandoMessages") }
                 .toFlowable()

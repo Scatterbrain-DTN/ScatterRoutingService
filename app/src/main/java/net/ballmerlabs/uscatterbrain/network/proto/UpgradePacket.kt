@@ -1,11 +1,17 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
+import net.ballmerlabs.scatterproto.MAX_METADATA
+import net.ballmerlabs.scatterproto.MAX_METADATA_VALUE
+import net.ballmerlabs.scatterproto.Provides
+import net.ballmerlabs.scatterproto.ScatterSerializable
+import net.ballmerlabs.scatterproto.providesToVal
+import net.ballmerlabs.scatterproto.toProto
+import net.ballmerlabs.scatterproto.valToProvides
+import proto.Scatterbrain.MessageType
 import proto.Scatterbrain.Role
 import proto.Scatterbrain.Upgrade
 import java.util.UUID
-import net.ballmerlabs.scatterproto.*
-import proto.Scatterbrain.MessageType
 
 /**
  * Wrapper class for protocol buffer upgrade message
@@ -15,7 +21,7 @@ import proto.Scatterbrain.MessageType
  */
 @SbPacket(messageType = MessageType.UPGRADE)
 class UpgradePacket(
-    packet: Upgrade
+    packet: Upgrade,
 ) : ScatterSerializable<Upgrade>(packet, MessageType.UPGRADE) {
     /**
      * Gets session id.
@@ -46,11 +52,11 @@ class UpgradePacket(
         get() = valToProvides(packet.provides)
 
     override fun validate(): Boolean {
-        return metadata.size <= MAX_METADATA && metadata.values.all { v -> v.length <= net.ballmerlabs.scatterproto.MAX_METADATA_VALUE }
+        return metadata.size <= MAX_METADATA && metadata.values.all { v -> v.length <= MAX_METADATA_VALUE }
     }
 
     fun compare(other: UpgradePacket): Boolean {
-        return metadata.size == other.metadata.size && metadata.filter { p -> p.key != UpgradePacket.Companion.KEY_PORT && p.key != UpgradePacket.Companion.FROM }
+        return metadata.size == other.metadata.size && metadata.filter { p -> p.key != KEY_PORT && p.key != FROM }
             .all { v -> other.metadata.containsKey(v.key) && other.metadata[v.key] == metadata[v.key] } && provides == other.provides
     }
 
@@ -70,7 +76,7 @@ class UpgradePacket(
         var sessionID: Int = 0,
         var provides: Provides? = null,
         var metadata: Map<String, String>? = null,
-        var from: UUID? = null
+        var from: UUID? = null,
     ) {
 
         /**
@@ -117,11 +123,14 @@ class UpgradePacket(
                         provides!!
                     )
                 ).setSessionid(sessionID)
-                    .putAllMetadata(metadata).setFrom(this.from?.toProto())
+                    .putAllMetadata(metadata)
                     //.setType(MessageType.UPGRADE)
-                    .build()
+
+            if (this.from != null) {
+                packet.setFrom(this.from?.toProto())
+            }
             return UpgradePacket(
-                packet
+                packet.build()
             )
         }
     }
@@ -134,6 +143,7 @@ class UpgradePacket(
         const val KEY_PORT = "p2p-port"
         const val KEY_OWNER_ADDRESSS = "p2p-addresss"
         const val FROM = "from-luid"
+
         /**
          * Constructs a new builder class.
          *

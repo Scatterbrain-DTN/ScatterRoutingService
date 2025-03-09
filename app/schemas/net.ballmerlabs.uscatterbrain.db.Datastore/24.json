@@ -2,17 +2,16 @@
   "formatVersion": 1,
   "database": {
     "version": 24,
-    "identityHash": "9254f1b18d7bccaf5e57ef9b2d77bc14",
+    "identityHash": "7bf05a0c636047ca55f4d2c30fda536e",
     "entities": [
       {
         "tableName": "messages",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`body` BLOB, `application` TEXT NOT NULL, `sig` BLOB, `sessionid` INTEGER NOT NULL, `extension` TEXT NOT NULL, `userFilename` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `sendDate` INTEGER NOT NULL, `receiveDate` INTEGER NOT NULL, `fileGlobalHash` BLOB NOT NULL, `fileSize` INTEGER NOT NULL DEFAULT -1, `shareCount` INTEGER NOT NULL DEFAULT 0, `packageName` TEXT NOT NULL DEFAULT '', `messageID` INTEGER PRIMARY KEY AUTOINCREMENT, FOREIGN KEY(`fileGlobalHash`) REFERENCES `globalhash`(`globalhash`) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`body` BLOB, `application` TEXT NOT NULL, `sig` BLOB, `sessionid` INTEGER NOT NULL, `extension` TEXT NOT NULL, `userFilename` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `sendDate` INTEGER NOT NULL, `receiveDate` INTEGER NOT NULL, `fileGlobalHash` BLOB NOT NULL, `fileSize` INTEGER NOT NULL DEFAULT -1, `shareCount` INTEGER NOT NULL DEFAULT 0, `packageName` TEXT NOT NULL DEFAULT '', `bundle` INTEGER, `messageID` INTEGER PRIMARY KEY AUTOINCREMENT, FOREIGN KEY(`fileGlobalHash`) REFERENCES `globalhash`(`globalhash`) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED, FOREIGN KEY(`bundle`) REFERENCES `bundles`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
         "fields": [
           {
             "fieldPath": "body",
             "columnName": "body",
-            "affinity": "BLOB",
-            "notNull": false
+            "affinity": "BLOB"
           },
           {
             "fieldPath": "application",
@@ -23,8 +22,7 @@
           {
             "fieldPath": "sig",
             "columnName": "sig",
-            "affinity": "BLOB",
-            "notNull": false
+            "affinity": "BLOB"
           },
           {
             "fieldPath": "sessionid",
@@ -90,10 +88,14 @@
             "defaultValue": "''"
           },
           {
+            "fieldPath": "bundle",
+            "columnName": "bundle",
+            "affinity": "INTEGER"
+          },
+          {
             "fieldPath": "messageID",
             "columnName": "messageID",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -127,6 +129,17 @@
             ],
             "referencedColumns": [
               "globalhash"
+            ]
+          },
+          {
+            "table": "bundles",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "bundle"
+            ],
+            "referencedColumns": [
+              "id"
             ]
           }
         ]
@@ -162,14 +175,12 @@
           {
             "fieldPath": "privatekey",
             "columnName": "privatekey",
-            "affinity": "BLOB",
-            "notNull": false
+            "affinity": "BLOB"
           },
           {
             "fieldPath": "identityID",
             "columnName": "identityID",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -188,8 +199,7 @@
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_identities_fingerprint` ON `${TABLE_NAME}` (`fingerprint`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "hashes",
@@ -210,8 +220,7 @@
           {
             "fieldPath": "id",
             "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -265,14 +274,12 @@
           {
             "fieldPath": "keyID",
             "columnName": "keyID",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "identityFK",
             "columnName": "identityFK",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -281,7 +288,6 @@
             "keyID"
           ]
         },
-        "indices": [],
         "foreignKeys": [
           {
             "table": "identities",
@@ -303,8 +309,7 @@
           {
             "fieldPath": "identityFK",
             "columnName": "identityFK",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "packageName",
@@ -315,8 +320,7 @@
           {
             "fieldPath": "packageSignature",
             "columnName": "packageSignature",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "isDesktop",
@@ -328,8 +332,7 @@
           {
             "fieldPath": "clientAppID",
             "columnName": "clientAppID",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -341,12 +344,12 @@
         "indices": [
           {
             "name": "index_ClientApp_packageName",
-            "unique": false,
+            "unique": true,
             "columnNames": [
               "packageName"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_ClientApp_packageName` ON `${TABLE_NAME}` (`packageName`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_ClientApp_packageName` ON `${TABLE_NAME}` (`packageName`)"
           },
           {
             "name": "index_ClientApp_packageName_packageSignature",
@@ -358,8 +361,7 @@
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_ClientApp_packageName_packageSignature` ON `${TABLE_NAME}` (`packageName`, `packageSignature`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "IdentityId",
@@ -383,9 +385,7 @@
           "columnNames": [
             "uuid"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "globalhash",
@@ -426,8 +426,7 @@
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_globalhash_uuid` ON `${TABLE_NAME}` (`uuid`)"
           }
-        ],
-        "foreignKeys": []
+        ]
       },
       {
         "tableName": "Metrics",
@@ -463,9 +462,7 @@
           "columnNames": [
             "application"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "desktop_clients",
@@ -518,8 +515,7 @@
           {
             "fieldPath": "remoteFingerprint",
             "columnName": "remote_fingerprint",
-            "affinity": "BLOB",
-            "notNull": false
+            "affinity": "BLOB"
           }
         ],
         "primaryKey": {
@@ -538,14 +534,108 @@
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_desktop_clients_remote_fingerprint` ON `${TABLE_NAME}` (`remote_fingerprint`)"
           }
+        ]
+      },
+      {
+        "tableName": "bundles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `hash` BLOB, `childOne` INTEGER, `childTwo` INTEGER, `text` INTEGER NOT NULL DEFAULT 0, `application` TEXT, `dirty` INTEGER NOT NULL DEFAULT 1, FOREIGN KEY(`childOne`) REFERENCES `bundles`(`id`) ON UPDATE CASCADE ON DELETE CASCADE , FOREIGN KEY(`childTwo`) REFERENCES `bundles`(`id`) ON UPDATE CASCADE ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "hash",
+            "columnName": "hash",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "childOne",
+            "columnName": "childOne",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "childTwo",
+            "columnName": "childTwo",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "application",
+            "columnName": "application",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "dirty",
+            "columnName": "dirty",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          }
         ],
-        "foreignKeys": []
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_bundles_hash",
+            "unique": false,
+            "columnNames": [
+              "hash"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bundles_hash` ON `${TABLE_NAME}` (`hash`)"
+          },
+          {
+            "name": "index_bundles_childOne_childTwo",
+            "unique": false,
+            "columnNames": [
+              "childOne",
+              "childTwo"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bundles_childOne_childTwo` ON `${TABLE_NAME}` (`childOne`, `childTwo`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "bundles",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE",
+            "columns": [
+              "childOne"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "bundles",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE",
+            "columns": [
+              "childTwo"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       }
     ],
-    "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9254f1b18d7bccaf5e57ef9b2d77bc14')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7bf05a0c636047ca55f4d2c30fda536e')"
     ]
   }
 }

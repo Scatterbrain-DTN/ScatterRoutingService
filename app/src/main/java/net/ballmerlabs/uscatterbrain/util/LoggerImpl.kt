@@ -41,7 +41,7 @@ class LoggerImpl(c: Class<*>, private val bufSize: Int = 32): Logger(c) {
                 f.createNewFile()
                 return f
             } else {
-                Log.w("loggermeta", "logsDir was null")
+             //   Log.w("loggermeta", "logsDir was null")
                 null
             }
         } catch (exc: Exception) {

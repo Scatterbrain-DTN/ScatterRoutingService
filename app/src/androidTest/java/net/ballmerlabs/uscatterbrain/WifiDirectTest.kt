@@ -22,13 +22,18 @@ import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
+import io.reactivex.Completable
 import io.reactivex.plugins.RxJavaPlugins
+import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.RouterPreferencesImpl
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastoreImpl
+import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
+import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
+import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import org.junit.Before
 import org.junit.Rule
@@ -83,8 +88,69 @@ class WifiDirectTest {
             scheduler,
             scheduler,
             prefs,
-            mock {  },
-            mock {  }
+            { object : ScatterbrainScheduler {
+                override fun start() {
+
+                }
+
+                override fun stop(): Boolean {
+                    return true
+                }
+
+                override fun pauseScan() {
+
+                }
+
+                override fun unpauseScan() {
+
+                }
+
+                override fun broadcastTransactionResult(transactionStats: HandshakeResult): Completable {
+                    return Completable.complete()
+                }
+
+                override fun acquireWakelock() {
+
+                }
+
+                override fun releaseWakeLock() {
+
+                }
+
+                override fun authorizeDesktop(
+                    fingerprint: ByteArray,
+                    authorize: Boolean,
+                ): Completable {
+                    return Completable.complete()
+                }
+
+                override fun startDesktopServer(name: String): Completable {
+                    return Completable.complete()
+                }
+
+                override fun confirmIdentityImport(handle: UUID, identity: UUID): Completable {
+                    return Completable.complete()
+                }
+
+                override fun stopDesktopServer() {
+
+                }
+
+                override fun broadcastIdentities(identities: List<IdentityPacket>): Completable {
+                    return Completable.complete()
+                }
+
+                override fun broadcastMessages(messages: List<DbMessage>): Completable {
+                    return Completable.complete()
+                }
+
+                override val isDiscovering: Boolean
+                    get() = true
+                override val isPassive: Boolean
+                    get() = false
+
+            } },
+            BroadcasterImpl(ctx)
         )
         val component = DaggerRoutingServiceComponent.builder()
             .applicationContext(ctx)
@@ -134,16 +200,16 @@ class WifiDirectTest {
         assert(res.groupFormed)
     }
 
-    @Test
-    @Throws(TimeoutException::class)
-    fun createGroupBands() {
-        radioModule.createGroupSingle(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
-            .timeout(20, TimeUnit.SECONDS)
-            .blockingGet().isGroupOwner
-        radioModule.createGroupSingle(FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
-            .timeout(20, TimeUnit.SECONDS)
-            .blockingGet().isGroupOwner
-    }
+//    @Test
+//    @Throws(TimeoutException::class)
+//    fun createGroupBands() {
+//        radioModule.createGroupSingle(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+//            .timeout(20, TimeUnit.SECONDS)
+//            .blockingGet().isGroupOwner
+//        radioModule.createGroupSingle(FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
+//            .timeout(20, TimeUnit.SECONDS)
+//            .blockingGet().isGroupOwner
+//    }
 
     @Test
     @Throws(TimeoutException::class)

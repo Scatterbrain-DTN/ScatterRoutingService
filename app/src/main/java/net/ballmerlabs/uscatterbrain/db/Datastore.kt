@@ -16,6 +16,7 @@ import net.ballmerlabs.uscatterbrain.db.entities.IdentityDao
 import net.ballmerlabs.uscatterbrain.db.entities.IdentityId
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Keys
+import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.db.entities.Metrics
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessageDao
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopClientDao
@@ -48,9 +49,10 @@ class UuidTypeConverter {
         IdentityId::class,
         GlobalHash::class,
         Metrics::class,
-        DesktopClient::class
+        DesktopClient::class,
+        MerkleBundle::class
     ],
-    version = 23,
+    version = 24,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(
@@ -68,6 +70,10 @@ class UuidTypeConverter {
         AutoMigration(
             from = 21,
             to = 22
+        ),
+        AutoMigration(
+            from = 23,
+            to = 24
         )
     ]
 )

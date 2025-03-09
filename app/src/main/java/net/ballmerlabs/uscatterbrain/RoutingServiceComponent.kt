@@ -19,6 +19,7 @@ import dagger.Provides
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
+import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.RoutingServiceModule
 import net.ballmerlabs.uscatterbrain.db.DATABASE_NAME
 import net.ballmerlabs.uscatterbrain.db.Datastore
@@ -181,6 +182,7 @@ interface RoutingServiceComponent {
             @Singleton
             fun provideDatastore(ctx: Context?): Datastore {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
+                    .openHelperFactory(RequerySQLiteOpenHelperFactory())
                     .addMigrations(Migrate21())
                     //.addMigrations(Migrate23())
                     .fallbackToDestructiveMigration()

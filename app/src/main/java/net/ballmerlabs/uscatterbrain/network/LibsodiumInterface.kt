@@ -8,6 +8,8 @@ import com.goterl.lazysodium.interfaces.Hash
 import com.goterl.lazysodium.interfaces.KeyExchange
 import com.goterl.lazysodium.interfaces.SecretBox
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
+import java.math.BigInteger
+import java.nio.ByteBuffer
 
 /**
  * Singleton interface to libsodium/lazysodium over JNA
@@ -24,6 +26,35 @@ object LibsodiumInterface {
         val out = ByteArray(GenericHash.BLAKE2B_BYTES_MIN)
         if (sodium.crypto_generichash(out, out.size, key, key.size.toLong(), null, 0) != 0 ) {
             throw IllegalStateException("failed to hash")
+        }
+
+        return out
+    }
+
+    fun merkleHash(key: ByteArray): ByteArray {
+        val out = ByteArray(GenericHash.BLAKE2B_BYTES_MIN)
+        if (sodium.crypto_generichash(out, out.size, key, key.size.toLong(), null, 0) != 0 ) {
+            throw IllegalStateException("failed to hash")
+        }
+
+        return out
+    }
+
+    fun merkleHash(key: List<ByteArray>): ByteArray {
+        val out = ByteArray(GenericHash.BLAKE2B_BYTES_MIN)
+        val state = ByteArray(sodium.crypto_generichash_statebytes())
+        if (sodium.crypto_generichash_init(state, null, 0, out.size) != 0 ) {
+            throw IllegalStateException("failed to init")
+        }
+
+        for (h in key) {
+            if (sodium.crypto_generichash_update(state, h, h.size.toLong()) != 0) {
+                throw IllegalStateException("failed to update hash")
+            }
+        }
+
+        if (sodium.crypto_generichash_final(state, out, out.size) != 0) {
+            throw IllegalStateException("failed to finalize hash")
         }
 
         return out
@@ -67,4 +98,10 @@ fun String.b64(): ByteArray {
 
 fun ByteArray.fingerprint(): ByteArray {
     return LibsodiumInterface.fingerprint(this)
+}
+
+fun ByteArray.compare(byteArray: ByteArray): Int {
+    val self = BigInteger(this)
+    val compare = BigInteger(byteArray)
+    return self.compareTo(compare)
 }

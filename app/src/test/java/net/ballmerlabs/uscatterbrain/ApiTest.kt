@@ -31,14 +31,14 @@ class ApiTest {
     fun preventSimpleDirectoryTraversalAttack() {
         val filename = "../fmef"
         try {
-            assert(net.ballmerlabs.scatterproto.sanitizeFilename(filename) != filename)
+            assert(sanitizeFilename(filename) != filename)
             assert(false)
         } catch (exc: Exception) {
             assert(true)
         }
 
         try {
-            assert(!net.ballmerlabs.scatterproto.sanitizeFilename(filename).contains(".."))
+            assert(!sanitizeFilename(filename).contains(".."))
             assert(false)
         } catch (exc: Exception) {
             assert(true)
@@ -50,8 +50,8 @@ class ApiTest {
     fun allowsNormalFilename() {
         val i = "fmef"
         val x = "fmef_text"
-        assert(net.ballmerlabs.scatterproto.sanitizeFilename(i) == i)
-        assert(net.ballmerlabs.scatterproto.sanitizeFilename(x) == x)
+        assert(sanitizeFilename(i) == i)
+        assert(sanitizeFilename(x) == x)
     }
 
 
