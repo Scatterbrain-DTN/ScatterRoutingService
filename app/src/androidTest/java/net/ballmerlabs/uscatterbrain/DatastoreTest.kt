@@ -145,10 +145,10 @@ class DatastoreTest {
 
     @Test
     fun multiRoot() {
-        val root1 = database.scatterMessageDao().getDefaultRoot().blockingGet()
-        val root2 = database.scatterMessageDao().getDefaultRoot().blockingGet()
+        val root1 = database.merkleDao().getDefaultRoot().blockingGet()
+        val root2 = database.merkleDao().getDefaultRoot().blockingGet()
         assertEquals(root1.id, root2.id)
-        assertEquals(database.scatterMessageDao().getRootsRandom().blockingGet().size, 1)
+        assertEquals(database.merkleDao().getRootsRandom().blockingGet().size, 1)
     }
 
     @Test
@@ -157,17 +157,17 @@ class DatastoreTest {
         val child = MerkleBundle(
             hash = LibsodiumInterface.merkleHash(byteArrayOf(3,2,1))
         )
-        val out = database.scatterMessageDao().insertBundleEntity(child).blockingGet()
+        val out = database.merkleDao().insertBundleEntity(child).blockingGet()
 
         val bundle = MerkleBundle(
             hash = LibsodiumInterface.merkleHash(byteArrayOf(1, 2, 3)),
             childOne = out
         )
 
-        database.scatterMessageDao().insertBundleEntity(bundle).blockingGet()
+        database.merkleDao().insertBundleEntity(bundle).blockingGet()
 
 
-        val size = database.scatterMessageDao().getRoots().blockingGet().size
+        val size = database.merkleDao().getRoots().blockingGet().size
         println("got size $size")
         assertEquals(size, 1)
     }
@@ -180,12 +180,12 @@ class DatastoreTest {
             .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         assertEquals(datastore.getApiMessages("fmef").blockingGet().size, 1)
-        assertEquals(database.scatterMessageDao().getDirty().blockingGet().size, 0)
-        val root = database.scatterMessageDao().getRoots().blockingGet()[0]
-        assertEquals(database.scatterMessageDao().getRootsRandom().blockingGet().size, 1)
+        assertEquals(database.merkleDao().getDirty().blockingGet().size, 0)
+        val root = database.merkleDao().getRoots().blockingGet()[0]
+        assertEquals(database.merkleDao().getRootsRandom().blockingGet().size, 1)
 
         assertEquals(
-            database.scatterMessageDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
+            database.merkleDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
             1
         )
     }
@@ -197,20 +197,20 @@ class DatastoreTest {
             .setApplication("fmef")
             .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
-        val root = database.scatterMessageDao().getRoots().blockingGet()[0]
-        assertEquals(database.scatterMessageDao().getRootsRandom().blockingGet().size, 1)
+        val root = database.merkleDao().getRoots().blockingGet()[0]
+        assertEquals(database.merkleDao().getRootsRandom().blockingGet().size, 1)
 
         val message = database.scatterMessageDao().getAllMessages()[0]
 
         assertEquals(
-            database.scatterMessageDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
+            database.merkleDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
             1
         )
 
         database.scatterMessageDao().delete(message).blockingAwait()
 
         assertEquals(
-            database.scatterMessageDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
+            database.merkleDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
             0
         )
 
@@ -222,14 +222,14 @@ class DatastoreTest {
 
         val gh = LibsodiumInterface.merkleHash(byteArrayOf(1, 2 ,3))
 
-        val root = database.scatterMessageDao().getDefaultRoot().blockingGet()
-        val isp1 = database.scatterMessageDao().getInsertionPoint(gh, root.id!!.toLong(), 0).blockingGet()
+        val root = database.merkleDao().getDefaultRoot().blockingGet()
+        val isp1 = database.merkleDao().getInsertionPoint(gh, root.id!!.toLong(), 0).blockingGet()
 
-        val ndisp1 = database.scatterMessageDao().getInsertionPointWithoutDb(gh, root.id!!.toLong(), 0)
+        val ndisp1 = database.merkleDao().getInsertionPointWithoutDb(gh, root.id!!.toLong(), 0)
 
         assertEquals(isp1, ndisp1)
 
-        assertEquals(database.scatterMessageDao().getRootsRandom().blockingGet().size, 1)
+        assertEquals(database.merkleDao().getRootsRandom().blockingGet().size, 1)
 
         for (x in 0..5) {
             val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1, 2, 3))
@@ -240,9 +240,9 @@ class DatastoreTest {
 
 
         val gh2 = LibsodiumInterface.merkleHash(byteArrayOf(2, 3 ,4, 5))
-        val isp = database.scatterMessageDao().getInsertionPoint(gh2, root.id!!.toLong(), 0).blockingGet()
+        val isp = database.merkleDao().getInsertionPoint(gh2, root.id!!.toLong(), 0).blockingGet()
 
-        val ndisp = database.scatterMessageDao().getInsertionPointWithoutDb(gh, root.id!!.toLong(), 0)
+        val ndisp = database.merkleDao().getInsertionPointWithoutDb(gh, root.id!!.toLong(), 0)
 
         assertEquals(ndisp, isp)
 
@@ -263,8 +263,8 @@ class DatastoreTest {
         val size = datastore.getApiMessages("fmef").blockingGet().size
         println("size $size")
         assertEquals(size, 1)
-        assertEquals(database.scatterMessageDao().getDirty().blockingGet().size, 0)
-        val root = database.scatterMessageDao().getRootsRandom().blockingGet()
+        assertEquals(database.merkleDao().getDirty().blockingGet().size, 0)
+        val root = database.merkleDao().getRootsRandom().blockingGet()
 
         for (x in root) {
             println("root: $x")
@@ -280,7 +280,7 @@ class DatastoreTest {
         assertEquals(root.size, 1)
 
         assertEquals(
-            database.scatterMessageDao().getMessagesForBundleRecursive(root[0].id!!).blockingGet().size,
+            database.merkleDao().getMessagesForBundleRecursive(root[0].id!!).blockingGet().size,
             1
         )
     }
@@ -293,8 +293,8 @@ class DatastoreTest {
             .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        val root = database.scatterMessageDao().getDefaultRoot().blockingGet()
-        val dirty = database.scatterMessageDao().getDirtyNodes(root.id!!).blockingGet()
+        val root = database.merkleDao().getDefaultRoot().blockingGet()
+        val dirty = database.merkleDao().getDirtyNodes(root.id!!).blockingGet()
 
         assertEquals(dirty.size, 0)
     }
@@ -306,8 +306,8 @@ class DatastoreTest {
             .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        database.scatterMessageDao().getDefaultRoot().blockingGet()
-        val root = database.scatterMessageDao().getRootsRandom().blockingGet()
+        database.merkleDao().getDefaultRoot().blockingGet()
+        val root = database.merkleDao().getRootsRandom().blockingGet()
 
         assertEquals(root.size, 1)
     }
@@ -324,20 +324,20 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.scatterMessageDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash().blockingAwait()
 
-        val root = database.scatterMessageDao().getRootsRandom().blockingGet()
+        val root = database.merkleDao().getRootsRandom().blockingGet()
 
         assertEquals(root.size, 1)
 
         assertEquals(
-            database.scatterMessageDao().getMessagesForBundleRecursive(root[0].id!!).blockingGet().size,
+            database.merkleDao().getMessagesForBundleRecursive(root[0].id!!).blockingGet().size,
             count + 1
         )
 
         val firstSize = datastore.getTopRandomMessages(1000, DeclareHashesPacket.newBuilder().build()).toList().blockingGet()
 
-        val firstBundles = database.scatterMessageDao().getAllBundles()
+        val firstBundles = database.merkleDao().getAllBundles()
 
         database.clearAllTables()
 
@@ -348,17 +348,17 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.scatterMessageDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash().blockingAwait()
 
-        var prev = database.scatterMessageDao().getDefaultRoot().blockingGet()
+        var prev = database.merkleDao().getDefaultRoot().blockingGet()
         for (x in 0..10) {
-            val rand = database.scatterMessageDao().getDefaultRoot().blockingGet()
+            val rand = database.merkleDao().getDefaultRoot().blockingGet()
             assertEquals(prev.id, rand.id)
             prev = rand
         }
 
 
-        val secondBundles = database.scatterMessageDao().getAllBundles()
+        val secondBundles = database.merkleDao().getAllBundles()
 
         assertEquals(firstBundles.size, secondBundles.size)
 
@@ -379,7 +379,7 @@ class DatastoreTest {
 
         assertEquals(firstSize.size, secondSize.size)
 
-        val root2 = database.scatterMessageDao().getRootsRandom().blockingGet()
+        val root2 = database.merkleDao().getRootsRandom().blockingGet()
 
         val diff = firstBundles.toSet().intersect(secondBundles.toSet())
         assertEquals(diff, setOf<MerkleBundle>())
@@ -387,7 +387,7 @@ class DatastoreTest {
         assert(!root[0].dirty)
         assertNotNull(root[0].hash)
         assertNotEquals(root[0].hash!!.size, 0)
-        val dirty = database.scatterMessageDao().getDirty().blockingGet()
+        val dirty = database.merkleDao().getDirty().blockingGet()
         assertEquals(dirty.size, 0)
 
         val root1hash = root[0].hash
@@ -411,20 +411,20 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.scatterMessageDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash().blockingAwait()
 
-        val root = database.scatterMessageDao().getRootsRandom().blockingGet()
+        val root = database.merkleDao().getRootsRandom().blockingGet()
 
         assertEquals(root.size, 1)
 
         assertEquals(
-            database.scatterMessageDao().getMessagesForBundleRecursive(root[0].id!!).blockingGet().size,
+            database.merkleDao().getMessagesForBundleRecursive(root[0].id!!).blockingGet().size,
             count + 1
         )
 
         val firstSize = datastore.getTopRandomMessages(1000, DeclareHashesPacket.newBuilder().build()).toList().blockingGet()
 
-        val firstBundles = database.scatterMessageDao().getAllBundles()
+        val firstBundles = database.merkleDao().getAllBundles()
 
         database.clearAllTables()
 
@@ -435,17 +435,17 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.scatterMessageDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash().blockingAwait()
 
-        var prev = database.scatterMessageDao().getDefaultRoot().blockingGet()
+        var prev = database.merkleDao().getDefaultRoot().blockingGet()
         for (x in 0..10) {
-            val rand = database.scatterMessageDao().getDefaultRoot().blockingGet()
+            val rand = database.merkleDao().getDefaultRoot().blockingGet()
             assertEquals(prev.id, rand.id)
             prev = rand
         }
 
 
-        val secondBundles = database.scatterMessageDao().getAllBundles()
+        val secondBundles = database.merkleDao().getAllBundles()
 
         assertEquals(firstBundles.size, secondBundles.size)
 
@@ -466,7 +466,7 @@ class DatastoreTest {
 
         assertEquals(firstSize.size, secondSize.size)
 
-        val root2 = database.scatterMessageDao().getRootsRandom().blockingGet()
+        val root2 = database.merkleDao().getRootsRandom().blockingGet()
 
         val diff = firstBundles.toSet().intersect(secondBundles.toSet())
         assertEquals(diff, setOf<MerkleBundle>())
@@ -474,7 +474,7 @@ class DatastoreTest {
         assert(!root[0].dirty)
         assertNotNull(root[0].hash)
         assertNotEquals(root[0].hash!!.size, 0)
-        val dirty = database.scatterMessageDao().getDirty().blockingGet()
+        val dirty = database.merkleDao().getDirty().blockingGet()
         assertEquals(dirty.size, 0)
 
         val root1hash = root[0].hash
@@ -511,12 +511,12 @@ class DatastoreTest {
             val buf = BitSet.valueOf(hash)
 
             for (x in 0 until hash.size * Byte.SIZE_BITS) {
-                val test = if (database.scatterMessageDao().testBitmask(hash, x.toLong())) {
+                val test = if (database.merkleDao().testBitmask(hash, x.toLong())) {
                     0
                 } else {
                     1
                 }
-                val test2 = if (database.scatterMessageDao().isChildOne(hash, x.toLong())!!) {
+                val test2 = if (database.merkleDao().isChildOne(hash, x.toLong())!!) {
                     0
                 } else {
                     1
@@ -540,13 +540,13 @@ class DatastoreTest {
             val controlBits = mutableListOf<Int>()
             val test2Bits = mutableListOf<Int>()
             for (x in 0 until hash.size * Byte.SIZE_BITS) {
-                val test = if (database.scatterMessageDao().testBitmask(hash, x.toLong())) {
+                val test = if (database.merkleDao().testBitmask(hash, x.toLong())) {
                     0
                 } else {
                     1
                 }
-                val hex = database.scatterMessageDao().testBitmaskHex(hash, x)
-                val test2 = if (database.scatterMessageDao().isChildOne(hash, x.toLong())!!) {
+                val hex = database.merkleDao().testBitmaskHex(hash, x)
+                val test2 = if (database.merkleDao().isChildOne(hash, x.toLong())!!) {
                     0
                 } else {
                     1
@@ -578,11 +578,11 @@ class DatastoreTest {
             .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         assertEquals(datastore.getApiMessages("fmef").blockingGet().size, 1)
-        assertEquals(database.scatterMessageDao().getDirty().blockingGet().size, 0)
-        val root = database.scatterMessageDao().getRoots().blockingGet()[0]
+        assertEquals(database.merkleDao().getDirty().blockingGet().size, 0)
+        val root = database.merkleDao().getRoots().blockingGet()[0]
 
         assertEquals(
-            database.scatterMessageDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
+            database.merkleDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
             1
         )
 
@@ -601,7 +601,7 @@ class DatastoreTest {
             assert(m.size == 1)
             datastore.deleteMessage(m[0]).blockingAwait()
             assert(datastore.getApiMessages("fmef").blockingGet().size == 0)
-            assertEquals(database.scatterMessageDao().getDirty().blockingGet().size, 0)
+            assertEquals(database.merkleDao().getDirty().blockingGet().size, 0)
         }
     }
 

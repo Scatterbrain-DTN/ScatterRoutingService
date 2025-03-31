@@ -22,6 +22,8 @@ data class DeclareHashesPacket(
 
     val hashes: List<ByteArray> = packet.hashesList.map { p -> p.toByteArray() }
 
+    val mode: Scatterbrain.DeclareHashesMode = packet.mode
+
     override fun validate(): Boolean {
         return hashes.size <= MAX_DECLAREHASHES
     }

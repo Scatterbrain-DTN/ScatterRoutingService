@@ -187,7 +187,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun insertMessages(message: DbMessage): Completable {
         return scheduler.get().broadcastMessages(listOf(message))
-            .andThen(mDatastore.scatterMessageDao().insertMessage(message))
+            .andThen(mDatastore.scatterMessageDao()
+                .insertMessage(message)
+                .flatMapCompletable { m -> mDatastore.merkleDao().insertMerkle(m) })
             .subscribeOn(databaseScheduler)
     }
 

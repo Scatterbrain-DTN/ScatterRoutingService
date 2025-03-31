@@ -79,12 +79,18 @@ message Advertise {
     repeated uint32 provides = 1;
 }
 
+enum DeclareHashesMode {
+    NORMAL = 0;
+    MERKLEPROOF = 1;
+}
+
 // Used for avoiding retransmitting messages already on remote peer.
 // yes I am aware i should have used a merkle tree. I was sleepy.
 message DeclareHashes {
    // ScatterType type = 1;
     bool optout = 1;
     repeated bytes hashes = 2;
+    DeclareHashesMode mode = 3;
 }
 
 // header + metadata for a file, message or data stream

@@ -17,6 +17,7 @@ import net.ballmerlabs.uscatterbrain.db.entities.IdentityId
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Keys
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
+import net.ballmerlabs.uscatterbrain.db.entities.MerkleDao
 import net.ballmerlabs.uscatterbrain.db.entities.Metrics
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessageDao
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopClientDao
@@ -82,6 +83,7 @@ abstract class Datastore : RoomDatabase() {
     abstract fun identityDao(): IdentityDao
     abstract fun scatterMessageDao(): ScatterMessageDao
     abstract fun desktopClientDao(): DesktopClientDao
+    abstract fun merkleDao(): MerkleDao
 
     @DeleteColumn(
         tableName = "messages",
