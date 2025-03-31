@@ -513,6 +513,9 @@ abstract class ScatterMessageDao {
         """)
     abstract fun testBitmask(hash: ByteArray, pos: Long): Boolean
 
+    @Query("SELECT * FROM messages")
+    abstract fun getAllMessages(): List<HashlessScatterMessage>
+
 
     @Transaction
     @Query("SELECT SUBSTRING(HEX(SUBSTRING(:hash, :pos/8 + 1, 1)), -2, 1)")

@@ -192,6 +192,32 @@ class DatastoreTest {
 
 
     @Test
+    fun deleteMessage() {
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1))
+            .setApplication("fmef")
+            .build()
+        datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+        val root = database.scatterMessageDao().getRoots().blockingGet()[0]
+        assertEquals(database.scatterMessageDao().getRootsRandom().blockingGet().size, 1)
+
+        val message = database.scatterMessageDao().getAllMessages()[0]
+
+        assertEquals(
+            database.scatterMessageDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
+            1
+        )
+
+        database.scatterMessageDao().delete(message).blockingAwait()
+
+        assertEquals(
+            database.scatterMessageDao().getMessagesForBundleRecursive(root.id!!).blockingGet().size,
+            0
+        )
+
+    }
+
+
+    @Test
     fun insertionPointWithoutDb() {
 
         val gh = LibsodiumInterface.merkleHash(byteArrayOf(1, 2 ,3))
@@ -298,7 +324,7 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.scatterMessageDao().merkleRehash().blockingGet()
+        database.scatterMessageDao().merkleRehash().blockingAwait()
 
         val root = database.scatterMessageDao().getRootsRandom().blockingGet()
 
@@ -337,6 +363,93 @@ class DatastoreTest {
         assertEquals(firstBundles.size, secondBundles.size)
 
        // assertEquals(firstBundles.map { v -> v.hash!!.toHexString() }, secondBundles.map { v -> v.hash!!.toHexString() } )
+
+        val secondSize = datastore.getTopRandomMessages(1000, DeclareHashesPacket.newBuilder().build()).toList().blockingGet()
+
+        val secondHashes = secondSize.map { v -> getGlobalHash(v.headerPacket.hashList) }
+            .sortedWith { v, n -> v.compare(n) }
+            .map { v -> v.toHexString() }
+            .joinToString(", ")
+        val firstHashes = firstSize.map { v -> getGlobalHash(v.headerPacket.hashList) }
+            .sortedWith { v, n -> v.compare(n) }
+            .map { v -> v.toHexString() }
+            .joinToString(", ")
+        println("firstHashes $firstHashes")
+        println("secondHashes $secondHashes")
+
+        assertEquals(firstSize.size, secondSize.size)
+
+        val root2 = database.scatterMessageDao().getRootsRandom().blockingGet()
+
+        val diff = firstBundles.toSet().intersect(secondBundles.toSet())
+        assertEquals(diff, setOf<MerkleBundle>())
+        assertEquals(root2.size, 1)
+        assert(!root[0].dirty)
+        assertNotNull(root[0].hash)
+        assertNotEquals(root[0].hash!!.size, 0)
+        val dirty = database.scatterMessageDao().getDirty().blockingGet()
+        assertEquals(dirty.size, 0)
+
+        val root1hash = root[0].hash
+        val root2hash = root2[0].hash
+
+        println("root1=${root1hash!!.toHexString()} root2=${root2hash!!.toHexString()}")
+
+        assert(root1hash.contentEquals(root2hash))
+    }
+
+
+    @OptIn(ExperimentalStdlibApi::class)
+    @Test
+    fun insertMessageReverseLastByte() {
+
+        val count = 0xf
+        for (x in 0..count) {
+            val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(0xf, 2, 3, x.toByte()))
+                .setApplication("fmef")
+                .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+        }
+
+        database.scatterMessageDao().merkleRehash().blockingAwait()
+
+        val root = database.scatterMessageDao().getRootsRandom().blockingGet()
+
+        assertEquals(root.size, 1)
+
+        assertEquals(
+            database.scatterMessageDao().getMessagesForBundleRecursive(root[0].id!!).blockingGet().size,
+            count + 1
+        )
+
+        val firstSize = datastore.getTopRandomMessages(1000, DeclareHashesPacket.newBuilder().build()).toList().blockingGet()
+
+        val firstBundles = database.scatterMessageDao().getAllBundles()
+
+        database.clearAllTables()
+
+        for (x in count downTo 0) {
+            val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(0xf, 2, 3, x.toByte()))
+                .setApplication("fmef")
+                .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+        }
+
+        database.scatterMessageDao().merkleRehash().blockingAwait()
+
+        var prev = database.scatterMessageDao().getDefaultRoot().blockingGet()
+        for (x in 0..10) {
+            val rand = database.scatterMessageDao().getDefaultRoot().blockingGet()
+            assertEquals(prev.id, rand.id)
+            prev = rand
+        }
+
+
+        val secondBundles = database.scatterMessageDao().getAllBundles()
+
+        assertEquals(firstBundles.size, secondBundles.size)
+
+        // assertEquals(firstBundles.map { v -> v.hash!!.toHexString() }, secondBundles.map { v -> v.hash!!.toHexString() } )
 
         val secondSize = datastore.getTopRandomMessages(1000, DeclareHashesPacket.newBuilder().build()).toList().blockingGet()
 
