@@ -91,6 +91,7 @@ message DeclareHashes {
     bool optout = 1;
     repeated bytes hashes = 2;
     DeclareHashesMode mode = 3;
+    bool exists = 4;
 }
 
 // header + metadata for a file, message or data stream

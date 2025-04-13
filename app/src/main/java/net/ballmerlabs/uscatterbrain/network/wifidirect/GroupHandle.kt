@@ -2,28 +2,33 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.Context
 import android.net.wifi.p2p.WifiP2pDeviceList
+import com.google.protobuf.ByteString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
+import kotlinx.coroutines.rx2.awaitLast
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.scatterproto.MessageSizeException
-import net.ballmerlabs.scatterproto.MessageValidationException
+import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.GroupFinalizer
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WifiGroupScope
 import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
+import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
-import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.proto.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import proto.Scatterbrain
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
@@ -33,7 +38,6 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
-import net.ballmerlabs.uscatterbrain.network.proto.*
 
 @WifiGroupScope
 class GroupHandle @Inject constructor(
@@ -42,9 +46,11 @@ class GroupHandle @Inject constructor(
     val datastore: ScatterbrainDatastore,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) private val timeoutScheduler: Scheduler,
     @Named(WifiGroupSubcomponent.NamedSchedulers.WIFI_OPERATIONS) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) private val databaseScheduler: Scheduler,
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val serverSocketManager: ServerSocketManager,
+    private val database: Datastore,
     private val session: WifiSessionConfig,
     private val socketProvider: SocketProvider,
     private val advertiser: Advertiser,
@@ -102,6 +108,106 @@ class GroupHandle @Inject constructor(
         return declareHashesSeme(socket)
     }
 
+
+    private fun merkleSingle(socket: Socket, hub: MerkleBundle?): Maybe<Long> {
+        return ScatterSerializable.parseWrapperFromCRC(
+            DeclareHashesPacketParser.parser,
+            socket.getInputStream(),
+            operationsScheduler
+        ).flatMapMaybe { i ->
+
+            val packetBuilder = DeclareHashesPacket.newBuilder()
+                .setMode(Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+            val hash = hub?.hash
+            if (hash != null) {
+                val exists = if (i.hashes.isNotEmpty()) {
+                    i.hashes[0].contentEquals(hash)
+                } else {
+                    false
+                }
+                packetBuilder.setHashes(listOf(ByteString.copyFrom(hash)))
+                    .setExists(exists)
+            } else {
+                packetBuilder.optOut()
+                    .setExists(false)
+            }
+            val packet = packetBuilder.build()
+            packet.writeToStream(socket.getOutputStream(), operationsScheduler)
+                .flatMapCompletable { v -> v }
+                .andThen(Maybe.defer {
+                    if (!packet.exists) {
+                        Maybe.just(hub!!.id!!)
+                    } else {
+                        Maybe.empty()
+                    }
+                })
+
+        }
+
+    }
+
+
+    private fun getIncomingMerkleHashes(socket: Socket): Flowable<DeclareHashesPacket> {
+        return ScatterSerializable.parseWrapperFromCRC(
+            DeclareHashesPacketParser.parser,
+            socket.getInputStream(),
+            operationsScheduler
+        ).repeat()
+            .takeUntil { p -> p.optout }
+    }
+
+
+    private fun sendMerkleHashes(socket: Socket, bundles: Observable<MerkleBundle>): Completable {
+        return bundles.map { bundle ->
+            DeclareHashesPacket.newBuilder()
+                .setHashes(listOf( ByteString.copyFrom(bundle.hash!!)))
+
+        }
+            .ignoreElements()
+    }
+
+
+//    private fun declareHashesMerkle(socket: Socket): Completable {
+//        return database.merkleDao().getDefaultRoot()
+//            .subscribeOn(databaseScheduler)
+//            .flatMapCompletable { root ->
+//                Single.fromCallable {
+//                    database.merkleDao().getHubs(root)
+//                }.subscribeOn(databaseScheduler)
+//                    .flatMapObservable { hubs ->
+//                        Observable.fromIterable(hubs)
+//                    }.concatMapCompletable { hub ->
+//                        val hash = hub.hash
+//                        if (hash != null) {
+//                            DeclareHashesPacket.newBuilder()
+//                                .setHashes(listOf(ByteString.copyFrom(hash)))
+//                                .setMode(Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+//                                .build()
+//                                .writeToStream(socket.getOutputStream(), operationsScheduler)
+//                                .flatMapCompletable { v -> v }
+//                                .andThen(
+//                                    ScatterSerializable.parseWrapperFromCRC(
+//                                        DeclareHashesPacketParser.parser,
+//                                        socket.getInputStream(),
+//                                        operationsScheduler
+//                                    ).flatMapCompletable { packet ->
+//                                        database.merkleDao().getTopRandomExcludingHash(root.id!!, 1000, packet.hashes)
+//                                            .flatMapCompletable { out ->
+//                                                Completable.complete()
+////                                                when(out.size) {
+////                                                    0 ->
+////                                                }
+//                                            }
+//                                    }
+//                                )
+//                        } else {
+//                            LOG.e("got hub ${hub.id} with null hash")
+//                            Completable.complete()
+//                        }
+//                    }
+//            }
+//    }
+
     //transfer declare hashes packet as SEME
     private fun declareHashesSeme(socket: Socket): Single<DeclareHashesPacket> {
         LOG.v("declareHashesSeme")
@@ -147,7 +253,10 @@ class GroupHandle @Inject constructor(
                         err.flatMap { e ->
                             when (e) {
                                 is MessageSizeException -> Flowable.just(e)
-                                is net.ballmerlabs.scatterproto.MessageValidationException -> Flowable.just(e)
+                                is MessageValidationException -> Flowable.just(
+                                    e
+                                )
+
                                 else -> Flowable.error(e)
                             }
                         }
@@ -184,7 +293,7 @@ class GroupHandle @Inject constructor(
             err.flatMap { e ->
                 when (e) {
                     is MessageSizeException -> Flowable.just(e)
-                    is net.ballmerlabs.scatterproto.MessageValidationException -> Flowable.just(e)
+                    is MessageValidationException -> Flowable.just(e)
                     else -> Flowable.error(e)
                 }
             }
@@ -237,7 +346,10 @@ class GroupHandle @Inject constructor(
                 err.flatMap { e ->
                     when (e) {
                         is MessageSizeException -> Flowable.just(e)
-                        is net.ballmerlabs.scatterproto.MessageValidationException -> Flowable.just(e)
+                        is MessageValidationException -> Flowable.just(
+                            e
+                        )
+
                         else -> Flowable.error(e)
                     }
                 }
@@ -445,32 +557,33 @@ class GroupHandle @Inject constructor(
                         LOG.v("seme got ip announce from uke, connected size: $size")
                         bootstrapSemeSocket(ownerSocket.socket)
                             .toFlowable()
-                            .mergeWith(Flowable.fromIterable(packet.addresses.values)
-                                .flatMapSingle { peerAddr ->
-                                    LOG.w("bootstrapping proxy peer ${peerAddr.address.address} ${peerAddr.address.port}")
-                                    socketProvider.getSocket(
-                                        peerAddr.address.address,
-                                        peerAddr.address.port,
-                                        advertiser.getHashLuid()
-                                    ).retryDelay(
-                                        20, 1
-                                    )
-                                        .flatMap { sock ->
-                                            bootstrapSemeSocket(
-                                                sock.socket
-                                            )
-                                                .doOnError { err ->
-                                                    LOG.w(
-                                                        "seme proxy failed $err"
-                                                    )
-                                                }
-                                                .timeout(
-                                                    60,
-                                                    TimeUnit.SECONDS,
-                                                    timeoutScheduler
+                            .mergeWith(
+                                Flowable.fromIterable(packet.addresses.values)
+                                    .flatMapSingle { peerAddr ->
+                                        LOG.w("bootstrapping proxy peer ${peerAddr.address.address} ${peerAddr.address.port}")
+                                        socketProvider.getSocket(
+                                            peerAddr.address.address,
+                                            peerAddr.address.port,
+                                            advertiser.getHashLuid()
+                                        ).retryDelay(
+                                            20, 1
+                                        )
+                                            .flatMap { sock ->
+                                                bootstrapSemeSocket(
+                                                    sock.socket
                                                 )
-                                        }
-                                })
+                                                    .doOnError { err ->
+                                                        LOG.w(
+                                                            "seme proxy failed $err"
+                                                        )
+                                                    }
+                                                    .timeout(
+                                                        60,
+                                                        TimeUnit.SECONDS,
+                                                        timeoutScheduler
+                                                    )
+                                            }
+                                    })
                             .subscribeOn(operationsScheduler)
                             .doOnError { err -> LOG.w("seme bootstrapSemeSocket failed $err") }
 
@@ -553,9 +666,10 @@ class GroupHandle @Inject constructor(
                     sendConnectedIps(sock.socket, selfLuid)
                         .subscribeOn(operationsScheduler)
                         .ignoreElement()
-                        .andThen(bootstrapUkeSocket(sock.socket)
-                            .subscribeOn(operationsScheduler)
-                            .doOnError { err -> LOG.w("uke bootstrapUkeSocket failed $err") })
+                        .andThen(
+                            bootstrapUkeSocket(sock.socket)
+                                .subscribeOn(operationsScheduler)
+                                .doOnError { err -> LOG.w("uke bootstrapUkeSocket failed $err") })
                         .flatMap { v ->
                             scheduler.get().broadcastTransactionResult(v)
                                 .toSingleDefault(v)

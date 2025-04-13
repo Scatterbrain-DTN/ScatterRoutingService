@@ -8,9 +8,11 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.protobuf.ByteString
+import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.plugins.RxJavaPlugins
+import io.reactivex.subjects.PublishSubject
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -298,6 +300,112 @@ class DatastoreTest {
 
         assertEquals(dirty.size, 0)
     }
+
+
+    @Test
+    fun merkleTopRandom() {
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(0, 2, 4))
+            .setApplication("fmef")
+            .build()
+        datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        database.merkleDao().merkleRehash().blockingAwait()
+
+        var root = database.merkleDao().getDefaultRoot().blockingGet()
+        val messages = database.merkleDao().getTopRandomExcludingHash(root.id!!, 200, listOf()).blockingGet()
+
+        assertEquals(messages.size, 1)
+
+        val apiMessage2 = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(0, 2, 8))
+            .setApplication("fmef")
+            .build()
+        datastore.insertAndHashFileFromApi(apiMessage2, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        database.merkleDao().merkleRehash().blockingAwait()
+
+        root = database.merkleDao().getDefaultRoot().blockingGet()
+
+        val remote = PublishSubject.create<ByteArray>()
+
+        val iter = database.merkleDao().getHubs(root, remote.toFlowable(BackpressureStrategy.BUFFER))
+            .doOnNext { i -> remote.onNext(i.bundle.hash!!) }
+            .doFinally { remote.onComplete() }
+            .toList().blockingGet()
+
+        println("got hubs ${iter.size}")
+
+        val control = database.scatterMessageDao().getTopRandomExcludingHash(100, listOf()).blockingGet()
+        assertEquals(control.size, 2)
+
+        val control2 = database.scatterMessageDao().getTopRandomExcludingHash(100, listOf(control[1].message.fileGlobalHash)).blockingGet()
+
+        assertEquals(control2.size, 1)
+
+        val messages2 = database.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf()).blockingGet()
+        assertEquals(messages2.size, 2)
+
+        val testBundles = database.merkleDao().getAllBundles()
+
+        val excludeBundles = database.merkleDao().testBundlesExcludingHash(listOf(iter[1].bundle.hash!!, iter[2].bundle.hash!!))
+
+        println("testBundles = ${testBundles.size} excludeBundles = ${excludeBundles.size}")
+
+        val messages3 = database.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf(iter[1].bundle.hash!!)).blockingGet()
+        for (m in messages3) {
+            println(m)
+        }
+        assertEquals(messages3.size, 1)
+    }
+
+    @Test
+    fun getNextHub() {
+        val b1 = MerkleBundle()
+        val b2 = MerkleBundle()
+        val b3 = MerkleBundle()
+        val b4 = MerkleBundle()
+        val b5 = MerkleBundle()
+        val b1i = database.merkleDao().insertBundleEntity(b1).blockingGet()
+        println("b1i $b1i")
+        b2.childOne = b1i
+        val b3i = database.merkleDao().insertBundleEntity(b3).blockingGet()
+        println("b3i $b3i")
+        b2.childTwo = b3i
+        val b2i = database.merkleDao().insertBundleEntity(b2).blockingGet()
+        println("b2i $b2i")
+        b4.childOne = b2i
+        val b4i = database.merkleDao().insertBundleEntity(b4).blockingGet()
+        println("b4i $b4i")
+        b5.childTwo = b4i
+        val b5i = database.merkleDao().insertBundleEntity(b5).blockingGet()
+        println("b5i $b5i")
+        val test = database.merkleDao().getNextHub(b5i).blockingGet()
+
+        assertEquals(test.id, b2i)
+
+        b5.id = b5i
+
+        val remote = PublishSubject.create<ByteArray>()
+        database.merkleDao().merkleRehash().blockingAwait()
+        val hubs = database.merkleDao().getHubs(
+            database.merkleDao().getBundle(b5i),
+            remote.toFlowable(BackpressureStrategy.BUFFER)
+        )
+            .doOnNext { i -> remote.onNext(i.bundle.hash!!) }
+            .doFinally { remote.onComplete() }
+            .toList().blockingGet()
+
+        for (item in hubs) {
+            println(item)
+        }
+        assertEquals(hubs.size, 4)
+        val ids = hubs.map { v -> v.bundle.id }
+        assert(ids.contains(b5i))
+        assert(ids.contains(b3i))
+        assert(ids.contains(b1i))
+        assert(ids.contains(b2i))
+    }
+
+
 
     @Test
     fun duplicateRoot() {

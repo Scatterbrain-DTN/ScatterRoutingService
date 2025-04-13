@@ -5,14 +5,20 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.github.davidmoten.rx2.Bytes
+import com.google.protobuf.ByteString
 import io.reactivex.Completable
+import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.subjects.ReplaySubject
+import net.ballmerlabs.uscatterbrain.db.MerkleDeclareHashes
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
+import net.ballmerlabs.uscatterbrain.network.proto.DeclareHashesPacket
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.util.BitSet
+import proto.Scatterbrain
 
 @Dao
 abstract class MerkleDao {
@@ -21,23 +27,6 @@ abstract class MerkleDao {
 
     @Query("SELECT * FROM messages WHERE bundle = :id ORDER BY fileGlobalHash ASC")
     abstract fun getMessagesForBundle(id: Long): List<HashlessScatterMessage>
-
-//    @Transaction
-//    @Query("""
-//        SELECT (
-//            (SELECT COUNT(*) FROM messages INNER JOIN bundles ON bundles.id = bundle where bundles.hash = :hash)
-//            +
-//            (SELECT COUNT(*) FROM bundles WHERE parent = :hash)
-//        )
-//    """)
-//    abstract fun getChildCountForBundle(hash: ByteArray): Single<Long>
-
-//    @Transaction
-//    @Query(
-//        "SELECT * FROM bundles WHERE parent = :parent AND " +
-//                "(SELECT COUNT(*) FROM messages WHERE bundle = bundles.id ) < :limit LIMIT 1"
-//    )
-//    abstract fun getChildBundleUnderLimit(parent: ByteArray, limit: Long): Maybe<MerkleBundle>
 
     @Query(
         """
@@ -92,6 +81,43 @@ abstract class MerkleDao {
     )
     abstract fun getMessagesForBundleRecursive(id: Long): Single<List<HashlessScatterMessage>>
 
+    @Query(
+        """
+        SELECT bundles.* FROM bundles, bundles AS parent 
+        WHERE (parent.childOne = bundles.id OR parent.childTwo = bundles.id) AND bundles.hash != :hash
+        AND (parent.childOne = :id OR parent.childTwo = :id)
+        """
+    )
+    abstract fun getSiblingsExcludingHash(id: Long, hash: ByteArray): Single<List<MerkleBundle>>
+
+    @Transaction
+    @Query(
+        """
+        WITH RECURSIVE
+            parent(id) AS (
+                select id from bundles where id = :id AND hash NOT IN (:hashes)
+                UNION ALL
+                SELECT childOne FROM bundles AS child, parent 
+                WHERE child.id = parent.id 
+                AND (SELECT hash from bundles WHERE id = child.childOne) NOT IN (:hashes)
+                UNION ALL
+                SELECT childTwo FROM bundles AS child, parent 
+                WHERE child.id = parent.id 
+                AND (SELECT hash FROM bundles WHERE id = child.childTwo) NOT IN (:hashes)
+        )
+        SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash
+            WHERE bundle IN parent ORDER BY fileSize ASC, shareCount ASC LIMIT :count
+    """
+    )
+    abstract fun getTopRandomExcludingHash(
+        id: Long,
+        count: Int,
+        hashes: List<ByteArray>,
+    ): Single<List<DbMessage>>
+
+
+    @Query("SELECT * FROM bundles WHERE hash NOT IN (:hashes)")
+    abstract fun testBundlesExcludingHash(hashes: List<ByteArray>): List<MerkleBundle>
 
 
     @Query(
@@ -234,6 +260,9 @@ abstract class MerkleDao {
         )
     }
 
+    @Query("SELECT * FROM bundles WHERE id = :id")
+    abstract fun getBundle(id: Long): MerkleBundle
+
     @Query(
         """
         WITH RECURSIVE
@@ -248,6 +277,87 @@ abstract class MerkleDao {
     """
     )
     abstract fun getDirtyNodes(root: Long): Single<List<Long>>
+
+    @Query(
+        """
+        WITH RECURSIVE
+       parent(ids, pos) AS (
+            SELECT id, 0 FROM bundles WHERE id = :root
+            UNION ALL
+            SELECT childOne, pos + 1 FROM bundles, parent WHERE parent.ids = bundles.id 
+            AND (childTwo IS NULL OR childOne IS NULL) AND NOT (childOne IS NOT NULL AND childTwo IS NOT NULL)
+            UNION ALL
+            SELECT childTwo, pos + 1 FROM bundles, parent WHERE parent.ids = bundles.id
+            AND (childTwo IS NULL OR childOne IS NULL) AND NOT (childOne IS NOT NULL AND childTwo IS NOT NULL)
+       ) SELECT * FROM bundles INNER JOIN parent ON ids = id ORDER BY POS DESC LIMIT 1
+        """
+    )
+    abstract fun getNextHub(root: Long?): Maybe<MerkleBundle>
+
+    fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>): Observable<MerkleDeclareHashes> {
+        if (root == null)
+            return Observable.empty()
+        val out = ReplaySubject.create<MerkleDeclareHashes>()
+
+        out.onNext(
+            MerkleDeclareHashes(
+                bundle = root,
+                declareHashesPacket = DeclareHashesPacket.newBuilder()
+                    .setMode(Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+                    .setExists(true)
+                    .setHashes(listOf(ByteString.copyFrom(root.hash)))
+            ))
+        return out.mergeWith(getHubs(root, out, remote).doFinally { out.onComplete() })
+    }
+
+    private fun getHubs(
+        root: MerkleBundle?,
+        hubs: ReplaySubject<MerkleDeclareHashes>,
+        remote: Flowable<ByteArray>,
+    ): Completable {
+        if (root == null)
+            return Completable.complete()
+        val childOne = getNextHub(root.childOne).flatMap { childOneHub ->
+            remote
+                .mergeWith(Completable.fromAction {
+                    if (childOneHub.id != root.id)
+                        hubs.onNext(MerkleDeclareHashes(
+                            bundle = childOneHub,
+                            declareHashesPacket = DeclareHashesPacket.newBuilder()
+                                .setExists(false)
+                                .setHashes(listOf(ByteString.copyFrom(childOneHub.hash!!)))
+                        ))
+                })
+                .firstOrError()
+                .flatMapMaybe { r ->
+                    if (r.contentEquals(childOneHub.hash))
+                        getHubs(childOneHub, hubs, remote).toMaybe<MerkleBundle>()
+                    else
+                        Maybe.empty()
+                }
+        }.ignoreElement()
+        val childTwo = getNextHub(root.childTwo).flatMap { childTwoHub ->
+
+            remote.mergeWith(Completable.fromAction {
+                if (childTwoHub.id != root.id)
+                    hubs.onNext(MerkleDeclareHashes(
+                        bundle = childTwoHub,
+                        declareHashesPacket = DeclareHashesPacket.newBuilder()
+                            .setExists(false)
+                            .setHashes(listOf(ByteString.copyFrom(childTwoHub.hash!!)))
+                    ))
+            }).firstOrError()
+                .flatMapMaybe { r ->
+                    if (r.contentEquals(childTwoHub.hash))
+                        getHubs(childTwoHub, hubs, remote).toMaybe<MerkleBundle>()
+                    else
+                        Maybe.empty()
+                }
+        }.ignoreElement()
+
+
+        return childOne.andThen(childTwo)
+    }
 
 
     @Query(
@@ -332,16 +442,6 @@ abstract class MerkleDao {
         }
     }
 
-
-//    private fun rehash(): Completable {
-//        return getDefaultRoot().flatMapCompletable { root ->
-//            getDirtyNodes(root.id!!)
-//                .flatMapCompletable { dirty ->
-//                    rehash(dirty)
-//                }
-//        }
-//    }
-
     private fun iterativeMerkleInsert(
         message: HashlessScatterMessage,
         point: MerkleInsertCond,
@@ -379,10 +479,12 @@ abstract class MerkleDao {
     }
 
     @Transaction
-    @Query("""
+    @Query(
+        """
         SELECT (INSTR('123456789ABCDEF', SUBSTRING(HEX(SUBSTRING(:hash, :pos/8 + 1, 1)), -2, 1)) * 16 
         + INSTR('123456789ABCDEF', SUBSTRING(HEX(SUBSTRING(:hash, :pos/8 + 1, 1)), -1, 1)) >> (:pos % 8)) & 1 == 0
-        """)
+        """
+    )
     abstract fun testBitmask(hash: ByteArray, pos: Long): Boolean
 
 
@@ -413,16 +515,6 @@ abstract class MerkleDao {
         return getDefaultRoot()
             .flatMapMaybe { root ->
                 getInsertionPoint(message.fileGlobalHash, root.id!!, 0)
-                    .doOnSuccess { ip ->
-                        val h = message.fileGlobalHash
-                        val bits = BitSet.valueOf(h)
-                        var out = ""
-                        for (b in 0..<Byte.SIZE_BITS) {
-                            out += " ${if (bits.get(b)) 1 else 0}"
-                        }
-                        log.v("got initial insertion point ${h.toHexString()}")
-                        log.v("got initial insertion point ${out}")
-                    }
             }
             .flatMapCompletable { root ->
                 val bundles =
