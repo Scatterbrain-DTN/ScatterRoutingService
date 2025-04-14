@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.Context
 import android.net.wifi.p2p.WifiP2pDeviceList
+import com.github.davidmoten.rx2.flowable.Transformers
 import com.google.protobuf.ByteString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
@@ -11,7 +12,6 @@ import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
-import kotlinx.coroutines.rx2.awaitLast
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.GroupFinalizer
@@ -146,7 +146,6 @@ class GroupHandle @Inject constructor(
 
     }
 
-
     private fun getIncomingMerkleHashes(socket: Socket): Flowable<DeclareHashesPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
             DeclareHashesPacketParser.parser,
@@ -157,56 +156,30 @@ class GroupHandle @Inject constructor(
     }
 
 
-    private fun sendMerkleHashes(socket: Socket, bundles: Observable<MerkleBundle>): Completable {
+    private fun sendMerkleHashes(socket: Socket, bundles: Flowable<MerkleBundle>): Completable {
         return bundles.map { bundle ->
             DeclareHashesPacket.newBuilder()
-                .setHashes(listOf( ByteString.copyFrom(bundle.hash!!)))
+                .setHashes(listOf(ByteString.copyFrom(bundle.hash!!)))
+        }.compose(Transformers.mapLast { v -> v.optOut() })
+            .concatMapCompletable { packet ->
+                packet.build().writeToStream(socket.getOutputStream(), operationsScheduler)
+                    .flatMapCompletable { v -> v }
+            }
 
-        }
-            .ignoreElements()
     }
 
 
-//    private fun declareHashesMerkle(socket: Socket): Completable {
-//        return database.merkleDao().getDefaultRoot()
-//            .subscribeOn(databaseScheduler)
-//            .flatMapCompletable { root ->
-//                Single.fromCallable {
-//                    database.merkleDao().getHubs(root)
-//                }.subscribeOn(databaseScheduler)
-//                    .flatMapObservable { hubs ->
-//                        Observable.fromIterable(hubs)
-//                    }.concatMapCompletable { hub ->
-//                        val hash = hub.hash
-//                        if (hash != null) {
-//                            DeclareHashesPacket.newBuilder()
-//                                .setHashes(listOf(ByteString.copyFrom(hash)))
-//                                .setMode(Scatterbrain.DeclareHashesMode.MERKLEPROOF)
-//                                .build()
-//                                .writeToStream(socket.getOutputStream(), operationsScheduler)
-//                                .flatMapCompletable { v -> v }
-//                                .andThen(
-//                                    ScatterSerializable.parseWrapperFromCRC(
-//                                        DeclareHashesPacketParser.parser,
-//                                        socket.getInputStream(),
-//                                        operationsScheduler
-//                                    ).flatMapCompletable { packet ->
-//                                        database.merkleDao().getTopRandomExcludingHash(root.id!!, 1000, packet.hashes)
-//                                            .flatMapCompletable { out ->
-//                                                Completable.complete()
-////                                                when(out.size) {
-////                                                    0 ->
-////                                                }
-//                                            }
-//                                    }
-//                                )
-//                        } else {
-//                            LOG.e("got hub ${hub.id} with null hash")
-//                            Completable.complete()
-//                        }
-//                    }
-//            }
-//    }
+    private fun declareHashesMerkle(socket: Socket): Single<List<ByteArray>> {
+        return database.merkleDao().getDefaultRoot()
+            .subscribeOn(databaseScheduler)
+            .flatMap { root ->
+                val incoming = getIncomingMerkleHashes(socket)
+                    .map { v -> v.hashes[0] }
+                database.merkleDao().getHubs(root, incoming)
+                    .map { v -> v.hash!! }
+                    .toList()
+            }
+    }
 
     //transfer declare hashes packet as SEME
     private fun declareHashesSeme(socket: Socket): Single<DeclareHashesPacket> {

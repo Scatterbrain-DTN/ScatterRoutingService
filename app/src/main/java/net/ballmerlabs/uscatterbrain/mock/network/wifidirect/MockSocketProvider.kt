@@ -1,12 +1,12 @@
-package net.ballmerlabs.uscatterbrain.network.wifidirect
+package net.ballmerlabs.uscatterbrain.mock.network.wifidirect
 
 import io.reactivex.Single
+import net.ballmerlabs.uscatterbrain.network.wifidirect.SocketProvider
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetAddress
-import java.net.Socket
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton

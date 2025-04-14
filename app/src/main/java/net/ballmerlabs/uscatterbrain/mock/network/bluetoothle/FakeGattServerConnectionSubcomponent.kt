@@ -1,8 +1,15 @@
-package net.ballmerlabs.uscatterbrain
+package net.ballmerlabs.uscatterbrain.mock.network.bluetoothle
 
 import android.bluetooth.BluetoothGattServer
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import dagger.*
+import net.ballmerlabs.uscatterbrain.GattServerConnectionScope
+import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
+import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactory
+import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionFactoryImpl
+import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
+import net.ballmerlabs.uscatterbrain.ServerTransactionSubcomponent
+import net.ballmerlabs.uscatterbrain.mock.FakeTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLEServerConnectionImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLeServerConnection
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
@@ -15,7 +22,6 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.Serve
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations.ServerOperationsProviderImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerTransactionFactoryImpl
-import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
 
 @Subcomponent(modules = [FakeGattServerConnectionSubcomponent.GattServerConnectionModule::class])
 @GattServerConnectionScope

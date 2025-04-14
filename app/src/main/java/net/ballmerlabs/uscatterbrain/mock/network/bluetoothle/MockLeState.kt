@@ -1,17 +1,19 @@
-package net.ballmerlabs.uscatterbrain.network.bluetoothLE
+package net.ballmerlabs.uscatterbrain.mock.network.bluetoothle
 
 import android.os.ParcelUuid
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
-import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.uscatterbrain.FakeGattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLeConnection
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.util.toUuid
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap

@@ -11,6 +11,12 @@ import com.goterl.lazysodium.interfaces.Sign
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.uscatterbrain.mock.DaggerFakeRoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.mock.FakeRoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.FakeWifiDirectInfoSubcomponent
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.FakeWifiGroupSubcompoment
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,6 +25,17 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*
 import net.ballmerlabs.uscatterbrain.network.proto.*
+import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
+import net.ballmerlabs.uscatterbrain.network.wifidirect.GroupHandle
+import net.ballmerlabs.uscatterbrain.network.wifidirect.PortSocket
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectInfo
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiGroupInfo
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiSessionConfig
+import org.mockito.kotlin.mock
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 class ProtocolTests {
@@ -26,9 +43,60 @@ class ProtocolTests {
     private val writeScheduler =
         RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test2"))
 
+    private lateinit var groupHandle: GroupHandle
+
+    val socket = ServerSocket(0, 32, InetAddress.getLocalHost())
+
+    lateinit var clientSocket: Socket
+    lateinit var serverSocket: Socket
+
+    lateinit var bootstrapRequest: WifiDirectBootstrapRequest
+
     @Before
     fun init() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val app = DaggerRoutingServiceComponent.builder()
+            .applicationContext(ctx)!!
+            .build()!!
+
+        val bs = app.bootstrapRequest()
+            .wifiDirectArgs(
+                BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                "test",
+                "secretpassphrase",
+                BluetoothLEModule.Role.ROLE_UKE,
+                    FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ,
+                    socket.localPort,
+                    socket.inetAddress,
+                    UUID.randomUUID()
+            )).build()!!
+
+        bootstrapRequest = bs.wifiBootstrapRequest()
+
+        clientSocket = Socket(socket.inetAddress, socket.localPort)
+        serverSocket = socket.accept()
+
+        val subcompoment = app.wifiGroupSubcomponent()
+            .serverSocket(serverSocket = PortSocket(socket))
+            .bootstrapRequest(bootstrapRequest)
+            .info(WifiSessionConfig(
+                wifiDirectInfo = WifiDirectInfo(
+                    true,
+                    socket.inetAddress,
+                    true
+                ),
+                wifiGroupInfo = WifiGroupInfo(
+                    "test_network",
+                    "testsecretpassphrase",
+                    FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ
+                )
+            )).build()
+
+        groupHandle = subcompoment.groupHandle()
+
+
+
+
         FirebaseApp.initializeApp(ctx)
     }
 
@@ -61,6 +129,11 @@ class ProtocolTests {
             scheduler
         ).blockingGet()
         onComplete(streamPacket)
+    }
+
+    @Test
+    fun merkleSync() {
+
     }
 
     @Test

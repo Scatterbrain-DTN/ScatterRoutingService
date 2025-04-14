@@ -1,5 +1,6 @@
-package net.ballmerlabs.uscatterbrain.util
+package net.ballmerlabs.uscatterbrain.mock.util
 
+import net.ballmerlabs.uscatterbrain.util.Logger
 import java.io.File
 
 val mockLoggerGenerator = { c: Class<*> -> MockLogger(c) }

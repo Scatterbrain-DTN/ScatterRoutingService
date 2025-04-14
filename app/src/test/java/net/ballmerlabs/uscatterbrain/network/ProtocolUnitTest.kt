@@ -20,7 +20,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.RoutingMetadataPacket
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
 import net.ballmerlabs.uscatterbrain.util.logger
-import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
+import net.ballmerlabs.uscatterbrain.mock.util.mockLoggerGenerator
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,7 +29,6 @@ import org.robolectric.annotation.Config
 import proto.Scatterbrain
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.util.*
 import java.util.concurrent.TimeUnit
 

@@ -1,4 +1,4 @@
-package net.ballmerlabs.uscatterbrain.util
+package net.ballmerlabs.uscatterbrain.mock.util
 
 import androidx.datastore.preferences.core.Preferences
 import io.reactivex.Maybe

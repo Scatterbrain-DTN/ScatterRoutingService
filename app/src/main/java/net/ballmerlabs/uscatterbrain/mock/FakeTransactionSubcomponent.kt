@@ -1,4 +1,4 @@
-package net.ballmerlabs.uscatterbrain
+package net.ballmerlabs.uscatterbrain.mock
 
 import dagger.Binds
 import dagger.BindsInstance
@@ -7,14 +7,16 @@ import dagger.Provides
 import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionScope
+import net.ballmerlabs.uscatterbrain.ScatterbrainTransactionSubcomponent
+import net.ballmerlabs.uscatterbrain.TransactionFinalizer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLEConnectionImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLeConnection
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModuleImpl
 import javax.inject.Named
-import javax.inject.Singleton
 
 @ScatterbrainTransactionScope
 @Subcomponent(modules = [FakeTransactionSubcomponent.ScatterbrainTransactionModule::class])
@@ -52,8 +54,11 @@ interface FakeTransactionSubcomponent: ScatterbrainTransactionSubcomponent {
             @ScatterbrainTransactionScope
             @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_READ)
             fun providesBleReadScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(
-                    ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_READ))
+                return RxJavaPlugins.createSingleScheduler(
+                    ScatterbrainThreadFactory(
+                    ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_READ
+                    )
+                )
             }
 
             @Provides
@@ -80,8 +85,11 @@ interface FakeTransactionSubcomponent: ScatterbrainTransactionSubcomponent {
             @ScatterbrainTransactionScope
             @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_PARSE)
             fun providesBleParseScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(
-                    ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_PARSE))
+                return RxJavaPlugins.createSingleScheduler(
+                    ScatterbrainThreadFactory(
+                    ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_PARSE
+                    )
+                )
             }
 
             @Provides
@@ -89,8 +97,11 @@ interface FakeTransactionSubcomponent: ScatterbrainTransactionSubcomponent {
             @ScatterbrainTransactionScope
             @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_WRITE)
             fun providesBleWriteScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(
-                    ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_WRITE))
+                return RxJavaPlugins.createSingleScheduler(
+                    ScatterbrainThreadFactory(
+                    ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_WRITE
+                    )
+                )
             }
 
             @Provides
@@ -98,8 +109,11 @@ interface FakeTransactionSubcomponent: ScatterbrainTransactionSubcomponent {
             @ScatterbrainTransactionScope
             @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.TRANS_IO)
             fun providesTransIoScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(
-                    ScatterbrainTransactionSubcomponent.NamedSchedulers.TRANS_IO))
+                return RxJavaPlugins.createIoScheduler(
+                    ScatterbrainThreadFactory(
+                    ScatterbrainTransactionSubcomponent.NamedSchedulers.TRANS_IO
+                    )
+                )
             }
 
 

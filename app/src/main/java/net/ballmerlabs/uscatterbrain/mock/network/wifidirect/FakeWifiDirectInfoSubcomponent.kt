@@ -1,13 +1,14 @@
 
 
-package net.ballmerlabs.uscatterbrain
+package net.ballmerlabs.uscatterbrain.mock.network.wifidirect
 import android.net.wifi.WpsInfo
 import dagger.*
+import net.ballmerlabs.uscatterbrain.WifiDirectInfoScope
+import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent.Companion.MAC_ADDRESS
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent.Companion.NETWORK_NAME
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent.Companion.PASSPHRASE
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
-import net.ballmerlabs.uscatterbrain.network.wifidirect.MockFakeWifiP2pConfigImpl
 import org.mockito.kotlin.mock
 import javax.inject.Named
 

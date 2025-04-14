@@ -1,4 +1,4 @@
-package net.ballmerlabs.uscatterbrain
+package net.ballmerlabs.uscatterbrain.mock
 
 import android.app.AlarmManager
 import android.bluetooth.BluetoothAdapter
@@ -16,24 +16,45 @@ import dagger.*
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
+import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
+import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
+import net.ballmerlabs.uscatterbrain.RouterPreferences
+import net.ballmerlabs.uscatterbrain.RoutingServiceBackend
+import net.ballmerlabs.uscatterbrain.RoutingServiceBackendImpl
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.WakeLockProvider
+import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
+import net.ballmerlabs.uscatterbrain.WifiDirectProvider
+import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
 import net.ballmerlabs.uscatterbrain.db.DATABASE_NAME
 import net.ballmerlabs.uscatterbrain.db.Datastore
-import net.ballmerlabs.uscatterbrain.db.MockScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
+import net.ballmerlabs.uscatterbrain.mock.db.MockScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.mock.desktop.FakeDesktopApiSubcomponent
+import net.ballmerlabs.uscatterbrain.mock.network.FakeBootstrapRequestSubcomponent
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.FakeGattServerConnectionSubcomponent
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.FakeWifiDirectInfoSubcomponent
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.FakeWifiDirectProvider
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.FakeWifiGroupSubcompoment
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.MockServerSocketManager
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.MockSocketProvider
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.MockWifiDirectBroadcastReceiver
+import net.ballmerlabs.uscatterbrain.mock.util.FakeBroadcaster
+import net.ballmerlabs.uscatterbrain.mock.util.FakeWakeLockProvider
+import net.ballmerlabs.uscatterbrain.mock.util.MockRouterPreferences
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.*
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
-import net.ballmerlabs.uscatterbrain.network.desktop.FakeDesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
-import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
@@ -203,8 +224,11 @@ interface FakeRoutingServiceComponent {
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT)
             fun provideGlobalTimeoutScheduler(): Scheduler {
-                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(
-                    RoutingServiceComponent.NamedSchedulers.TIMEOUT))
+                return RxJavaPlugins.createIoScheduler(
+                    ScatterbrainThreadFactory(
+                    RoutingServiceComponent.NamedSchedulers.TIMEOUT
+                    )
+                )
             }
 
 
@@ -213,8 +237,11 @@ interface FakeRoutingServiceComponent {
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.WIFI_SERVER)
             fun provideWifiDirectOperationsScheduler(): Scheduler {
-                return RxJavaPlugins.createComputationScheduler(ScatterbrainThreadFactory(
-                    RoutingServiceComponent.NamedSchedulers.WIFI_SERVER))
+                return RxJavaPlugins.createComputationScheduler(
+                    ScatterbrainThreadFactory(
+                    RoutingServiceComponent.NamedSchedulers.WIFI_SERVER
+                    )
+                )
             }
 
             @Provides
@@ -222,8 +249,11 @@ interface FakeRoutingServiceComponent {
             @Singleton
             @Named(RoutingServiceComponent.NamedSchedulers.BLE_ADVERTISE)
             fun providesAdvertiseScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(
-                    RoutingServiceComponent.NamedSchedulers.BLE_ADVERTISE))
+                return RxJavaPlugins.createSingleScheduler(
+                    ScatterbrainThreadFactory(
+                    RoutingServiceComponent.NamedSchedulers.BLE_ADVERTISE
+                    )
+                )
             }
 
             @Provides

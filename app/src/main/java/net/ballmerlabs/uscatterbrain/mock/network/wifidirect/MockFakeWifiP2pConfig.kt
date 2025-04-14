@@ -1,4 +1,4 @@
-package net.ballmerlabs.uscatterbrain.network.wifidirect
+package net.ballmerlabs.uscatterbrain.mock.network.wifidirect
 
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
@@ -6,9 +6,11 @@ import android.os.Parcel
 import android.os.Parcelable
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoScope
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
+import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.GROUP_OWNER_BAND_AUTO
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.GROUP_OWNER_INTENT_AUTO
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig.Companion.NETWORK_ID_PERSISTENT
+import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfigImpl
 import org.mockito.kotlin.mock
 import javax.inject.Inject
 import javax.inject.Named

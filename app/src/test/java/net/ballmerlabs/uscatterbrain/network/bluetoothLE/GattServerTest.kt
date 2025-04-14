@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.bluetooth.*
 import android.content.Context
 import android.net.wifi.WifiManager
-import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.util.Pair
 import com.google.protobuf.MessageLite
@@ -11,23 +10,17 @@ import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.RxBleDevice
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleClientMock
-import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
-import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
-import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.plugins.RxJavaPlugins
-import io.reactivex.schedulers.Schedulers
-import io.reactivex.subjects.PublishSubject
 import io.reactivex.subjects.ReplaySubject
-import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.network.proto.*
 import net.ballmerlabs.scatterproto.ScatterSerializable
-import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.FakeGattServerConnectionSubcomponent
+import net.ballmerlabs.uscatterbrain.mock.DaggerFakeRoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.FakeGattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule.Companion.GATT_SIZE
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
@@ -35,11 +28,11 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnec
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection.Companion.CLIENT_CONFIG
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnectionImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.ServerConfig
-import net.ballmerlabs.uscatterbrain.network.wifidirect.MockWifiDirectBroadcastReceiver
-import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.MockWifiDirectBroadcastReceiver
+import net.ballmerlabs.uscatterbrain.mock.util.MockRouterPreferences
 import net.ballmerlabs.uscatterbrain.util.getBogusRxBleDevice
 import net.ballmerlabs.uscatterbrain.util.logger
-import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
+import net.ballmerlabs.uscatterbrain.mock.util.mockLoggerGenerator
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -57,7 +50,6 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*
 import java.util.concurrent.TimeUnit
-import kotlin.random.Random
 
 
 @RunWith(RobolectricTestRunner::class)

@@ -1,8 +1,10 @@
-package net.ballmerlabs.uscatterbrain
+package net.ballmerlabs.uscatterbrain.mock.network.bluetoothle
 
 import dagger.Binds
 import dagger.Module
 import dagger.Subcomponent
+import net.ballmerlabs.uscatterbrain.GattServerTransactionScope
+import net.ballmerlabs.uscatterbrain.ServerTransactionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.NotificationSetupTransaction
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.NotificationSetupTransactionImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.transactions.ServerResponseTransaction

@@ -1,4 +1,4 @@
-package net.ballmerlabs.uscatterbrain.network.wifidirect
+package net.ballmerlabs.uscatterbrain.mock.network.wifidirect
 
 import android.content.BroadcastReceiver
 import android.net.wifi.p2p.WifiP2pDevice
@@ -11,13 +11,16 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
 import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver.P2pState
-import org.mockito.internal.matchers.Not
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectInfo
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
-class MockWifiDirectBroadcastReceiver(private val broadcastReceiver: BroadcastReceiver): WifiDirectBroadcastReceiver {
+class MockWifiDirectBroadcastReceiver(private val broadcastReceiver: BroadcastReceiver):
+    WifiDirectBroadcastReceiver {
 
     val p2pStateRelay = BehaviorRelay.create<P2pState>()
     val thisDeviceRelay = BehaviorRelay.create<WifiP2pDevice>()

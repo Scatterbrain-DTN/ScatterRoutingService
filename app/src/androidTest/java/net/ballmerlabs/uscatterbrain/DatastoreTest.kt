@@ -328,7 +328,7 @@ class DatastoreTest {
         val remote = PublishSubject.create<ByteArray>()
 
         val iter = database.merkleDao().getHubs(root, remote.toFlowable(BackpressureStrategy.BUFFER))
-            .doOnNext { i -> remote.onNext(i.bundle.hash!!) }
+            .doOnNext { i -> remote.onNext(i.hash!!) }
             .doFinally { remote.onComplete() }
             .toList().blockingGet()
 
@@ -346,11 +346,11 @@ class DatastoreTest {
 
         val testBundles = database.merkleDao().getAllBundles()
 
-        val excludeBundles = database.merkleDao().testBundlesExcludingHash(listOf(iter[1].bundle.hash!!, iter[2].bundle.hash!!))
+        val excludeBundles = database.merkleDao().testBundlesExcludingHash(listOf(iter[1].hash!!, iter[2].hash!!))
 
         println("testBundles = ${testBundles.size} excludeBundles = ${excludeBundles.size}")
 
-        val messages3 = database.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf(iter[1].bundle.hash!!)).blockingGet()
+        val messages3 = database.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf(iter[1].hash!!)).blockingGet()
         for (m in messages3) {
             println(m)
         }
@@ -390,7 +390,7 @@ class DatastoreTest {
             database.merkleDao().getBundle(b5i),
             remote.toFlowable(BackpressureStrategy.BUFFER)
         )
-            .doOnNext { i -> remote.onNext(i.bundle.hash!!) }
+            .doOnNext { i -> remote.onNext(i.hash!!) }
             .doFinally { remote.onComplete() }
             .toList().blockingGet()
 
@@ -398,7 +398,7 @@ class DatastoreTest {
             println(item)
         }
         assertEquals(hubs.size, 4)
-        val ids = hubs.map { v -> v.bundle.id }
+        val ids = hubs.map { v -> v.id }
         assert(ids.contains(b5i))
         assert(ids.contains(b3i))
         assert(ids.contains(b1i))

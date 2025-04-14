@@ -1,4 +1,4 @@
-package net.ballmerlabs.uscatterbrain.db
+package net.ballmerlabs.uscatterbrain.mock.db
 
 import android.content.Context
 import com.goterl.lazysodium.interfaces.Sign
@@ -12,7 +12,9 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 import net.ballmerlabs.uscatterbrain.db.entities.*
-import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.uscatterbrain.db.ACL
+import net.ballmerlabs.uscatterbrain.db.OpenFile
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule

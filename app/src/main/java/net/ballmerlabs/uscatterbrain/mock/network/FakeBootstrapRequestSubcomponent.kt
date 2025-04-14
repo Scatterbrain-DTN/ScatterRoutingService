@@ -1,9 +1,11 @@
-package net.ballmerlabs.uscatterbrain
+package net.ballmerlabs.uscatterbrain.mock.network
 
 import android.os.Bundle
 import dagger.Module
 import dagger.Provides
 import dagger.Subcomponent
+import net.ballmerlabs.uscatterbrain.BootstrapRequestScope
+import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest

@@ -5,20 +5,15 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import com.github.davidmoten.rx2.Bytes
-import com.google.protobuf.ByteString
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.ReplaySubject
-import net.ballmerlabs.uscatterbrain.db.MerkleDeclareHashes
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
-import net.ballmerlabs.uscatterbrain.network.proto.DeclareHashesPacket
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import proto.Scatterbrain
 
 @Dao
 abstract class MerkleDao {
@@ -294,25 +289,17 @@ abstract class MerkleDao {
     )
     abstract fun getNextHub(root: Long?): Maybe<MerkleBundle>
 
-    fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>): Observable<MerkleDeclareHashes> {
+    fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>): Observable<MerkleBundle> {
         if (root == null)
             return Observable.empty()
-        val out = ReplaySubject.create<MerkleDeclareHashes>()
-
-        out.onNext(
-            MerkleDeclareHashes(
-                bundle = root,
-                declareHashesPacket = DeclareHashesPacket.newBuilder()
-                    .setMode(Scatterbrain.DeclareHashesMode.MERKLEPROOF)
-                    .setExists(true)
-                    .setHashes(listOf(ByteString.copyFrom(root.hash)))
-            ))
+        val out = ReplaySubject.create<MerkleBundle>()
+        out.onNext(root)
         return out.mergeWith(getHubs(root, out, remote).doFinally { out.onComplete() })
     }
 
     private fun getHubs(
         root: MerkleBundle?,
-        hubs: ReplaySubject<MerkleDeclareHashes>,
+        hubs: ReplaySubject<MerkleBundle>,
         remote: Flowable<ByteArray>,
     ): Completable {
         if (root == null)
@@ -321,12 +308,7 @@ abstract class MerkleDao {
             remote
                 .mergeWith(Completable.fromAction {
                     if (childOneHub.id != root.id)
-                        hubs.onNext(MerkleDeclareHashes(
-                            bundle = childOneHub,
-                            declareHashesPacket = DeclareHashesPacket.newBuilder()
-                                .setExists(false)
-                                .setHashes(listOf(ByteString.copyFrom(childOneHub.hash!!)))
-                        ))
+                        hubs.onNext(childOneHub)
                 })
                 .firstOrError()
                 .flatMapMaybe { r ->
@@ -340,12 +322,7 @@ abstract class MerkleDao {
 
             remote.mergeWith(Completable.fromAction {
                 if (childTwoHub.id != root.id)
-                    hubs.onNext(MerkleDeclareHashes(
-                        bundle = childTwoHub,
-                        declareHashesPacket = DeclareHashesPacket.newBuilder()
-                            .setExists(false)
-                            .setHashes(listOf(ByteString.copyFrom(childTwoHub.hash!!)))
-                    ))
+                    hubs.onNext(childTwoHub)
             }).firstOrError()
                 .flatMapMaybe { r ->
                     if (r.contentEquals(childTwoHub.hash))

@@ -1,4 +1,4 @@
-package net.ballmerlabs.uscatterbrain.network.desktop
+package net.ballmerlabs.uscatterbrain.mock.desktop
 
 import dagger.Module
 import dagger.Provides
@@ -6,8 +6,12 @@ import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionConfig
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionScope
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionSubcomponent.NamedKeys
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionSubcomponent.NamedSchedulers
+import net.ballmerlabs.uscatterbrain.network.desktop.PublicKeyPair
 import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
 import javax.inject.Named
 
@@ -17,7 +21,7 @@ interface FakeDesktopSessionSubcomponent : DesktopSessionSubcomponent {
 
     @Subcomponent.Builder
     @DesktopSessionScope
-    interface Builder: DesktopSessionSubcomponent.Builder  {
+    interface Builder: DesktopSessionSubcomponent.Builder {
         override fun build(): DesktopSessionSubcomponent
     }
 

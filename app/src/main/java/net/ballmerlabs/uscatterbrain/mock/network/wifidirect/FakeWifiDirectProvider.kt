@@ -1,7 +1,8 @@
-package net.ballmerlabs.uscatterbrain
+package net.ballmerlabs.uscatterbrain.mock.network.wifidirect
 
 import android.net.wifi.p2p.WifiP2pManager
 import android.net.wifi.p2p.WifiP2pManager.Channel
+import net.ballmerlabs.uscatterbrain.WifiDirectProvider
 import javax.inject.Inject
 import javax.inject.Singleton
 

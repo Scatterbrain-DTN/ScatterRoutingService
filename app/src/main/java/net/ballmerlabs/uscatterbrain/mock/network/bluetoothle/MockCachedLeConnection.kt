@@ -1,15 +1,16 @@
-package net.ballmerlabs.uscatterbrain.network.bluetoothLE
+package net.ballmerlabs.uscatterbrain.mock.network.bluetoothle
 
 import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Completable
-import io.reactivex.Observable
 import io.reactivex.Scheduler
-import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLEConnectionImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.CachedLeConnection
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicInteger
 
 class MockCachedLeConnection(
     ioScheduler: Scheduler,

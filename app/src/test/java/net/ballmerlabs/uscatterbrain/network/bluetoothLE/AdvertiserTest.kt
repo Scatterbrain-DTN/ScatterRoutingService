@@ -5,27 +5,25 @@ import android.bluetooth.*
 import android.bluetooth.le.AdvertisingSetCallback
 import android.content.Context
 import android.os.Build
-import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
-import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.plugins.RxJavaPlugins
-import io.reactivex.subjects.PublishSubject
-import net.ballmerlabs.uscatterbrain.DaggerFakeRoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.FakeGattServerConnectionSubcomponent
-import net.ballmerlabs.uscatterbrain.FakeRoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.mock.DaggerFakeRoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.FakeGattServerConnectionSubcomponent
+import net.ballmerlabs.uscatterbrain.mock.FakeRoutingServiceComponent
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.scatterproto.Optional
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockCachedLeConnection
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockLeState
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.proto.getHashUuid
 
-import net.ballmerlabs.uscatterbrain.network.wifidirect.MockWifiDirectBroadcastReceiver
-import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
+import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.MockWifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
-import net.ballmerlabs.uscatterbrain.util.MockRouterPreferences
+import net.ballmerlabs.uscatterbrain.mock.util.MockRouterPreferences
 import net.ballmerlabs.uscatterbrain.util.getBogusRxBleDevice
 import net.ballmerlabs.uscatterbrain.util.logger
-import net.ballmerlabs.uscatterbrain.util.mockLoggerGenerator
+import net.ballmerlabs.uscatterbrain.mock.util.mockLoggerGenerator
 import net.ballmerlabs.uscatterbrain.util.toBytes
 import org.junit.After
 import org.junit.Before
@@ -172,14 +170,16 @@ class AdvertiserTest {
         val luid = UUID.randomUUID()
 
         val fakeConnection =  fakeGattServerConnection.transaction()
-            .connection(MockCachedLeConnection(
+            .connection(
+                MockCachedLeConnection(
                 ioScheduler = ioScheduler,
                 bleDevice = getBogusRxBleDevice("ff:ff:ff:ff:ff:ff"),
                 state = leState,
                 leAdvertiser = advertiser,
                 luid = luid,
                 channelNotif = InputStreamObserver(8000)
-            ))
+            )
+            )
             .luid(luid)
             .device(mock {  })
             .build()!!

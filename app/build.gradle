@@ -193,6 +193,11 @@ dependencies {
     testImplementation "org.mockito.kotlin:mockito-kotlin:4.0.0"
 
     // Optional -- Mockito framework
+    implementation "org.mockito:mockito-core:4.0.0"
+    // Optional -- mockito-kotlin
+    implementation "org.mockito.kotlin:mockito-kotlin:4.0.0"
+
+    // Optional -- Mockito framework
     androidTestImplementation "org.mockito:mockito-core:4.0.0"
     // Optional -- mockito-kotlin
     androidTestImplementation "org.mockito.kotlin:mockito-kotlin:4.0.0"
@@ -223,6 +228,7 @@ dependencies {
     implementation "androidx.work:work-multiprocess:$work_version"
 
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-rx2:1.8.1"
+    implementation "com.github.davidmoten:rxjava2-extras:0.1.38"
     implementation(project(':annotation'))
     ksp(project(':annotation'))
     implementation(project(':ser'))

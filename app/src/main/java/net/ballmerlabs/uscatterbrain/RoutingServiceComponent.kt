@@ -337,6 +337,8 @@ interface RoutingServiceComponent {
     fun inject(provider: LuidRandomizeWorker)
     fun gattConnectionBuilder(): GattServerConnectionSubcomponent.Builder
     fun inject(prover: LuidRandomizeReceiver)
+    fun wifiGroupSubcomponent(): WifiGroupSubcomponent.Builder
+    fun bootstrapRequest(): BootstrapRequestSubcomponent.Builder
 
     companion object {
         const val SHARED_PREFS = "scatterbrainprefs"

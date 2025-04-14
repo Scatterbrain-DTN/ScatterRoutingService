@@ -1,18 +1,16 @@
-package net.ballmerlabs.uscatterbrain
+package net.ballmerlabs.uscatterbrain.mock.util
 
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopAddrs
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopPower
 import net.ballmerlabs.uscatterbrain.network.desktop.IdentityImportState
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class FakeBroadcaster @Inject constructor()  : Broadcaster{
+class MockBroadcaster : Broadcaster {
+
     override fun broadcastState(
         state: IdentityImportState?,
         power: DesktopPower?,
-        addrs: DesktopAddrs?,
+        addr: DesktopAddrs?,
         clientApps: Boolean
     ) {
 

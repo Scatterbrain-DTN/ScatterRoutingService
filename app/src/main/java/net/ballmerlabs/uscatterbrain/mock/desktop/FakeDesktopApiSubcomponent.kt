@@ -1,4 +1,4 @@
-package net.ballmerlabs.uscatterbrain.network.desktop
+package net.ballmerlabs.uscatterbrain.mock.desktop
 import android.content.Context
 import android.net.nsd.NsdManager
 import dagger.Binds
@@ -9,7 +9,17 @@ import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiScope
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiServer
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiServerImpl
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent.NamedSchedulers
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopFinalizer
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopKeyManager
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopKeyManagerImpl
+import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionSubcomponent
+import net.ballmerlabs.uscatterbrain.network.desktop.NsdAdvertiser
+import net.ballmerlabs.uscatterbrain.network.desktop.NsdAdvertiserImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.PortSocket
 import org.mockito.kotlin.mock
 import javax.inject.Named

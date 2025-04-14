@@ -1,12 +1,16 @@
-package net.ballmerlabs.uscatterbrain
+package net.ballmerlabs.uscatterbrain.mock.network.wifidirect
 
-import dagger.Binds
 import dagger.BindsInstance
 import dagger.Module
 import dagger.Provides
 import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
+import net.ballmerlabs.uscatterbrain.GroupFinalizer
+import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.WifiGroupScope
+import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
+import net.ballmerlabs.uscatterbrain.network.wifidirect.GroupHandle
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
 import javax.inject.Named
 
@@ -52,4 +56,6 @@ interface FakeWifiGroupSubcompoment: WifiGroupSubcomponent {
         }
 
     }
+
+    override fun groupHandle(): GroupHandle
 }
