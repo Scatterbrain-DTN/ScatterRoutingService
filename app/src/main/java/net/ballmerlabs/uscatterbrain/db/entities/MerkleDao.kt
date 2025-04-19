@@ -11,9 +11,11 @@ import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.ReplaySubject
+import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import java.util.concurrent.TimeUnit
 
 @Dao
 abstract class MerkleDao {
@@ -287,53 +289,78 @@ abstract class MerkleDao {
        ) SELECT * FROM bundles INNER JOIN parent ON ids = id ORDER BY POS DESC LIMIT 1
         """
     )
-    abstract fun getNextHub(root: Long?): Maybe<MerkleBundle>
+    abstract fun getNextHub(root: Long?): MerkleBundle?
 
-    fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>): Observable<MerkleBundle> {
+    fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>): HubResponse {
         if (root == null)
-            return Observable.empty()
+            return HubResponse(
+                hubs = Observable.empty(),
+                exclude = Observable.empty()
+            )
         val out = ReplaySubject.create<MerkleBundle>()
+        val exclude = ReplaySubject.create<ByteArray>()
         out.onNext(root)
-        return out.mergeWith(getHubs(root, out, remote).doFinally { out.onComplete() })
+        return HubResponse(
+            hubs = out
+                .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
+                .mergeWith(Completable.fromAction {
+                    getHubs(root, out, exclude, remote)
+                }.doFinally {
+                    log.v("getHubs complete!")
+                    out.onComplete()
+                    exclude.onComplete()
+                }),
+            exclude = exclude.doOnNext { v -> log.v("getHubs exclude ${v.size}") }
+
+        )
     }
 
     private fun getHubs(
         root: MerkleBundle?,
         hubs: ReplaySubject<MerkleBundle>,
+        exclude: ReplaySubject<ByteArray>,
         remote: Flowable<ByteArray>,
-    ): Completable {
+    ) {
         if (root == null)
-            return Completable.complete()
-        val childOne = getNextHub(root.childOne).flatMap { childOneHub ->
-            remote
+            return
+        val childOneHub = getNextHub(root.childOne)
+        val childTwoHub = getNextHub(root.childTwo)
+        log.v("getHubs: ${root.id} $childOneHub $childTwoHub")
+
+        if (childOneHub != null) {
+
+            val r = remote
                 .mergeWith(Completable.fromAction {
                     if (childOneHub.id != root.id)
                         hubs.onNext(childOneHub)
                 })
                 .firstOrError()
-                .flatMapMaybe { r ->
-                    if (r.contentEquals(childOneHub.hash))
-                        getHubs(childOneHub, hubs, remote).toMaybe<MerkleBundle>()
-                    else
-                        Maybe.empty()
-                }
-        }.ignoreElement()
-        val childTwo = getNextHub(root.childTwo).flatMap { childTwoHub ->
+                .blockingGet()
 
-            remote.mergeWith(Completable.fromAction {
-                if (childTwoHub.id != root.id)
-                    hubs.onNext(childTwoHub)
-            }).firstOrError()
-                .flatMapMaybe { r ->
-                    if (r.contentEquals(childTwoHub.hash))
-                        getHubs(childTwoHub, hubs, remote).toMaybe<MerkleBundle>()
-                    else
-                        Maybe.empty()
-                }
-        }.ignoreElement()
+            if (r.contentEquals(childOneHub.hash)) {
+                exclude.onNext(childOneHub.hash!!)
+                getHubs(childOneHub, hubs, exclude, remote)
+            }
+        }
+
+        if (childTwoHub != null) {
+            val r = remote
+                .mergeWith(
+                    Completable.fromAction {
+                        if (childTwoHub.id != root.id)
+                            hubs.onNext(childTwoHub)
+                    }
+                )
+                .firstOrError()
+                .blockingGet()
+
+            if (r.contentEquals(childTwoHub.hash)) {
+                exclude.onNext(childTwoHub.hash!!)
+                getHubs(childTwoHub, hubs, exclude, remote)
+            }
+        }
 
 
-        return childOne.andThen(childTwo)
     }
 
 

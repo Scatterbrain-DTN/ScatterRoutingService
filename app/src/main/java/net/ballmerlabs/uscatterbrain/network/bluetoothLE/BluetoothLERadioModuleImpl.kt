@@ -380,7 +380,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 wifiDirectRadioModule.bootstrapUke(
                                     wifiDirectRadioModule.getBand(),
                                     session.remoteLuid,
-                                    advertiser.getHashLuid()
+                                    advertiser.getHashLuid(),
+                                    session.advertiseStage.declareHashesMode
                                 ).flatMapCompletable { bootstrapReq ->
                                     LOG.e("uke upgrade callback")
                                     serverConn.serverNotify(
@@ -417,7 +418,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                                                 wifiDirectRadioModule.bootstrapSeme(
                                                     request,
-                                                    session.remoteLuid
+                                                    session.remoteLuid,
+                                                    session.advertiseStage.declareHashesMode
                                                 )
 
                                                 Flowable.just(
@@ -551,7 +553,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 ).flatMapObservable { l ->
                                     datastore.getTopRandomMessages(
                                         l,
-                                        declareHashesPacket
+                                        declareHashesPacket.hashes
                                     )
                                 }
 
@@ -604,6 +606,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 !end
                             }
                             .ignoreElements()
+                            .andThen(datastore.rehashMerkle())
                             .toSingleDefault(TransactionResult.of(TransactionResult.STAGE_TERMINATE))
                     })
 

@@ -398,11 +398,11 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun getTopRandomMessages(
         count: Int,
-        delareHashes: DeclareHashesPacket,
+        delareHashes: List<ByteArray>,
     ): Observable<BlockDataStream> {
         return Observable.defer {
             LOG.v("called getTopRandomMessages $count")
-            mDatastore.scatterMessageDao().getTopRandomExcludingHash(count, delareHashes.hashes)
+            mDatastore.scatterMessageDao().getTopRandomExcludingHash(count, delareHashes)
                 .subscribeOn(databaseScheduler)
                 .doOnSubscribe { LOG.v("subscribed to getTopRandoMessages") }
                 .toFlowable()
@@ -1156,6 +1156,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     )
                 )
             )
+    }
+
+    override fun rehashMerkle(): Completable {
+        return mDatastore.merkleDao().merkleRehash()
     }
 
     override fun insertAndHashFileFromApi(

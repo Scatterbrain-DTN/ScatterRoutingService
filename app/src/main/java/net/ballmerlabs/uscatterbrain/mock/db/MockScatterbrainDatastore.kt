@@ -52,6 +52,10 @@ class MockScatterbrainDatastore @Inject constructor(
         )
     }
 
+    override fun rehashMerkle(): Completable {
+        return Completable.complete()
+    }
+
     override fun getApps(): Observable<SbApp> {
         return Observable.just(SbApp(
             name = "",
@@ -96,7 +100,7 @@ class MockScatterbrainDatastore @Inject constructor(
         return Completable.complete()
     }
 
-    override fun getTopRandomMessages(count: Int, delareHashes: DeclareHashesPacket): Observable<WifiDirectRadioModule.BlockDataStream> {
+    override fun getTopRandomMessages(count: Int, delareHashes: List<ByteArray>): Observable<WifiDirectRadioModule.BlockDataStream> {
         return Observable.empty()
     }
 

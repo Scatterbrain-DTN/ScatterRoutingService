@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import net.ballmerlabs.scatterproto.Provides
 import net.ballmerlabs.uscatterbrain.network.proto.AdvertisePacket
+import proto.Scatterbrain.DeclareHashesMode
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -11,7 +12,9 @@ import java.util.concurrent.atomic.AtomicReference
  */
 class AdvertiseStage : LeDeviceSession.Stage {
     private val packet = AtomicReference<AdvertisePacket>()
+    var declareHashesMode = DeclareHashesMode.MERKLEPROOF
     fun addPacket(packet: AdvertisePacket) {
+        declareHashesMode = packet.mode
         this.packet.set(packet)
     }
 

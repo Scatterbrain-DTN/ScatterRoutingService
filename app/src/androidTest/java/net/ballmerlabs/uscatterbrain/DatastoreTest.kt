@@ -260,7 +260,7 @@ class DatastoreTest {
         for (x in 0..1) {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
-        val message = datastore.getTopRandomMessages(1, DeclareHashesPacket.newBuilder().build()).blockingFirst()
+        val message = datastore.getTopRandomMessages(1, listOf()).blockingFirst()
         println("globalhash ${message.entity!!.message.fileGlobalHash.toHexString()}")
         val size = datastore.getApiMessages("fmef").blockingGet().size
         println("size $size")
@@ -327,7 +327,7 @@ class DatastoreTest {
 
         val remote = PublishSubject.create<ByteArray>()
 
-        val iter = database.merkleDao().getHubs(root, remote.toFlowable(BackpressureStrategy.BUFFER))
+        val iter = database.merkleDao().getHubs(root, remote.toFlowable(BackpressureStrategy.BUFFER)).hubs
             .doOnNext { i -> remote.onNext(i.hash!!) }
             .doFinally { remote.onComplete() }
             .toList().blockingGet()
@@ -378,7 +378,7 @@ class DatastoreTest {
         b5.childTwo = b4i
         val b5i = database.merkleDao().insertBundleEntity(b5).blockingGet()
         println("b5i $b5i")
-        val test = database.merkleDao().getNextHub(b5i).blockingGet()
+        val test = database.merkleDao().getNextHub(b5i)!!
 
         assertEquals(test.id, b2i)
 
@@ -389,7 +389,7 @@ class DatastoreTest {
         val hubs = database.merkleDao().getHubs(
             database.merkleDao().getBundle(b5i),
             remote.toFlowable(BackpressureStrategy.BUFFER)
-        )
+        ).hubs
             .doOnNext { i -> remote.onNext(i.hash!!) }
             .doFinally { remote.onComplete() }
             .toList().blockingGet()
@@ -443,7 +443,7 @@ class DatastoreTest {
             count + 1
         )
 
-        val firstSize = datastore.getTopRandomMessages(1000, DeclareHashesPacket.newBuilder().build()).toList().blockingGet()
+        val firstSize = datastore.getTopRandomMessages(1000, listOf()).toList().blockingGet()
 
         val firstBundles = database.merkleDao().getAllBundles()
 
@@ -472,7 +472,7 @@ class DatastoreTest {
 
        // assertEquals(firstBundles.map { v -> v.hash!!.toHexString() }, secondBundles.map { v -> v.hash!!.toHexString() } )
 
-        val secondSize = datastore.getTopRandomMessages(1000, DeclareHashesPacket.newBuilder().build()).toList().blockingGet()
+        val secondSize = datastore.getTopRandomMessages(1000, listOf()).toList().blockingGet()
 
         val secondHashes = secondSize.map { v -> getGlobalHash(v.headerPacket.hashList) }
             .sortedWith { v, n -> v.compare(n) }
@@ -530,7 +530,7 @@ class DatastoreTest {
             count + 1
         )
 
-        val firstSize = datastore.getTopRandomMessages(1000, DeclareHashesPacket.newBuilder().build()).toList().blockingGet()
+        val firstSize = datastore.getTopRandomMessages(1000, listOf()).toList().blockingGet()
 
         val firstBundles = database.merkleDao().getAllBundles()
 
@@ -559,7 +559,7 @@ class DatastoreTest {
 
         // assertEquals(firstBundles.map { v -> v.hash!!.toHexString() }, secondBundles.map { v -> v.hash!!.toHexString() } )
 
-        val secondSize = datastore.getTopRandomMessages(1000, DeclareHashesPacket.newBuilder().build()).toList().blockingGet()
+        val secondSize = datastore.getTopRandomMessages(1000, listOf()).toList().blockingGet()
 
         val secondHashes = secondSize.map { v -> getGlobalHash(v.headerPacket.hashList) }
             .sortedWith { v, n -> v.compare(n) }
@@ -760,7 +760,7 @@ class DatastoreTest {
     fun dbMessageEquiv() {
         val size = 10
         val oldmessage =
-            datastore.getTopRandomMessages(size, DeclareHashesPacket.newBuilder().build()).reduce(
+            datastore.getTopRandomMessages(size, listOf()).reduce(
                 mutableListOf<WifiDirectRadioModule.BlockDataStream>()
             ) { acc, v ->
                 acc.add(v)
@@ -779,7 +779,7 @@ class DatastoreTest {
         }
 
         val streams =
-            datastore.getTopRandomMessages(size * 4, DeclareHashesPacket.newBuilder().build())
+            datastore.getTopRandomMessages(size * 4, listOf())
                 .reduce(
                     mutableListOf<WifiDirectRadioModule.BlockDataStream>()
                 ) { acc, v ->
@@ -817,7 +817,7 @@ class DatastoreTest {
 
 
         val streams =
-            datastore.getTopRandomMessages(size * 4, DeclareHashesPacket.newBuilder().build())
+            datastore.getTopRandomMessages(size * 4, listOf())
                 .reduce(
                     mutableListOf<WifiDirectRadioModule.BlockDataStream>()
                 ) { acc, v ->
@@ -834,7 +834,7 @@ class DatastoreTest {
             ).build()
 
         val newstreams =
-            datastore.getTopRandomMessages(size * 4, packet).reduce(
+            datastore.getTopRandomMessages(size * 4, packet.hashes).reduce(
                 mutableListOf<WifiDirectRadioModule.BlockDataStream>()
             ) { acc, v ->
                 acc.add(v)

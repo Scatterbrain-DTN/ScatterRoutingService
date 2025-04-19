@@ -29,6 +29,7 @@ import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import proto.Scatterbrain
+import proto.Scatterbrain.DeclareHashesMode
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
@@ -102,59 +103,19 @@ class GroupHandle @Inject constructor(
             }.doOnComplete { LOG.w("routingMetadata Complete") }
     }
 
-    //transfer declare hashes packet as UKE
-    private fun declareHashesUke(socket: Socket): Single<DeclareHashesPacket> {
-        LOG.v("declareHashesUke")
-        return declareHashesSeme(socket)
-    }
-
-
-    private fun merkleSingle(socket: Socket, hub: MerkleBundle?): Maybe<Long> {
-        return ScatterSerializable.parseWrapperFromCRC(
-            DeclareHashesPacketParser.parser,
-            socket.getInputStream(),
-            operationsScheduler
-        ).flatMapMaybe { i ->
-
-            val packetBuilder = DeclareHashesPacket.newBuilder()
-                .setMode(Scatterbrain.DeclareHashesMode.MERKLEPROOF)
-            val hash = hub?.hash
-            if (hash != null) {
-                val exists = if (i.hashes.isNotEmpty()) {
-                    i.hashes[0].contentEquals(hash)
-                } else {
-                    false
-                }
-                packetBuilder.setHashes(listOf(ByteString.copyFrom(hash)))
-                    .setExists(exists)
-            } else {
-                packetBuilder.optOut()
-                    .setExists(false)
-            }
-            val packet = packetBuilder.build()
-            packet.writeToStream(socket.getOutputStream(), operationsScheduler)
-                .flatMapCompletable { v -> v }
-                .andThen(Maybe.defer {
-                    if (!packet.exists) {
-                        Maybe.just(hub!!.id!!)
-                    } else {
-                        Maybe.empty()
-                    }
-                })
-
-        }
-
-    }
+//    //transfer declare hashes packet as UKE
+//    private fun declareHashesUke(socket: Socket): Single<DeclareHashesPacket> {
+//        LOG.v("declareHashesUke")
+//        return declareHashesSeme(socket)
+//    }
 
     private fun getIncomingMerkleHashes(socket: Socket): Flowable<DeclareHashesPacket> {
         return ScatterSerializable.parseWrapperFromCRC(
             DeclareHashesPacketParser.parser,
             socket.getInputStream(),
             operationsScheduler
-        ).repeat()
-            .takeUntil { p -> p.optout }
+        ).repeat().takeUntil { p -> p.optout }
     }
-
 
     private fun sendMerkleHashes(socket: Socket, bundles: Flowable<MerkleBundle>): Completable {
         return bundles.map { bundle ->
@@ -168,21 +129,38 @@ class GroupHandle @Inject constructor(
 
     }
 
-
-    private fun declareHashesMerkle(socket: Socket): Single<List<ByteArray>> {
+    fun declareHashesMerkle(socket: Socket, mode: DeclareHashesMode): Single<List<ByteArray>> {
         return database.merkleDao().getDefaultRoot()
             .subscribeOn(databaseScheduler)
             .flatMap { root ->
-                val incoming = getIncomingMerkleHashes(socket)
-                    .map { v -> v.hashes[0] }
-                database.merkleDao().getHubs(root, incoming)
-                    .map { v -> v.hash!! }
-                    .toList()
+                when (mode) {
+                    DeclareHashesMode.MERKLEPROOF -> {
+                        val incoming = getIncomingMerkleHashes(socket)
+                            .map { v -> v.hashes[0] }
+
+                        val send = database.merkleDao().getHubs(root, incoming)
+
+                        send.exclude.mergeWith(
+                            sendMerkleHashes(
+                                socket,
+                                send.hubs.toFlowable(BackpressureStrategy.BUFFER)
+                            ).onErrorComplete()
+                        ).toList()
+                    }
+
+                    DeclareHashesMode.NORMAL -> {
+                        declareHashesCompat(socket)
+                    }
+
+                    DeclareHashesMode.UNRECOGNIZED -> {
+                        declareHashesCompat(socket)
+                    }
+                }
             }
     }
 
     //transfer declare hashes packet as SEME
-    private fun declareHashesSeme(socket: Socket): Single<DeclareHashesPacket> {
+    private fun declareHashesCompat(socket: Socket): Single<List<ByteArray>> {
         LOG.v("declareHashesSeme")
         return datastore.declareHashesPacket
             .flatMapObservable { declareHashesPacket ->
@@ -198,7 +176,7 @@ class GroupHandle @Inject constructor(
                             operationsScheduler
                         ).flatMapCompletable { v -> v }
                     )
-            }
+            }.map { v -> v.hashes }
             .firstOrError()
     }
 
@@ -300,6 +278,7 @@ class GroupHandle @Inject constructor(
             .reduce { a, b -> a + b }
             .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+            .flatMap { i -> datastore.rehashMerkle().toSingleDefault(i) }
             .doOnError { e -> LOG.e("uke: error when reading message: $e") }
     }
 
@@ -358,6 +337,7 @@ class GroupHandle @Inject constructor(
             .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
             .doOnError { e -> LOG.e("seme: error when reading message: $e") }
+            .flatMap { i -> datastore.rehashMerkle().toSingleDefault(i) }
             .doOnSuccess { LOG.v("seme read blockdata complete") }
     }
 
@@ -402,7 +382,7 @@ class GroupHandle @Inject constructor(
         }
     }
 
-    private fun bootstrapSemeSocket(socket: Socket): Single<HandshakeResult> {
+    private fun bootstrapSemeSocket(socket: Socket, mode: DeclareHashesMode): Single<HandshakeResult> {
         return Single.defer {
             routingMetadataSeme(
                 socket,
@@ -441,7 +421,7 @@ class GroupHandle @Inject constructor(
                     )
                 }
                 .flatMap { stats ->
-                    declareHashesSeme(socket)
+                    declareHashesMerkle(socket, mode)
                         .doOnSuccess { LOG.v("received declare hashes packet seme") }
                         .flatMapObservable { declareHashesPacket ->
                             readBlockDataSeme(socket)
@@ -484,7 +464,7 @@ class GroupHandle @Inject constructor(
         }
     }
 
-    fun semeServer(): Flowable<HandshakeResult> {
+    fun semeServer(mode: DeclareHashesMode): Flowable<HandshakeResult> {
         return Flowable.defer {
             serverSocket.accept(operationsScheduler)
                 .retry()
@@ -497,7 +477,7 @@ class GroupHandle @Inject constructor(
                 ) //TODO: remove hardcoded time
                 .onErrorResumeNext(Flowable.empty())
                 .flatMapSingle { s ->
-                    bootstrapUkeSocket(s.socket)
+                    bootstrapUkeSocket(s.socket, mode)
                         .subscribeOn(operationsScheduler)
                         .doOnError { err -> LOG.w("seme bootstrapUkeSocket failed $err") }
                         .onErrorReturnItem(
@@ -513,6 +493,7 @@ class GroupHandle @Inject constructor(
 
     fun bootstrapSeme(
         self: UUID,
+        mode: DeclareHashesMode
     ): Completable {
         return socketProvider.getSocket(
             session.wifiDirectInfo.groupOwnerAddress!!,
@@ -528,7 +509,7 @@ class GroupHandle @Inject constructor(
                     .flatMapPublisher { packet ->
                         val size = packet.addresses.size.toLong()
                         LOG.v("seme got ip announce from uke, connected size: $size")
-                        bootstrapSemeSocket(ownerSocket.socket)
+                        bootstrapSemeSocket(ownerSocket.socket, mode)
                             .toFlowable()
                             .mergeWith(
                                 Flowable.fromIterable(packet.addresses.values)
@@ -543,7 +524,8 @@ class GroupHandle @Inject constructor(
                                         )
                                             .flatMap { sock ->
                                                 bootstrapSemeSocket(
-                                                    sock.socket
+                                                    sock.socket,
+                                                    mode
                                                 )
                                                     .doOnError { err ->
                                                         LOG.w(
@@ -619,6 +601,7 @@ class GroupHandle @Inject constructor(
     @Synchronized
     fun bootstrapUke(
         selfLuid: UUID,
+        mode: DeclareHashesMode
     ) {
         val disp = ukeDispoable.get()
         if (disp != null) {
@@ -640,7 +623,7 @@ class GroupHandle @Inject constructor(
                         .subscribeOn(operationsScheduler)
                         .ignoreElement()
                         .andThen(
-                            bootstrapUkeSocket(sock.socket)
+                            bootstrapUkeSocket(sock.socket, mode)
                                 .subscribeOn(operationsScheduler)
                                 .doOnError { err -> LOG.w("uke bootstrapUkeSocket failed $err") })
                         .flatMap { v ->
@@ -699,7 +682,7 @@ class GroupHandle @Inject constructor(
     }
 
 
-    private fun bootstrapUkeSocket(socket: Socket): Single<HandshakeResult> {
+    private fun bootstrapUkeSocket(socket: Socket, mode: DeclareHashesMode): Single<HandshakeResult> {
         return Single.defer {
             routingMetadataUke(
                 Flowable.just(
@@ -725,7 +708,7 @@ class GroupHandle @Inject constructor(
                             )
                         }
                 ).flatMap { stats ->
-                    declareHashesUke(socket)
+                    declareHashesMerkle(socket, mode)
                         .doOnSuccess {
                             LOG.v("received declare hashes packet uke")
                         }

@@ -10,6 +10,7 @@ import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import java.io.File
 import java.util.UUID
 import net.ballmerlabs.uscatterbrain.network.proto.*
+import proto.Scatterbrain.DeclareHashesMode
 import java.util.concurrent.TimeUnit
 
 /**
@@ -51,7 +52,7 @@ interface WifiDirectRadioModule {
      *
      * @return single returning WifiDirectBootstrapRequest to share with remote peer
      */
-    fun bootstrapUke(band: Int, remoteLuid: UUID, selfLuid: UUID): Single<WifiDirectBootstrapRequest>
+    fun bootstrapUke(band: Int, remoteLuid: UUID, selfLuid: UUID, mode: DeclareHashesMode): Single<WifiDirectBootstrapRequest>
 
     /**
      * Connects to a wifi direct group or reuses an existing connection, then executes a transaction
@@ -63,7 +64,7 @@ interface WifiDirectRadioModule {
      *
      * @return completable completing when transaction is complete
      */
-    fun bootstrapSeme(req: WifiDirectBootstrapRequest, remote: UUID)
+    fun bootstrapSeme(req: WifiDirectBootstrapRequest, remote: UUID, mode: DeclareHashesMode)
 
     /**
      * Waits until no peers are connecte via wifi for the specified timeout, then removes the current
@@ -81,7 +82,7 @@ interface WifiDirectRadioModule {
      * Create a wifi direct group and start a server for handling requests from remore peers.
      * This group will remain active until all peers move out of range or removeCurrentGroup is called
      */
-    fun createGroup(band: Int, remoteLuid: UUID, selfLuid: UUID): Single<WifiGroupSubcomponent>
+    fun createGroup(band: Int, remoteLuid: UUID, selfLuid: UUID, mode: DeclareHashesMode): Single<WifiGroupSubcomponent>
 
     fun isCreatedGroup(): Boolean
 

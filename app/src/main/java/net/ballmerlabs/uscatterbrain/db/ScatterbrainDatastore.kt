@@ -200,7 +200,7 @@ interface ScatterbrainDatastore {
      */
     fun getTopRandomMessages(
             count: Int,
-            delareHashes: DeclareHashesPacket
+            delareHashes: List<ByteArray>
     ): Observable<BlockDataStream>
 
     /**
@@ -550,6 +550,11 @@ interface ScatterbrainDatastore {
 
     fun insertMessageFromDesktop(message: List<DesktopMessage>, callingId: String, sign: UUID?): Completable
 
+    /**
+     * Triggers a rehash of all unhashed merkle nodes
+     * @return completable
+     */
+    fun rehashMerkle(): Completable
 
 
     enum class WriteMode {

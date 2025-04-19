@@ -216,6 +216,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                 )
                     .doOnComplete { asyncRefreshPeers() }
             )
+            .andThen(datastore.rehashMerkle())
 
     }
 
@@ -239,6 +240,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                     }
                     .doOnComplete { asyncRefreshPeers() }
             )
+            .andThen(datastore.rehashMerkle())
             .doOnError { err ->
                 LOG.e("failed sendAndSignMessages: $err")
                 err.printStackTrace()
@@ -281,6 +283,7 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     override fun sendMessage(message: ScatterMessage, callingPackageName: String): Completable {
         return datastore.insertAndHashFileFromApi(message, DEFAULT_BLOCKSIZE, callingPackageName)
+            .andThen(datastore.rehashMerkle())
             .doOnComplete { asyncRefreshPeers() }
     }
 
@@ -296,6 +299,7 @@ class RoutingServiceBackendImpl @Inject constructor(
                     callingPackageName
                 )
             }
+            .andThen(datastore.rehashMerkle())
     }
 
     @SuppressLint("PackageManagerGetSignatures")

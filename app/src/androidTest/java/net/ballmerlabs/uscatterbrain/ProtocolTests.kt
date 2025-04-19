@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.content.Context
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import com.google.firebase.FirebaseApp
@@ -8,15 +9,20 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.Hash
 import com.goterl.lazysodium.interfaces.Sign
+import io.reactivex.BackpressureStrategy
+import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.plugins.RxJavaPlugins
+import io.reactivex.subjects.PublishSubject
+import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
+import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.scatterproto.*
-import net.ballmerlabs.uscatterbrain.mock.DaggerFakeRoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.mock.FakeRoutingServiceComponent
-import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.FakeWifiDirectInfoSubcomponent
-import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.FakeWifiGroupSubcompoment
+import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
+import net.ballmerlabs.uscatterbrain.db.Datastore
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.mock.DaggerFakeDbRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,7 +38,8 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapReque
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectInfo
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiGroupInfo
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiSessionConfig
-import org.mockito.kotlin.mock
+import org.junit.After
+import org.junit.Assert.assertEquals
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -43,7 +50,8 @@ class ProtocolTests {
     private val writeScheduler =
         RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test2"))
 
-    private lateinit var groupHandle: GroupHandle
+    private lateinit var groupHandleOne: GroupHandle
+    private lateinit var groupHandleTwo: GroupHandle
 
     val socket = ServerSocket(0, 32, InetAddress.getLocalHost())
 
@@ -51,13 +59,49 @@ class ProtocolTests {
     lateinit var serverSocket: Socket
 
     lateinit var bootstrapRequest: WifiDirectBootstrapRequest
+    lateinit var bootstrapRequestTwo: WifiDirectBootstrapRequest
+
+    lateinit var ds1: Datastore
+    lateinit var ds2: Datastore
+    lateinit var datastore1: ScatterbrainDatastore
+    lateinit var datastore2: ScatterbrainDatastore
+    lateinit var ctx: Context
+
+    private val disp = CompositeDisposable()
+
+    @After
+    fun cleanup() {
+        disp.dispose()
+    }
 
     @Before
     fun init() {
-        val ctx = ApplicationProvider.getApplicationContext<Context>()
-        val app = DaggerRoutingServiceComponent.builder()
+         ctx = ApplicationProvider.getApplicationContext<Context>()
+
+
+         ds1 = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
+            .openHelperFactory(RequerySQLiteOpenHelperFactory())
+            .fallbackToDestructiveMigration()
+            .build()
+
+         ds2 = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
+            .openHelperFactory(RequerySQLiteOpenHelperFactory())
+            .fallbackToDestructiveMigration()
+            .build()
+
+
+        val app = DaggerFakeDbRoutingServiceComponent.builder()
+            .datastore(ds1)!!
             .applicationContext(ctx)!!
             .build()!!
+
+        val app2 = DaggerFakeDbRoutingServiceComponent.builder()
+            .applicationContext(ctx)!!
+            .datastore(ds2)!!
+            .build()!!
+
+        datastore1 = app.datastore()
+        datastore2 = app2.datastore()
 
         val bs = app.bootstrapRequest()
             .wifiDirectArgs(
@@ -71,7 +115,20 @@ class ProtocolTests {
                     UUID.randomUUID()
             )).build()!!
 
+        val bs2 = app2.bootstrapRequest()
+            .wifiDirectArgs(
+                BootstrapRequestSubcomponent.WifiDirectBootstrapRequestArgs(
+                    "test",
+                    "secretpassphrase",
+                    BluetoothLEModule.Role.ROLE_SEME,
+                    FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ,
+                    socket.localPort,
+                    socket.inetAddress,
+                    UUID.randomUUID()
+                )).build()!!
+
         bootstrapRequest = bs.wifiBootstrapRequest()
+        bootstrapRequestTwo = bs2.wifiBootstrapRequest()
 
         clientSocket = Socket(socket.inetAddress, socket.localPort)
         serverSocket = socket.accept()
@@ -92,10 +149,25 @@ class ProtocolTests {
                 )
             )).build()
 
-        groupHandle = subcompoment.groupHandle()
+        val subcompoment2 = app.wifiGroupSubcomponent()
+            .serverSocket(serverSocket = PortSocket(socket))
+            .bootstrapRequest(bootstrapRequest)
+            .info(WifiSessionConfig(
+                wifiDirectInfo = WifiDirectInfo(
+                    true,
+                    socket.inetAddress,
+                    true
+                ),
+                wifiGroupInfo = WifiGroupInfo(
+                    "test_network",
+                    "testsecretpassphrase",
+                    FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ
+                )
+            )).build()
 
+        groupHandleOne = subcompoment.groupHandle()
 
-
+        groupHandleTwo = subcompoment2.groupHandle()
 
         FirebaseApp.initializeApp(ctx)
     }
@@ -131,9 +203,73 @@ class ProtocolTests {
         onComplete(streamPacket)
     }
 
+
+    @Test
+    fun handleNoHashes() {
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(0, 2, 4))
+            .setApplication("fmef")
+            .build()
+        datastore1.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        val root = ds1.merkleDao().getDefaultRoot().blockingGet()
+        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+            .ignoreElement()
+
+
+        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+            .mergeWith(out1)
+            .firstOrError()
+            .blockingGet()
+
+        assertEquals(out2.size, 0)
+
+        val out = ds1.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf()).blockingGet()
+        assertEquals(1, out.size)
+
+
+    }
+
     @Test
     fun merkleSync() {
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1))
+            .setApplication("fmef")
+            .build()
+        datastore1.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
+        ds1.merkleDao().merkleRehash().blockingAwait()
+        ds2.merkleDao().merkleRehash().blockingAwait()
+
+        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
+        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+            .mergeWith(out1).firstOrError()
+            .blockingGet()
+            .toMutableList()
+
+        val nr = ds1.merkleDao().getDefaultRoot().blockingGet()
+        println("got out2 ${out2.size}")
+        val o = ds1.merkleDao().getTopRandomExcludingHash(nr.id!!, 500, out2).blockingGet()
+
+        assertEquals(1, o.size)
+
+        datastore2.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        ds2.merkleDao().merkleRehash().blockingAwait()
+
+        val out3 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
+        val out4 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+            .mergeWith(out3).firstOrError()
+            .blockingGet()
+            .toMutableList()
+
+        println("got out4 ${out4.size}")
+
+
+        val nr2 = ds1.merkleDao().getDefaultRoot().blockingGet()
+
+
+        val o2 = ds1.merkleDao().getTopRandomExcludingHash(nr2.id!!, 500, out4).blockingGet()
+
+        assertEquals(0, o2.size)
     }
 
     @Test

@@ -29,6 +29,7 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import proto.Scatterbrain.DeclareHashesMode
 import java.util.Random
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -242,6 +243,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         remoteLuid: UUID,
         selfLuid: UUID,
+        mode: DeclareHashesMode
     ): Single<WifiGroupSubcomponent> {
         val create = requestGroupInfo().switchIfEmpty(
                 createGroupSingle(band).ignoreElement().andThen(requestGroupInfo())
@@ -252,7 +254,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase} $band")
                     mBroadcastReceiver.createCurrentGroup(band, groupInfo, connectionInfo, selfLuid)
                         .map { v ->
-                            v.groupHandle().bootstrapUke(selfLuid)
+                            v.groupHandle().bootstrapUke(selfLuid, mode)
                             v
                         }
                 }
@@ -486,10 +488,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         remoteLuid: UUID,
         selfLuid: UUID,
+        mode: DeclareHashesMode
     ): Single<WifiDirectBootstrapRequest> {
         return Single.defer {
             mBroadcastReceiver.getCurrentGroup().switchIfEmpty(
-                mBroadcastReceiver.wrapConnection(createGroup(band, remoteLuid, selfLuid))
+                mBroadcastReceiver.wrapConnection(createGroup(band, remoteLuid, selfLuid, mode))
             ).map { v -> v.request() }.doOnSuccess { v -> LOG.w("uke returned upgrade ${v.band}") }
                 .doOnError { err ->
                     LOG.e("failed to get server socket: $err")
@@ -499,11 +502,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     @Synchronized
-    override fun bootstrapSeme(req: WifiDirectBootstrapRequest, remote: UUID) {
+    override fun bootstrapSeme(req: WifiDirectBootstrapRequest, remote: UUID, mode: DeclareHashesMode) {
         LOG.w("bootstrapSeme started")
         if (groupDisposable.get() == null) {
             val disp = bootstrapSeme(
-                req.name, req.passphrase, req.band, req, advertiser.getHashLuid()
+                req.name, req.passphrase, req.band, req, advertiser.getHashLuid(), mode
             )
                 .doFinally { groupDisposable.getAndSet(null)?.dispose() }
                 .subscribe(
@@ -526,6 +529,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         req: WifiDirectBootstrapRequest,
         self: UUID,
+        mode: DeclareHashesMode
     ): Completable {
         return Completable.defer {
             mBroadcastReceiver.getCurrentGroup().switchIfEmpty(Completable.defer {
@@ -540,7 +544,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     serverSocketManager.getServerSocket().flatMap { socket ->
                         mBroadcastReceiver.createCurrentGroup(req)
                     }.map { g ->
-                        val disp = g.groupHandle().semeServer().subscribe()
+                        val disp = g.groupHandle().semeServer(mode).subscribe()
                         groupDisposable.get()!!.add(disp)
                         g
                     }
@@ -552,7 +556,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .doFinally {
                     advertiser.clear(false)
                 }).timeout(45, TimeUnit.SECONDS, timeoutScheduler)
-                .flatMapCompletable { h -> h.groupHandle().bootstrapSeme(self) }
+                .flatMapCompletable { h -> h.groupHandle().bootstrapSeme(self, mode) }
                 .onErrorResumeNext { err: Throwable ->
                     LOG.w("seme error $err, dumping current group")
                     mBroadcastReceiver.removeCurrentGroup().onErrorComplete()

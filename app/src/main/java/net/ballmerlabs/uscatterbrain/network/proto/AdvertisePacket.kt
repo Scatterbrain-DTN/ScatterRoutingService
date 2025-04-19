@@ -7,6 +7,7 @@ import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.providesToValArray
 import net.ballmerlabs.scatterproto.valToProvidesArray
 import proto.Scatterbrain.Advertise
+import proto.Scatterbrain.DeclareHashesMode
 import proto.Scatterbrain.MessageType
 
 /**
@@ -20,6 +21,8 @@ class AdvertisePacket(packet: Advertise) :
 
     val provides = valToProvidesArray(packet.providesList)
 
+    val mode = packet.mode
+
     override fun validate(): Boolean {
         return provides.size <= MAX_PROVIDES_LIST
     }
@@ -28,7 +31,8 @@ class AdvertisePacket(packet: Advertise) :
      * builder for advertise packet
      */
     data class Builder(
-            var provides: List<Provides>? = null
+        var provides: List<Provides>? = null,
+        var mode: DeclareHashesMode = DeclareHashesMode.MERKLEPROOF
     )
     /**
      * Instantiates a new Builder.
@@ -42,6 +46,15 @@ class AdvertisePacket(packet: Advertise) :
          */
         fun setProvides(provides: List<Provides>?) = apply {
             this.provides = provides
+        }
+
+        /**
+         * Sets the declarehashes mode flag for future message transfer
+         * @param mode to set, defaults to MERKLEPROOF
+         * @return builder
+         */
+        fun setDeclareHashesMode(mode: DeclareHashesMode) = apply {
+            this.mode = mode
         }
 
         /**
