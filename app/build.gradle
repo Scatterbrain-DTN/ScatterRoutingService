@@ -29,6 +29,10 @@ android {
 
     }
 
+    buildFeatures {
+        aidl true
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -68,6 +72,7 @@ android {
 
     sourceSets{
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
+        main.aidl.srcDirs = ['Meshtastic-Android/app/src/main/aidl/com/geeksville/mesh/']
     }
 
     useLibrary 'android.test.base'

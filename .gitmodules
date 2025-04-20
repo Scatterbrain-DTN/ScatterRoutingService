@@ -4,3 +4,6 @@
 [submodule "lazysodium-android"]
 	path = lazysodium-android
 	url = https://github.com/terl/lazysodium-android
+[submodule "Meshtastic-Android"]
+	path = Meshtastic-Android
+	url = https://github.com/meshtastic/Meshtastic-Android/
