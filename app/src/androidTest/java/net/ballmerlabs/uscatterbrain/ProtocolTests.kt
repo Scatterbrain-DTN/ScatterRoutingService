@@ -38,8 +38,10 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapReque
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectInfo
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiGroupInfo
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiSessionConfig
+import okio.ByteString.Companion.toByteString
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -149,7 +151,7 @@ class ProtocolTests {
                 )
             )).build()
 
-        val subcompoment2 = app.wifiGroupSubcomponent()
+        val subcompoment2 = app2.wifiGroupSubcomponent()
             .serverSocket(serverSocket = PortSocket(socket))
             .bootstrapRequest(bootstrapRequest)
             .info(WifiSessionConfig(
@@ -229,12 +231,17 @@ class ProtocolTests {
 
     }
 
+
+
     @Test
-    fun merkleSync() {
-        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1))
-            .setApplication("fmef")
-            .build()
-        datastore1.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+    fun merkleSyncDiffSize() {
+        val big = 5
+        for (x in 0..<big) {
+            val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(x.toByte()))
+                .setApplication("fmef")
+                .build()
+            datastore1.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+        }
 
         ds1.merkleDao().merkleRehash().blockingAwait()
         ds2.merkleDao().merkleRehash().blockingAwait()
@@ -247,6 +254,64 @@ class ProtocolTests {
 
         val nr = ds1.merkleDao().getDefaultRoot().blockingGet()
         println("got out2 ${out2.size}")
+        val o = ds1.merkleDao().getTopRandomExcludingHash(nr.id!!, 500, out2).blockingGet()
+
+        assertEquals(big, o.size)
+
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(0))
+            .setApplication("fmef")
+            .build()
+        datastore2.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        ds2.merkleDao().merkleRehash().blockingAwait()
+
+        val out3 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
+        val out4 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+            .mergeWith(out3).firstOrError()
+            .blockingGet()
+            .toMutableList()
+
+        println("got out4 ${out4.size}")
+
+
+        val nr2 = ds1.merkleDao().getDefaultRoot().blockingGet()
+
+
+        val o2 = ds1.merkleDao().getTopRandomExcludingHash(nr2.id!!, 500, out4).blockingGet()
+
+        assertEquals(big-1, o2.size)
+    }
+
+    @Test
+    fun merkleSync() {
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1))
+            .setApplication("fmef")
+            .build()
+        datastore1.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        val apiMessage2 = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(2))
+            .setApplication("fmef")
+            .build()
+        datastore2.insertAndHashFileFromApi(apiMessage2, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        ds1.merkleDao().merkleRehash().blockingAwait()
+        ds2.merkleDao().merkleRehash().blockingAwait()
+
+        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+            .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
+            .ignoreElement()
+        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+            .toFlowable()
+            .mergeWith(out1)
+            .lastOrError()
+            .blockingGet()
+            .toMutableList()
+
+        val nr = ds1.merkleDao().getDefaultRoot().blockingGet()
+        val root2 = ds2.merkleDao().getDefaultRoot().blockingGet()
+        assertNotEquals(root2.hash, nr.hash)
+
+        println("got out2 ${out2.map { v -> v.toByteString() }}")
         val o = ds1.merkleDao().getTopRandomExcludingHash(nr.id!!, 500, out2).blockingGet()
 
         assertEquals(1, o.size)

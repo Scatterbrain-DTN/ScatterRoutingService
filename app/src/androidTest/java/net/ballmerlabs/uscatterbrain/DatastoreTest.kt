@@ -27,6 +27,7 @@ import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.network.proto.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
+import net.ballmerlabs.uscatterbrain.util.toBytes
 import okio.ByteString.Companion.decodeHex
 import org.junit.Assert.*
 import org.junit.Before
@@ -328,7 +329,7 @@ class DatastoreTest {
         val remote = PublishSubject.create<ByteArray>()
 
         val iter = database.merkleDao().getHubs(root, remote.toFlowable(BackpressureStrategy.BUFFER)).hubs
-            .doOnNext { i -> remote.onNext(i.hash!!) }
+            .doOnNext { i -> remote.onNext(UUID.randomUUID().toBytes()) }
             .doFinally { remote.onComplete() }
             .toList().blockingGet()
 
@@ -359,11 +360,11 @@ class DatastoreTest {
 
     @Test
     fun getNextHub() {
-        val b1 = MerkleBundle()
-        val b2 = MerkleBundle()
-        val b3 = MerkleBundle()
-        val b4 = MerkleBundle()
-        val b5 = MerkleBundle()
+        val b1 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b2 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b3 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b4 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b5 = MerkleBundle(hash = UUID.randomUUID().toBytes())
         val b1i = database.merkleDao().insertBundleEntity(b1).blockingGet()
         println("b1i $b1i")
         b2.childOne = b1i
@@ -390,7 +391,7 @@ class DatastoreTest {
             database.merkleDao().getBundle(b5i),
             remote.toFlowable(BackpressureStrategy.BUFFER)
         ).hubs
-            .doOnNext { i -> remote.onNext(i.hash!!) }
+            .doOnNext { i -> remote.onNext(UUID.randomUUID().toBytes()) }
             .doFinally { remote.onComplete() }
             .toList().blockingGet()
 

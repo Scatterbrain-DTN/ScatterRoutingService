@@ -28,6 +28,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import okio.ByteString.Companion.toByteString
 import proto.Scatterbrain
 import proto.Scatterbrain.DeclareHashesMode
 import java.net.InetSocketAddress
@@ -114,17 +115,19 @@ class GroupHandle @Inject constructor(
             DeclareHashesPacketParser.parser,
             socket.getInputStream(),
             operationsScheduler
-        ).repeat().takeUntil { p -> p.optout }
+        ).repeat().takeWhile { p -> !p.optout }
     }
 
     private fun sendMerkleHashes(socket: Socket, bundles: Flowable<MerkleBundle>): Completable {
         return bundles.map { bundle ->
             DeclareHashesPacket.newBuilder()
                 .setHashes(listOf(ByteString.copyFrom(bundle.hash!!)))
-        }.compose(Transformers.mapLast { v -> v.optOut() })
+        }.concatWith(Flowable.just(DeclareHashesPacket.newBuilder().optOut()))
             .concatMapCompletable { packet ->
+                LOG.v("packet~!")
+
                 packet.build().writeToStream(socket.getOutputStream(), operationsScheduler)
-                    .flatMapCompletable { v -> v }
+                    .flatMapCompletable { v -> v.doOnComplete { LOG.v("hub sent") } }
             }
 
     }
@@ -139,13 +142,12 @@ class GroupHandle @Inject constructor(
                             .map { v -> v.hashes[0] }
 
                         val send = database.merkleDao().getHubs(root, incoming)
-
-                        send.exclude.mergeWith(
-                            sendMerkleHashes(
-                                socket,
-                                send.hubs.toFlowable(BackpressureStrategy.BUFFER)
-                            ).onErrorComplete()
-                        ).toList()
+                        send.exclude.mergeWith(sendMerkleHashes(
+                            socket,
+                            send.hubs
+                                .doOnNext { v -> LOG.v("send hub ${v.hash?.toByteString()}") }
+                                .toFlowable(BackpressureStrategy.BUFFER)
+                        ).onErrorComplete()).toList()
                     }
 
                     DeclareHashesMode.NORMAL -> {

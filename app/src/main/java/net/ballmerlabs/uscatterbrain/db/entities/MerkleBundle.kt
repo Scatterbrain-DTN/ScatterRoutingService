@@ -6,8 +6,6 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-const val MERKLE_WIDTH = 4.toLong()
-
 @Entity(
     tableName = "bundles",
     foreignKeys = [
