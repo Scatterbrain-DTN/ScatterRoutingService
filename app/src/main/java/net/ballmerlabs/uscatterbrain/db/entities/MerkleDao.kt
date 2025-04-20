@@ -1,10 +1,12 @@
 package net.ballmerlabs.uscatterbrain.db.entities
 
+import androidx.lifecycle.AtomicReference
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.concurrent.AtomicBoolean
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
@@ -306,24 +308,46 @@ abstract class MerkleDao {
         //out.onNext(root)
 
 
-        remote.concatMapCompletable { v->
-            Completable.fromAction {
-                queue.put(v)
-            }
-        }.subscribe()
+        val done = AtomicBoolean(false)
+        val remoteDone = AtomicBoolean(false)
+
 
         return HubResponse(
             hubs = out
                 .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
                 .mergeWith(Completable.fromAction {
-                    getHubs(root, out, exclude, queue)
+                    getHubs(root, out, exclude, queue, remoteDone)
                 }.doFinally {
                     log.v("getHubs complete!")
+
                     out.onComplete()
                     exclude.onComplete()
+
+                   // exclude.onComplete()
+                    done.set(true)
                  //   queue.put(byteArrayOf())
                 }).doOnNext { v -> log.v("got hub ${v.hash?.toByteString()}") },
-            exclude = exclude.doOnNext { v -> log.v("getHubs exclude ${v.size}") }
+            exclude = exclude
+                .mergeWith(
+                    remote.concatMapCompletable { v->
+                        Completable.fromAction {
+                            queue.put(v)
+                        }
+                    }.doFinally {
+                        log.w("remote completed")
+                        try {
+                            queue.put(byteArrayOf())
+                        } catch (exc: InterruptedException) {
+                            log.w("queue put interrupted: $exc")
+                        }
+                        remoteDone.set(true)
+                        if (done.get()) {
+                            out.onComplete()
+                            exclude.onComplete()
+                        }
+                    }
+                )
+                .doOnNext { v -> log.v("getHubs exclude ${v.size}") }
 
         )
     }
@@ -333,35 +357,43 @@ abstract class MerkleDao {
         hubs: ReplaySubject<MerkleBundle>,
         exclude: ReplaySubject<ByteArray>,
         remote: LinkedBlockingQueue<ByteArray>,
+        remoteDone: AtomicBoolean
     ) {
-        if (root == null)
+        if (root?.hash == null)
             return
         hubs.onNext(root)
         log.w("waiting on ${root.hash?.toByteString()}")
-        val r = remote.take()
-        log.w("got remote ${r.toByteString()}")
-        val rootCompare = r.contentEquals(root.hash)
-        if (r.isEmpty() || root.hash == null || rootCompare) {
-            if (root.hash != null && rootCompare)
-                exclude.onNext(root.hash)
-            return
+        try {
+            if (!remoteDone.get()) {
+                val r = remote.take()
+                log.w("got remote ${r.toByteString()}")
+                if (r.isEmpty() || r.contentEquals(root.hash)) {
+                    exclude.onNext(root.hash!!)
+                    return
+                }
+            } else {
+            //    exclude.onNext(root.hash)
+            }
+        }  catch (exc: InterruptedException) {
+           // exclude.onNext(root.hash)
+            log.w("queue put interrupted: $exc")
         }
         val childOneHub = getNextHub(root.childOne)
         val childTwoHub = getNextHub(root.childTwo)
 
         if (childOneHub != null) {
 
-            log.v("getHubs: ${root.id} ${r.toByteString()}" +
+            log.v("getHubs: ${root.id}" +
                     "${childOneHub.hash?.toByteString()}")
 
-                getHubs(childOneHub, hubs, exclude, remote)
+                getHubs(childOneHub, hubs, exclude, remote, remoteDone)
             }
 
         if (childTwoHub != null) {
 
-            log.v("getHubs: ${root.id} ${r.toByteString()}" +
+            log.v("getHubs: ${root.id} " +
                     "${childTwoHub.hash?.toByteString()}")
-                getHubs(childTwoHub, hubs, exclude, remote)
+                getHubs(childTwoHub, hubs, exclude, remote, remoteDone)
 
         }
 
