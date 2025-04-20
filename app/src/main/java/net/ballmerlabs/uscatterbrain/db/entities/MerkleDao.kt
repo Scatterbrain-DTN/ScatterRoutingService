@@ -320,25 +320,24 @@ abstract class MerkleDao {
                     log.v("getHubs complete!")
                     done.set(true)
                     if (remoteDone.get())
-                       exclude.onComplete()
+                        exclude.onComplete()
                 }.doOnNext { v -> log.v("got hub ${v.hash?.toByteString()}") },
-            exclude = exclude
-                .mergeWith(
-                    remote.concatMapCompletable { v ->
-                        getByHash(v).map { count ->
-                            if (count > 0)
-                                exclude.onNext(v)
+            exclude = remote.concatMapMaybe { v ->
+                getByHash(v).flatMapMaybe { count ->
+                    if (count > 0)
+                        Maybe.just(v)
+                    else
+                        Maybe.empty()
 
-                        }.ignoreElement()
-                    }.doFinally {
-                        log.w("remote completed")
-                        remoteDone.set(true)
-                        if (done.get()) {
-                            exclude.onComplete()
-                        }
+                }
+            }.toObservable()
+                .doFinally {
+                    log.w("remote completed")
+                    remoteDone.set(true)
+                    if (done.get()) {
+                        exclude.onComplete()
                     }
-                )
-                .doOnNext { v -> log.v("getHubs exclude ${v.size}") }
+                }
 
         )
     }
@@ -427,14 +426,14 @@ abstract class MerkleDao {
         val bundles = getBundlesForBundle(root)
         val mhash = messages.map { v -> v.fileGlobalHash }
         val bhash = bundles.map { v -> v.hash!! }
-        log.v("merkleRehash depth=$pos root=$root")
-        log.v("\tmhash=${mhash.map { v -> v.toHexString() }}")
-        log.v("\tbhash=${bhash.map { v -> v.toHexString() }}")
+//        log.v("merkleRehash depth=$pos root=$root")
+//        log.v("\tmhash=${mhash.map { v -> v.toHexString() }}")
+//        log.v("\tbhash=${bhash.map { v -> v.toHexString() }}")
         val q = bhash + mhash
         val b = q.sortedWith { v, n -> v.compare(n) }
-        log.v("\tcombined=${b.map { v -> v.toHexString() }}")
+//        log.v("\tcombined=${b.map { v -> v.toHexString() }}")
         val hash = LibsodiumInterface.merkleHash(b)
-        log.v("\tfinal=${hash.toHexString()}")
+//        log.v("\tfinal=${hash.toHexString()}")
         updateBundleHash(hash, root)
     }
 
@@ -442,7 +441,7 @@ abstract class MerkleDao {
     @OptIn(ExperimentalStdlibApi::class)
     fun merkleRehash(): Completable {
         return getDefaultRoot().flatMapCompletable { r ->
-            log.v("merkleRehash start $r")
+ //           log.v("merkleRehash start $r")
             Completable.fromAction {
                 merkleRehash(r.id)
             }
@@ -456,7 +455,7 @@ abstract class MerkleDao {
     ): Completable {
         return if (point.complete(message.fileGlobalHash)) {
             message.bundle = point.parent
-            log.v("updateParent pos=${point.pos} parent=${point.parent}")
+            //log.v("updateParent pos=${point.pos} parent=${point.parent}")
             updateBundleForMessage(point.parent, message.messageID!!)
 
         } else {
@@ -466,13 +465,13 @@ abstract class MerkleDao {
                 bundle.id!!,
                 point.pos
             )!!
-            val c = if (point.childOne)
-                "childOne=${bundle.id}"
-            else if (point.childTwo)
-                "childTwo=${bundle.id}"
-            else
-                "DIRTY"
-            log.v("updateParent pos=${point.pos} parent=${point.parent} $c")
+//            val c = if (point.childOne)
+//                "childOne=${bundle.id}"
+//            else if (point.childTwo)
+//                "childTwo=${bundle.id}"
+//            else
+//                "DIRTY"
+          //  log.v("updateParent pos=${point.pos} parent=${point.parent} $c")
             if (point.childOne) {
                 updateParentChildOne(point.parent, bundle.id!!)
                     .andThen(iterativeMerkleInsert(message, isp, bundles))
@@ -537,7 +536,9 @@ abstract class MerkleDao {
                         bundle.id = id
                     }
                     iterativeMerkleInsert(message, root, bundles)
-                        .doOnComplete { log.w("iterativeMerkleInsert complete $root") }
+                        .doOnComplete {
+                            log.v("iterativeMerkleInsert of message ${message.fileGlobalHash.toByteString()} complete $root")
+                        }
                 }
 
             }
