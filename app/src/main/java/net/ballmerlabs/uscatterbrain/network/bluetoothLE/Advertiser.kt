@@ -36,7 +36,7 @@ interface Advertiser {
      * @param luid
      * @return completable
      */
-    fun setAdvertisingLuid(luid: UUID = getHashLuid(), merkle: ByteArray? = null): Completable
+    fun setAdvertisingLuid(luid: UUID = getHashLuid()): Completable
 
     fun checkForget(luid: UUID): Boolean
 
@@ -54,5 +54,6 @@ interface Advertiser {
     fun getAlarmIntent(): PendingIntent
     companion object {
         val LUID_DATA = UUID.fromString("0000FC87-0000-1000-8000-00805F9B34FB")
+        val MERKLE_DATA = UUID.fromString("5878403B-C8AB-4F00-9E23-5DFDF35C3FC5")
     }
 }

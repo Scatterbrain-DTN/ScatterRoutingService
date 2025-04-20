@@ -3,9 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.app.PendingIntent
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
-import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
-import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.AdvertisingSet
 import android.bluetooth.le.AdvertisingSetCallback
 import android.bluetooth.le.AdvertisingSetParameters
@@ -15,11 +13,9 @@ import android.os.ParcelUuid
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.impl.schedulers
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Scheduler
-import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
@@ -30,7 +26,9 @@ import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
 
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WakeLockProvider
+import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.LUID_DATA
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.MERKLE_DATA
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
@@ -53,6 +51,7 @@ class AdvertiserImpl @Inject constructor(
     private val manager: BluetoothManager,
     private val firebase: FirebaseWrapper,
     private val wakeLockProvider: WakeLockProvider,
+    private val database: Datastore,
     private val leState: Provider<LeState>,
     private val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_ADVERTISE) private val advertiseScheduler: Scheduler,
@@ -203,11 +202,11 @@ class AdvertiserImpl @Inject constructor(
         LOG.w("randomize timer set")
     }
 
-    override fun setAdvertisingLuid(luid: UUID, merkle: ByteArray?): Completable {
+    override fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
             if (cooldown.get())
                 return@defer Completable.complete()
-            val cmp = Completable.defer {
+            val cmp = database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
                     isAdvertising
                         .firstOrError()
                         .flatMapCompletable { v ->
@@ -228,6 +227,8 @@ class AdvertiserImpl @Inject constructor(
                                                     luid.toBytes()
                                                 )
 
+                                            if (root.hash != null)
+                                                builder.addServiceData(ParcelUuid(MERKLE_DATA), root.hash)
 
                                             v.first.item!!.setAdvertisingData(builder.build())
                                         } catch (exc: SecurityException) {

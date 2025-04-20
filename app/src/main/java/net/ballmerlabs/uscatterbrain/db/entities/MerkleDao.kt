@@ -186,7 +186,6 @@ abstract class MerkleDao {
     """
     )
     abstract fun getRoots(): Single<List<MerkleBundle>>
-
     fun getDefaultRoot(): Single<MerkleBundle> {
         return getRootsRandom().flatMapObservable { v -> Observable.fromIterable(v) }
             .firstElement()

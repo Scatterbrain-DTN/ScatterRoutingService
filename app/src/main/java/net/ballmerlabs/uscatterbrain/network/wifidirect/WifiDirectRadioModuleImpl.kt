@@ -61,7 +61,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val firebaseWrapper: FirebaseWrapper = MockFirebaseWrapper(),
     private val infoComponentProvider: Provider<WifiDirectInfoSubcomponent.Builder>,
-    private val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
     private val serverSocketManager: ServerSocketManager,
     private val manager: WifiManager,
     private val advertiser: Advertiser,
@@ -566,11 +565,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }
         }
 
-    }
-
-
-    init {
-        LOG.w("init transaction")
     }
 
     companion object {

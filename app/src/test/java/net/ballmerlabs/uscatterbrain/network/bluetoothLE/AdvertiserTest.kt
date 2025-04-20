@@ -5,6 +5,9 @@ import android.bluetooth.*
 import android.bluetooth.le.AdvertisingSetCallback
 import android.content.Context
 import android.os.Build
+import io.reactivex.Completable
+import io.reactivex.Maybe
+import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.mock.DaggerFakeRoutingServiceComponent
@@ -13,6 +16,11 @@ import net.ballmerlabs.uscatterbrain.mock.FakeRoutingServiceComponent
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.scatterproto.Optional
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
+import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
+import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
+import net.ballmerlabs.uscatterbrain.db.entities.MerkleDao
+import net.ballmerlabs.uscatterbrain.db.entities.MerkleInsertCond
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockCachedLeConnection
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockLeState
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
@@ -24,6 +32,7 @@ import net.ballmerlabs.uscatterbrain.mock.util.MockRouterPreferences
 import net.ballmerlabs.uscatterbrain.util.getBogusRxBleDevice
 import net.ballmerlabs.uscatterbrain.util.logger
 import net.ballmerlabs.uscatterbrain.mock.util.mockLoggerGenerator
+import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.toBytes
 import org.junit.After
 import org.junit.Before
@@ -104,6 +113,151 @@ class AdvertiserTest {
         leState = MockLeState(
             serverConnection = fakeGattServerConnection
         )
+        val mockDao =  object : MerkleDao() {
+            override fun getMessagesForBundle(id: Long): List<HashlessScatterMessage> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getMerkleBundleUnderLimitRecursive(parent: ByteArray): Single<MerkleBundle> {
+                TODO("Not yet implemented")
+            }
+
+            override fun updateParentFromHash(
+                childHash: ByteArray,
+                pos: Int,
+                child: Long,
+                self: Long,
+            ): Completable {
+                TODO("Not yet implemented")
+            }
+
+            override fun setBundleHash(hash: ByteArray, self: Long): Completable {
+                TODO("Not yet implemented")
+            }
+
+            override fun getMessagesForBundleRecursive(id: Long): Single<List<HashlessScatterMessage>> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getSiblingsExcludingHash(
+                id: Long,
+                hash: ByteArray,
+            ): Single<List<MerkleBundle>> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getTopRandomExcludingHash(
+                id: Long,
+                count: Int,
+                hashes: List<ByteArray>,
+            ): Single<List<DbMessage>> {
+                TODO("Not yet implemented")
+            }
+
+            override fun testBundlesExcludingHash(hashes: List<ByteArray>): List<MerkleBundle> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getInsertionPoint(
+                hash: ByteArray,
+                root: Long,
+                pos: Long,
+            ): Maybe<MerkleInsertCond> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getInsertionPoints(
+                hash: ByteArray,
+                root: Long,
+                pos: Long,
+            ): Single<List<MerkleInsertCond>> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getRoots(): Single<List<MerkleBundle>> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getRootsRandom(): Single<List<MerkleBundle>> {
+                return Single.just(listOf(MerkleBundle(
+                    id = 1,
+                    hash = LibsodiumInterface.merkleHash(byteArrayOf())
+                )))
+            }
+
+            override fun insertBundleEntity(bundles: List<MerkleBundle>): Single<List<Long>> {
+                TODO("Not yet implemented")
+            }
+
+            override fun insertBundleEntity(bundle: MerkleBundle): Single<Long> {
+                TODO("Not yet implemented")
+            }
+
+            override fun updateParentChildOne(parent: Long, child: Long): Completable {
+                TODO("Not yet implemented")
+            }
+
+            override fun updateParentChildTwo(parent: Long, child: Long): Completable {
+                TODO("Not yet implemented")
+            }
+
+            override fun updateBundleForMessage(bundle: Long, messageID: Long): Completable {
+                TODO("Not yet implemented")
+            }
+
+            override fun getBundle(id: Long): MerkleBundle {
+                TODO("Not yet implemented")
+            }
+
+            override fun getDirtyNodes(root: Long): Single<List<Long>> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getNextHub(root: Long?): MerkleBundle? {
+                TODO("Not yet implemented")
+            }
+
+            override fun getByHash(hash: ByteArray): Single<Int> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getAncestors(id: Long, limit: Int): Single<List<Long>> {
+                TODO("Not yet implemented")
+            }
+
+            override fun getChildOne(id: Long): Long? {
+                TODO("Not yet implemented")
+            }
+
+            override fun getChildTwo(id: Long): Long? {
+                TODO("Not yet implemented")
+            }
+
+            override fun getDirty(): Single<List<MerkleBundle>> {
+                TODO("Not yet implemented")
+            }
+
+            override fun updateBundleHash(hash: ByteArray, id: Long) {
+                TODO("Not yet implemented")
+            }
+
+            override fun getAllBundles(): List<MerkleBundle> {
+                TODO("Not yet implemented")
+            }
+
+            override fun testBitmask(hash: ByteArray, pos: Long): Boolean {
+                TODO("Not yet implemented")
+            }
+
+            override fun testBitmaskHex(hash: ByteArray, pos: Int): String {
+                TODO("Not yet implemented")
+            }
+
+            override fun getBundlesForBundle(id: Long): List<MerkleBundle> {
+                TODO("Not yet implemented")
+            }
+
+        }
         advertiser = AdvertiserImpl(
             context = context,
             firebase = MockFirebaseWrapper(),
@@ -112,7 +266,10 @@ class AdvertiserTest {
             wakeLockProvider = mock {  },
             advertiseScheduler = scheduler,
             timeoutScheduler = scheduler,
-            wifiDirectBroadcastReceiver = MockWifiDirectBroadcastReceiver(mock())
+            wifiDirectBroadcastReceiver = MockWifiDirectBroadcastReceiver(mock()),
+            database = mock {
+                on { merkleDao() } doReturn mockDao
+            }
         )
     }
 

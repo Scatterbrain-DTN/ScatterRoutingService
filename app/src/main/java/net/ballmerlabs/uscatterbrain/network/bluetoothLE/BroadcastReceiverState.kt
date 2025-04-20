@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import android.os.ParcelUuid
 import com.akaita.java.rxjava2debug.extensions.RxJavaAssemblyException
 import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.scan.ScanResult
@@ -8,7 +9,9 @@ import io.reactivex.Scheduler
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.network.TransactionError
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.MERKLE_DATA
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.Logger
 import net.ballmerlabs.uscatterbrain.util.scatterLog
@@ -35,8 +38,8 @@ class BroadcastReceiverState @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_ADVERTISE) val batchScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
     val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
-    val scatterbrainScheduler: Provider<ScatterbrainScheduler>
-
+    val scatterbrainScheduler: Provider<ScatterbrainScheduler>,
+    val database: Datastore
 ) {
     private val LOG by scatterLog()
     private val disposable = AtomicReference<Disposable?>(null)
@@ -71,12 +74,21 @@ class BroadcastReceiverState @Inject constructor(
             if (c >= count && batch.isNotEmpty()) {
                 val out = batch.keys().toList()
                 batch.clear()
+
                 if (!tlock.getAndSet(true)) {
                     for (result in out.distinctBy { v -> v.bleDevice.macAddress }) {
                         val luid = leState.get().getAdvertisedLuid(result)
                         if (luid != null) {
                             val d = batchDisposables.computeIfAbsent(luid) { d ->
-                                Completable.defer {
+                                database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
+                                    val mk = ParcelUuid(MERKLE_DATA)
+                                    if (root.hash != null &&
+                                        result.scanRecord.serviceData.containsKey(mk) &&
+                                        root.hash.contentEquals(result.scanRecord.serviceData[mk])
+                                        ) {
+                                        LOG.v("luid $luid has unchanged merkle root, ignoring")
+                                        return@flatMapCompletable Completable.complete()
+                                    }
                                     if ( leState.get().updateActive(luid)) {
                                         scatterbrainScheduler.get().acquireWakelock()
                                         leState.get().processScanResult(luid, result.bleDevice)
