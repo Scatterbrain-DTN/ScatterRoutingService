@@ -296,6 +296,9 @@ abstract class MerkleDao {
     )
     abstract fun getNextHub(root: Long?): MerkleBundle?
 
+    @Query("SELECT COUNT(*) FROM bundles WHERE hash = :hash")
+    abstract fun getByHash(hash: ByteArray): Single<Int>
+
     fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>): HubResponse {
         if (root == null)
             return HubResponse(
@@ -304,7 +307,6 @@ abstract class MerkleDao {
             )
         val out = ReplaySubject.create<MerkleBundle>()
         val exclude = ReplaySubject.create<ByteArray>()
-        val queue = LinkedBlockingQueue<ByteArray>()
         //out.onNext(root)
 
 
@@ -316,30 +318,23 @@ abstract class MerkleDao {
             hubs = out
                 .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
                 .mergeWith(Completable.fromAction {
-                    getHubs(root, out, exclude, queue, remoteDone)
+                    getHubs(root, out)
                 }.doFinally {
                     log.v("getHubs complete!")
-
                     out.onComplete()
                     exclude.onComplete()
-
-                   // exclude.onComplete()
                     done.set(true)
-                 //   queue.put(byteArrayOf())
                 }).doOnNext { v -> log.v("got hub ${v.hash?.toByteString()}") },
             exclude = exclude
                 .mergeWith(
                     remote.concatMapCompletable { v->
-                        Completable.fromAction {
-                            queue.put(v)
-                        }
+                       getByHash(v).map { count ->
+                           if (count > 0)
+                               exclude.onNext(v)
+
+                       }.ignoreElement()
                     }.doFinally {
                         log.w("remote completed")
-                        try {
-                            queue.put(byteArrayOf())
-                        } catch (exc: InterruptedException) {
-                            log.w("queue put interrupted: $exc")
-                        }
                         remoteDone.set(true)
                         if (done.get()) {
                             out.onComplete()
@@ -354,47 +349,22 @@ abstract class MerkleDao {
 
     private fun getHubs(
         root: MerkleBundle?,
-        hubs: ReplaySubject<MerkleBundle>,
-        exclude: ReplaySubject<ByteArray>,
-        remote: LinkedBlockingQueue<ByteArray>,
-        remoteDone: AtomicBoolean
+        hubs: ReplaySubject<MerkleBundle>
     ) {
         if (root?.hash == null)
             return
         hubs.onNext(root)
-        log.w("waiting on ${root.hash?.toByteString()}")
-        try {
-            if (!remoteDone.get()) {
-                val r = remote.take()
-                log.w("got remote ${r.toByteString()}")
-                if (r.isEmpty() || r.contentEquals(root.hash)) {
-                    exclude.onNext(root.hash!!)
-                    return
-                }
-            } else {
-            //    exclude.onNext(root.hash)
-            }
-        }  catch (exc: InterruptedException) {
-           // exclude.onNext(root.hash)
-            log.w("queue put interrupted: $exc")
-        }
         val childOneHub = getNextHub(root.childOne)
         val childTwoHub = getNextHub(root.childTwo)
 
         if (childOneHub != null) {
-
-            log.v("getHubs: ${root.id}" +
-                    "${childOneHub.hash?.toByteString()}")
-
-                getHubs(childOneHub, hubs, exclude, remote, remoteDone)
+            log.v("getHubs: ${root.id} ${childOneHub.hash?.toByteString()}")
+                getHubs(childOneHub, hubs)
             }
 
         if (childTwoHub != null) {
-
-            log.v("getHubs: ${root.id} " +
-                    "${childTwoHub.hash?.toByteString()}")
-                getHubs(childTwoHub, hubs, exclude, remote, remoteDone)
-
+            log.v("getHubs: ${root.id} ${childTwoHub.hash?.toByteString()}")
+                getHubs(childTwoHub, hubs)
         }
 
 

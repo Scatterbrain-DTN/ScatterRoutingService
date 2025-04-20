@@ -246,8 +246,8 @@ class ProtocolTests {
         ds1.merkleDao().merkleRehash().blockingAwait()
         ds2.merkleDao().merkleRehash().blockingAwait()
 
-        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
-        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+        val out1 = groupHandleTwo.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
+        val out2 = groupHandleOne.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
             .mergeWith(out1)
             .lastOrError()
             .blockingGet()
@@ -266,8 +266,8 @@ class ProtocolTests {
 
         ds2.merkleDao().merkleRehash().blockingAwait()
 
-        val out3 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
-        val out4 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+        val out3 = groupHandleTwo.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
+        val out4 = groupHandleOne.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
             .mergeWith(out3)
             .lastOrError()
             .blockingGet()
@@ -299,10 +299,10 @@ class ProtocolTests {
         ds1.merkleDao().merkleRehash().blockingAwait()
         ds2.merkleDao().merkleRehash().blockingAwait()
 
-        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+        val out1 = groupHandleTwo.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
             .ignoreElement()
-        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+        val out2 = groupHandleOne.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
             .toFlowable()
             .mergeWith(out1)
             .lastOrError()
@@ -324,19 +324,20 @@ class ProtocolTests {
 
         val out3 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
         val out4 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
-            .mergeWith(out3).firstOrError()
+            .mergeWith(out3)
+            .lastOrError()
             .blockingGet()
             .toMutableList()
 
         println("got out4 ${out4.size}")
 
 
-        val nr2 = ds1.merkleDao().getDefaultRoot().blockingGet()
+        val nr2 = ds2.merkleDao().getDefaultRoot().blockingGet()
 
 
-        val o2 = ds1.merkleDao().getTopRandomExcludingHash(nr2.id!!, 500, out4).blockingGet()
+        val o2 = ds2.merkleDao().getTopRandomExcludingHash(nr2.id!!, 500, out4).blockingGet()
 
-        assertEquals(0, o2.size)
+        assertEquals(1, o2.size)
     }
 
 
