@@ -31,14 +31,12 @@ interface Advertiser {
      */
     fun setAdvertisingLuid(): Completable
 
-    fun clear(boolean: Boolean)
-
     /**
      * Changes the luid value sent in the scan response data
      * @param luid
      * @return completable
      */
-    fun setAdvertisingLuid(luid: UUID = getHashLuid(), ukes: Map<UUID, net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket> = mapOf()): Completable
+    fun setAdvertisingLuid(luid: UUID = getHashLuid(), merkle: ByteArray? = null): Completable
 
     fun checkForget(luid: UUID): Boolean
 
@@ -55,8 +53,6 @@ interface Advertiser {
     fun setRandomizeTimer(minutes: Int)
     fun getAlarmIntent(): PendingIntent
     companion object {
-        val CLEAR_DATA = UUID.fromString("00005BC5-0000-1000-8000-00805F9B34FB")
         val LUID_DATA = UUID.fromString("0000FC87-0000-1000-8000-00805F9B34FB")
-        val UKES_DATA = UUID.fromString("0000FC88-0000-1000-8000-00805F9B34FB")
     }
 }

@@ -247,9 +247,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ): Single<WifiGroupSubcomponent> {
         val create = requestGroupInfo().switchIfEmpty(
                 createGroupSingle(band).ignoreElement().andThen(requestGroupInfo())
-            ).retryDelay(3, 1).doOnSubscribe {
-                advertiser.clear(false)
-            }.doOnDispose { LOG.e("createGroup disposed") }.flatMapSingle { groupInfo ->
+            ).retryDelay(3, 1)
+            .doOnDispose { LOG.e("createGroup disposed") }.flatMapSingle { groupInfo ->
                 requestConnectionInfo().flatMapSingle { connectionInfo ->
                     LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase} $band")
                     mBroadcastReceiver.createCurrentGroup(band, groupInfo, connectionInfo, selfLuid)
@@ -551,10 +550,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 }.doOnError { err ->
                     LOG.w("seme error: $err")
                     err.printStackTrace()
-                }
-
-                .doFinally {
-                    advertiser.clear(false)
                 }).timeout(45, TimeUnit.SECONDS, timeoutScheduler)
                 .flatMapCompletable { h -> h.groupHandle().bootstrapSeme(self, mode) }
                 .onErrorResumeNext { err: Throwable ->

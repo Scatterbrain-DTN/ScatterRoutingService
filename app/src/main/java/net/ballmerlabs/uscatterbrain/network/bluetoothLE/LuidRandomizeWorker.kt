@@ -50,7 +50,6 @@ class LuidRandomizeWorker(
                 advertiser.randomizeLuidAndRemove()
                 scheduler.pauseScan()
                 scheduler.unpauseScan()
-                advertiser.clear(true)
                 Result.success()
             } else {
                 LOG.e("timer fired but advertiser was not initialized")

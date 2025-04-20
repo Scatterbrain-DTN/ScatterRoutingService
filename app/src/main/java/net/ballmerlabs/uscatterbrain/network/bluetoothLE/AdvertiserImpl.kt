@@ -30,9 +30,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
 
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WakeLockProvider
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.CLEAR_DATA;
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.LUID_DATA
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.UKES_DATA
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
@@ -65,17 +63,13 @@ class AdvertiserImpl @Inject constructor(
     private val LOG by scatterLog()
     private val advertisingLock = AtomicReference(false)
     val isAdvertising = BehaviorSubject.create<Pair<Optional<AdvertisingSet>, Int>>()
-    private val isLegacyAdvertising =
-        BehaviorSubject.create<Pair<Optional<AdvertiseSettings>, Int>>()
     val advertisingDataUpdated = PublishSubject.create<Int>()
 
     // luid is a temporary unique identifier used for a single transaction.
     private val myLuid: AtomicReference<UUID> = AtomicReference(UUID.randomUUID())
     private val lastLuidRandomize = AtomicReference(Date())
     private val randomizeLuidDisp = AtomicReference<Disposable?>(null)
-    private val clear = AtomicBoolean()
     private val busy = BehaviorSubject.create<Boolean>()
-    private val legacyLuid = AtomicReference<UUID?>(null)
     private val forgets = ConcurrentHashMap<UUID, Boolean>()
     private val cooldown = AtomicBoolean(false)
 
@@ -143,26 +137,6 @@ class AdvertiserImpl @Inject constructor(
         randomizeLuidDisp.getAndSet(disp)?.dispose()
     }
 
-    private val legacyCallback = object : AdvertiseCallback() {
-        override fun onStartFailure(errorCode: Int) {
-            super.onStartFailure(errorCode)
-            LOG.e("legacy failure $errorCode")
-            legacyLuid.set(null)
-            isLegacyAdvertising.onNext(Pair(Optional.empty(), errorCode))
-
-        }
-
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-            super.onStartSuccess(settingsInEffect)
-            LOG.v("legacy start success")
-            if (settingsInEffect != null) {
-                isLegacyAdvertising.onNext(Pair(Optional.of(settingsInEffect), 0))
-            } else {
-                isLegacyAdvertising.onNext(Pair(Optional.empty(), 0))
-            }
-        }
-    }
-
     // map advertising state to rxjava2
     private val advertiseSetCallback = object : AdvertisingSetCallback() {
         override fun onAdvertisingSetStarted(
@@ -214,10 +188,6 @@ class AdvertiserImpl @Inject constructor(
         return setAdvertisingLuid(currentLuid)
     }
 
-    override fun clear(boolean: Boolean) {
-        clear.set(boolean)
-    }
-
     override fun setRandomizeTimer(minutes: Int) {
         LOG.w("setting randomize timer $minutes")
         val request =
@@ -231,21 +201,13 @@ class AdvertiserImpl @Inject constructor(
                 request
             )
         LOG.w("randomize timer set")
-        /*
-        alarmManager.set(
-            AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + 60 * 1000 * minutes,
-            getAlarmIntent()
-        )
-         */
     }
 
-    override fun setAdvertisingLuid(luid: UUID, ukes: Map<UUID, net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket>): Completable {
+    override fun setAdvertisingLuid(luid: UUID, merkle: ByteArray?): Completable {
         return Completable.defer {
             if (cooldown.get())
                 return@defer Completable.complete()
-            val cmp = startLegacy(luid).onErrorComplete()
-                .andThen(Completable.defer {
+            val cmp = Completable.defer {
                     isAdvertising
                         .firstOrError()
                         .flatMapCompletable { v ->
@@ -253,8 +215,6 @@ class AdvertiserImpl @Inject constructor(
                                 awaitAdvertiseDataUpdate()
                                     .mergeWith(Completable.fromAction {
                                         try {
-                                            val shrink = shrinkUkes(ukes)
-                                            val u = shrink.packet.toByteArray()
                                             val builder = AdvertiseData.Builder()
                                                 .setIncludeDeviceName(false)
                                                 .setIncludeTxPowerLevel(false)
@@ -267,15 +227,8 @@ class AdvertiserImpl @Inject constructor(
                                                     ParcelUuid(LUID_DATA),
                                                     luid.toBytes()
                                                 )
-                                            if (clear.get())
-                                                builder.addServiceData(
-                                                    ParcelUuid(CLEAR_DATA),
-                                                    byteArrayOf()
-                                                )
 
-                                            // TODO: why the absolute fuck did I do this?
-                                            if (shrink.packet.ukesCount > 0 && false)
-                                                builder.addServiceData(ParcelUuid(UKES_DATA), u)
+
                                             v.first.item!!.setAdvertisingData(builder.build())
                                         } catch (exc: SecurityException) {
                                             throw exc
@@ -285,7 +238,7 @@ class AdvertiserImpl @Inject constructor(
                                 startAdvertise(luid = luid)
                             }
                         }
-                }.doOnError { err -> LOG.w("failed to set advertising luid: $err, retry") })
+                }.doOnError { err -> LOG.w("failed to set advertising luid: $err, retry") }
             cmp.retryDelay(10, 5)
                 .timeout(10, TimeUnit.SECONDS, timeoutScheduler)
                 .doOnError { err -> LOG.e("FATAL: failed to set advertising data, out of retries: $err") }
@@ -297,7 +250,7 @@ class AdvertiserImpl @Inject constructor(
         return size + 16 * 2
     }
 
-    fun shrinkUkes(ukes: Map<UUID, net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket>): UkeAnnouncePacket {
+    fun shrinkUkes(ukes: Map<UUID, UpgradePacket>): UkeAnnouncePacket {
         val packet = UkeAnnouncePacket.newBuilder()
         packet.setforceUke(ukes)
         val b = packet.build()
@@ -335,7 +288,6 @@ class AdvertiserImpl @Inject constructor(
         return Completable.fromAction {
             try {
                 manager.adapter?.bluetoothLeAdvertiser?.stopAdvertisingSet(advertiseSetCallback)
-                manager.adapter?.bluetoothLeAdvertiser?.stopAdvertising(legacyCallback)
             } catch (exc: SecurityException) {
                 throw exc
             }
@@ -344,64 +296,63 @@ class AdvertiserImpl @Inject constructor(
     }
 
 
-    fun startLegacy(uuid: UUID? = null): Completable {
-        return Completable.complete()
-        return Completable.defer {
-            if (cooldown.get())
-                return@defer Completable.complete()
-            val current = legacyLuid.get()
-            if (current != uuid) {
-                LOG.v("startLegacy $current $uuid")
-                val advertiseSettings = AdvertiseSettings.Builder()
-                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
-                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                    .setConnectable(true)
-                    .build()
-                val data = AdvertiseData.Builder()
-                    .setIncludeDeviceName(false)
-                    .setIncludeTxPowerLevel(false)
-                    .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID_LEGACY))
-                    .build()
-
-                val response = if (uuid != null)
-                    AdvertiseData.Builder()
-                        .setIncludeDeviceName(false)
-                        .setIncludeTxPowerLevel(false)
-                        .addServiceData(ParcelUuid(LUID_DATA), uuid.toBytes())
-                        .build()
-                else
-                    null
-                try {
-                    manager.adapter.bluetoothLeAdvertiser.stopAdvertising(legacyCallback)
-                    manager.adapter.bluetoothLeAdvertiser.startAdvertising(
-                        advertiseSettings,
-                        data,
-                        response,
-                        legacyCallback
-                    )
-                } catch (exc: SecurityException) {
-                    LOG.e("securityException in startLegacy $exc")
-                    firebase.recordException(exc)
-                    throw exc
-                }
-                isLegacyAdvertising
-                    .flatMapSingle { v ->
-                        when (v.second) {
-                            0 -> Single.just(v)
-                            else -> Single.error(IllegalStateException("legacy advertise failure ${v.second}"))
-                        }
-                    }
-                    .takeUntil { v -> v.first.isPresent && v.second == 0 }
-                    .ignoreElements()
-                    .doOnComplete {
-                        LOG.v("startLegacy complete")
-                        legacyLuid.set(uuid)
-                    }
-            } else {
-                Completable.complete()
-            }
-        }
-    }
+//    fun startLegacy(uuid: UUID? = null): Completable {
+//        return Completable.defer {
+//            if (cooldown.get())
+//                return@defer Completable.complete()
+//            val current = legacyLuid.get()
+//            if (current != uuid) {
+//                LOG.v("startLegacy $current $uuid")
+//                val advertiseSettings = AdvertiseSettings.Builder()
+//                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
+//                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+//                    .setConnectable(true)
+//                    .build()
+//                val data = AdvertiseData.Builder()
+//                    .setIncludeDeviceName(false)
+//                    .setIncludeTxPowerLevel(false)
+//                    .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID_LEGACY))
+//                    .build()
+//
+//                val response = if (uuid != null)
+//                    AdvertiseData.Builder()
+//                        .setIncludeDeviceName(false)
+//                        .setIncludeTxPowerLevel(false)
+//                        .addServiceData(ParcelUuid(LUID_DATA), uuid.toBytes())
+//                        .build()
+//                else
+//                    null
+//                try {
+//                    manager.adapter.bluetoothLeAdvertiser.stopAdvertising(legacyCallback)
+//                    manager.adapter.bluetoothLeAdvertiser.startAdvertising(
+//                        advertiseSettings,
+//                        data,
+//                        response,
+//                        legacyCallback
+//                    )
+//                } catch (exc: SecurityException) {
+//                    LOG.e("securityException in startLegacy $exc")
+//                    firebase.recordException(exc)
+//                    throw exc
+//                }
+//                isLegacyAdvertising
+//                    .flatMapSingle { v ->
+//                        when (v.second) {
+//                            0 -> Single.just(v)
+//                            else -> Single.error(IllegalStateException("legacy advertise failure ${v.second}"))
+//                        }
+//                    }
+//                    .takeUntil { v -> v.first.isPresent && v.second == 0 }
+//                    .ignoreElements()
+//                    .doOnComplete {
+//                        LOG.v("startLegacy complete")
+//                        legacyLuid.set(uuid)
+//                    }
+//            } else {
+//                Completable.complete()
+//            }
+//        }
+//    }
 
     private fun mapAdvertiseComplete(state: Boolean): Completable {
         return isAdvertising
@@ -423,14 +374,7 @@ class AdvertiserImpl @Inject constructor(
         return Completable.defer {
             if (cooldown.get())
                 return@defer Completable.complete()
-            val advertise = isLegacyAdvertising.firstOrError().flatMapCompletable { v ->
-                if (v.first.isPresent)
-                    Completable.complete()
-                else
-                    startLegacy(luid)
-            }
-                .onErrorComplete()
-                .andThen(isAdvertising)
+            val advertise = isAdvertising
                 .firstOrError()
                 .flatMapCompletable { v ->
                     if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
@@ -452,15 +396,11 @@ class AdvertiserImpl @Inject constructor(
                                 .setIncludeTxPowerLevel(false)
                                 .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT))
 
-                            val serviceData = if (luid != null) {
-                                serviceDataBuilder.addServiceData(
-                                    ParcelUuid(LUID_DATA),
-                                    luid.toBytes()
-                                )
-                                    .build()
-                            } else {
-                                serviceDataBuilder.build()
-                            }
+                            val serviceData = serviceDataBuilder.addServiceData(
+                                ParcelUuid(LUID_DATA),
+                                luid.toBytes()
+                            )
+                                .build()
 
                             try {
                                 manager.adapter.bluetoothLeAdvertiser.stopAdvertisingSet(
@@ -520,7 +460,6 @@ class AdvertiserImpl @Inject constructor(
     init {
         broadcastLuid()
         isAdvertising.onNext(Pair(Optional.empty(), AdvertisingSetCallback.ADVERTISE_SUCCESS))
-        isLegacyAdvertising.onNext(Pair(Optional.empty(), 0))
         busy.onNext(false)
     }
 }

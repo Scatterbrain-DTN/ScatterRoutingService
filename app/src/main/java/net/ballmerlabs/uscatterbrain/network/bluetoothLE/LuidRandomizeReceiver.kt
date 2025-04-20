@@ -29,7 +29,6 @@ class LuidRandomizeReceiver : BroadcastReceiver() {
                 // This method is called when the BroadcastReceiver is receiving an Intent broadcast.
                 LOG.w("timer fired, randomizing luid ${advertiser.getHashLuid()}")
                 advertiser.randomizeLuidAndRemove()
-                advertiser.clear(false)
                 advertiser.setRandomizeTimer(30)
             } else {
                 LOG.e("timer fired but advertiser was not initialized")
