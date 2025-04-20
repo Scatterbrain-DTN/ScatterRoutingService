@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.db.entities
 
-import androidx.lifecycle.AtomicReference
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -11,16 +10,14 @@ import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
+import io.reactivex.ObservableEmitter
 import io.reactivex.Single
-import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import okio.ByteString.Companion.toByteString
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
 
 @Dao
 abstract class MerkleDao {
@@ -305,7 +302,6 @@ abstract class MerkleDao {
                 hubs = Observable.empty(),
                 exclude = Observable.empty()
             )
-        val out = ReplaySubject.create<MerkleBundle>()
         val exclude = ReplaySubject.create<ByteArray>()
         //out.onNext(root)
 
@@ -315,29 +311,29 @@ abstract class MerkleDao {
 
 
         return HubResponse(
-            hubs = out
+            hubs = Observable.create { obs ->
+                getHubs(root, obs)
+                obs.onComplete()
+            }
                 .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
-                .mergeWith(Completable.fromAction {
-                    getHubs(root, out)
-                }.doFinally {
+                .doFinally {
                     log.v("getHubs complete!")
-                    out.onComplete()
-                    exclude.onComplete()
                     done.set(true)
-                }).doOnNext { v -> log.v("got hub ${v.hash?.toByteString()}") },
+                    if (remoteDone.get())
+                       exclude.onComplete()
+                }.doOnNext { v -> log.v("got hub ${v.hash?.toByteString()}") },
             exclude = exclude
                 .mergeWith(
-                    remote.concatMapCompletable { v->
-                       getByHash(v).map { count ->
-                           if (count > 0)
-                               exclude.onNext(v)
+                    remote.concatMapCompletable { v ->
+                        getByHash(v).map { count ->
+                            if (count > 0)
+                                exclude.onNext(v)
 
-                       }.ignoreElement()
+                        }.ignoreElement()
                     }.doFinally {
                         log.w("remote completed")
                         remoteDone.set(true)
                         if (done.get()) {
-                            out.onComplete()
                             exclude.onComplete()
                         }
                     }
@@ -349,7 +345,7 @@ abstract class MerkleDao {
 
     private fun getHubs(
         root: MerkleBundle?,
-        hubs: ReplaySubject<MerkleBundle>
+        hubs: ObservableEmitter<MerkleBundle>,
     ) {
         if (root?.hash == null)
             return
@@ -359,12 +355,12 @@ abstract class MerkleDao {
 
         if (childOneHub != null) {
             log.v("getHubs: ${root.id} ${childOneHub.hash?.toByteString()}")
-                getHubs(childOneHub, hubs)
-            }
+            getHubs(childOneHub, hubs)
+        }
 
         if (childTwoHub != null) {
             log.v("getHubs: ${root.id} ${childTwoHub.hash?.toByteString()}")
-                getHubs(childTwoHub, hubs)
+            getHubs(childTwoHub, hubs)
         }
 
 
