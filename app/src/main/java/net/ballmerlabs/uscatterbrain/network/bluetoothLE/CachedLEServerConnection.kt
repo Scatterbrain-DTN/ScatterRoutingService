@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
+import com.google.protobuf.Message
 import com.google.protobuf.MessageLite
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Completable
@@ -11,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger
 interface CachedLeServerConnection  {
     val mtu: AtomicInteger
     val connection: GattServerConnection
-    fun <T : MessageLite> serverNotify(
+    fun <T : Message> serverNotify(
         packet: ScatterSerializable<T>,
         luid: UUID,
         remoteDevice: RxBleDevice

@@ -1,7 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.bluetooth.BluetoothGatt
-import com.google.protobuf.MessageLite
+import com.google.protobuf.Message
 import com.jakewharton.rxrelay2.PublishRelay
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.BackpressureStrategy
@@ -32,7 +32,7 @@ import javax.inject.Inject
 import javax.inject.Named
 
 data class QueueItem(
-    val packet: ScatterSerializable<out MessageLite>,
+    val packet: ScatterSerializable<out Message>,
     val cookie: Int,
     val luid: UUID,
 )
@@ -191,7 +191,7 @@ class CachedLEServerConnectionImpl @Inject constructor(
      * @param packet ScatterSerializable message to send
      * @return completable
      */
-    override fun <T : MessageLite> serverNotify(
+    override fun <T : Message> serverNotify(
         packet: ScatterSerializable<T>,
         luid: UUID,
         remoteDevice: RxBleDevice

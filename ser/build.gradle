@@ -5,10 +5,11 @@ buildscript {
 plugins {
     id 'java-library'
     id 'org.jetbrains.kotlin.jvm'
-    id 'com.google.protobuf' version '0.9.4'
+    id 'com.google.devtools.ksp'
+    id 'com.google.protobuf' version '0.9.5'
 }
 
-def protobuf_version = "4.27.3"
+def protobuf_version = "4.30.2"
 
 
 
@@ -17,17 +18,16 @@ protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:$protobuf_version"
     }
-        plugins {
-                javalite {
-                        artifact = "com.google.protobuf:protoc-gen-javalite:$protobuf_version"
-                    }
-            }
     generateProtoTasks {
         all().each { task ->
             task.builtins {
-              java{
-                  option "lite"
-              }
+                java {
+                    // turned off for now so I can use json printing in debug panel
+                    // use the smaller android version of the library
+                    //option "lite"
+                }
+                kotlin {
+                }
             }
         }
     }
@@ -39,11 +39,17 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
+    sourceSets {
+        main {
+            proto.srcDirs = ["src/main/proto", "src/main/meshtastic"]
+        }
+    }
 }
 
 dependencies {
-    implementation("com.google.protobuf:protobuf-javalite:$protobuf_version")
+    implementation("com.google.protobuf:protobuf-kotlin:$protobuf_version")
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
+    implementation "com.google.protobuf:protobuf-kotlin:$protobuf_version"
     implementation "com.github.davidmoten:rxjava2-extras:0.1.38"
 }
 

@@ -2,7 +2,7 @@ package net.ballmerlabs.scatterproto
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import com.google.protobuf.CodedInputStream
-import com.google.protobuf.GeneratedMessageLite
+import com.google.protobuf.GeneratedMessage
 import com.google.protobuf.MessageLite
 import io.reactivex.Completable
 import io.reactivex.Flowable
@@ -322,11 +322,11 @@ abstract class ScatterSerializable<T : MessageLite>(
             return message
         }
 
-        var parsers: MutableMap<MessageType, Parser<GeneratedMessageLite<*, *>, *>> = mutableMapOf()
+        var parsers: MutableMap<MessageType, Parser<GeneratedMessage, *>> = mutableMapOf()
 
 
         data class TypedPacket(
-            val packet: GeneratedMessageLite<*, *>,
+            val packet: GeneratedMessage,
             val type: MessageType
         ) {
             inline fun <reified T : ScatterSerializable<V>, reified V : MessageLite> get(

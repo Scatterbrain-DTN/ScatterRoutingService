@@ -1,6 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
-import com.google.protobuf.MessageLite
+import com.google.protobuf.Message
 import com.polidea.rxandroidble2.NotificationSetupMode
 import com.polidea.rxandroidble2.RxBleConnection
 import com.polidea.rxandroidble2.RxBleDevice
@@ -174,7 +174,7 @@ open class CachedLEConnectionImpl @Inject constructor(
      * to receive data
      * @return observable emitting bytes received
      */
-    private inline fun <reified T : ScatterSerializable<R>, reified R : MessageLite> cachedNotification(
+    private inline fun <reified T : ScatterSerializable<R>, reified R : Message> cachedNotification(
         parser: ScatterSerializable.Companion.Parser<R, T>
     ): Single<T> {
         return ScatterSerializable.parseWrapperFromCRC(
