@@ -3,6 +3,7 @@ plugins {
     id 'kotlin-android'
     id 'com.google.devtools.ksp'
     id("org.jetbrains.dokka") version "1.8.20"
+    id 'com.google.protobuf' version '0.9.4'
 }
 
 
@@ -72,7 +73,17 @@ android {
 
     sourceSets{
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
-        main.aidl.srcDirs = ['Meshtastic-Android/app/src/main/aidl/com/geeksville/mesh/']
+        androidTest.assets.srcDirs += files("../Meshtastic-Android/app/schemas/com.geeksville.mesh.database.MeshtasticDatabase".toString())
+        main {
+            aidl.srcDirs = ["../Meshtastic-Android/app/src/main/aidl", "../Meshtastic-Android/app/src/main/java"]
+            kotlin.srcDirs = ["../Meshtastic-Android/app/src/main/java"]
+            proto.srcDirs = [ "../Meshtastic-Android/app/src/main/proto" ]
+            kotlin.include "../Meshtastic-Android/app/src/main/java/com/geeksville/mesh/DataPacket.kt"
+            kotlin.include "../Meshtastic-Android/app/src/main/java/com/geeksville/mesh/NodeInfo.kt"
+            aidl.include "../Meshtastic-Android/app/src/main/java/com/geeksville/mesh/DataPacket.kt"
+            aidl.include "../Meshtastic-Android/app/src/main/java/com/geeksville/mesh/NodeInfo.kt"
+            // java.srcDirs = ["../Meshtastic-Android/app/src/main/java/com/geeksville/mesh/"]
+        }
     }
 
     useLibrary 'android.test.base'
@@ -97,8 +108,28 @@ configurations {
     }
 }
 
+
+
  */
 
+protobuf {
+    protoc {
+        artifact = libs.protobuf.protoc.get()
+    }
+    generateProtoTasks {
+        all().each { task ->
+            task.builtins {
+                java {
+                    // turned off for now so I can use json printing in debug panel
+                    // use the smaller android version of the library
+                    //option "lite"
+                }
+                kotlin {
+                }
+            }
+        }
+    }
+}
 dependencies {
     def lifecycle_version = "2.8.2"
     implementation 'androidx.appcompat:appcompat:1.7.0'
@@ -243,4 +274,5 @@ repositories {
     mavenCentral()
     gradlePluginPortal()
     maven { url "https://jitpack.io" }
+    maven { url "https://kotlin.bintray.com/kotlinx" }
 }
