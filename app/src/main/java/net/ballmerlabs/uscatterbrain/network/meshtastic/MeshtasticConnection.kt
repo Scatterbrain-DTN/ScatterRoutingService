@@ -9,6 +9,7 @@ import io.reactivex.Single
 
 interface MeshtasticConnection {
     fun subscribeReceiver()
+    fun unsubscribeReceiver()
     fun setOwner(user: MeshUser): Completable
     fun getMyId(): Single<String>
     fun getPacketId(): Single<Int>

@@ -662,6 +662,24 @@ class ScatterRoutingService : LifecycleService() {
         }
 
         /**
+         * Attempts to connect to the meshtastic app's binder interface
+         */
+        override fun connectMeshtastic(callback: BoolCallback) {
+            checkAdminPermission()
+            val handle = generateNewHandle()
+
+            val disp = mBackend.connectMeshtastic()
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { res -> callback.onResult(res) },
+                    { err -> callback.onError(err.message) }
+                )
+
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
+        /**
          * Enqueues a Scatterbrain message to the datastore. The messages will be sent as soon
          * as a peer is available
          * @param messages message to send

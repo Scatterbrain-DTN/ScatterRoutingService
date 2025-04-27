@@ -1,7 +1,4 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
-
-import android.content.BroadcastReceiver
-
 import android.content.Context
 import android.content.Intent
 import com.geeksville.mesh.DataPacket
@@ -12,12 +9,11 @@ import javax.inject.Inject
 @MeshtasticConnectionScope
 class MeshBroadcastReceiverImpl @Inject constructor(
 
-) : MeshBroadcastReceiver, BroadcastReceiver() {
-
+) : MeshBroadcastReceiver() {
     @Inject
     lateinit var state: MeshtasticBroadcastReceiverState
 
-    override fun handle(intent: Intent) {
+    override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ACTION_NODE_CHANGE -> {
                 val info = intent.getParcelableExtra<NodeInfo>(EXTRA_NODEINFO)
@@ -41,15 +37,11 @@ class MeshBroadcastReceiverImpl @Inject constructor(
                     )
                 )
             }
-            MeshBroadcastReceiver.actionReceived(PORT_NUMBER) -> {
+            actionReceived(PORT_NUMBER) -> {
                 val payload = intent.getParcelableExtra<DataPacket>(EXTRA_PAYLOAD)
                 if (payload != null)
                     state.onDataPacket(payload)
             }
         }
-    }
-
-    override fun onReceive(context: Context, intent: Intent) {
-        handle(intent)
     }
 }

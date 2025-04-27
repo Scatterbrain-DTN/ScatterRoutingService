@@ -1,14 +1,18 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import android.content.Context
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.IMeshService
 import com.geeksville.mesh.MeshUser
 import com.geeksville.mesh.MyNodeInfo
 import com.geeksville.mesh.NodeInfo
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.Single
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -16,10 +20,36 @@ import javax.inject.Named
 class MeshtasticConnectionImpl @Inject constructor(
     val service: IMeshService,
     val context: Context,
-    @Named(MeshtasticConnectionSubcomponent.NamedSchedulers.BINDER_SCHEDULER) val scheduler: Scheduler
+    val receiver: MeshBroadcastReceiver,
+    val intentFilter: IntentFilter,
+    val crashlytics: FirebaseCrashlytics,
+    @Named(MeshtasticConnectionSubcomponent.NamedSchedulers.BINDER_SCHEDULER) val scheduler: Scheduler,
 ) : MeshtasticConnection {
+
+    private val log by scatterLog()
+
     override fun subscribeReceiver() {
-        service.subscribeReceiver(context.packageName, "net.ballmerlabs.scatterroutingservice")
+        try {
+            ContextCompat.registerReceiver(
+                context,
+                receiver,
+                intentFilter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+            service.subscribeReceiver(context.packageName, "net.ballmerlabs.scatterroutingservice")
+        } catch (exc: Exception) {
+            log.w("failed to subscribeReceiver: $exc")
+            crashlytics.recordException(exc)
+        }
+    }
+
+    override fun unsubscribeReceiver() {
+        try {
+            context.unregisterReceiver(receiver)
+        } catch (exc: Exception) {
+            log.w("failed to unsubscribeReceiver: $exc")
+            crashlytics.recordException(exc)
+        }
     }
 
     override fun setOwner(user: MeshUser): Completable {

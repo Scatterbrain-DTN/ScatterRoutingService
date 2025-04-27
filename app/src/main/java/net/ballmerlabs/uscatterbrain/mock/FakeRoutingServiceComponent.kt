@@ -174,7 +174,6 @@ interface FakeRoutingServiceComponent {
         @Singleton
         abstract fun bindsBroadcaster(impl: FakeBroadcaster): Broadcaster
 
-
         @Binds
         @Singleton
         abstract fun bindsMeshtasticProvider(impl: MeshtasticBinderProviderImpl): MeshtasticBinderProvider

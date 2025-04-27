@@ -42,4 +42,5 @@ interface RoutingServiceBackend {
     fun refreshPeers(): Completable
     fun dumpDatastore(uri: Uri): Completable
     fun deleteDesktopApp(pubkey: ByteArray): Completable
+    fun connectMeshtastic(): Single<Boolean>
 }

@@ -33,6 +33,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProvider
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
@@ -63,6 +64,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     val serverSocketManager: ServerSocketManager,
     val firebaseWrapper: FirebaseWrapper,
     private val broadcaster: Broadcaster,
+    private val meshtasticBinderProvider: MeshtasticBinderProvider,
     @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) val ioScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
 ) : RoutingServiceBackend {
@@ -197,6 +199,11 @@ class RoutingServiceBackendImpl @Inject constructor(
                     res
                 })
 
+    }
+
+    override fun connectMeshtastic(): Single<Boolean> {
+        meshtasticBinderProvider.connectBinderAsync()
+        return meshtasticBinderProvider.awaitConnection().map { true }
     }
 
     override fun sendAndSignMessage(

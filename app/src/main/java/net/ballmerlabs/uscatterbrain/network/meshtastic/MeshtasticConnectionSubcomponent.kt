@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
+import android.content.IntentFilter
 import com.geeksville.mesh.IMeshService
 import dagger.Binds
 import dagger.BindsInstance
@@ -50,6 +51,17 @@ interface MeshtasticConnectionSubcomponent {
             @Named(NamedSchedulers.BINDER_SCHEDULER)
             fun providesBinderScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BINDER_SCHEDULER))
+            }
+
+            @Provides
+            @MeshtasticConnectionScope
+            fun providesIntentFilter(): IntentFilter {
+                return IntentFilter().apply {
+                    addAction(ACTION_MESH_CONNECTED)
+                    addAction(ACTION_MESSAGE_STATUS)
+                    addAction(ACTION_NODE_CHANGE)
+                    addAction(MeshBroadcastReceiver.actionReceived(PORT_NUMBER))
+                }
             }
 
             @Provides

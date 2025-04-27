@@ -46,6 +46,8 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProvider
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProviderImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManagerImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.SocketProvider
@@ -168,6 +170,10 @@ interface FakeDbRoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindsBroadcaster(impl: BroadcasterImpl): Broadcaster
+
+        @Binds
+        @Singleton
+        abstract fun bindsMeshtasticProvider(impl: MeshtasticBinderProviderImpl): MeshtasticBinderProvider
 
         companion object {
             @Provides
