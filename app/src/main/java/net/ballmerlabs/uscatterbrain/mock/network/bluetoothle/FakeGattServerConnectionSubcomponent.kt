@@ -75,8 +75,6 @@ interface FakeGattServerConnectionSubcomponent: GattServerConnectionSubcomponent
         @Binds
         @GattServerConnectionScope
         abstract fun bindFakeBuilder(builder: FakeTransactionSubcomponent.Builder): ScatterbrainTransactionSubcomponent.Builder
-
-        @Module
         companion object {
             @Provides
             @JvmStatic

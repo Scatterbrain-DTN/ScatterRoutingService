@@ -29,9 +29,6 @@ interface FakeWifiGroupSubcompoment: WifiGroupSubcomponent {
 
     @Module
     abstract class FakeWifiDirectSessionModule {
-
-
-        @Module
         companion object {
             @Provides
             @JvmStatic

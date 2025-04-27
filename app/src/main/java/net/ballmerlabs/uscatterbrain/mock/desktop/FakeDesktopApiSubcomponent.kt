@@ -68,9 +68,7 @@ interface FakeDesktopApiSubcomponent: DesktopApiSubcomponent {
         @DesktopApiScope
         abstract fun bindsSessionBuilder(builder: FakeDesktopSessionSubcomponent.Builder): DesktopSessionSubcomponent.Builder
 
-        @Module
         companion object {
-
             @Provides
             @DesktopApiScope
             @Named(DesktopApiSubcomponent.NamedSchedulers.API_SERVER_SCHEDULER)

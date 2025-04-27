@@ -5,6 +5,7 @@ import dagger.BindsInstance
 import dagger.Module
 import dagger.Provides
 import dagger.Subcomponent
+
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapRequest
@@ -44,7 +45,7 @@ interface BootstrapRequestSubcomponent {
 
     @Module
     abstract class BootstrapRequestDaggerModule {
-        @Module
+
         companion object {
             @Provides
             @JvmStatic

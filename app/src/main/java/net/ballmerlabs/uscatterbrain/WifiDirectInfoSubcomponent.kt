@@ -5,6 +5,7 @@ import dagger.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfigImpl
 import javax.inject.Named
+import javax.inject.Singleton
 
 
 @Subcomponent(modules = [WifiDirectInfoSubcomponent.WifiDirectDaggerModule::class])
@@ -40,7 +41,6 @@ interface WifiDirectInfoSubcomponent {
         @WifiDirectInfoScope
         abstract fun bindsFakeConfig(config: FakeWifiP2pConfigImpl): FakeWifiP2pConfig
 
-        @Module
         companion object {
             @Provides
             @JvmStatic

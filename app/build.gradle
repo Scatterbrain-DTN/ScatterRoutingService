@@ -100,7 +100,7 @@ configurations {
 
 dependencies {
     def lifecycle_version = "2.8.2"
-    def emoji2_version = "1.5.0"
+    def dagger_version = "2.55"
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation "com.google.protobuf:protobuf-kotlin:$protobuf_version"
     implementation "com.google.protobuf:protobuf-kotlin:$protobuf_version"
@@ -161,11 +161,14 @@ dependencies {
     testImplementation 'net.java.dev.jna:jna:5.12.1@aar'
     testImplementation 'net.java.dev.jna:jna-platform:5.11.0'
 
-    implementation "com.google.dagger:dagger:2.51.1"
-    testImplementation "com.google.dagger:dagger:2.51.1"
+    implementation "com.google.dagger:dagger:$dagger_version"
+    testImplementation "com.google.dagger:dagger:$dagger_version"
+    implementation "com.google.dagger:dagger-android:$dagger_version"
+    implementation "com.google.dagger:dagger-android-support:$dagger_version"
 
-    ksp "com.google.dagger:dagger-compiler:2.51.1"
-    kspTest "com.google.dagger:dagger-compiler:2.51.1"
+    ksp "com.google.dagger:dagger-android-processor:$dagger_version"
+    ksp "com.google.dagger:dagger-compiler:$dagger_version"
+    kspTest "com.google.dagger:dagger-compiler:$dagger_version"
 
 
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"

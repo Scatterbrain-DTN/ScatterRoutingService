@@ -68,5 +68,7 @@
             </intent-filter>
         </provider>
     </application>
-
+    <queries>
+        <package android:name="com.geeksville.mesh" />
+    </queries>
 </manifest>

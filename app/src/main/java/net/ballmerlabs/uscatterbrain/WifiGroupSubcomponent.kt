@@ -36,7 +36,6 @@ interface WifiGroupSubcomponent {
 
     @Module
     abstract class WifiGroupModule {
-        @Module
         companion object {
 
             @Provides

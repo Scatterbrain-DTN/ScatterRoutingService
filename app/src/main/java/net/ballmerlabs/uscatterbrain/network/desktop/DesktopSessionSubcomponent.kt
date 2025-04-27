@@ -81,8 +81,6 @@ interface DesktopSessionSubcomponent {
     @Module
     abstract class DesktopSessionModule {
 
-
-        @Module
         companion object {
             @Provides
             @DesktopSessionScope

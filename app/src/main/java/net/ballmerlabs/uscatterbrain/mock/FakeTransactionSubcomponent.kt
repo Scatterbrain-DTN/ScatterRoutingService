@@ -46,8 +46,6 @@ interface FakeTransactionSubcomponent: ScatterbrainTransactionSubcomponent {
         @ScatterbrainTransactionScope
         abstract fun wifiDirectRadioModule(wifiDirectRadioModuleImpl: WifiDirectRadioModuleImpl): WifiDirectRadioModule
 
-
-        @Module
         companion object {
             @Provides
             @JvmStatic

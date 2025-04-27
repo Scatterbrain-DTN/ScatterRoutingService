@@ -55,7 +55,6 @@ interface DesktopApiSubcomponent {
         @DesktopApiScope
         abstract fun bindsNsdAdvertiser(state: NsdAdvertiserImpl): NsdAdvertiser
 
-        @Module
         companion object {
 
             @Provides

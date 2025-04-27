@@ -32,7 +32,6 @@ interface FakeWifiDirectInfoSubcomponent: WifiDirectInfoSubcomponent {
         @WifiDirectInfoScope
         abstract fun bindsFakeConfig(config: MockFakeWifiP2pConfigImpl): FakeWifiP2pConfig
 
-        @Module
         companion object {
             @Provides
             @JvmStatic

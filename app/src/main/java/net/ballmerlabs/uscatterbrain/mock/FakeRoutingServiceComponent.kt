@@ -34,6 +34,7 @@ import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.mock.db.MockScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.mock.desktop.FakeDesktopApiSubcomponent
+import net.ballmerlabs.uscatterbrain.mock.meshtastic.FakeMeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.mock.network.FakeBootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.FakeGattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.FakeWifiDirectInfoSubcomponent
@@ -50,6 +51,8 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProvider
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProviderImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
@@ -107,7 +110,8 @@ interface FakeRoutingServiceComponent {
         FakeBootstrapRequestSubcomponent::class,
         FakeGattServerConnectionSubcomponent::class,
         FakeWifiGroupSubcompoment::class,
-        FakeDesktopApiSubcomponent::class
+        FakeDesktopApiSubcomponent::class,
+        FakeMeshtasticConnectionSubcomponent::class
     ])
     abstract class FakeRoutingServiceModule {
         @Binds
@@ -170,7 +174,11 @@ interface FakeRoutingServiceComponent {
         @Singleton
         abstract fun bindsBroadcaster(impl: FakeBroadcaster): Broadcaster
 
-        @Module
+
+        @Binds
+        @Singleton
+        abstract fun bindsMeshtasticProvider(impl: MeshtasticBinderProviderImpl): MeshtasticBinderProvider
+
         companion object {
             @Provides
             @JvmStatic

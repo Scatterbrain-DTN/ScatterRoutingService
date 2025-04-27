@@ -27,9 +27,7 @@ interface FakeDesktopSessionSubcomponent : DesktopSessionSubcomponent {
 
     @Module
     abstract class FakeDesktopSessionModule {
-        @Module
         companion object {
-
             @Provides
             @DesktopSessionScope
             @Named(NamedSchedulers.API_SESSION_WRITE_SCHED)

@@ -25,7 +25,6 @@ interface FakeBootstrapRequestSubcomponent : BootstrapRequestSubcomponent {
 
     @Module
     abstract class BootstrapRequestDaggerModule {
-        @Module
         companion object {
             @Provides
             @JvmStatic

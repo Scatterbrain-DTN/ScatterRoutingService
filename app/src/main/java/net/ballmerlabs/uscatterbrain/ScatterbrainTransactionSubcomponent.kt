@@ -47,11 +47,7 @@ interface ScatterbrainTransactionSubcomponent {
         @ScatterbrainTransactionScope
         abstract fun bindsCachedLeConnection(impl: CachedLEConnectionImpl): CachedLeConnection
 
-
-        @Module
         companion object {
-
-
             @Provides
             @JvmStatic
             @ScatterbrainTransactionScope

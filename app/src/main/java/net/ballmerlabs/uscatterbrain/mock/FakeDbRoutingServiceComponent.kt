@@ -169,11 +169,7 @@ interface FakeDbRoutingServiceComponent {
         @Singleton
         abstract fun bindsBroadcaster(impl: BroadcasterImpl): Broadcaster
 
-        @Module
         companion object {
-
-
-
             @Provides
             @JvmStatic
             @Singleton

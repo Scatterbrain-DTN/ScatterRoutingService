@@ -58,7 +58,6 @@ interface GattServerConnectionSubcomponent {
         @GattServerConnectionScope
         abstract fun bindsTransactionFactory(impl: ScatterbrainTransactionFactoryImpl): ScatterbrainTransactionFactory
 
-        @Module
         companion object {
             @Provides
             @JvmStatic

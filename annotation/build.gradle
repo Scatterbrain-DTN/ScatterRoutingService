@@ -17,9 +17,9 @@ java {
 def protobuf_version = "4.30.2"
 
 dependencies {
-    annotationProcessor "com.google.dagger:dagger-compiler:2.51.1"
+    annotationProcessor "com.google.dagger:dagger-compiler:2.55"
     implementation("com.google.protobuf:protobuf-kotlin:$protobuf_version")
-    ksp "com.google.dagger:dagger-compiler:2.51.1"
+    ksp "com.google.dagger:dagger-compiler:2.55"
     implementation "com.google.devtools.ksp:symbol-processing-api:2.0.0-1.0.23"
     implementation "com.squareup:kotlinpoet-ksp:1.18.1"
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
