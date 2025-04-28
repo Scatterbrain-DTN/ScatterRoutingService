@@ -34,6 +34,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProvider
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProvider
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
@@ -64,7 +65,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     val serverSocketManager: ServerSocketManager,
     val firebaseWrapper: FirebaseWrapper,
     private val broadcaster: Broadcaster,
-    private val meshtasticBinderProvider: MeshtasticBinderProvider,
+    private val meshtasticBinderProvider: MeshtasticConnectionProvider,
     @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) val ioScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
 ) : RoutingServiceBackend {

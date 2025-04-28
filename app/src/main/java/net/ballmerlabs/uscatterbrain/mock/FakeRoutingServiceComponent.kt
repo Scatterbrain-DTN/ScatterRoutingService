@@ -53,6 +53,9 @@ import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProvider
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProviderImpl
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProvider
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProviderImpl
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
@@ -178,6 +181,10 @@ interface FakeRoutingServiceComponent {
         @Singleton
         abstract fun bindsMeshtasticProvider(impl: MeshtasticBinderProviderImpl): MeshtasticBinderProvider
 
+        @Binds
+        @Singleton
+        abstract fun bindsMeshtasticConnectionProvider(impl: MeshtasticConnectionProviderImpl): MeshtasticConnectionProvider
+
         companion object {
             @Provides
             @JvmStatic
@@ -282,6 +289,13 @@ interface FakeRoutingServiceComponent {
             @JvmStatic
             @Singleton
             fun providesGattServerBuilder(builder: FakeGattServerConnectionSubcomponent.Builder): GattServerConnectionSubcomponent.Builder {
+                return builder
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesMeshtasticBuilder(builder: FakeMeshtasticConnectionSubcomponent.Builder): MeshtasticConnectionSubcomponent.Builder {
                 return builder
             }
 

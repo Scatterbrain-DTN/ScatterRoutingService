@@ -44,6 +44,8 @@ import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProvider
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProviderImpl
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProvider
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProviderImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManagerImpl
@@ -172,6 +174,10 @@ interface RoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindsMeshtasticProvider(impl: MeshtasticBinderProviderImpl): MeshtasticBinderProvider
+
+        @Binds
+        @Singleton
+        abstract fun bindsMeshtasticConnectionProvider(impl: MeshtasticConnectionProviderImpl): MeshtasticConnectionProvider
 
         companion object {
             @Provides

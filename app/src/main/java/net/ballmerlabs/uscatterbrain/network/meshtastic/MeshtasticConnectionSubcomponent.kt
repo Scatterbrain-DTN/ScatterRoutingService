@@ -72,4 +72,6 @@ interface MeshtasticConnectionSubcomponent {
             }
         }
     }
+
+    fun connection(): MeshtasticConnection
 }

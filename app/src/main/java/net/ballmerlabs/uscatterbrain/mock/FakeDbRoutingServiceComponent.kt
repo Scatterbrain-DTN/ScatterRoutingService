@@ -34,6 +34,7 @@ import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate21
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate23
+import net.ballmerlabs.uscatterbrain.mock.meshtastic.FakeMeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.AdvertiserImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
@@ -48,6 +49,9 @@ import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProvider
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProviderImpl
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProvider
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProviderImpl
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManagerImpl
 import net.ballmerlabs.uscatterbrain.network.wifidirect.SocketProvider
@@ -100,7 +104,8 @@ interface FakeDbRoutingServiceComponent {
         BootstrapRequestSubcomponent::class,
         GattServerConnectionSubcomponent::class,
         WifiGroupSubcomponent::class,
-        DesktopApiSubcomponent::class
+        DesktopApiSubcomponent::class,
+        FakeMeshtasticConnectionSubcomponent::class
     ])
     abstract class RoutingServiceModule {
         @Binds
@@ -174,6 +179,10 @@ interface FakeDbRoutingServiceComponent {
         @Binds
         @Singleton
         abstract fun bindsMeshtasticProvider(impl: MeshtasticBinderProviderImpl): MeshtasticBinderProvider
+
+        @Binds
+        @Singleton
+        abstract fun bindsMeshtasticConnectionProvider(impl: MeshtasticConnectionProviderImpl): MeshtasticConnectionProvider
 
         companion object {
             @Provides
@@ -320,6 +329,13 @@ interface FakeDbRoutingServiceComponent {
             @Singleton
             fun providesPowerManager(context: Context?): PowerManager {
                 return context!!.getSystemService(Context.POWER_SERVICE) as PowerManager
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            fun providesMeshtasticBuilder(builder: FakeMeshtasticConnectionSubcomponent.Builder): MeshtasticConnectionSubcomponent.Builder {
+                return builder
             }
         }
 

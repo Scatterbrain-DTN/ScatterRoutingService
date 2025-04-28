@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.mock.meshtastic
 
+import android.content.IntentFilter
 import com.geeksville.mesh.IMeshService
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnection
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionImpl
@@ -13,12 +14,17 @@ import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.network.meshtastic.ACTION_MESH_CONNECTED
+import net.ballmerlabs.uscatterbrain.network.meshtastic.ACTION_MESSAGE_STATUS
+import net.ballmerlabs.uscatterbrain.network.meshtastic.ACTION_NODE_CHANGE
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshBroadcastReceiverImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBroadcastReceiverStateImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent.NamedSchedulers
+import net.ballmerlabs.uscatterbrain.network.meshtastic.PORT_NUMBER
+import org.mockito.kotlin.mock
 import javax.inject.Named
 
 @MeshtasticConnectionScope
@@ -55,6 +61,12 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
             @Named(NamedSchedulers.BINDER_SCHEDULER)
             fun providesBinderScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BINDER_SCHEDULER))
+            }
+
+            @Provides
+            @MeshtasticConnectionScope
+            fun providesIntentFilter(): IntentFilter {
+                return mock {  }
             }
 
             @Provides

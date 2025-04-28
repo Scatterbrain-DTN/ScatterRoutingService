@@ -12,6 +12,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.Single
+import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import javax.inject.Inject
 import javax.inject.Named
@@ -22,7 +23,7 @@ class MeshtasticConnectionImpl @Inject constructor(
     val context: Context,
     val receiver: MeshBroadcastReceiver,
     val intentFilter: IntentFilter,
-    val crashlytics: FirebaseCrashlytics,
+    val crashlytics: FirebaseWrapper,
     @Named(MeshtasticConnectionSubcomponent.NamedSchedulers.BINDER_SCHEDULER) val scheduler: Scheduler,
 ) : MeshtasticConnection {
 
