@@ -204,7 +204,10 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     override fun connectMeshtastic(): Single<Boolean> {
         meshtasticBinderProvider.connectBinderAsync()
-        return meshtasticBinderProvider.awaitConnection().map { true }
+        return meshtasticBinderProvider.awaitConnection().map {
+            LOG.v("meshtastic binder CONNECTED!")
+            true
+        }
     }
 
     override fun sendAndSignMessage(

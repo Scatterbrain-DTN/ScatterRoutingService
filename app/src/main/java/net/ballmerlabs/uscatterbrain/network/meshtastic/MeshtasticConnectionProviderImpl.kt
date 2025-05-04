@@ -21,42 +21,51 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
 
 
     private val log by scatterLog()
-    private val connection = BehaviorRelay.create<Maybe<MeshtasticConnectionSubcomponent>>()
-    private val disp = AtomicReference<Disposable?>(null)
+    private val connection = AtomicReference<Observable<MeshtasticConnectionSubcomponent>?>(null)
+    private val connectionUpdate = BehaviorRelay.create<AtomicReference<Observable<MeshtasticConnectionSubcomponent>?>>()
 
     private fun connectBinder(): Observable<MeshtasticConnectionSubcomponent> {
-        return binderProvider.connectBinder().map { v ->
+        return  binderProvider.connectBinder().map { v ->
             builder.service(v).build()!!
         }
     }
 
     override fun awaitConnection(): Single<MeshtasticConnection> {
-        return connection
-            .flatMapMaybe { v -> v }
-            .map { v -> v.connection() }
+        return connectionUpdate
+            .flatMapMaybe { v ->
+                when(val get = v.get()) {
+                    null -> Maybe.empty()
+                    else -> get.firstOrError()
+                        .map { c -> c.connection() }
+                        .toMaybe()
+                }
+            }
             .firstOrError()
     }
 
     override fun connectBinderAsync() {
-        val d = connectBinder().subscribe(
-            { log.v("connected meshtastic binder") },
-            { err ->
-                log.e("failed to connect meshtastic binder: $err")
-                firebaseCrashlytics.recordException(err)
+        connection.updateAndGet { v ->
+            when(v) {
+                null -> connectBinder()
+                else -> v
             }
-        )
-
-        disp.getAndSet(d)?.dispose()
+        }
     }
 
     override fun getConnection(): Maybe<MeshtasticConnection> {
-        return connection
-            .flatMapMaybe { v -> v }
-            .map { v -> v.connection() }
+        return connectionUpdate
+            .flatMapMaybe { v ->
+                when(val get = v.get()) {
+                    null -> Maybe.empty()
+                    else -> get.firstOrError()
+                        .map { c -> c.connection() }
+                        .toMaybe()
+                }
+            }
             .firstElement()
     }
 
     init {
-        connection.accept(Maybe.empty())
+        connectionUpdate.accept(connection)
     }
 }
