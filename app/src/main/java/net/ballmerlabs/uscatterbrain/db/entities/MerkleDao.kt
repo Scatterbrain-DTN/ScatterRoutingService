@@ -105,13 +105,16 @@ abstract class MerkleDao {
                 AND (SELECT hash FROM bundles WHERE id = child.childTwo) NOT IN (:hashes)
         )
         SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash
-            WHERE bundle IN parent ORDER BY fileSize ASC, shareCount ASC LIMIT :count
+            WHERE bundle IN parent
+            AND (:flag IS NULL OR :flag IN (SELECT flagKey FROM message_flags WHERE parentMessage = messageID))
+            ORDER BY fileSize ASC, shareCount ASC LIMIT :count
     """
     )
     abstract fun getTopRandomExcludingHash(
         id: Long,
         count: Int,
         hashes: List<ByteArray>,
+        flag: String? = null
     ): Single<List<DbMessage>>
 
 

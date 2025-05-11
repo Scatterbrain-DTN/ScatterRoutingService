@@ -27,7 +27,10 @@ data class DbMessage(
     val recipient_fingerprints: List<IdentityId>,
 
     @Relation(parentColumn = "messageID", entityColumn = "message")
-    val identity_fingerprints: List<IdentityId>
+    val identity_fingerprints: List<IdentityId>,
+
+    @Relation(parentColumn = "messageID", entityColumn = "parentMessage")
+    val flags: List<MessageFlags>
 
 ) : Verifiable {
     override val toFingerprint: List<UUID>
@@ -99,7 +102,11 @@ data class DbMessage(
                         )
                     ),
                     headerPacket.toFingerprint.map { v -> IdentityId(v) },
-                    headerPacket.fromFingerprint.map { v -> IdentityId(v) }
+                    headerPacket.fromFingerprint.map { v -> IdentityId(v) },
+                    headerPacket.flags.map { f -> MessageFlags(
+                        flagKey = f.key.number,
+                        flagBytes = f.value,
+                    ) }
                 )
             }
         }
@@ -136,6 +143,7 @@ data class DbMessage(
             message: DesktopMessage,
             hashes: List<ByteArray>,
             prefix: File,
+            flags: List<MessageFlags> = listOf(),
             packageName: String = "",
             bytes: ByteArray? = null
         ): DbMessage {
@@ -167,11 +175,12 @@ data class DbMessage(
                 if (message.toFingerprint == null)
                     arrayListOf()
                 else
-                    arrayListOf(IdentityId(message.toFingerprint!!)),
+                    arrayListOf(IdentityId(message.toFingerprint)),
                 if (message.fromFingerprint == null)
                     arrayListOf()
                 else
-                    arrayListOf(IdentityId(message.fromFingerprint!!))
+                    arrayListOf(IdentityId(message.fromFingerprint)),
+                flags
             )
             dbmessage.message = hm
             return dbmessage
@@ -181,6 +190,7 @@ data class DbMessage(
             message: net.ballmerlabs.scatterbrainsdk.ScatterMessage,
             hashes: List<ByteArray>,
             prefix: File,
+            flags: List<MessageFlags> = listOf(),
             packageName: String = "",
             bytes: ByteArray? = null
         ): DbMessage {
@@ -220,7 +230,8 @@ data class DbMessage(
                 if (message.fromFingerprint == null)
                     arrayListOf()
                 else
-                    arrayListOf(IdentityId(message.fromFingerprint!!))
+                    arrayListOf(IdentityId(message.fromFingerprint!!)),
+                flags
             )
             dbmessage.message = hm
             return dbmessage

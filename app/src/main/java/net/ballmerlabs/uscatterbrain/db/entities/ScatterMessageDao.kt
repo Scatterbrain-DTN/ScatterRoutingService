@@ -234,6 +234,9 @@ abstract class ScatterMessageDao {
             }
     }
 
+    @Insert
+    abstract fun insertFlags(flags: List<MessageFlags>): Completable
+
     @Transaction
     @Insert
     fun insertMessage(message: DbMessage): Single<HashlessScatterMessage> {
@@ -248,8 +251,14 @@ abstract class ScatterMessageDao {
                         message.recipient_fingerprints.forEach { f ->
                             f.message = messageRes
                         }
+
+                        message.flags.forEach { f ->
+                            f.parentMessage = messageRes
+                        }
+
                         insertIdentityIdEntity(message.identity_fingerprints)
                             .ignoreElement()
+                            .andThen(insertFlags(message.flags))
                             .andThen(insertIdentityIdEntity(message.recipient_fingerprints))
                             .ignoreElement()
                             .andThen(insertHashesEntity(message.file.messageHashes))

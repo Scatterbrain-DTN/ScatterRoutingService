@@ -150,6 +150,7 @@ class AdvertiserTest {
                 id: Long,
                 count: Int,
                 hashes: List<ByteArray>,
+                flag: String?
             ): Single<List<DbMessage>> {
                 TODO("Not yet implemented")
             }

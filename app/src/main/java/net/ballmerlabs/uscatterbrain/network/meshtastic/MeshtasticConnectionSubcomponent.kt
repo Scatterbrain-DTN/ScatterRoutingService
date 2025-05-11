@@ -45,6 +45,10 @@ interface MeshtasticConnectionSubcomponent {
         @MeshtasticConnectionScope
         abstract fun bindsMeshBroadcastReceiverState(impl: MeshtasticBroadcastReceiverStateImpl): MeshtasticBroadcastReceiverState
 
+        @Binds
+        @MeshtasticConnectionScope
+        abstract fun bindsMeshtasticRadioModule(impl: MeshtasticRadioModuleImpl): MeshtasticRadioModule
+
         companion object {
             @Provides
             @MeshtasticConnectionScope

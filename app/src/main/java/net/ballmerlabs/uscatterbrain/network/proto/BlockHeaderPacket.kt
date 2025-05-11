@@ -14,8 +14,11 @@ import net.ballmerlabs.scatterproto.sanitizeFilename
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
 import proto.Scatterbrain.BlockData
+import proto.Scatterbrain.MessageFlag
 import proto.Scatterbrain.MessageType
 import java.util.Date
+import java.util.EnumMap
+import java.util.HashMap
 import java.util.UUID
 
 /**
@@ -47,6 +50,9 @@ data class BlockHeaderPacket(
      * @return the hash list
      */
     val hashList: List<ByteArray> = packet.nexthashesList.map { v -> v.toByteArray() }
+
+    val flags: Map<MessageFlag, ByteArray?> =
+        packet.flagsList.associate { v -> Pair(v.tag, v.blob?.toByteArray()) }
 
     override val hashes = hashList.toTypedArray()
 
@@ -136,6 +142,7 @@ data class BlockHeaderPacket(
         private var mime: String = "",
         private var endofstream: Boolean = false,
         private var sendDate: Date = Date(),
+        private val flags: EnumMap<MessageFlag, ByteArray?> = EnumMap(MessageFlag::class.java)
     ) {
 
         /**

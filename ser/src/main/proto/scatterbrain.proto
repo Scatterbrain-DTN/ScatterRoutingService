@@ -95,8 +95,25 @@ message DeclareHashes {
     bool exists = 4;
 }
 
+enum MessageFlag {
+    MESSAGE_FLAG_UNKNOWN = 0;
+    PLAINTEXT = 1;
+    FORWARD_MESHTASTIC = 2;
+    END_RESERVED = 127;
+    LIMIT = 511;
+}
+
+
+message MeshtasticForwardSettings {
+    optional fixed32 force_channel = 1;
+}
+
 // header + metadata for a file, message or data stream
 message BlockData {
+    message MessageFlags {
+        MessageFlag tag = 1;
+        optional bytes blob = 2;
+    }
     repeated ProtoUuid from_fingerprint = 2;
     repeated ProtoUuid to_fingerprint = 3;
     string application = 4;
@@ -108,8 +125,9 @@ message BlockData {
     bool todisk = 10;
     bool endofstream = 11;
     uint64 send_date = 12;
-    repeated bytes nexthashes= 13; //size of this is fragment count
+    repeated bytes nexthashes = 13; //size of this is fragment count
     bytes sig = 14;
+    repeated MessageFlags flags = 15;
 }
 
 // body of file, message, or data stream.

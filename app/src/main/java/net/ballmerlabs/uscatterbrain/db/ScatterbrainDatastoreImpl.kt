@@ -981,6 +981,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         )
                     ),
                     arrayListOf(),
+                    arrayListOf(),
                     arrayListOf()
                 )
                 insertMessages(hashedMessage)

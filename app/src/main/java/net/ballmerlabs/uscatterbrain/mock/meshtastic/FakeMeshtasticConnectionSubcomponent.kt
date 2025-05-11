@@ -23,6 +23,8 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBroadcastRecei
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBroadcastReceiverStateImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent.NamedSchedulers
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModule
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.PORT_NUMBER
 import org.mockito.kotlin.mock
 import javax.inject.Named
@@ -54,6 +56,10 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
         @Binds
         @MeshtasticConnectionScope
         abstract fun bindsMeshBroadcastReceiverState(impl: MeshtasticBroadcastReceiverStateImpl): MeshtasticBroadcastReceiverState
+
+        @Binds
+        @MeshtasticConnectionScope
+        abstract fun bindsMeshtasticRadioModule(impl: MeshtasticRadioModuleImpl): MeshtasticRadioModule
 
         companion object {
             @Provides
