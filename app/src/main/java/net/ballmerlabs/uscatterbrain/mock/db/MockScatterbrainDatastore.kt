@@ -24,6 +24,8 @@ import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
 import net.ballmerlabs.uscatterbrain.network.proto.*
+import proto.Scatterbrain.MessageFlag
+
 @Singleton
 class MockScatterbrainDatastore @Inject constructor(
     private val ctx: Context
@@ -100,7 +102,7 @@ class MockScatterbrainDatastore @Inject constructor(
         return Completable.complete()
     }
 
-    override fun getTopRandomMessages(count: Int, delareHashes: List<ByteArray>): Observable<WifiDirectRadioModule.BlockDataStream> {
+    override fun getTopRandomMessages(count: Int, delareHashes: List<ByteArray>, flag: List<MessageFlag>?): Observable<WifiDirectRadioModule.BlockDataStream> {
         return Observable.empty()
     }
 

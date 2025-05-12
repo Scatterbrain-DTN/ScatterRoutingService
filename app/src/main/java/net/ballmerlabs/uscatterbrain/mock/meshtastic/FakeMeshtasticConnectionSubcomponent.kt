@@ -43,7 +43,7 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
         override fun build(): MeshtasticConnectionSubcomponent?
     }
 
-    @Module
+    @Module(subcomponents = [ FakeMeshtasticSessionSubcomponent::class ])
     abstract class MeshtasticConnectionModule {
         @Binds
         @MeshtasticConnectionScope

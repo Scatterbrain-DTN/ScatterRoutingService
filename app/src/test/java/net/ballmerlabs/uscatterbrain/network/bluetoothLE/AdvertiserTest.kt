@@ -47,6 +47,7 @@ import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import proto.Scatterbrain
+import proto.Scatterbrain.MessageFlag
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*
@@ -150,7 +151,7 @@ class AdvertiserTest {
                 id: Long,
                 count: Int,
                 hashes: List<ByteArray>,
-                flag: String?
+                flag: List<Int>?
             ): Single<List<DbMessage>> {
                 TODO("Not yet implemented")
             }

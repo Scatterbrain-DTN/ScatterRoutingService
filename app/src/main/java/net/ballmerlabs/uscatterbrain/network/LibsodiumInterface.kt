@@ -16,6 +16,9 @@ import java.nio.ByteBuffer
  */
 object LibsodiumInterface {
     private var mSodiumInstance: LazySodiumAndroid? = null
+
+    const val MERKLE_HASH_SIZE = GenericHash.BLAKE2B_BYTES_MIN
+
     private fun checkSodium() {
         if (mSodiumInstance == null) {
             mSodiumInstance = LazySodiumAndroid(SodiumAndroid())
@@ -32,7 +35,7 @@ object LibsodiumInterface {
     }
 
     fun merkleHash(key: ByteArray): ByteArray {
-        val out = ByteArray(GenericHash.BLAKE2B_BYTES_MIN)
+        val out = ByteArray(MERKLE_HASH_SIZE)
         if (sodium.crypto_generichash(out, out.size, key, key.size.toLong(), null, 0) != 0 ) {
             throw IllegalStateException("failed to hash")
         }
@@ -41,7 +44,7 @@ object LibsodiumInterface {
     }
 
     fun merkleHash(key: List<ByteArray>): ByteArray {
-        val out = ByteArray(GenericHash.BLAKE2B_BYTES_MIN)
+        val out = ByteArray(MERKLE_HASH_SIZE)
         val state = ByteArray(sodium.crypto_generichash_statebytes())
         if (sodium.crypto_generichash_init(state, null, 0, out.size) != 0 ) {
             throw IllegalStateException("failed to init")

@@ -23,7 +23,9 @@ const val EXTRA_PACKET_ID = "$prefix.PacketId"
 const val EXTRA_STATUS = "$prefix.Status"
 
 
-const val EXTRA_RECEIVED_SCATTERBRAIN = "$prefix.RECEIVED.scatterbrain"
+const val EXTRA_RECEIVED_SCATTERBRAIN = "$prefix.RECEIVED.$PORT_NUMBER"
 const val ACTION_NODE_CHANGE = "$prefix.NODE_CHANGE"
 const val ACTION_MESH_CONNECTED = "$prefix.MESH_CONNECTED"
 const val ACTION_MESSAGE_STATUS = "$prefix.MESSAGE_STATUS"
+
+const val MAX_SESSIONS = 8

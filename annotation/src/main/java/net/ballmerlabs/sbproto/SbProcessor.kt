@@ -121,8 +121,21 @@ class SbProcessor(
                 )
                 .returns(ScatterSerializable.Companion.TypedPacket::class)
 
+
+            val rawTypePrefix = FunSpec.builder("parseTypePrefix")
+                .addOriginatingKSFile(file)
+                .addParameter(ParameterSpec("bytes", ByteArray::class.asTypeName()))
+                .addStatement(
+                    "val buf = ByteBuffer.wrap(bytes)\n" +
+                    "val type = buf.order(ByteOrder.BIG_ENDIAN).getInt()\n" +
+                    "val typeEnum = proto.Scatterbrain.MessageType.forNumber(type)\n" +
+                    "val parser = when(typeEnum) {"
+                )
+                .returns(ScatterSerializable.Companion.TypedPacket::class)
+
             parsers.forEach { (k, v) ->
                 funSpecBuilder.addStatement("%L -> %L.parser", v.parserType, v.parserClass)
+                rawTypePrefix.addStatement("%L -> %L.parser", v.parserType, v.parserClass)
             }
 
             funSpecBuilder.addStatement(
@@ -142,6 +155,16 @@ class SbProcessor(
                         "                }\n" +
                         "                return ScatterSerializable.Companion.TypedPacket(\n" +
                         "                    type = type.messageType,\n" +
+                        "                    packet = message\n" +
+                        "                )"
+            )
+
+            rawTypePrefix.addStatement(
+                "    else -> throw InvalidPacketException(typeEnum, expected = Scatterbrain.MessageType.INVALID)\n" +
+                        "}\n" +
+                        "val message = parser.parser.parseFrom(buf)\n" +
+                        "                return ScatterSerializable.Companion.TypedPacket(\n" +
+                        "                    type = typeEnum,\n" +
                         "                    packet = message\n" +
                         "                )"
             )
@@ -186,6 +209,7 @@ class SbProcessor(
 
                 addImport("net.ballmerlabs.scatterproto", "bytes2long")
                 addFunction(funSpecBuilder.build())
+                addFunction(rawTypePrefix.build())
             }.build()
 
             fileSpec.writeTo(codeGenerator = codeGenerator, aggregating = true)

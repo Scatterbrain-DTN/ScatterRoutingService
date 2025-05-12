@@ -12,10 +12,10 @@ data class MessageStatusEvent(
 
 
 interface MeshtasticBroadcastReceiverState {
-    fun onMessageStatus(messageStatus: MessageStatusEvent)
-    fun onConnectionState(connectionState: String)
-    fun onNodeChange(nodeInfo: NodeInfo)
-    fun onDataPacket(dataPacket: DataPacket)
+    fun acceptMessageStatus(messageStatus: MessageStatusEvent)
+    fun acceptConnectionState(connectionState: String)
+    fun acceptNodeChange(nodeInfo: NodeInfo)
+    fun acceptDataPacket(dataPacket: DataPacket)
     fun onMessageStatus(): Observable<MessageStatusEvent>
     fun onConnectionState(): Observable<String>
     fun onNodeChange(): Observable<NodeInfo>

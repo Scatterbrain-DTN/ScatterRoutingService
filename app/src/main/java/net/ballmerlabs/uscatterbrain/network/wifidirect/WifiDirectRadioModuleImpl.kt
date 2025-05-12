@@ -15,7 +15,7 @@ import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
-import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
+import net.ballmerlabs.scatterproto.Optional
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
 import net.ballmerlabs.uscatterbrain.WifiDirectProvider
@@ -23,7 +23,6 @@ import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
-import net.ballmerlabs.scatterproto.Optional
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
@@ -66,7 +65,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val advertiser: Advertiser,
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val provider: WifiDirectProvider,
-    private val leState: Provider<LeState>
+    private val leState: Provider<LeState>,
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
@@ -226,13 +225,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
     override fun safeShutdownGroup(timeout: Long, timeUnit: TimeUnit): Completable {
         return mBroadcastReceiver.observePeers().takeUntil { v ->
-                mBroadcastReceiver.connectedDevices().isEmpty()
-            }.ignoreElements().timeout(
-                timeout,
-                timeUnit,
-                timeoutScheduler,
-                Completable.error(TimeoutException("failed to safeShutdown group"))
-            ).concatWith(mBroadcastReceiver.removeCurrentGroup())
+            mBroadcastReceiver.connectedDevices().isEmpty()
+        }.ignoreElements().timeout(
+            timeout,
+            timeUnit,
+            timeoutScheduler,
+            Completable.error(TimeoutException("failed to safeShutdown group"))
+        ).concatWith(mBroadcastReceiver.removeCurrentGroup())
     }
 
     /**
@@ -242,11 +241,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         remoteLuid: UUID,
         selfLuid: UUID,
-        mode: DeclareHashesMode
+        mode: DeclareHashesMode,
     ): Single<WifiGroupSubcomponent> {
         val create = requestGroupInfo().switchIfEmpty(
-                createGroupSingle(band).ignoreElement().andThen(requestGroupInfo())
-            ).retryDelay(3, 1)
+            createGroupSingle(band).ignoreElement().andThen(requestGroupInfo())
+        ).retryDelay(3, 1)
             .doOnDispose { LOG.e("createGroup disposed") }.flatMapSingle { groupInfo ->
                 requestConnectionInfo().flatMapSingle { connectionInfo ->
                     LOG.e("created wifi direct group ${groupInfo.networkName} ${groupInfo.passphrase} $band")
@@ -314,21 +313,21 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
 
             requestGroupInfo().flatMap { group ->
-                    if (group.isGroupOwner) c.retryDelay(5, 5)
-                        .doOnError { err -> firebaseWrapper.recordException(err) }.toMaybe()
-                    else requestConnectionInfo().flatMap { ci ->
-                        if (ci.isGroupOwner || ci.groupFormed || ci.groupOwnerAddress != null) c.retryDelay(
-                            5,
-                            5
-                        ).doOnError { err -> firebaseWrapper.recordException(err) }.toMaybe()
-                        else Maybe.empty<WifiDirectInfo>()
-                    }
-                }.ignoreElement()
+                if (group.isGroupOwner) c.retryDelay(5, 5)
+                    .doOnError { err -> firebaseWrapper.recordException(err) }.toMaybe()
+                else requestConnectionInfo().flatMap { ci ->
+                    if (ci.isGroupOwner || ci.groupFormed || ci.groupOwnerAddress != null) c.retryDelay(
+                        5,
+                        5
+                    ).doOnError { err -> firebaseWrapper.recordException(err) }.toMaybe()
+                    else Maybe.empty<WifiDirectInfo>()
+                }
+            }.ignoreElement()
         }
     }
 
     override fun connectToGroup(
-        name: String, passphrase: String, timeout: Int, band: Int
+        name: String, passphrase: String, timeout: Int, band: Int,
     ): Single<WifiDirectInfo> {
         LOG.w("connectToGroup $name $passphrase ${FakeWifiP2pConfig.bandToStr(band)}")
         val s = Single.defer {
@@ -339,10 +338,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 )
             ).build()!!.fakeWifiP2pConfig()
             initiateConnection(fakeConfig.asConfig()).andThen(awaitConnection(timeout).doOnSuccess {
-                    LOG.v(
-                        "connection awaited"
-                    )
-                })
+                LOG.v(
+                    "connection awaited"
+                )
+            })
 
         }.doOnError { err ->
             err.printStackTrace()
@@ -357,9 +356,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         val connected = manager.connectionInfo?.bssid != null
         LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported} connected $connected")
         val freq = manager.connectionInfo?.frequency
-        return if (connected && (freq in 5_150..5_350)) Optional.of(FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
-        else if (connected && (freq in 2_400..2_483)) Optional.of(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
-        else if (!connected) Optional.empty()
+        return if (connected && (freq in 5_150..5_885))
+            Optional.of(FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
+        else if (connected && (freq in 2_400..2_483))
+            Optional.of(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+        else if (!connected)
+            Optional.empty()
+
+
         else {
             LOG.e("wifi connected with invalid frequency $freq")
             firebaseWrapper.recordException(IllegalStateException("wifi connected with invalid frequency $freq"))
@@ -486,7 +490,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         remoteLuid: UUID,
         selfLuid: UUID,
-        mode: DeclareHashesMode
+        mode: DeclareHashesMode,
     ): Single<WifiDirectBootstrapRequest> {
         return Single.defer {
             mBroadcastReceiver.getCurrentGroup().switchIfEmpty(
@@ -500,7 +504,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     @Synchronized
-    override fun bootstrapSeme(req: WifiDirectBootstrapRequest, remote: UUID, mode: DeclareHashesMode) {
+    override fun bootstrapSeme(
+        req: WifiDirectBootstrapRequest,
+        remote: UUID,
+        mode: DeclareHashesMode,
+    ) {
         LOG.w("bootstrapSeme started")
         if (groupDisposable.get() == null) {
             val disp = bootstrapSeme(
@@ -509,9 +517,9 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .doFinally { groupDisposable.getAndSet(null)?.dispose() }
                 .subscribe(
                     {}, { err ->
-                LOG.e("bootstrapSeme failed $err, removing group")
-                mBroadcastReceiver.removeCurrentGroup()
-            })
+                        LOG.e("bootstrapSeme failed $err, removing group")
+                        mBroadcastReceiver.removeCurrentGroup()
+                    })
 
             val cd = CompositeDisposable()
             cd.add(disp)
@@ -527,7 +535,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         band: Int,
         req: WifiDirectBootstrapRequest,
         self: UUID,
-        mode: DeclareHashesMode
+        mode: DeclareHashesMode,
     ): Completable {
         return Completable.defer {
             mBroadcastReceiver.getCurrentGroup().switchIfEmpty(Completable.defer {
@@ -539,17 +547,17 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     ).retryDelay(4, 3)
                 )
             }).flatMap { info ->
-                    serverSocketManager.getServerSocket().flatMap { socket ->
-                        mBroadcastReceiver.createCurrentGroup(req)
-                    }.map { g ->
-                        val disp = g.groupHandle().semeServer(mode).subscribe()
-                        groupDisposable.get()!!.add(disp)
-                        g
-                    }
-                }.doOnError { err ->
-                    LOG.w("seme error: $err")
-                    err.printStackTrace()
-                }).timeout(45, TimeUnit.SECONDS, timeoutScheduler)
+                serverSocketManager.getServerSocket().flatMap { socket ->
+                    mBroadcastReceiver.createCurrentGroup(req)
+                }.map { g ->
+                    val disp = g.groupHandle().semeServer(mode).subscribe()
+                    groupDisposable.get()!!.add(disp)
+                    g
+                }
+            }.doOnError { err ->
+                LOG.w("seme error: $err")
+                err.printStackTrace()
+            }).timeout(45, TimeUnit.SECONDS, timeoutScheduler)
                 .flatMapCompletable { h -> h.groupHandle().bootstrapSeme(self, mode) }
                 .onErrorResumeNext { err: Throwable ->
                     LOG.w("seme error $err, dumping current group")

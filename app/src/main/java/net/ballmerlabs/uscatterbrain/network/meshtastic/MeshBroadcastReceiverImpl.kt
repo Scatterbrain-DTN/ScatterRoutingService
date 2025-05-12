@@ -18,19 +18,19 @@ class MeshBroadcastReceiverImpl @Inject constructor(
             ACTION_NODE_CHANGE -> {
                 val info = intent.getParcelableExtra<NodeInfo>(EXTRA_NODEINFO)
                 if (info != null)
-                    state.onNodeChange(info)
+                    state.acceptNodeChange(info)
             }
 
             ACTION_MESH_CONNECTED -> {
                 val connected = intent.getStringExtra(EXTRA_CONNECTED)
                 if (connected != null)
-                    state.onConnectionState(connected)
+                    state.acceptConnectionState(connected)
             }
 
             ACTION_MESSAGE_STATUS -> {
                 val status = intent.getParcelableExtra<MessageStatus>(EXTRA_STATUS)
                 val id = intent.getIntExtra(EXTRA_PACKET_ID, -1)
-                state.onMessageStatus(
+                state.acceptMessageStatus(
                     MessageStatusEvent(
                         messageStatus = status,
                         packetId = id
@@ -40,7 +40,7 @@ class MeshBroadcastReceiverImpl @Inject constructor(
             actionReceived(PORT_NUMBER) -> {
                 val payload = intent.getParcelableExtra<DataPacket>(EXTRA_PAYLOAD)
                 if (payload != null)
-                    state.onDataPacket(payload)
+                    state.acceptDataPacket(payload)
             }
         }
     }

@@ -21,7 +21,6 @@ import okio.ByteString.Companion.toByteString
 
 @Dao
 abstract class MerkleDao {
-
     private val log by scatterLog()
 
     @Query("SELECT * FROM messages WHERE bundle = :id ORDER BY fileGlobalHash ASC")
@@ -106,7 +105,7 @@ abstract class MerkleDao {
         )
         SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash
             WHERE bundle IN parent
-            AND (:flag IS NULL OR :flag IN (SELECT flagKey FROM message_flags WHERE parentMessage = messageID))
+            AND (:flag IS NULL OR (SELECT COUNT(*) FROM (SELECT(:flag) INTERSECT SELECT flagKey FROM message_flags WHERE parentMessage = messageID)) > 0)
             ORDER BY fileSize ASC, shareCount ASC LIMIT :count
     """
     )
@@ -114,7 +113,7 @@ abstract class MerkleDao {
         id: Long,
         count: Int,
         hashes: List<ByteArray>,
-        flag: String? = null
+        flag: List<Int>? = null
     ): Single<List<DbMessage>>
 
 

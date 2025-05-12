@@ -51,6 +51,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import proto.Scatterbrain.MessageFlag
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileDescriptor
@@ -150,7 +151,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) private val timeoutScheduler: Scheduler,
     private val preferences: RouterPreferences,
     private val scheduler: Provider<ScatterbrainScheduler>,
-    private val broadcaster: Broadcaster
+    private val broadcaster: Broadcaster,
 ) : ScatterbrainDatastore {
     private val LOG by scatterLog()
     private val mOpenFiles: ConcurrentHashMap<File, OpenFile> = ConcurrentHashMap()
@@ -187,9 +188,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun insertMessages(message: DbMessage): Completable {
         return scheduler.get().broadcastMessages(listOf(message))
-            .andThen(mDatastore.scatterMessageDao()
-                .insertMessage(message)
-                .flatMapCompletable { m -> mDatastore.merkleDao().insertMerkle(m) })
+            .andThen(
+                mDatastore.scatterMessageDao()
+                    .insertMessage(message)
+                    .flatMapCompletable { m -> mDatastore.merkleDao().insertMerkle(m) })
             .subscribeOn(databaseScheduler)
     }
 
@@ -219,7 +221,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun deleteDesktopApp(pubkey: ByteArray): Completable {
         LOG.v("got client app")
-        return Completable.fromAction{
+        return Completable.fromAction {
             mDatastore.desktopClientDao().deleteAndGet(pubkey)
         }.subscribeOn(databaseScheduler)
     }
@@ -236,22 +238,23 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return mDatastore.desktopClientDao().getClientApps()
             .subscribeOn(databaseScheduler)
             .flatMapObservable { v -> Observable.fromIterable(v) }
-            .filter{ p -> !p.isDesktop }
+            .filter { p -> !p.isDesktop }
             .map { i ->
-                    try {
-                        SbApp(
-                            name = pm.getApplicationLabel(pm.getApplicationInfo(i.packageName, 0)).toString(),
-                            id = i.packageName,
-                            desktop = false
-                        )
-                    } catch (exc: Exception) {
-                        LOG.w("failed to resolve package name ${i.packageName}: $exc")
+                try {
+                    SbApp(
+                        name = pm.getApplicationLabel(pm.getApplicationInfo(i.packageName, 0))
+                            .toString(),
+                        id = i.packageName,
+                        desktop = false
+                    )
+                } catch (exc: Exception) {
+                    LOG.w("failed to resolve package name ${i.packageName}: $exc")
 
-                        SbApp(
-                            name = i.packageName,
-                            desktop = false
-                        )
-                    }
+                    SbApp(
+                        name = i.packageName,
+                        desktop = false
+                    )
+                }
             }
     }
 
@@ -399,16 +402,21 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun getTopRandomMessages(
         count: Int,
         delareHashes: List<ByteArray>,
+        flag: List<MessageFlag>?,
     ): Observable<BlockDataStream> {
-        return Observable.defer {
+        return mDatastore.merkleDao().getDefaultRoot().flatMapObservable { root ->
             LOG.v("called getTopRandomMessages $count")
-            mDatastore.scatterMessageDao().getTopRandomExcludingHash(count, delareHashes)
+            mDatastore.merkleDao().getTopRandomExcludingHash(
+                root.id!!,
+                count,
+                delareHashes,
+                flag?.map { v -> v.number }
+            )
                 .subscribeOn(databaseScheduler)
-                .doOnSubscribe { LOG.v("subscribed to getTopRandoMessages") }
+                .doOnSubscribe { LOG.v("subscribed to getTopRandomMessages") }
                 .toFlowable()
                 .doOnNext { message -> LOG.v("retrieved messages: " + message.size) }
                 .flatMap { source -> Flowable.fromIterable(source) }
-
                 .map { message ->
                     if (message.message.body == null) {
                         BlockDataStream(
@@ -1060,13 +1068,14 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         application: String,
         limit: Int,
     ): Single<ArrayList<ScatterMessage>> {
-        return getApiMessage(mDatastore.scatterMessageDao()
-            .getByApplicationChrono(application, limit = limit)
-            .subscribeOn(databaseScheduler)
-            .flatMapObservable { source ->
-                // LOG.v("getApiMessages for $application: ${source.size}")
-                filterMessagesBySigCheck(Observable.fromIterable(source))
-            }
+        return getApiMessage(
+            mDatastore.scatterMessageDao()
+                .getByApplicationChrono(application, limit = limit)
+                .subscribeOn(databaseScheduler)
+                .flatMapObservable { source ->
+                    // LOG.v("getApiMessages for $application: ${source.size}")
+                    filterMessagesBySigCheck(Observable.fromIterable(source))
+                }
         ).doOnSuccess { v ->
             //  LOG.v("getApiMessages for $application after filter ${v.size}")
         }
@@ -1080,7 +1089,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     ): Single<ArrayList<ScatterMessage>> {
         return getApiMessage(
             mDatastore.scatterMessageDao()
-                .getByReceiveDateChrono(application, start?.time?:0, end?.time?: Long.MAX_VALUE, limit = limit)
+                .getByReceiveDateChrono(
+                    application,
+                    start?.time ?: 0,
+                    end?.time ?: Long.MAX_VALUE,
+                    limit = limit
+                )
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable { s -> filterMessagesBySigCheck(Observable.fromIterable(s)) }
         )
@@ -1094,7 +1108,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     ): Single<ArrayList<ScatterMessage>> {
         return getApiMessage(
             mDatastore.scatterMessageDao()
-                .getBySendDate(application, start?.time?:0, end?.time?:Long.MAX_VALUE, limit = limit)
+                .getBySendDate(
+                    application,
+                    start?.time ?: 0,
+                    end?.time ?: Long.MAX_VALUE,
+                    limit = limit
+                )
                 .subscribeOn(databaseScheduler)
                 .flatMapObservable { s -> filterMessagesBySigCheck(Observable.fromIterable(s)) }
         )

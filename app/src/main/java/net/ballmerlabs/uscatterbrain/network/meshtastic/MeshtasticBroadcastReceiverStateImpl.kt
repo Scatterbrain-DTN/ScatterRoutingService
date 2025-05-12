@@ -17,7 +17,7 @@ class MeshtasticBroadcastReceiverStateImpl @Inject constructor(
     private val connectionState = PublishRelay.create<String>()
     private val nodeChange = PublishRelay.create<NodeInfo>()
     private val dataPacket = PublishRelay.create<DataPacket>()
-    override fun onMessageStatus(messageStatus: MessageStatusEvent) {
+    override fun acceptMessageStatus(messageStatus: MessageStatusEvent) {
         this.messageStatus.accept(messageStatus)
     }
 
@@ -25,7 +25,7 @@ class MeshtasticBroadcastReceiverStateImpl @Inject constructor(
         return messageStatus.delay(0, TimeUnit.SECONDS, callbacks)
     }
 
-    override fun onConnectionState(connectionState: String) {
+    override fun acceptConnectionState(connectionState: String) {
         this.connectionState.accept(connectionState)
     }
 
@@ -33,7 +33,7 @@ class MeshtasticBroadcastReceiverStateImpl @Inject constructor(
         return connectionState.delay(0, TimeUnit.SECONDS, callbacks)
     }
 
-    override fun onNodeChange(nodeInfo: NodeInfo) {
+    override fun acceptNodeChange(nodeInfo: NodeInfo) {
         this.nodeChange.accept(nodeInfo)
     }
 
@@ -41,7 +41,7 @@ class MeshtasticBroadcastReceiverStateImpl @Inject constructor(
         return nodeChange.delay(0, TimeUnit.SECONDS, callbacks)
     }
 
-    override fun onDataPacket(dataPacket: DataPacket) {
+    override fun acceptDataPacket(dataPacket: DataPacket) {
         this.dataPacket.accept(dataPacket)
     }
 

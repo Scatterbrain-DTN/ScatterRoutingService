@@ -13,7 +13,7 @@ message Ack {
     }
 }
 
-// Protobuf has no native ProtoUuid type. This is 128 bit ProtoUuid.
+// Protobuf has no native UUID type. This is 128 bit UUID.
 message ProtoUuid {
     uint64 lower = 1;
     uint64 upper = 2;
@@ -41,6 +41,10 @@ enum MessageType {
     JUST_UKES = 10;
     ACK = 11;
     INVALID = 12;
+    MESHTASTIC_ANNOUNCE = 13;
+    MESHTASTIC_ANNOUNCE_ACK = 14;
+    MESHTASTIC_ANNOUNCE_SYNACK = 15;
+
 
     // desktop types
     GET_MESSAGE = 51;
@@ -107,6 +111,30 @@ enum MessageFlag {
 message MeshtasticForwardSettings {
     optional fixed32 force_channel = 1;
 }
+
+enum MeshtasticAckCode {
+    MESHTASTIC_ACK_UNKNOWN = 0;
+    TRANSACTION = 1;
+    WAIT = 2;
+    FULL = 3;
+    FAIL = 4;
+}
+
+
+message MeshtasticAnnounce {
+    ProtoUuid luid = 1;
+    bytes merkle_root = 2;
+}
+
+message MeshtasticAnnounceAck {
+    ProtoUuid luid = 1;
+    bytes merkle_root = 2;
+}
+
+message MeshtasticAnnounceSynAck {
+    MeshtasticAckCode code = 1;
+}
+
 
 // header + metadata for a file, message or data stream
 message BlockData {

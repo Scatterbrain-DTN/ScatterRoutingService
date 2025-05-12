@@ -32,7 +32,7 @@ interface MeshtasticConnectionSubcomponent {
     }
 
 
-    @Module
+    @Module(subcomponents = [ MeshtasticSessionSubcomponent::class ])
     abstract class MeshtasticConnectionModule {
         @Binds
         @MeshtasticConnectionScope
