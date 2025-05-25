@@ -94,7 +94,7 @@ abstract class ScatterSerializable<T : MessageLite>(
 
     val bytes: ByteArray
         get() {
-            val type = Scatterbrain.TypePrefix.newBuilder().setMessageType(type).build()
+            val type = TypePrefix.newBuilder().setMessageType(type).build()
 
             val size =
                 packet.serializedSize + type.serializedSize + Int.SIZE_BYTES + Int.SIZE_BYTES * 2
@@ -120,6 +120,18 @@ abstract class ScatterSerializable<T : MessageLite>(
             buf.put(typebytes)
             buf.put(bytes)
             buf.put(longToByte(crc32.value))
+            return buf.array()
+        }
+
+
+    val bytesNoCrc: ByteArray
+        get() {
+            val size =
+                packet.serializedSize + Int.SIZE_BYTES
+            val buf = ByteBuffer.allocate(size)
+            buf.order(ByteOrder.BIG_ENDIAN).putInt(type.number)
+            val bytes = packet.toByteArray()
+            buf.put(bytes)
             return buf.array()
         }
 

@@ -44,6 +44,7 @@ enum MessageType {
     MESHTASTIC_ANNOUNCE = 13;
     MESHTASTIC_ANNOUNCE_ACK = 14;
     MESHTASTIC_ANNOUNCE_SYNACK = 15;
+    MESHTASTIC_ERR = 16;
 
 
     // desktop types
@@ -107,7 +108,6 @@ enum MessageFlag {
     LIMIT = 511;
 }
 
-
 message MeshtasticForwardSettings {
     optional fixed32 force_channel = 1;
 }
@@ -128,13 +128,23 @@ message MeshtasticAnnounce {
 
 message MeshtasticAnnounceAck {
     ProtoUuid luid = 1;
-    bytes merkle_root = 2;
+    MeshtasticAckCode code = 2;
+    bytes merkle_root = 3;
 }
 
 message MeshtasticAnnounceSynAck {
     MeshtasticAckCode code = 1;
 }
 
+enum MeshtasticErrCode {
+    UNKNOWN_ERROR = 0;
+    INVALID_ARGUMENT = 1;
+}
+
+message MeshtasticErr {
+    MeshtasticErrCode code = 1;
+    bool fatal = 2;
+}
 
 // header + metadata for a file, message or data stream
 message BlockData {

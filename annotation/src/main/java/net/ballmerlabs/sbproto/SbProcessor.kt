@@ -122,7 +122,7 @@ class SbProcessor(
                 .returns(ScatterSerializable.Companion.TypedPacket::class)
 
 
-            val rawTypePrefix = FunSpec.builder("parseTypePrefix")
+            val rawTypePrefix = FunSpec.builder("parseTypePrefixNoCrc")
                 .addOriginatingKSFile(file)
                 .addParameter(ParameterSpec("bytes", ByteArray::class.asTypeName()))
                 .addStatement(

@@ -14,5 +14,9 @@ class MeshtasticAnnounceSynAckPacket(
         return true
     }
 
+    constructor(code: MeshtasticAckCode): this(MeshtasticAnnounceSynAck.newBuilder()
+        .setCode(code)
+        .build())
+
     val code: MeshtasticAckCode = packet.code
 }
