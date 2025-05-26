@@ -16,7 +16,6 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticErrPacke
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.fromMeshtastic
 import proto.Scatterbrain
 import proto.Scatterbrain.MeshtasticAckCode
-import proto.Scatterbrain.MeshtasticAnnounceSynAck
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Named

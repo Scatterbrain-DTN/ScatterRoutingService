@@ -45,6 +45,8 @@ enum MessageType {
     MESHTASTIC_ANNOUNCE_ACK = 14;
     MESHTASTIC_ANNOUNCE_SYNACK = 15;
     MESHTASTIC_ERR = 16;
+    MESHTASTIC_MERKLE = 17;
+    MESHTASTIC_STREAM = 18;
 
 
     // desktop types
@@ -134,6 +136,16 @@ message MeshtasticAnnounceAck {
 
 message MeshtasticAnnounceSynAck {
     MeshtasticAckCode code = 1;
+}
+
+message MeshtasticStream {
+    uint32 seq = 1;
+    bytes payload = 2;
+}
+
+message MeshtasticMerkle {
+    uint32 seq = 1;
+    repeated bytes hashes = 2;
 }
 
 enum MeshtasticErrCode {

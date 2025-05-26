@@ -1,6 +1,8 @@
 package net.ballmerlabs.sbproto
 
 import com.google.devtools.ksp.containingFile
+import com.google.devtools.ksp.getAllSuperTypes
+import com.google.devtools.ksp.outerType
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
@@ -256,9 +258,17 @@ class SbProcessor(
                 }
 
             val scatterType = classDeclaration.superTypes.find { v ->
-                v.resolve().toClassName().simpleName == ScatterSerializable::class.simpleName
+                val r = v.resolve()
+                val d = r.declaration
+                r.toClassName().simpleName == ScatterSerializable::class.simpleName
+                        || if (d is KSClassDeclaration) {
+                            d.superTypes.find { s -> s.resolve().toClassName().simpleName == ScatterSerializable::class.simpleName } != null
+                        } else {
+                            false
+                        }
+
             } ?: run {
-                logger.error("the class should extend ScatterSerializable")
+                logger.error("the class ${classDeclaration.qualifiedName?.asString()} should extend ScatterSerializable")
                 return
             }
 
