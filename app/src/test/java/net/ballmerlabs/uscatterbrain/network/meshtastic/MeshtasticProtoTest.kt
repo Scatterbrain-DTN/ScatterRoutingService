@@ -28,7 +28,7 @@ import proto.Scatterbrain.MessageType
 import java.util.UUID
 
 @SbPacket(messageType = MessageType.ACK)
-class DummySeq(override val seq: Int) : SeqLike<Ack>(AckPacket.newBuilder(true).build().packet, MessageType.ACK) {
+class DummySeq(override val seq: Int, override val end: Boolean = false) : SeqLike<Ack>(AckPacket.newBuilder(true).build().packet, MessageType.ACK) {
     override fun validate(): Boolean {
         return true
     }
@@ -84,12 +84,11 @@ class MeshtasticProtoTest {
         assert(out.size == 10)
     }
 
-    @Test
-    fun seqStreamOutOfOrder() {
+    private fun testOutOfOrder(test: Array<Int>) {
         val stream = MeshtasticPacketStream(DummySeqParser.parser)
 
         val out = stream.mergeWith(Completable.fromAction {
-            for (x in arrayOf(0, 1, 2, 4, 5, 3, 6 ,7, 8, 9)) {
+            for (x in test) {
                 stream.onPacket(DummySeq(x))
             }
             stream.close()
@@ -99,6 +98,12 @@ class MeshtasticProtoTest {
         val array = out.map { v-> v.seq }
         println(array)
         assert(out.size == 10)
-        assert(array.toTypedArray().contentEquals(arrayOf(0, 1, 2, 3, 4, 5, 6, 7 ,8, 9)))
+        assert(array.toTypedArray().contentEquals(test.sortedArray()))
+    }
+
+    @Test
+    fun seqStreamOutOfOrder() {
+        testOutOfOrder(arrayOf(0, 1, 2, 4, 5, 3, 6 ,7, 8, 9))
+        testOutOfOrder(arrayOf(0, 1, 6, 2, 4, 5, 3, 7, 8, 9))
     }
 }

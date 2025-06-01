@@ -141,11 +141,13 @@ message MeshtasticAnnounceSynAck {
 message MeshtasticStream {
     uint32 seq = 1;
     bytes payload = 2;
+    bool end = 3;
 }
 
 message MeshtasticMerkle {
     uint32 seq = 1;
     repeated bytes hashes = 2;
+    bool end = 3;
 }
 
 enum MeshtasticErrCode {

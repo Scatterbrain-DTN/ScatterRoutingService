@@ -2,21 +2,38 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import androidx.lifecycle.AtomicReference
 import com.geeksville.mesh.DataPacket
+import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
+import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
+import io.reactivex.Scheduler
 import io.reactivex.Single
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.db.Datastore
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounceAckPacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnouncePacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounceSynAckPacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticErrPacket
+import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticMerklePacket
+import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticMerklePacketParser
+import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticStreamPacket
+import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticStreamPacketParser
+import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.MeshtasticPacketStream
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.fromMeshtastic
+import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacketParser
+import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
+import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacketParser
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
+import net.ballmerlabs.uscatterbrain.util.concatMapLast
 import proto.Scatterbrain
 import proto.Scatterbrain.MeshtasticAckCode
+import proto.Scatterbrain.MeshtasticMerkle
+import proto.Scatterbrain.MeshtasticStream
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -25,12 +42,17 @@ class MeshtasticSessionStateImpl @Inject constructor(
     val connection: MeshtasticConnection,
     val broadcastReceiver: MeshtasticBroadcastReceiverState,
     val database: Datastore,
+    val datastore: ScatterbrainDatastore,
     val radioModule: MeshtasticRadioModule,
     val advertiser: Advertiser,
+    @Named(MeshtasticSessionSubcomponent.PARSE_SCHEDULER) val parseScheduler: Scheduler,
     @Named(MeshtasticSessionSubcomponent.ROUTER_ID) val routerId: String,
-    ): MeshtasticSessionState {
+) : MeshtasticSessionState {
     val stage = AtomicReference(Stage.ANNOUNCE)
     var remoteLuid: UUID? = null
+    val currentMerkleStream =
+        AtomicReference<MeshtasticPacketStream<MeshtasticMerklePacket, MeshtasticMerkle>?>(null)
+    val currentDataStream = AtomicReference<MeshtasticPacketStream<MeshtasticStreamPacket, MeshtasticStream>?>(null)
 
     override fun <R> mapStageSingle(onSuccess: Stage, func: (Stage) -> Single<R>): Single<R> {
         return Single.fromCallable {
@@ -42,17 +64,31 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
     }
 
+
+    override fun <R> mapStagePublisher(
+        onSuccess: Stage,
+        func: (Stage) -> Flowable<R>
+    ): Flowable<R> {
+        return Single.fromCallable {
+            stage.getAndSet(Stage.LOCKED)
+        }.flatMapPublisher { s ->
+            func(s)
+                .doOnComplete { stage.set(onSuccess) }
+        }
+    }
+
     override fun <R> mapStageMaybe(onSuccess: Stage, func: (Stage) -> Maybe<R>): Maybe<R> {
         return Single.fromCallable {
             stage.getAndSet(Stage.LOCKED)
         }.flatMapMaybe { s ->
-            func(s)
-                .doOnSuccess { stage.set(onSuccess) }
-
+            func(s).doOnSuccess { stage.set(onSuccess) }
         }
     }
 
-    override fun <R> mapStageObservable(onSuccess: Stage, func: (Stage) -> Observable<R>): Observable<R> {
+    override fun <R> mapStageObservable(
+        onSuccess: Stage,
+        func: (Stage) -> Observable<R>,
+    ): Observable<R> {
         return Single.fromCallable {
             stage.getAndSet(Stage.LOCKED)
         }.flatMapObservable { s ->
@@ -82,6 +118,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                         Stage.LOCKED -> Single.error(
                             ConcurrentModificationException()
                         )
+
                         else -> Single.just(v)
                     }
                 }
@@ -89,75 +126,125 @@ class MeshtasticSessionStateImpl @Inject constructor(
         }
     }
 
-    private fun handleAnnouncePacket(packet: MeshtasticAnnouncePacket): Maybe<ScatterSerializable<*>> {
+    private fun handleAnnouncePacket(packet: MeshtasticAnnouncePacket): Observable<ScatterSerializable<*>> {
         if (remoteLuid == null)
             remoteLuid = packet.remoteLuid
-        return mapStageMaybe(Stage.ACK) { s ->
-            database.merkleDao().getDefaultRoot().flatMapMaybe { root ->
+        return mapStageObservable(Stage.ACK) { s ->
+            database.merkleDao().getDefaultRoot().flatMapObservable { root ->
                 val code = if (radioModule.getSessionCount() > MAX_SESSIONS) {
                     radioModule.startBacklog(routerId)
                     MeshtasticAckCode.FULL
-                }
-                else {
+                } else {
                     MeshtasticAckCode.TRANSACTION
                 }
-                Maybe.just(MeshtasticAnnounceAckPacket(advertiser.getHashLuid(), root.hash!!, code))
+                Observable.just(
+                    MeshtasticAnnounceAckPacket(
+                        advertiser.getHashLuid(),
+                        root.hash!!,
+                        code
+                    )
+                )
             }
         }
     }
 
-    private fun handleAnnounceAckPacket(packet: MeshtasticAnnounceAckPacket): Maybe<ScatterSerializable<*>> {
-        return mapStageMaybe(Stage.SYNACK) { s ->
+    private fun handleAnnounceAckPacket(packet: MeshtasticAnnounceAckPacket): Observable<ScatterSerializable<*>> {
+        return mapStageObservable(Stage.SYNACK) { s ->
             when (packet.code) {
                 MeshtasticAckCode.FULL -> {
                     radioModule.startBacklog(routerId)
-                    Maybe.empty()
+                    Observable.empty()
                 }
+
                 else -> {
-                  val code = if (radioModule.getSessionCount() > MAX_SESSIONS) {
-                      radioModule.startBacklog(routerId)
-                      MeshtasticAckCode.FULL
-                  }
-                  else {
-                      MeshtasticAckCode.TRANSACTION
-                  }
+                    val code = if (radioModule.getSessionCount() > MAX_SESSIONS) {
+                        radioModule.startBacklog(routerId)
+                        MeshtasticAckCode.FULL
+                    } else {
+                        MeshtasticAckCode.TRANSACTION
+                    }
 
-                  Maybe.just(MeshtasticAnnounceSynAckPacket(code))
-              }
+                    Observable.just(MeshtasticAnnounceSynAckPacket(code))
+                }
             }
         }
     }
 
-    private fun handleAnnounceSynAckPacket(packet: MeshtasticAnnounceSynAckPacket): Maybe<ScatterSerializable<*>> {
-        return mapStageMaybe(Stage.MERKLE) { s ->
+    private fun handleAnnounceSynAckPacket(packet: MeshtasticAnnounceSynAckPacket): Observable<ScatterSerializable<*>> {
+        return mapStagePublisher(Stage.MERKLE) { s ->
             when (packet.code) {
-                MeshtasticAckCode.FULL -> Maybe.empty()
-                MeshtasticAckCode.WAIT -> Maybe.empty()
-                //TODO: merkle sync
-                else -> Maybe.error(IllegalStateException("not finished"))
+                MeshtasticAckCode.FULL -> Flowable.empty()
+                MeshtasticAckCode.WAIT -> Flowable.empty()
+                else -> database.merkleDao().getDefaultRoot().flatMapPublisher { root ->
+                    val stream = MeshtasticPacketStream(MeshtasticMerklePacketParser.parser)
+                    val datastream = MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
+                    currentMerkleStream.getAndSet(stream)?.close()
+                    currentDataStream.getAndSet((datastream))?.close()
+                    val hubresponse = database.merkleDao().getHubs(
+                        root,
+                        stream.toFlowable(BackpressureStrategy.BUFFER)
+                            .flatMap { h ->
+                                Flowable.fromIterable(h.hashes)
+                            }
+                    )
+
+                    val obs: Flowable<ScatterSerializable<*>> = hubresponse.exclude.toList().flatMapObservable { hashes ->
+                        datastore.getTopRandomMessages(50, hashes)
+                            .map { v -> v }
+
+                    }.toFlowable(BackpressureStrategy.BUFFER).flatMap { p ->
+                        MeshtasticStreamPacket.fromStream(p)
+                    }
+
+
+
+                    val resp = hubresponse.hubs.toFlowable(BackpressureStrategy.BUFFER)
+                        .zipWith(Flowable.interval(0, TimeUnit.SECONDS)) { hub, seq ->
+                            MeshtasticMerklePacket(seq = seq.toInt(), hashes = listOf(hub.hash!!)) //TODO batch hashes here
+                        }.concatMapLast { v -> MeshtasticMerklePacket(end = true, seq = v.seq, hashes = v.hashes) }
+                        .map { v -> v as ScatterSerializable<*> }
+
+                    val ds = datastream.map { v -> v.bytes }
+
+                     val out = ScatterSerializable.parseWrapperFromCRC(BlockHeaderPacketParser.parser, ds, parseScheduler)
+                         .map { header ->
+                             WifiDirectRadioModule.BlockDataStream(header, ScatterSerializable.parseWrapperFromCRC(BlockSequencePacketParser.parser, ds, parseScheduler)
+                                 .repeat().takeWhile { p -> !p.isEnd },
+                                 datastore.cacheDir
+                             )
+                         }.flatMapCompletable { bds -> datastore.insertMessage(bds) }
+
+
+                    obs.mergeWith(resp).mergeWith(out)
+                }
             }
-        }
+        }.toObservable()
     }
 
 
-    override fun handlePacket(packet: DataPacket): Maybe<ScatterSerializable<*>> {
-        return Single.just(packet).flatMapMaybe { v ->
+    override fun handlePacket(packet: DataPacket): Observable<ScatterSerializable<*>> {
+        return Single.just(packet).flatMapObservable { v ->
             val p = v.bytes?.fromMeshtastic()
             when (p?.type) {
                 Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE -> handleAnnouncePacket(p.get())
                 Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE_ACK -> handleAnnounceAckPacket(p.get())
                 Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE_SYNACK -> handleAnnounceSynAckPacket(p.get())
-                else -> Maybe.just(MeshtasticErrPacket(Scatterbrain.MeshtasticErrCode.INVALID_ARGUMENT))
+                Scatterbrain.MessageType.MESHTASTIC_MERKLE -> currentMerkleStream.get()
+                    ?.onPacket(p.get())?.toObservable() ?: Observable.empty()
+                Scatterbrain.MessageType.MESHTASTIC_STREAM -> currentDataStream.get()
+                    ?.onPacket(p.get())?.toObservable() ?: Observable.empty()
+                else -> Observable.just(MeshtasticErrPacket(Scatterbrain.MeshtasticErrCode.INVALID_ARGUMENT))
             }
         }.onErrorResumeNext { e: Throwable ->
-            when(e) {
+            when (e) {
                 is ErrorStage -> {
                     stage.set(e.stage)
-                    Maybe.empty()
+                    Observable.empty()
                 }
+
                 else -> {
                     stage.set(Stage.FAIL)
-                    Maybe.error(e)
+                    Observable.error(e)
                 }
             }
         }

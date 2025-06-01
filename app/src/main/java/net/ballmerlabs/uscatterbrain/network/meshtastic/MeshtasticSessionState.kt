@@ -4,9 +4,11 @@ import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.map
 import com.google.protobuf.MessageLite
 import io.reactivex.Completable
+import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
+import kotlinx.coroutines.flow.Flow
 import net.ballmerlabs.scatterproto.ScatterSerializable
 
 enum class Stage {
@@ -35,6 +37,8 @@ interface MeshtasticSessionState {
 
     fun <R> mapStageMaybe(onSuccess: Stage, func: (Stage) -> Maybe<R>): Maybe<R>
 
+    fun <R> mapStagePublisher(onSuccess: Stage, func: (Stage) -> Flowable<R>): Flowable<R>
+
     fun mapStageCompletable(onSuccess: Stage, func: (Stage) -> Completable): Completable
 
     fun requireStage(stage: Stage, next: Stage): Single<Stage> {
@@ -55,5 +59,5 @@ interface MeshtasticSessionState {
         }
     }
 
-    fun handlePacket(packet: DataPacket): Maybe<ScatterSerializable<*>>
+    fun handlePacket(packet: DataPacket): Observable<ScatterSerializable<*>>
 }

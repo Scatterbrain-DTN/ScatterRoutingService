@@ -69,7 +69,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
             val from = dataPacket.from
             if (from != null)
                 startSession(from).state().handlePacket(dataPacket)
-                    .flatMapCompletable { v -> sendPacket(dataPacket.reply(v)) }
+                    .concatMapCompletable { v -> sendPacket(dataPacket.reply(v)) }
             else
                 Completable.complete()
         }

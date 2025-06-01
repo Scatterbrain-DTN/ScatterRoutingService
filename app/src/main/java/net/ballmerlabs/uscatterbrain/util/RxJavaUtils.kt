@@ -5,6 +5,7 @@ import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
+import java.util.concurrent.Flow
 import java.util.concurrent.TimeUnit
 
 fun <T> Observable<T>.retryDelay(count: Int, seconds: Int): Observable<T> {
@@ -108,4 +109,50 @@ fun <T> Maybe<T>.retryDelay(count: Int, seconds: Int): Maybe<T> {
                 .zipWith(Flowable.range(1, count)) { _, i: Int -> i }
                 .concatMapMaybe{ Maybe.timer(seconds.toLong(), TimeUnit.SECONDS) }
         }
+}
+
+data class MapLast<T>(
+    val v: T?,
+    val u: T?
+)
+
+fun <T> Observable<T>.concatMapLast(func: (T) -> T): Observable<T> {
+    return this
+        .map { v -> MapLast(v = v, u = null) }
+        .concatWith(Observable.just(MapLast(v= null, u = null)))
+        .scan { v, u ->
+            if (u.v == null) {
+                MapLast(v = func(v.v!!)!!, u = null)
+            } else {
+                MapLast(v = v.v!!, u = u.v)
+            }
+        }.flatMap { v ->
+            if(v.v != null)
+                Observable.just(v.v)
+                    .concatWith(if (v.u != null) Observable.just(v.u) else Observable.empty())
+            else
+                Observable.empty()
+        }
+
+}
+
+
+fun <T> Flowable<T>.concatMapLast(func: (T) -> T): Flowable<T> {
+    return this
+        .map { v -> MapLast(v = v, u = null) }
+        .concatWith(Flowable.just(MapLast(v= null, u = null)))
+        .scan { v, u ->
+            if (u.v == null) {
+                MapLast(v = func(v.v!!)!!, u = null)
+            } else {
+                MapLast(v = v.v!!, u = u.v)
+            }
+        }.flatMap { v ->
+            if(v.v != null)
+                Flowable.just(v.v)
+                    .concatWith(if (v.u != null) Flowable.just(v.u) else Flowable.empty())
+            else
+                Flowable.empty()
+        }
+
 }

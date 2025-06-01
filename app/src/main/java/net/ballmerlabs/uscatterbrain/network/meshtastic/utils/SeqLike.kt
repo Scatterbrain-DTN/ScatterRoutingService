@@ -9,6 +9,7 @@ abstract class SeqLike<T: MessageLite>(
     type: MessageType
 ): ScatterSerializable<T>(packet, type), Comparable<SeqLike<T>> {
     abstract val seq: Int
+    abstract val end: Boolean
 
     override fun compareTo(other: SeqLike<T>): Int {
         return this.seq.compareTo(other.seq)

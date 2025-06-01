@@ -22,13 +22,17 @@ class MeshtasticMerklePacket(
         return packet.serializedSize <= MESHTASTIC_MAX_LEN && packet.hashesCount <= MESHTASTIC_MAX_HASHES
     }
 
-
-    constructor(seq: Int, hashes: List<ByteArray>): this(
+    constructor(seq: Int, hashes: List<ByteArray>, end: Boolean = false): this(
         MeshtasticMerkle.newBuilder()
             .addAllHashes(hashes.map { v -> v.toByteString() })
             .setSeq(seq)
+            .setEnd(end)
             .build()
     )
+
+    override val end: Boolean
+        get() = packet.end
+
 
     val hashes: List<ByteArray>
         get() = packet.hashesList.map { v -> v.toByteArray() }
