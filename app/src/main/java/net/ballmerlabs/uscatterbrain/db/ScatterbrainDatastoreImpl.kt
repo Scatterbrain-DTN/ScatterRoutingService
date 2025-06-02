@@ -656,6 +656,19 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         }
     }
 
+    override fun getDefaultMerkleRoot(): Single<ByteArray> {
+        return mDatastore.merkleDao().getDefaultRoot()
+            .map { v -> v.hash!! }
+            .subscribeOn(databaseScheduler)
+    }
+
+    override fun getMerkleHubs(remote: Flowable<ByteArray>): Single<HubResponse> {
+        return mDatastore.merkleDao().getDefaultRoot()
+            .map { root ->
+                mDatastore.merkleDao().getHubs(root, remote)
+            }.subscribeOn(databaseScheduler)
+    }
+
     override fun deleteACLs(
         identityFingerprint: UUID,
         packageName: String,

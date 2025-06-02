@@ -13,8 +13,10 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 import net.ballmerlabs.uscatterbrain.db.entities.*
 import net.ballmerlabs.uscatterbrain.db.ACL
+import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.db.OpenFile
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
@@ -31,6 +33,29 @@ class MockScatterbrainDatastore @Inject constructor(
     private val ctx: Context
 ): ScatterbrainDatastore {
 
+
+    override fun getDefaultMerkleRoot(): Single<ByteArray> {
+        return Single.just(ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE))
+    }
+
+    override fun getMerkleHubs(remote: Flowable<ByteArray>): Single<HubResponse> {
+        return Single.just(
+            HubResponse(
+                hubs = Observable.create { obs ->
+                    for (x in 0..16) {
+                        obs.onNext(MerkleBundle(
+                            id = 0,
+                            hash = ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE),
+                            childOne = 0,
+                            childTwo = 0,
+                            dirty = false
+                        ))
+                    }
+                },
+                exclude = Observable.empty()
+        )
+        )
+    }
 
 
     override fun deleteApp(sig: String): Completable {

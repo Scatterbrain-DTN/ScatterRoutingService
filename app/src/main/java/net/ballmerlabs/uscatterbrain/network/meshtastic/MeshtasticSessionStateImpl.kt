@@ -23,6 +23,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticStreamPa
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticStreamPacketParser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.MeshtasticPacketStream
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.fromMeshtastic
+import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.toBroadcast
 import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacketParser
 import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacketParser
@@ -41,7 +42,6 @@ import javax.inject.Named
 class MeshtasticSessionStateImpl @Inject constructor(
     val connection: MeshtasticConnection,
     val broadcastReceiver: MeshtasticBroadcastReceiverState,
-    val database: Datastore,
     val datastore: ScatterbrainDatastore,
     val radioModule: MeshtasticRadioModule,
     val advertiser: Advertiser,
@@ -130,7 +130,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
         if (remoteLuid == null)
             remoteLuid = packet.remoteLuid
         return mapStageObservable(Stage.ACK) { s ->
-            database.merkleDao().getDefaultRoot().flatMapObservable { root ->
+            datastore.getDefaultMerkleRoot().flatMapObservable { root ->
                 val code = if (radioModule.getSessionCount() > MAX_SESSIONS) {
                     radioModule.startBacklog(routerId)
                     MeshtasticAckCode.FULL
@@ -140,7 +140,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 Observable.just(
                     MeshtasticAnnounceAckPacket(
                         advertiser.getHashLuid(),
-                        root.hash!!,
+                        root,
                         code
                     )
                 )
@@ -175,50 +175,75 @@ class MeshtasticSessionStateImpl @Inject constructor(
             when (packet.code) {
                 MeshtasticAckCode.FULL -> Flowable.empty()
                 MeshtasticAckCode.WAIT -> Flowable.empty()
-                else -> database.merkleDao().getDefaultRoot().flatMapPublisher { root ->
+                else -> datastore.getDefaultMerkleRoot().flatMapPublisher { root ->
                     val stream = MeshtasticPacketStream(MeshtasticMerklePacketParser.parser)
                     val datastream = MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
                     currentMerkleStream.getAndSet(stream)?.close()
                     currentDataStream.getAndSet((datastream))?.close()
-                    val hubresponse = database.merkleDao().getHubs(
-                        root,
+                    datastore.getMerkleHubs(
                         stream.toFlowable(BackpressureStrategy.BUFFER)
                             .flatMap { h ->
                                 Flowable.fromIterable(h.hashes)
                             }
-                    )
+                    ).flatMapPublisher { hubresponse ->
 
-                    val obs: Flowable<ScatterSerializable<*>> = hubresponse.exclude.toList().flatMapObservable { hashes ->
-                        datastore.getTopRandomMessages(50, hashes)
-                            .map { v -> v }
+                        val obs: Flowable<ScatterSerializable<*>> =
+                            hubresponse.exclude.toList().flatMapObservable { hashes ->
+                                datastore.getTopRandomMessages(50, hashes)
+                                    .map { v -> v }
 
-                    }.toFlowable(BackpressureStrategy.BUFFER).flatMap { p ->
-                        MeshtasticStreamPacket.fromStream(p)
+                            }.toFlowable(BackpressureStrategy.BUFFER).flatMap { p ->
+                                MeshtasticStreamPacket.fromStream(p)
+                            }
+
+
+                        val resp = hubresponse.hubs.toFlowable(BackpressureStrategy.BUFFER)
+                            .zipWith(Flowable.interval(0, TimeUnit.SECONDS)) { hub, seq ->
+                                MeshtasticMerklePacket(
+                                    seq = seq.toInt(),
+                                    hashes = listOf(hub.hash!!)
+                                ) //TODO batch hashes here
+                            }.concatMapLast { v ->
+                                MeshtasticMerklePacket(
+                                    end = true,
+                                    seq = v.seq,
+                                    hashes = v.hashes
+                                )
+                            }
+                            .map { v -> v as ScatterSerializable<*> }
+
+                        val ds = datastream.map { v -> v.bytes }
+
+                        val out = ScatterSerializable.parseWrapperFromCRC(
+                            BlockHeaderPacketParser.parser,
+                            ds,
+                            parseScheduler
+                        )
+                            .map { header ->
+                                WifiDirectRadioModule.BlockDataStream(
+                                    header,
+                                    ScatterSerializable.parseWrapperFromCRC(
+                                        BlockSequencePacketParser.parser,
+                                        ds,
+                                        parseScheduler
+                                    )
+                                        .repeat().takeWhile { p -> !p.isEnd },
+                                    datastore.cacheDir
+                                )
+                            }.flatMapCompletable { bds -> datastore.insertMessage(bds) }
+
+
+                        obs.mergeWith(resp).mergeWith(out)
                     }
-
-
-
-                    val resp = hubresponse.hubs.toFlowable(BackpressureStrategy.BUFFER)
-                        .zipWith(Flowable.interval(0, TimeUnit.SECONDS)) { hub, seq ->
-                            MeshtasticMerklePacket(seq = seq.toInt(), hashes = listOf(hub.hash!!)) //TODO batch hashes here
-                        }.concatMapLast { v -> MeshtasticMerklePacket(end = true, seq = v.seq, hashes = v.hashes) }
-                        .map { v -> v as ScatterSerializable<*> }
-
-                    val ds = datastream.map { v -> v.bytes }
-
-                     val out = ScatterSerializable.parseWrapperFromCRC(BlockHeaderPacketParser.parser, ds, parseScheduler)
-                         .map { header ->
-                             WifiDirectRadioModule.BlockDataStream(header, ScatterSerializable.parseWrapperFromCRC(BlockSequencePacketParser.parser, ds, parseScheduler)
-                                 .repeat().takeWhile { p -> !p.isEnd },
-                                 datastore.cacheDir
-                             )
-                         }.flatMapCompletable { bds -> datastore.insertMessage(bds) }
-
-
-                    obs.mergeWith(resp).mergeWith(out)
                 }
             }
         }.toObservable()
+    }
+
+    override fun handshake(): Completable {
+        return datastore.getDefaultMerkleRoot().flatMapCompletable { root ->
+            radioModule.sendPacket(MeshtasticAnnouncePacket(advertiser.getHashLuid(), root).toBroadcast())
+        }
     }
 
 

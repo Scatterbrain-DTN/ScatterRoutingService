@@ -23,8 +23,7 @@ interface MeshtasticSessionSubcomponent {
     @Subcomponent.Builder
     interface Builder {
         @BindsInstance
-        @Named(ROUTER_ID)
-        fun id(id: String): Builder
+        fun id(@Named(ROUTER_ID) id: String): Builder
         fun build(): MeshtasticSessionSubcomponent
     }
 
@@ -32,6 +31,7 @@ interface MeshtasticSessionSubcomponent {
     @Module
     abstract class MeshtasticSessionModule {
         @Binds
+        @MeshtasticSessionScope
         abstract fun bindsSessionState(meshtasticSessionState: MeshtasticSessionStateImpl): MeshtasticSessionState
 
         companion object {
@@ -53,8 +53,6 @@ interface MeshtasticSessionSubcomponent {
 
     fun state(): MeshtasticSessionState
 
-    @Named(ROUTER_ID)
-    fun routerId(): String
 
     fun creationDate(): Date
 }

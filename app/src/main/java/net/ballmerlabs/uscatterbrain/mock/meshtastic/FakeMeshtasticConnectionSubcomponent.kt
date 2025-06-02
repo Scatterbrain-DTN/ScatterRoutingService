@@ -25,6 +25,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubc
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent.NamedSchedulers
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModule
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModuleImpl
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.PORT_NUMBER
 import org.mockito.kotlin.mock
 import javax.inject.Named
@@ -35,27 +36,29 @@ import javax.inject.Named
 ])
 interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent {
 
+    companion object {
+        const val REMOTE_STATE = "remote-mesh-state"
+    }
+
     @Subcomponent.Builder
     interface Builder: MeshtasticConnectionSubcomponent.Builder {
-        @BindsInstance
-        override fun service(service: IMeshService): Builder
 
-        override fun build(): MeshtasticConnectionSubcomponent?
+        @BindsInstance
+        fun remoteState(@Named(REMOTE_STATE) remoteState: MeshtasticBroadcastReceiverState): Builder
+
+        @BindsInstance
+        fun broadcastReceiverState(broadcastReceiverState: MeshtasticBroadcastReceiverState): Builder
+
+        override fun build(): FakeMeshtasticConnectionSubcomponent?
     }
 
     @Module(subcomponents = [ FakeMeshtasticSessionSubcomponent::class ])
     abstract class MeshtasticConnectionModule {
         @Binds
-        @MeshtasticConnectionScope
-        abstract fun bindsMeshtasticConnection(impl: MeshtasticConnectionImpl): MeshtasticConnection
-
-        @Binds
         abstract fun bindsBroadcastReceiver(impl: MeshBroadcastReceiverImpl): MeshBroadcastReceiver
 
-
         @Binds
-        @MeshtasticConnectionScope
-        abstract fun bindsMeshBroadcastReceiverState(impl: MeshtasticBroadcastReceiverStateImpl): MeshtasticBroadcastReceiverState
+        abstract fun bindsCOnnection(impl: MockMeshtasticConnection): MeshtasticConnection
 
         @Binds
         @MeshtasticConnectionScope
@@ -67,6 +70,12 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
             @Named(NamedSchedulers.BINDER_SCHEDULER)
             fun providesBinderScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BINDER_SCHEDULER))
+            }
+
+            @Provides
+            @MeshtasticConnectionScope
+            fun providesMeshService(): IMeshService {
+                return mock {  }
             }
 
             @Provides
@@ -83,4 +92,7 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
             }
         }
     }
+
+    fun sessionBuilder(): MeshtasticSessionSubcomponent.Builder
+    fun radioModule(): MeshtasticRadioModule
 }

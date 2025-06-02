@@ -558,6 +558,10 @@ interface ScatterbrainDatastore {
      */
     fun rehashMerkle(): Completable
 
+    fun getDefaultMerkleRoot(): Single<ByteArray>
+
+    fun getMerkleHubs(remote: Flowable<ByteArray>): Single<HubResponse>
+
 
     enum class WriteMode {
         APPEND, OVERWRITE

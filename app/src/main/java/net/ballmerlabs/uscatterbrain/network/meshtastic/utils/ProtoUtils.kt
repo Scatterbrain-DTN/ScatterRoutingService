@@ -18,6 +18,14 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toMeshtastic(): ByteArray {
     return b.toByteArray()
 }
 
+fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(): DataPacket {
+    val bytes = this.toMeshtastic()
+    return DataPacket(
+        to = DataPacket.ID_BROADCAST,
+        bytes = bytes,
+        dataType = PORT_NUMBER,
+    )
+}
 
 fun ByteArray.fromMeshtastic(): ScatterSerializable.Companion.TypedPacket {
     val out = GZIPInputStream(this.inputStream())

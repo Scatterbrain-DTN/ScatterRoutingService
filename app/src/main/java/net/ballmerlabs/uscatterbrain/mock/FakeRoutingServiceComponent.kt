@@ -402,6 +402,7 @@ interface FakeRoutingServiceComponent {
     fun gattConnectionBuilder(): FakeGattServerConnectionSubcomponent.Builder
     fun bootstrapSubcomponent(): Provider<BootstrapRequestSubcomponent.Builder>
     fun inject(provider: DatastoreImportProviderImpl?)
+    fun meshtasticConnectionBuilder(): FakeMeshtasticConnectionSubcomponent.Builder
 
 
     companion object {
