@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import androidx.lifecycle.AtomicReference
 import com.geeksville.mesh.DataPacket
+import io.ktor.util.encodeBase64
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
@@ -29,6 +30,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacketParser
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import proto.Scatterbrain
 import proto.Scatterbrain.MeshtasticAckCode
 import proto.Scatterbrain.MeshtasticMerkle
@@ -48,6 +50,9 @@ class MeshtasticSessionStateImpl @Inject constructor(
     @Named(MeshtasticSessionSubcomponent.PARSE_SCHEDULER) val parseScheduler: Scheduler,
     @Named(MeshtasticSessionSubcomponent.ROUTER_ID) val routerId: String,
 ) : MeshtasticSessionState {
+
+    private val log by scatterLog()
+
     val stage = AtomicReference(Stage.ANNOUNCE)
     var remoteLuid: UUID? = null
     val currentMerkleStream =
@@ -186,7 +191,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
                                 Flowable.fromIterable(h.hashes)
                             }
                     ).flatMapPublisher { hubresponse ->
-
                         val obs: Flowable<ScatterSerializable<*>> =
                             hubresponse.exclude.toList().flatMapObservable { hashes ->
                                 datastore.getTopRandomMessages(50, hashes)
@@ -242,6 +246,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
     override fun handshake(): Completable {
         return datastore.getDefaultMerkleRoot().flatMapCompletable { root ->
+            log.v("initiate handshake with root ${root.encodeBase64()}")
             radioModule.sendPacket(MeshtasticAnnouncePacket(advertiser.getHashLuid(), root).toBroadcast())
         }
     }
@@ -250,6 +255,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
     override fun handlePacket(packet: DataPacket): Observable<ScatterSerializable<*>> {
         return Single.just(packet).flatMapObservable { v ->
             val p = v.bytes?.fromMeshtastic()
+            log.v("meshtastic packet ${p?.type}")
             when (p?.type) {
                 Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE -> handleAnnouncePacket(p.get())
                 Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE_ACK -> handleAnnounceAckPacket(p.get())
@@ -261,6 +267,8 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 else -> Observable.just(MeshtasticErrPacket(Scatterbrain.MeshtasticErrCode.INVALID_ARGUMENT))
             }
         }.onErrorResumeNext { e: Throwable ->
+            log.e("meshtastic error $e")
+            e.printStackTrace()
             when (e) {
                 is ErrorStage -> {
                     stage.set(e.stage)

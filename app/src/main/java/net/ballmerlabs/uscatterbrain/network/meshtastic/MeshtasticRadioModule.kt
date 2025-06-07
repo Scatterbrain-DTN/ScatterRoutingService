@@ -11,4 +11,5 @@ interface MeshtasticRadioModule {
     fun startBacklog(from: String)
     fun popBacklog(): MeshtasticSessionSubcomponent?
     fun stopSession(from: String)
+    fun handlePackets(): Completable
 }

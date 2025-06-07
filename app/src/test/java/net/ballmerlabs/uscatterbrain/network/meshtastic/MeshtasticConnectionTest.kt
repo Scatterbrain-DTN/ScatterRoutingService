@@ -44,8 +44,7 @@ class MeshtasticConnectionTest {
     val secondBroadcastReceiverState = MeshtasticBroadcastReceiverStateImpl(scheduler)
 
 
-    fun buildModule(): FakeMeshtasticConnectionSubcomponent {
-
+    fun buildModule(local: MeshtasticBroadcastReceiverState, remote: MeshtasticBroadcastReceiverState): FakeMeshtasticConnectionSubcomponent {
         return (DaggerFakeRoutingServiceComponent.builder()
             .applicationContext(mock {  })
             .wifiP2pManager(mock { })
@@ -61,8 +60,8 @@ class MeshtasticConnectionTest {
             .wifiManager(mock { })
             .build()!!
             .meshtasticConnectionBuilder()
-            .broadcastReceiverState(secondBroadcastReceiverState)
-            .remoteState(firstBroadcastReceiverState)
+            .broadcastReceiverState(local)
+            .remoteState(remote)
             .service(mock {  })
             .build() as FakeMeshtasticConnectionSubcomponent?)!!
     }
@@ -70,8 +69,8 @@ class MeshtasticConnectionTest {
     @Before
     fun init() {
         MockitoAnnotations.openMocks(this)
-        firstSubcomponent = buildModule()
-        secondSubcomponent = buildModule()
+        firstSubcomponent = buildModule(firstBroadcastReceiverState, secondBroadcastReceiverState)
+        secondSubcomponent = buildModule(secondBroadcastReceiverState, firstBroadcastReceiverState)
     }
 
     @After
@@ -87,8 +86,12 @@ class MeshtasticConnectionTest {
 
         val firstSession = firstconnection.startSession("first")
         val secondSession = secondconnection.startSession("second")
-        firstSession.state().handshake().blockingAwait()
-        secondSession.state().handshake().blockingAwait()
+        firstSession.state().handshake()
+            .mergeWith(firstconnection.handlePackets())
+            .mergeWith( secondSession.state().handshake()
+                .mergeWith(secondconnection.handlePackets()))
+            .blockingAwait()
+
     }
 
 }
