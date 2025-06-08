@@ -136,6 +136,19 @@ fun <T> Observable<T>.concatMapLast(func: (T) -> T): Observable<T> {
 
 }
 
+data class Enumerate<R>(
+    val idx: Int? = null,
+    val v: R? = null
+)
+
+fun <T, R> Observable<T>.enumerateMap(func: (T, Int) -> R): Observable<R> {
+        return this
+            .scan(Enumerate<R>()) { v, k ->
+                val idx = v.idx?:0
+                Enumerate(idx = idx+1, v = func(k, idx) )
+        }.skip(1).map { v-> v.v!! }
+}
+
 
 fun <T> Flowable<T>.concatMapLast(func: (T) -> T): Flowable<T> {
     return this

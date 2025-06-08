@@ -48,7 +48,7 @@ class MockScatterbrainDatastore @Inject constructor(
                             hash = ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE),
                             childOne = 0,
                             childTwo = 0,
-                            dirty = false
+                            dirty = false,
                         ))
                     }
                 },

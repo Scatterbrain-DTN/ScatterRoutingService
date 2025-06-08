@@ -30,6 +30,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacketParser
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
+import net.ballmerlabs.uscatterbrain.util.enumerateMap
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import proto.Scatterbrain
 import proto.Scatterbrain.MeshtasticAckCode
@@ -176,11 +177,11 @@ class MeshtasticSessionStateImpl @Inject constructor(
     }
 
     private fun handleAnnounceSynAckPacket(packet: MeshtasticAnnounceSynAckPacket): Observable<ScatterSerializable<*>> {
-        return mapStagePublisher(Stage.MERKLE) { s ->
+        return mapStageObservable(Stage.MERKLE) { s ->
             when (packet.code) {
-                MeshtasticAckCode.FULL -> Flowable.empty()
-                MeshtasticAckCode.WAIT -> Flowable.empty()
-                else -> datastore.getDefaultMerkleRoot().flatMapPublisher { root ->
+                MeshtasticAckCode.FULL -> Observable.empty()
+                MeshtasticAckCode.WAIT -> Observable.empty()
+                else -> datastore.getDefaultMerkleRoot().flatMapObservable { root ->
                     val stream = MeshtasticPacketStream(MeshtasticMerklePacketParser.parser)
                     val datastream = MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
                     currentMerkleStream.getAndSet(stream)?.close()
@@ -190,21 +191,21 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             .flatMap { h ->
                                 Flowable.fromIterable(h.hashes)
                             }
-                    ).flatMapPublisher { hubresponse ->
-                        val obs: Flowable<ScatterSerializable<*>> =
+                    ).flatMapObservable { hubresponse ->
+                        val obs: Observable<ScatterSerializable<*>>  =
                             hubresponse.exclude.toList().flatMapObservable { hashes ->
                                 datastore.getTopRandomMessages(50, hashes)
                                     .map { v -> v }
 
-                            }.toFlowable(BackpressureStrategy.BUFFER).flatMap { p ->
-                                MeshtasticStreamPacket.fromStream(p)
+                            }.flatMap { p ->
+                                MeshtasticStreamPacket.fromStream(p).toObservable()
                             }
 
 
-                        val resp = hubresponse.hubs.toFlowable(BackpressureStrategy.BUFFER)
-                            .zipWith(Flowable.interval(0, TimeUnit.SECONDS)) { hub, seq ->
+                        val resp = hubresponse.hubs
+                            .enumerateMap { hub, seq ->
                                 MeshtasticMerklePacket(
-                                    seq = seq.toInt(),
+                                    seq = seq,
                                     hashes = listOf(hub.hash!!)
                                 ) //TODO batch hashes here
                             }.concatMapLast { v ->
@@ -237,11 +238,11 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             }.flatMapCompletable { bds -> datastore.insertMessage(bds) }
 
 
-                        obs.mergeWith(resp).mergeWith(out)
+                         obs.mergeWith(resp).mergeWith(out)
                     }
                 }
             }
-        }.toObservable()
+        }
     }
 
     override fun handshake(): Completable {
