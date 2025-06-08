@@ -70,7 +70,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
     val currentDataStream = AtomicReference<MeshtasticPacketStream<MeshtasticStreamPacket, MeshtasticStream>?>(
         MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
     )
-    private val handshake = CompletableSubject.create()
+    private val handshake = AtomicReference(CompletableSubject.create())
 
     override fun <R> mapStageSingle(onSuccess: Stage, func: (Stage) -> Single<R>): Single<R> {
         return Single.fromCallable {
@@ -272,9 +272,9 @@ class MeshtasticSessionStateImpl @Inject constructor(
                              .concatWith(obs.mergeWith(out))
                              .doOnComplete {
                                  log.v("sending handshake success")
-                                 handshake.onComplete()
+                                 handshake.get().onComplete()
                          }.doOnError { err ->
-                             handshake.onError(err)
+                             handshake.get().onError(err)
                          }.doFinally {
                              currentMerkleStream.set(MeshtasticPacketStream(MeshtasticMerklePacketParser.parser))
                              currentDataStream.set(MeshtasticPacketStream(MeshtasticStreamPacketParser.parser))
@@ -289,14 +289,20 @@ class MeshtasticSessionStateImpl @Inject constructor(
         }
     }
 
-    override fun handshake(): Observable<TransactionResult<BootstrapRequest>> {
+    override fun handshake(): Completable {
         return  datastore.getDefaultMerkleRoot().flatMapCompletable { root ->
             log.v("initiate handshake with root ${root.encodeBase64()}")
             radioModule.sendPacket(MeshtasticAnnouncePacket(advertiser.getHashLuid(), root).toBroadcast())
                 .doFinally { log.v("sendPacket complete") }
         }
             .doFinally { log.v("handshake complete") }
-            .andThen(handshake.toObservable())
+            .andThen(handshake.updateAndGet { v ->
+                if (v.hasComplete()) {
+                    CompletableSubject.create()
+                } else {
+                    v
+                }
+            }!!)
     }
 
 

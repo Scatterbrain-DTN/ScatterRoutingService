@@ -12,6 +12,8 @@ import net.ballmerlabs.uscatterbrain.mock.meshtastic.FakeMeshtasticConnectionSub
 import net.ballmerlabs.uscatterbrain.mock.meshtastic.MockMeshtasticConnection
 import net.ballmerlabs.uscatterbrain.mock.util.MockRouterPreferences
 import net.ballmerlabs.uscatterbrain.mock.util.mockLoggerGenerator
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.TransactionResult
 import net.ballmerlabs.uscatterbrain.util.logger
 import org.junit.After
 import org.junit.Before
@@ -87,14 +89,16 @@ class MeshtasticConnectionTest {
 
         val firstSession = firstconnection.startSession("second").state()
         val secondSession = secondconnection.startSession("first").state()
-        firstconnection.handlePackets().subscribe()
-        secondconnection.handlePackets().subscribe()
-        firstSession.handshake().subscribe()
 
-        val get = secondSession.handshake().toList().blockingGet()
+            val handle = firstconnection.handlePackets().mergeWith(secondconnection.handlePackets()).subscribe()
+            val get = firstSession.handshake().mergeWith(secondSession.handshake())
+                .doFinally { handle.dispose()}
+                .test()
 
+        get.await()
 
-        assert(!get.any { v -> v.isError })
+        get.assertNoErrors()
+        get.assertComplete()
 
     }
 
