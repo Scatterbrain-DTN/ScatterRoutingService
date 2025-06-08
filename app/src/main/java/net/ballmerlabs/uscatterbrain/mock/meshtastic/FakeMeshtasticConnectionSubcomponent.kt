@@ -38,6 +38,7 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
 
     companion object {
         const val REMOTE_STATE = "remote-mesh-state"
+        const val MY_ID = "my-id"
     }
 
     @Subcomponent.Builder
@@ -49,15 +50,20 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
         @BindsInstance
         fun broadcastReceiverState(broadcastReceiverState: MeshtasticBroadcastReceiverState): Builder
 
+        @BindsInstance
+        fun myId(@Named(MY_ID) id: String): Builder
+
         override fun build(): FakeMeshtasticConnectionSubcomponent?
     }
 
     @Module(subcomponents = [ FakeMeshtasticSessionSubcomponent::class ])
     abstract class MeshtasticConnectionModule {
         @Binds
+        @MeshtasticConnectionScope
         abstract fun bindsBroadcastReceiver(impl: MeshBroadcastReceiverImpl): MeshBroadcastReceiver
 
         @Binds
+        @MeshtasticConnectionScope
         abstract fun bindsCOnnection(impl: MockMeshtasticConnection): MeshtasticConnection
 
         @Binds

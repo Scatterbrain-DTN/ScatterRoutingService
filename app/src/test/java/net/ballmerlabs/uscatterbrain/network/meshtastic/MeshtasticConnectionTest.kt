@@ -44,7 +44,7 @@ class MeshtasticConnectionTest {
     val secondBroadcastReceiverState = MeshtasticBroadcastReceiverStateImpl(scheduler)
 
 
-    fun buildModule(local: MeshtasticBroadcastReceiverState, remote: MeshtasticBroadcastReceiverState): FakeMeshtasticConnectionSubcomponent {
+    fun buildModule(local: MeshtasticBroadcastReceiverState, remote: MeshtasticBroadcastReceiverState, myId: String): FakeMeshtasticConnectionSubcomponent {
         return (DaggerFakeRoutingServiceComponent.builder()
             .applicationContext(mock {  })
             .wifiP2pManager(mock { })
@@ -61,6 +61,7 @@ class MeshtasticConnectionTest {
             .build()!!
             .meshtasticConnectionBuilder()
             .broadcastReceiverState(local)
+            .myId(myId)
             .remoteState(remote)
             .service(mock {  })
             .build() as FakeMeshtasticConnectionSubcomponent?)!!
@@ -69,8 +70,8 @@ class MeshtasticConnectionTest {
     @Before
     fun init() {
         MockitoAnnotations.openMocks(this)
-        firstSubcomponent = buildModule(firstBroadcastReceiverState, secondBroadcastReceiverState)
-        secondSubcomponent = buildModule(secondBroadcastReceiverState, firstBroadcastReceiverState)
+        firstSubcomponent = buildModule(firstBroadcastReceiverState, secondBroadcastReceiverState, "first")
+        secondSubcomponent = buildModule(secondBroadcastReceiverState, firstBroadcastReceiverState, "second")
     }
 
     @After
@@ -84,19 +85,16 @@ class MeshtasticConnectionTest {
         val firstconnection = firstSubcomponent.radioModule()
         val secondconnection = secondSubcomponent.radioModule()
 
-        val firstSession = firstconnection.startSession("first")
-        val secondSession = secondconnection.startSession("second")
-        val get = firstSession.state().handshake()
-            .toObservable()
-            .mergeWith(firstconnection.handlePackets())
-            .mergeWith( secondSession.state().handshake()
-                .toObservable()
-                .mergeWith(secondconnection.handlePackets()))
-            .lastElement()
-            .blockingGet()
+        val firstSession = firstconnection.startSession("second").state()
+        val secondSession = secondconnection.startSession("first").state()
+        firstconnection.handlePackets().subscribe()
+        secondconnection.handlePackets().subscribe()
+        firstSession.handshake().subscribe()
+
+        val get = secondSession.handshake().toList().blockingGet()
 
 
-        assert(!get.isError)
+        assert(!get.any { v -> v.isError })
 
     }
 

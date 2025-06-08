@@ -52,6 +52,8 @@ class MeshtasticRadioModuleImpl @Inject constructor(
             }
         }!!
 
+        log.v("startSession size=${currentTransactions.size} from=$from")
+
         return if (currentTransactions.size > MAX_SESSIONS) {
             backlog.add(session)
             session
@@ -69,15 +71,22 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     }
 
     override fun handlePacket(dataPacket: DataPacket): Completable {
-        return Completable.defer {
-            log.v("handlePacket $dataPacket")
+        return connection.getMyId().flatMapCompletable { myID ->
             val from = dataPacket.from
-            if (from != null)
-                startSession(from).state().handlePacket(dataPacket)
-                    .concatMapCompletable { v -> sendPacket(dataPacket.reply(v)) }
-            else
+
+            log.v("handlePacket from=$from my=$myID" )
+
+            if (from != myID) {
+                if (from != null)
+                    startSession(from).state().handlePacket(dataPacket)
+                        .concatMapCompletable { v -> sendPacket(dataPacket.reply(v)) }
+                else
+                    Completable.complete()
+                        .doOnComplete { log.v("got packet without from") }
+            } else {
+                log.w("got connection from self??")
                 Completable.complete()
-                    .doOnComplete { log.v("got packet without from") }
+            }
         }
     }
 

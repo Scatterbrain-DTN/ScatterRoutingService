@@ -39,7 +39,7 @@ class MockScatterbrainDatastore @Inject constructor(
     }
 
     override fun getMerkleHubs(remote: Flowable<ByteArray>): Single<HubResponse> {
-        return Single.just(
+        val out = Single.just(
             HubResponse(
                 hubs = Observable.create { obs ->
                     for (x in 0..16) {
@@ -54,8 +54,9 @@ class MockScatterbrainDatastore @Inject constructor(
                     obs.onComplete()
                 },
                 exclude = Observable.empty()
-        )
-        )
+        ))
+        remote.ignoreElements().onErrorComplete().subscribe()
+        return out
     }
 
 
@@ -129,7 +130,7 @@ class MockScatterbrainDatastore @Inject constructor(
     }
 
     override fun getTopRandomMessages(count: Int, delareHashes: List<ByteArray>, flag: List<MessageFlag>?): Observable<WifiDirectRadioModule.BlockDataStream> {
-        return Observable.empty()
+        return Observable.just(WifiDirectRadioModule.BlockDataStream.endOfStream())
     }
 
     override val allFiles: Observable<String>

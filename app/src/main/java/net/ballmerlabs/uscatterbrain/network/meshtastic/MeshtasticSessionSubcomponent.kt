@@ -45,7 +45,7 @@ interface MeshtasticSessionSubcomponent {
             @MeshtasticSessionScope
             @Named(PARSE_SCHEDULER)
             fun providesParseScheduler(): Scheduler {
-                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(PARSE_SCHEDULER))
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(PARSE_SCHEDULER))
             }
         }
     }

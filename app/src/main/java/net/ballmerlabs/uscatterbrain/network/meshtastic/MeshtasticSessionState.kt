@@ -61,7 +61,7 @@ interface MeshtasticSessionState {
         }
     }
 
-    fun handshake(): Single<TransactionResult<BootstrapRequest>>
+    fun handshake(): Observable<TransactionResult<BootstrapRequest>>
 
     fun handlePacket(packet: DataPacket): Observable<ScatterSerializable<*>>
 }

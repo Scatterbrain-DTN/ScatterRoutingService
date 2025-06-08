@@ -23,13 +23,14 @@ class MockMeshtasticConnection @Inject constructor(
     @Named(FakeMeshtasticConnectionSubcomponent.REMOTE_STATE)
     val remoteState: MeshtasticBroadcastReceiverState,
     var broadcastReceiver: MeshBroadcastReceiver,
-    var localState: MeshtasticBroadcastReceiverState
+    var localState: MeshtasticBroadcastReceiverState,
+    @Named(FakeMeshtasticConnectionSubcomponent.MY_ID) val myId: String
 ): MeshtasticConnection {
 
 
 
     val owner = AtomicReference<MeshUser?>(null)
-    val id = AtomicReference<String>("test")
+    val id = AtomicReference<String>(myId)
     val packetId = AtomicLong()
 
     override fun subscribeReceiver() {
