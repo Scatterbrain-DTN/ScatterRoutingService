@@ -51,6 +51,7 @@ class MockScatterbrainDatastore @Inject constructor(
                             dirty = false,
                         ))
                     }
+                    obs.onComplete()
                 },
                 exclude = Observable.empty()
         )

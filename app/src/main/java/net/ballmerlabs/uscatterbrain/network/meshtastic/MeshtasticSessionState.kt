@@ -10,6 +10,8 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import kotlinx.coroutines.flow.Flow
 import net.ballmerlabs.scatterproto.ScatterSerializable
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.TransactionResult
 
 enum class Stage {
     LOCKED,
@@ -59,7 +61,7 @@ interface MeshtasticSessionState {
         }
     }
 
-    fun handshake(): Completable
+    fun handshake(): Single<TransactionResult<BootstrapRequest>>
 
     fun handlePacket(packet: DataPacket): Observable<ScatterSerializable<*>>
 }

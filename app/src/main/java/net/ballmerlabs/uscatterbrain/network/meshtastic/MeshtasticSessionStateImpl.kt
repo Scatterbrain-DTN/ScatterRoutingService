@@ -10,10 +10,15 @@ import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
+import io.reactivex.subjects.CompletableSubject
+import io.reactivex.subjects.SingleSubject
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.verifyed25519
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.TransactionResult
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounceAckPacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnouncePacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounceSynAckPacket
@@ -59,6 +64,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
     val currentMerkleStream =
         AtomicReference<MeshtasticPacketStream<MeshtasticMerklePacket, MeshtasticMerkle>?>(null)
     val currentDataStream = AtomicReference<MeshtasticPacketStream<MeshtasticStreamPacket, MeshtasticStream>?>(null)
+    val handshake = AtomicReference(SingleSubject.create<TransactionResult<BootstrapRequest>>())
 
     override fun <R> mapStageSingle(onSuccess: Stage, func: (Stage) -> Single<R>): Single<R> {
         return Single.fromCallable {
@@ -194,6 +200,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     ).flatMapObservable { hubresponse ->
                         val obs: Observable<ScatterSerializable<*>>  =
                             hubresponse.exclude.toList().flatMapObservable { hashes ->
+                                log.w("got merkle hash list ${hashes.size}")
                                 datastore.getTopRandomMessages(50, hashes)
                                     .map { v -> v }
 
@@ -215,6 +222,8 @@ class MeshtasticSessionStateImpl @Inject constructor(
                                     hashes = v.hashes
                                 )
                             }
+                            .doOnNext { v -> log.v("sending merkle packet: ${v.end}") }
+                            .doOnComplete { log.w("merkle hubs completed") }
                             .map { v -> v as ScatterSerializable<*> }
 
                         val ds = datastream.map { v -> v.bytes }
@@ -238,18 +247,28 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             }.flatMapCompletable { bds -> datastore.insertMessage(bds) }
 
 
-                         obs.mergeWith(resp).mergeWith(out)
+                         obs.mergeWith(resp).mergeWith(out).doOnComplete {
+                             handshake.get()?.onSuccess(TransactionResult.empty())
+                         }.doOnError { err ->
+                             handshake.get()?.onError(err)
+                         }
                     }
                 }
             }
         }
     }
 
-    override fun handshake(): Completable {
-        return datastore.getDefaultMerkleRoot().flatMapCompletable { root ->
+    override fun handshake(): Single<TransactionResult<BootstrapRequest>> {
+        return handshake.updateAndGet { h ->
+            when(h) {
+                null -> SingleSubject.create()
+                else -> h
+            }
+        }.toObservable()
+            .mergeWith( datastore.getDefaultMerkleRoot().flatMapCompletable { root ->
             log.v("initiate handshake with root ${root.encodeBase64()}")
             radioModule.sendPacket(MeshtasticAnnouncePacket(advertiser.getHashLuid(), root).toBroadcast())
-        }
+        }).lastOrError()
     }
 
 

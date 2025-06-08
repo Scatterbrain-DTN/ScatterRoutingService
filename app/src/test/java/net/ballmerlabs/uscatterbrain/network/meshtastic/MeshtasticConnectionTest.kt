@@ -86,11 +86,17 @@ class MeshtasticConnectionTest {
 
         val firstSession = firstconnection.startSession("first")
         val secondSession = secondconnection.startSession("second")
-        firstSession.state().handshake()
+        val get = firstSession.state().handshake()
+            .toObservable()
             .mergeWith(firstconnection.handlePackets())
             .mergeWith( secondSession.state().handshake()
+                .toObservable()
                 .mergeWith(secondconnection.handlePackets()))
-            .blockingAwait()
+            .lastElement()
+            .blockingGet()
+
+
+        assert(!get.isError)
 
     }
 
