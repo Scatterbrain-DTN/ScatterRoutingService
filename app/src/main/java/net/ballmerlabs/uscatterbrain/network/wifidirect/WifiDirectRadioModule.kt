@@ -21,7 +21,7 @@ interface WifiDirectRadioModule {
      * Returns the suggested wifi band that we should used, based on internal metrics
      * @return band from FakeWifiP2pConfig
      */
-    fun getBand(): Int
+    fun getBand(): Single<Int>
 
     /**
      * connect to a wifi direct group, initializing the global group state if the connection is successful.

@@ -2,6 +2,12 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.Context
 import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.ConnectivityManager.NetworkCallback
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pGroup
@@ -29,6 +35,7 @@ import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import proto.Scatterbrain.DeclareHashesMode
+import proto.pairingAck
 import java.util.Random
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -351,33 +358,96 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         return removeGroup().onErrorComplete().andThen(s)
     }
 
-    private fun getConnected(): Optional<Int> {
+    private fun getConnected(): Maybe<Int> {
         //   return FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
-        val connected = manager.connectionInfo?.bssid != null
-        LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported} connected $connected")
-        val freq = manager.connectionInfo?.frequency
-        return if (connected && (freq in 5_150..5_885))
-            Optional.of(FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
-        else if (connected && (freq in 2_400..2_483))
-            Optional.of(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
-        else if (!connected)
-            Optional.empty()
+        return Maybe.create { m ->
+            LOG.w("getBand, 5ghz supported ${manager.is5GHzBandSupported} connected")
+//            val request = NetworkRequest.Builder()
+//                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+//                .build()
 
+            val connectivityManager =
+                mContext.getSystemService(ConnectivityManager::class.java) as ConnectivityManager
+            val current = connectivityManager.activeNetwork
+            val networkCapabilities = connectivityManager.getNetworkCapabilities(current)
+//
+//            val networkCallback = object : NetworkCallback() {
+//
+//                override fun onAvailable(network: Network) {
+//                    super.onAvailable(network)
+//                }
+//
+//                override fun onCapabilitiesChanged(
+//                    network: Network,
+//                    networkCapabilities: NetworkCapabilities
+//                ) {
+//                    val res = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+//                        val wifiInfo = networkCapabilities.transportInfo as WifiInfo
+//                        Pair(wifiInfo.frequency, wifiInfo.bssid != null)
+//                    } else {
+//                        Pair(
+//                            manager.connectionInfo?.frequency,
+//                            manager.connectionInfo?.bssid != null
+//                        )
+//                    }
+//
+//                    val connected = res.second
+//                    val freq = res.first
+//                    LOG.v("got freq=$freq connected=$connected")
+//                    if (connected && (freq in 5_150..5_885))
+//                        m.onSuccess(FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
+//                    else if (connected && (freq in 2_400..2_483))
+//                        m.onSuccess(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+//                    else if (connected && (freq == -1))
+//                        m.onSuccess(FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO)
+//                    else if (!connected)
+//                        m.onComplete()
+//                    else {
+//                        val exc = IllegalStateException("wifi connected with invalid frequency $freq")
+//                        LOG.e("wifi connected with invalid frequency $freq")
+//                        firebaseWrapper.recordException(exc)
+//                        m.onError(exc)
+//                    }
+//                }
+//            }
+//            connectivityManager.requestNetwork(request, networkCallback); // For request
 
-        else {
-            LOG.e("wifi connected with invalid frequency $freq")
-            firebaseWrapper.recordException(IllegalStateException("wifi connected with invalid frequency $freq"))
-            Optional.empty()
+            val res = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val wifiInfo = networkCapabilities?.transportInfo as WifiInfo?
+                Pair(wifiInfo?.frequency, wifiInfo?.bssid != null)
+            } else {
+                Pair(
+                    manager.connectionInfo?.frequency,
+                    manager.connectionInfo?.bssid != null
+                )
+            }
+
+            val connected = res.second
+            val freq = res.first
+            LOG.v("got freq=$freq connected=$connected")
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.VANILLA_ICE_CREAM && connected)
+                m.onSuccess(FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO)
+            else if (connected && (freq in 5_150..5_885))
+                m.onSuccess(FakeWifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
+            else if (connected && (freq in 2_400..2_483))
+                m.onSuccess(FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+            else if (connected && (freq == -1))
+                m.onSuccess(FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO)
+            else if (!connected)
+                m.onComplete()
+            else {
+                val exc = IllegalStateException("wifi connected with invalid frequency $freq")
+                LOG.e("wifi connected with invalid frequency $freq")
+                firebaseWrapper.recordException(exc)
+                m.onError(exc)
+            }
         }
+
     }
 
-    override fun getBand(): Int {
-        val ret = getConnected()
-        return if (ret.isPresent) {
-            ret.item!!
-        } else {
-            FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
-        }
+    override fun getBand(): Single<Int> {
+        return getConnected()
+            .toSingle(FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO)
     }
 
     private fun cancelConnection(): Completable {
@@ -511,8 +581,13 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     ) {
         LOG.w("bootstrapSeme started")
         if (groupDisposable.get() == null) {
+            val band = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.VANILLA_ICE_CREAM)
+                FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
+            else
+                req.band
+
             val disp = bootstrapSeme(
-                req.name, req.passphrase, req.band, req, advertiser.getHashLuid(), mode
+                req.name, req.passphrase, band, req, advertiser.getHashLuid(), mode
             )
                 .doFinally { groupDisposable.getAndSet(null)?.dispose() }
                 .subscribe(

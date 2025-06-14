@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.mock.meshtastic
 
-import androidx.lifecycle.AtomicReference
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.MeshUser
 import com.geeksville.mesh.MessageStatus
@@ -15,6 +14,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnection
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionScope
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MessageStatusEvent
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -30,7 +30,7 @@ class MockMeshtasticConnection @Inject constructor(
 
 
     val owner = AtomicReference<MeshUser?>(null)
-    val id = AtomicReference<String>(myId)
+    val id = AtomicReference(myId)
     val packetId = AtomicLong()
 
     override fun subscribeReceiver() {

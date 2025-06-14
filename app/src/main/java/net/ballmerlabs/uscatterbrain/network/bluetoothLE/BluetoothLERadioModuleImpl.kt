@@ -377,21 +377,23 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                             BluetoothLEModule.Role.ROLE_UKE, BluetoothLEModule.Role.ROLE_SUPERUKE -> {
                                 LOG.e("upgrade role UKE")
-                                wifiDirectRadioModule.bootstrapUke(
-                                    wifiDirectRadioModule.getBand(),
-                                    session.remoteLuid,
-                                    advertiser.getHashLuid(),
-                                    session.advertiseStage.declareHashesMode
-                                ).flatMapCompletable { bootstrapReq ->
-                                    LOG.e("uke upgrade callback")
-                                    serverConn.serverNotify(
-                                        bootstrapReq.toUpgrade(Random().nextInt()),
+                                wifiDirectRadioModule.getBand().flatMap { band ->
+                                    wifiDirectRadioModule.bootstrapUke(
+                                        band,
                                         session.remoteLuid,
-                                        session.device
+                                        advertiser.getHashLuid(),
+                                        session.advertiseStage.declareHashesMode
+                                    ).flatMapCompletable { bootstrapReq ->
+                                        LOG.e("uke upgrade callback")
+                                        serverConn.serverNotify(
+                                            bootstrapReq.toUpgrade(Random().nextInt()),
+                                            session.remoteLuid,
+                                            session.device
+                                        )
+                                    }.toSingleDefault(
+                                        TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                     )
-                                }.toSingleDefault(
-                                    TransactionResult.of(TransactionResult.STAGE_TERMINATE)
-                                )
+                                }
 
                             }
 

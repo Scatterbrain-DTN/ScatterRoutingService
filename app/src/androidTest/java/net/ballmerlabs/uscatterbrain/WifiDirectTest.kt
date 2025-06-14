@@ -56,7 +56,8 @@ class WifiDirectTest {
         GrantPermissionRule.grant(
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.NEARBY_WIFI_DEVICES
+            Manifest.permission.NEARBY_WIFI_DEVICES,
+            Manifest.permission.CHANGE_NETWORK_STATE
     ) else
         GrantPermissionRule.grant(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -169,7 +170,7 @@ class WifiDirectTest {
     @Throws(TimeoutException::class)
     fun createGroupTest() {
         assert(
-            radioModule.createGroupSingle(radioModule.getBand()).timeout(20, TimeUnit.SECONDS)
+            radioModule.createGroupSingle(radioModule.getBand().blockingGet()).timeout(20, TimeUnit.SECONDS)
                 .blockingGet().isGroupOwner
         )
     }
@@ -195,7 +196,7 @@ class WifiDirectTest {
     fun wifiDirectIsUsableAfterCreate() {
         RxBleLog.setLogLevel(RxBleLog.VERBOSE)
         radioModule.removeGroup().blockingAwait()
-        val res =  radioModule.createGroupSingle(radioModule.getBand()).retryDelay( 5, 10).timeout(60, TimeUnit.SECONDS).blockingGet()
+        val res =  radioModule.createGroupSingle(radioModule.getBand().blockingGet()).retryDelay( 5, 10).timeout(60, TimeUnit.SECONDS).blockingGet()
         assert(radioModule.wifiDirectIsUsable().timeout(20, TimeUnit.SECONDS).retryDelay( 5, 10).blockingGet())
         assert(res.groupFormed)
     }
@@ -220,7 +221,7 @@ class WifiDirectTest {
             .blockingAwait()
         for (x in 0..20) {
             assert(
-                radioModule.createGroupSingle(radioModule.getBand())
+                radioModule.createGroupSingle(radioModule.getBand().blockingGet())
                     .timeout(20, TimeUnit.SECONDS)
                     .blockingGet().isGroupOwner
             )

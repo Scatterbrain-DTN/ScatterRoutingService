@@ -7,7 +7,6 @@ import android.net.ConnectivityManager
 import android.net.ConnectivityManager.NetworkCallback
 import android.net.LinkProperties
 import android.net.Network
-import androidx.lifecycle.AtomicReference
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.Single
@@ -43,6 +42,7 @@ import java.net.Inet6Address
 import java.net.Socket
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 

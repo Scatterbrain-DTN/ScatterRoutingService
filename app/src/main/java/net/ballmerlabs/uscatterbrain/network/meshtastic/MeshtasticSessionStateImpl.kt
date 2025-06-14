@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import androidx.lifecycle.AtomicReference
 import com.geeksville.mesh.DataPacket
 import io.ktor.util.encodeBase64
 import io.reactivex.BackpressureStrategy
@@ -45,6 +44,7 @@ import proto.Scatterbrain.MeshtasticMerkle
 import proto.Scatterbrain.MeshtasticStream
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -64,10 +64,10 @@ class MeshtasticSessionStateImpl @Inject constructor(
     val stage = AtomicReference(Stage.ANNOUNCE)
     var remoteLuid: UUID? = null
     val currentMerkleStream =
-        AtomicReference<MeshtasticPacketStream<MeshtasticMerklePacket, MeshtasticMerkle>>(
+        AtomicReference(
             MeshtasticPacketStream(MeshtasticMerklePacketParser.parser)
         )
-    val currentDataStream = AtomicReference<MeshtasticPacketStream<MeshtasticStreamPacket, MeshtasticStream>?>(
+    val currentDataStream = AtomicReference(
         MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
     )
     private val handshake = AtomicReference(CompletableSubject.create())
@@ -81,7 +81,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
         }
 
     }
-
 
     override fun <R> mapStagePublisher(
         onSuccess: Stage,
