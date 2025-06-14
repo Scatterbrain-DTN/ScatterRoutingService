@@ -50,7 +50,7 @@ dependencies {
     implementation("com.google.protobuf:protobuf-kotlin:$protobuf_version")
     implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
     implementation "com.google.protobuf:protobuf-kotlin:$protobuf_version"
-    implementation "com.github.davidmoten:rxjava2-extras:0.1.38"
+    implementation libs.rxjava2.extras
 }
 
 repositories {
