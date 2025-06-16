@@ -79,7 +79,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
             if (from != myID) {
                 if (from != null)
                     startSession(from).state().handlePacket(dataPacket)
-                        .concatMapCompletable { v -> sendPacket(dataPacket.reply(v)) }
+                        .concatMapCompletable { v -> sendPacket(dataPacket.reply(v, myID)) }
                 else
                     Completable.complete()
                         .doOnComplete { log.v("got packet without from") }

@@ -143,10 +143,11 @@ class MeshtasticSessionStateImpl @Inject constructor(
         }
     }
 
-    private fun handleAnnouncePacket(packet: MeshtasticAnnouncePacket): Observable<ScatterSerializable<*>> {
+    private fun handleAnnouncePacket(packet: MeshtasticAnnouncePacket, to: String?): Observable<ScatterSerializable<*>> {
         if (remoteLuid == null)
             remoteLuid = packet.remoteLuid
         return mapStageObservable(Stage.ACK) { s ->
+            log.v("handleAnnouncePacket id=$routerId")
             datastore.getDefaultMerkleRoot().flatMapObservable { root ->
                 val code = if (radioModule.getSessionCount() > MAX_SESSIONS) {
                     radioModule.startBacklog(routerId)
@@ -154,19 +155,37 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 } else {
                     MeshtasticAckCode.TRANSACTION
                 }
-                Observable.just(
-                    MeshtasticAnnounceAckPacket(
-                        advertiser.getHashLuid(),
-                        root,
-                        code
-                    )
-                )
+
+                when(to) {
+                    DataPacket.ID_BROADCAST -> Observable.just(
+                        MeshtasticAnnouncePacket(
+                            advertiser.getHashLuid(),
+                            root
+                        )
+                    ).doOnSubscribe { log.v("replying to broadcast me=$routerId") }
+                    routerId -> Observable.fromIterable(
+                        listOf(
+                            MeshtasticAnnouncePacket(
+                                advertiser.getHashLuid(),
+                                root
+                            ),
+                            MeshtasticAnnounceAckPacket(
+                            advertiser.getHashLuid(),
+                            root,
+                            code
+                        ))
+                    ).doOnSubscribe { log.v("replying to unicast me=$routerId") }
+                    null -> Observable.error(IllegalStateException("packet with null to field"))
+                    else -> Observable.error(IllegalStateException("packet with invalid to field $to my=$routerId"))
+                }
+
             }
         }
     }
 
     private fun handleAnnounceAckPacket(packet: MeshtasticAnnounceAckPacket): Observable<ScatterSerializable<*>> {
         return mapStageObservable(Stage.SYNACK) { s ->
+            log.v("handleAnnounceAckPacket id=$routerId")
             when (packet.code) {
                 MeshtasticAckCode.FULL -> {
                     radioModule.startBacklog(routerId)
@@ -189,7 +208,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
     private fun handleAnnounceSynAckPacket(packet: MeshtasticAnnounceSynAckPacket): Observable<ScatterSerializable<*>> {
         return mapStageObservable(Stage.MERKLE) { s ->
-            log.v("handleAnnounceSynAckPacket code=${packet.code}")
+            log.v("handleAnnounceSynAckPacket id=$routerId code=${packet.code}")
             when (packet.code) {
                 MeshtasticAckCode.FULL -> Observable.empty()
                 MeshtasticAckCode.WAIT -> Observable.empty()
@@ -290,8 +309,9 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
     override fun handshake(): Completable {
         return  datastore.getDefaultMerkleRoot().flatMapCompletable { root ->
-            log.v("initiate handshake with root ${root.encodeBase64()}")
-            radioModule.sendPacket(MeshtasticAnnouncePacket(advertiser.getHashLuid(), root).toBroadcast())
+            log.v("initiate handshake with root me=$routerId ${root.encodeBase64()}")
+            radioModule.sendPacket(MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
+                .toBroadcast(from = routerId))
                 .doFinally { log.v("sendPacket complete") }
         }
             .doFinally { log.v("handshake complete") }
@@ -310,7 +330,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
             val p = v.bytes?.fromMeshtastic()
             log.v("meshtastic packet ${p?.type}")
             when (p?.type) {
-                Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE -> handleAnnouncePacket(p.get())
+                Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE -> handleAnnouncePacket(p.get(), packet.to)
                 Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE_ACK -> handleAnnounceAckPacket(p.get())
                 Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE_SYNACK -> handleAnnounceSynAckPacket(p.get())
                 Scatterbrain.MessageType.MESHTASTIC_MERKLE -> currentMerkleStream.get()

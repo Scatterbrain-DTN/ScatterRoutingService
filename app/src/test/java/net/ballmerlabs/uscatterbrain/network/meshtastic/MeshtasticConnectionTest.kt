@@ -90,10 +90,31 @@ class MeshtasticConnectionTest {
         val firstSession = firstconnection.startSession("second").state()
         val secondSession = secondconnection.startSession("first").state()
 
-            val handle = firstconnection.handlePackets().mergeWith(secondconnection.handlePackets()).subscribe()
+            val handle = firstconnection.handlePackets().mergeWith(secondconnection.handlePackets())
+                .subscribe()
             val get = firstSession.handshake().mergeWith(secondSession.handshake())
                 .doFinally { handle.dispose()}
                 .test()
+
+        get.await()
+
+        get.assertNoErrors()
+        get.assertComplete()
+
+    }
+
+    @Test
+    fun oneSidedPacketTest() {
+        val firstconnection = firstSubcomponent.radioModule()
+        val secondconnection = secondSubcomponent.radioModule()
+
+        val firstSession = firstconnection.startSession("second").state()
+
+        val handle = firstconnection.handlePackets().mergeWith(secondconnection.handlePackets())
+            .subscribe()
+        val get = firstSession.handshake()
+            .doFinally { handle.dispose()}
+            .test()
 
         get.await()
 
