@@ -27,6 +27,7 @@ import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WakeLockProvider
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
+import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
@@ -37,6 +38,8 @@ import net.ballmerlabs.uscatterbrain.network.desktop.DesktopAddr
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopAddrs
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSessionState
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProvider
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProvider
 import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
@@ -67,6 +70,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val leState: LeState,
     private val datastore: ScatterbrainDatastore,
     private val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
+    private val meshtasticBinderProvider: MeshtasticConnectionProvider,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val operationsScheduler: Scheduler,
     val serverSocketManager: ServerSocketManager,
     val desktopBuilder: Provider<DesktopApiSubcomponent.Builder>,
@@ -253,6 +257,19 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         pauseScan()
         state.shouldScan = true
         val disp = broadcastTransactionResult(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+            .andThen(preferences.getString(context.getString(R.string.pref_meshtastic), "disabled"))
+            .flatMapCompletable { meshtastic ->
+                val options = context.resources.getStringArray(R.array.meshtastic_options)
+                LOG.v("attempting meshtastic connection with $meshtastic")
+                when(meshtastic) {
+                    options[0] -> Completable.complete()
+                    else -> Completable.defer {
+                        meshtasticBinderProvider.connectBinderAsync()
+                        meshtasticBinderProvider.awaitConnection().ignoreElement()
+                    }.doOnComplete { LOG.v("meshtastic binder connected on start!") }
+
+                }
+            }.onErrorComplete()
             .andThen(Observable.just(client.state))
             .concatWith(client.observeStateChanges())
             .switchMapCompletable { state ->

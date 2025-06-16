@@ -16,7 +16,6 @@ import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.rule.GrantPermissionRule
 import com.google.firebase.FirebaseApp
-import com.goterl.lazysodium.BuildConfig
 import com.polidea.rxandroidble2.internal.RxBleLog
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock

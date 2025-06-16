@@ -139,9 +139,11 @@ dependencies {
     androidTestImplementation libs.androidx.uiautomator
     androidTestImplementation libs.room.testing
 
-    //lazysodium cryptographic library
-    implementation(libs.lazysodium.android)
-    implementation libs.jna
+//    //lazysodium cryptographic library
+//    implementation(libs.lazysodium.android)
+//    implementation libs.jna
+    implementation "com.goterl:lazysodium-android:5.2.0@aar"
+    implementation "net.java.dev.jna:jna:5.17.0@aar"
     implementation libs.androidx.datastore.preferences
     implementation libs.androidx.datastore.preferences.rxjava2
 
