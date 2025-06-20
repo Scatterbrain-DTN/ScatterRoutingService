@@ -49,6 +49,6 @@ class MeshtasticMerklePacket(
                 .map { hashes -> MeshtasticMerklePacket(seq, hashes) }
         }
 
-        val MESHTASTIC_MAX_HASHES: Long = floor((MESHTASTIC_MAX_LEN - Int.SIZE_BYTES) / LibsodiumInterface.MERKLE_HASH_SIZE.toDouble()).toLong()
+        val MESHTASTIC_MAX_HASHES: Long = floor((MESHTASTIC_MAX_LEN - Int.SIZE_BYTES) / LibsodiumInterface.MERKLE_HASH_SIZE.toDouble()).toLong() - 1
     }
 }

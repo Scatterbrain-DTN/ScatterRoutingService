@@ -30,7 +30,7 @@ class MeshtasticStreamPacket(
         get() = packet.end
 
     override fun validate(): Boolean {
-        return packet.serializedSize <= MESHTASTIC_MAX_LEN
+        return packet.serializedSize < MESHTASTIC_MAX_LEN
     }
 
 

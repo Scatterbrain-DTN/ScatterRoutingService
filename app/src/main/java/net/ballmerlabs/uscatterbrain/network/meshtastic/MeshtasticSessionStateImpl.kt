@@ -248,11 +248,13 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
 
                         val resp = hubresponse.hubs
+                            .buffer(MeshtasticMerklePacket.MESHTASTIC_MAX_HASHES.toInt())
                             .enumerateMap { hub, seq ->
                                 MeshtasticMerklePacket(
                                     seq = seq,
-                                    hashes = listOf(hub.hash!!)
-                                ) //TODO batch hashes here
+                                    hashes = hub.filter { v -> v.hash  != null }
+                                        .map { v -> v.hash!! }
+                                )
                             }.concatMapLast { v ->
                                 MeshtasticMerklePacket(
                                     end = true,
@@ -287,7 +289,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
 
                          resp
-                             .concatWith(obs.mergeWith(out))
+                             .mergeWith(obs.mergeWith(out))
                              .doOnComplete {
                                  log.v("sending handshake success")
                                  handshake.get().onComplete()

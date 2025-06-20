@@ -3,8 +3,10 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.MessageStatus
 import io.ktor.util.encodeBase64
+import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Maybe
+import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.db.Datastore
@@ -74,8 +76,8 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         return currentTransactions.size
     }
 
-    override fun handlePacket(dataPacket: DataPacket): Completable {
-        return connection.getMyId().flatMapCompletable { myID ->
+    override fun handlePacket(dataPacket: DataPacket): Observable<DataPacket> {
+        return connection.getMyId().flatMapObservable { myID ->
             val from = dataPacket.from
 
             log.v("handlePacket from=$from my=$myID" )
@@ -83,13 +85,15 @@ class MeshtasticRadioModuleImpl @Inject constructor(
             if (from != myID) {
                 if (from != null)
                     startSession(myID).state().handlePacket(dataPacket)
-                        .concatMapCompletable { v -> sendPacket(dataPacket.reply(v, dataPacket.from)) }
+                        .map { v ->
+                              dataPacket.reply(v, dataPacket.from)
+                        }
                 else
-                    Completable.complete()
+                    Observable.empty<DataPacket>()
                         .doOnComplete { log.v("got packet without from") }
             } else {
                 log.w("got connection from self??")
-                Completable.complete()
+                Observable.empty()
             }
         }
     }
@@ -125,9 +129,11 @@ class MeshtasticRadioModuleImpl @Inject constructor(
 
     override fun handlePackets(): Completable {
         return broadcastReceiver.onDataPacket()
-            .flatMapCompletable { p ->
+            .flatMap { p ->
                 log.v("packet? ${p.dataType} ${p.from}")
                 handlePacket(p)
+            }.concatMapCompletable { v ->
+                sendPacket(v).retry(10)
             }
             .doOnSubscribe { log.v("handlePackets subscribed") }
     }

@@ -8,11 +8,8 @@ import javax.inject.Inject
 
 @MeshtasticConnectionScope
 class MeshBroadcastReceiverImpl @Inject constructor(
-
+    val state: MeshtasticBroadcastReceiverState
 ) : MeshBroadcastReceiver() {
-    @Inject
-    lateinit var state: MeshtasticBroadcastReceiverState
-
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ACTION_NODE_CHANGE -> {
