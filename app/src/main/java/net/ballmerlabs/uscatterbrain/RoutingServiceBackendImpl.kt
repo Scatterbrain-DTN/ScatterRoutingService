@@ -354,12 +354,21 @@ class RoutingServiceBackendImpl @Inject constructor(
             RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
         ).flatMapCompletable { l ->
             leState.refreshPeers()
+                .andThen(
+                    meshtasticBinderProvider.getConnection()
+                        .flatMapCompletable { c -> c.module().handshake() }
+                )
                 .timeout(
                     l,
                     TimeUnit.SECONDS,
                     timeoutScheduler
                 )
         }
+    }
+
+    override fun syncMeshtastic(): Completable {
+        return meshtasticBinderProvider.getConnection()
+            .flatMapCompletable { c -> c.module().handshake() }
     }
 
     private fun asyncRefreshPeers() {

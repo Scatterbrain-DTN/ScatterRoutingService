@@ -5,6 +5,6 @@ import io.reactivex.Single
 
 interface MeshtasticConnectionProvider {
     fun connectBinderAsync()
-    fun getConnection(): Maybe<MeshtasticConnection>
-    fun awaitConnection(): Single<MeshtasticConnection>
+    fun getConnection(): Maybe<MeshtasticConnectionSubcomponent>
+    fun awaitConnection(): Single<MeshtasticConnectionSubcomponent>
 }

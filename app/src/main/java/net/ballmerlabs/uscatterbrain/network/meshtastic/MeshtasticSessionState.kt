@@ -61,7 +61,7 @@ interface MeshtasticSessionState {
         }
     }
 
-    fun handshake(): Completable
-
     fun handlePacket(packet: DataPacket): Observable<ScatterSerializable<*>>
+
+    fun awaitHandshake(): Completable
 }

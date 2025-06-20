@@ -2,13 +2,17 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.MessageStatus
+import io.ktor.util.encodeBase64
 import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Single
+import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnouncePacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.reply
+import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.toBroadcast
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -78,8 +82,8 @@ class MeshtasticRadioModuleImpl @Inject constructor(
 
             if (from != myID) {
                 if (from != null)
-                    startSession(from).state().handlePacket(dataPacket)
-                        .concatMapCompletable { v -> sendPacket(dataPacket.reply(v, myID)) }
+                    startSession(myID).state().handlePacket(dataPacket)
+                        .concatMapCompletable { v -> sendPacket(dataPacket.reply(v, dataPacket.from)) }
                 else
                     Completable.complete()
                         .doOnComplete { log.v("got packet without from") }
@@ -98,6 +102,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                     .doOnNext { v -> log.v("messageStatus ${v.messageStatus}") }
                     .filter { v -> v.packetId == id }
                     .flatMapMaybe { v ->
+                        log.v("sendPacket message status ${v.messageStatus}")
                         when (v.messageStatus) {
                             MessageStatus.ERROR -> Maybe.error(IllegalStateException("message send err"))
                             MessageStatus.DELIVERED -> Maybe.just(true)
@@ -108,18 +113,37 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                     .mergeWith(
                         connection.send(dataPacket.apply {
                             this.id = id
-                            channel = PORT_NUMBER
                             from = myId
-                            wantAck = false
-                        }).onErrorComplete()
-                            .doOnComplete {
-                                log.v("connection send complete")
-                            })
+                        }).doOnError { err -> log.e("failed to sendPacket: $err") }
+                            .doOnComplete { log.v("initiated sendPacket") }
+                            .onErrorComplete())
+            }.doOnComplete {
+                log.v("sendPacket complete")
             }
         }
     }
 
     override fun handlePackets(): Completable {
-        return broadcastReceiver.onDataPacket().flatMapCompletable { p -> handlePacket(p) }
+        return broadcastReceiver.onDataPacket()
+            .flatMapCompletable { p ->
+                log.v("packet? ${p.dataType} ${p.from}")
+                handlePacket(p)
+            }
+            .doOnSubscribe { log.v("handlePackets subscribed") }
+    }
+
+    override fun handshake(): Completable {
+        return  datastore.getDefaultMerkleRoot().flatMapCompletable { root ->
+            connection.getMyId().flatMapCompletable { routerId ->
+                log.v("initiate handshake with root me=$routerId ${root.encodeBase64()}")
+                sendPacket(
+                    MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
+                        .toBroadcast(from = routerId)
+                )
+                    .doFinally { log.v("sendPacket complete") }
+            }
+                .doFinally { log.v("handshake complete") }
+        }
+
     }
 }

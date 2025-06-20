@@ -89,7 +89,8 @@ class MockMeshtasticConnection @Inject constructor(
                 16,
                 false,
                 0.0F,
-                0.0F
+                0.0F,
+                "test"
                 )
         }
     }

@@ -39,6 +39,7 @@ interface MeshtasticConnectionSubcomponent {
         abstract fun bindsMeshtasticConnection(impl: MeshtasticConnectionImpl): MeshtasticConnection
 
         @Binds
+        @MeshtasticConnectionScope
         abstract fun bindsMeshBroadcastReceiver(impl: MeshBroadcastReceiverImpl): MeshBroadcastReceiver
 
         @Binds
@@ -78,4 +79,6 @@ interface MeshtasticConnectionSubcomponent {
     }
 
     fun connection(): MeshtasticConnection
+
+    fun module(): MeshtasticRadioModule
 }

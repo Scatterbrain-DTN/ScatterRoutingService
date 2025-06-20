@@ -19,10 +19,10 @@ package com.geeksville.mesh
 
 import android.graphics.Color
 import android.os.Parcelable
-import com.geeksville.mesh.util.GPSFormat
 import com.geeksville.mesh.util.bearing
 import com.geeksville.mesh.util.latLongToMeter
 import com.geeksville.mesh.util.anonymize
+import com.geeksville.mesh.util.onlineTimeThreshold
 import kotlinx.parcelize.Parcelize
 
 //
@@ -115,6 +115,7 @@ data class Position(
                 (longitude >= -180 && longitude <= 180)
     }
 
+
     override fun toString(): String {
         return "Position(lat=${latitude.anonymize}, lon=${longitude.anonymize}, alt=${altitude.anonymize}, time=${time})"
     }
@@ -194,9 +195,7 @@ data class NodeInfo(
      */
     val isOnline: Boolean
         get() {
-            val now = System.currentTimeMillis() / 1000
-            val timeout = 15 * 60
-            return (now - lastHeard <= timeout)
+            return lastHeard > onlineTimeThreshold()
         }
 
     /// return the position if it is valid, else null

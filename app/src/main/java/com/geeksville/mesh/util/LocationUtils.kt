@@ -37,29 +37,6 @@ import kotlin.math.PI
  * text of this license is included in the Gaggle source, see assets/manual/gpl-2.0.txt.
  ******************************************************************************/
 
-object GPSFormat {
-    fun DEC(p: Position): String {
-        return String.format("%.5f %.5f", p.latitude, p.longitude).replace(",", ".")
-    }
-
-    fun DMS(p: Position): String {
-        val lat = degreesToDMS(p.latitude, true)
-        val lon = degreesToDMS(p.longitude, false)
-        fun string(a: Array<String>) = String.format("%s°%s'%.5s\"%s", a[0], a[1], a[2], a[3])
-        return string(lat) + " " + string(lon)
-    }
-
-    fun toDEC(latitude: Double, longitude: Double): String {
-        return "%.5f %.5f".format(latitude, longitude).replace(",", ".")
-    }
-
-    fun toDMS(latitude: Double, longitude: Double): String {
-        val lat = degreesToDMS(latitude, true)
-        val lon = degreesToDMS(longitude, false)
-        fun string(a: Array<String>) = "%s°%s'%.5s\"%s".format(a[0], a[1], a[2], a[3])
-        return string(lat) + " " + string(lon)
-    }
-}
 
 /**
  * Format as degrees, minutes, secs

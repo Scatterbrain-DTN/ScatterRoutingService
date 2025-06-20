@@ -12,4 +12,5 @@ interface MeshtasticRadioModule {
     fun popBacklog(): MeshtasticSessionSubcomponent?
     fun stopSession(from: String)
     fun handlePackets(): Completable
+    fun handshake(): Completable
 }

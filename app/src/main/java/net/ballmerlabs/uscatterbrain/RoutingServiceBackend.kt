@@ -43,4 +43,5 @@ interface RoutingServiceBackend {
     fun dumpDatastore(uri: Uri): Completable
     fun deleteDesktopApp(pubkey: ByteArray): Completable
     fun connectMeshtastic(): Single<Boolean>
+    fun syncMeshtastic(): Completable
 }

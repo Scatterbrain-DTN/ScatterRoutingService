@@ -679,6 +679,25 @@ class ScatterRoutingService : LifecycleService() {
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
+
+        /**
+         * Manually initiates a meshtastic handshake
+         */
+        override fun meshtasticSync(callback: UnitCallback) {
+            checkAdminPermission()
+            val handle = generateNewHandle()
+
+            val disp = mBackend.syncMeshtastic()
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message) }
+                )
+
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
         /**
          * Enqueues a Scatterbrain message to the datastore. The messages will be sent as soon
          * as a peer is available

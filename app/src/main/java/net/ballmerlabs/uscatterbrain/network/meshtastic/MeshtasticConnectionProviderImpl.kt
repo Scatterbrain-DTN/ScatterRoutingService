@@ -6,6 +6,8 @@ import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.BehaviorSubject
+import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.atomic.AtomicReference
@@ -25,18 +27,23 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
     private val connectionUpdate = BehaviorRelay.create<AtomicReference<Observable<MeshtasticConnectionSubcomponent>?>>()
 
     private fun connectBinder(): Observable<MeshtasticConnectionSubcomponent> {
-        return  binderProvider.connectBinder().map { v ->
-            builder.service(v).build()!!
+        return  binderProvider.connectBinder().flatMap { v ->
+            val conn = builder.service(v).build()!!
+            conn.connection().subscribeReceiver()
+            conn.module().handlePackets()
+                .toObservable<MeshtasticConnectionSubcomponent>()
+                .mergeWith(Observable.just(conn))
+                .doOnError { err -> log.e("meshtastic connection error: $err") }
+                .doOnComplete { log.e("meshtastic connection completed?") }
         }
     }
 
-    override fun awaitConnection(): Single<MeshtasticConnection> {
+    override fun awaitConnection(): Single<MeshtasticConnectionSubcomponent> {
         return connectionUpdate
             .flatMapMaybe { v ->
                 when(val get = v.get()) {
                     null -> Maybe.empty()
                     else -> get.firstOrError()
-                        .map { c -> c.connection() }
                         .toMaybe()
                 }
             }
@@ -46,19 +53,22 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
     override fun connectBinderAsync() {
         connection.updateAndGet { v ->
             when(v) {
-                null -> connectBinder()
+                null -> {
+                    val obs = BehaviorSubject.create<MeshtasticConnectionSubcomponent>()
+                    connectBinder().subscribe(obs)
+                    obs
+                }
                 else -> v
             }
         }
     }
 
-    override fun getConnection(): Maybe<MeshtasticConnection> {
+    override fun getConnection(): Maybe<MeshtasticConnectionSubcomponent> {
         return connectionUpdate
             .flatMapMaybe { v ->
                 when(val get = v.get()) {
                     null -> Maybe.empty()
                     else -> get.firstOrError()
-                        .map { c -> c.connection() }
                         .toMaybe()
                 }
             }

@@ -23,6 +23,7 @@ import net.ballmerlabs.uscatterbrain.util.logger
 import net.ballmerlabs.uscatterbrain.mock.util.mockLoggerGenerator
 import org.junit.Before
 import org.junit.Test
+import org.junit.internal.runners.JUnit38ClassRunner
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -33,7 +34,7 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [Build.VERSION_CODES.TIRAMISU])
+@Config(sdk = [Build.VERSION_CODES.VANILLA_ICE_CREAM])
 class ProtocolUnitTest {
     private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test"))
     private val writeScheduler = RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory("test2"))

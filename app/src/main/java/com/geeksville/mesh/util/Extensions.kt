@@ -18,6 +18,7 @@
 package com.geeksville.mesh.util
 
 import android.widget.EditText
+import com.geeksville.mesh.BuildConfig
 import com.geeksville.mesh.ConfigProtos
 
 /**
@@ -45,6 +46,14 @@ fun ConfigProtos.Config.toOneLineString(): String {
         .replace(redactedFields.toRegex()) { "${it.groupValues[1]} \"[REDACTED]\"" }
         .replace('\n', ' ')
 }
+
+// Return a one line string version of an object (but if a release build, just say 'might be PII)
+fun Any.toPIIString() =
+    if (!BuildConfig.DEBUG) {
+        "<PII?>"
+    } else {
+        this.toOneLineString()
+    }
 
 fun ByteArray.toHexString() = joinToString("") { "%02x".format(it) }
 

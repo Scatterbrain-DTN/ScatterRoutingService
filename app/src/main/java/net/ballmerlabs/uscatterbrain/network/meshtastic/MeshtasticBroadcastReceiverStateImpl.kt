@@ -55,4 +55,8 @@ class MeshtasticBroadcastReceiverStateImpl @Inject constructor(
     override fun onDataPacket(): Observable<DataPacket> {
         return dataPacket.delay(0, TimeUnit.SECONDS, callbacks)
     }
+
+    init {
+        log.e("MeshtasticBroadcastReceiverState init")
+    }
 }

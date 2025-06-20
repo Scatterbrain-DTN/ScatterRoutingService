@@ -35,9 +35,10 @@ class MeshtasticConnectionImpl @Inject constructor(
                 context,
                 receiver,
                 intentFilter,
-                ContextCompat.RECEIVER_NOT_EXPORTED
+                ContextCompat.RECEIVER_EXPORTED
             )
             service.subscribeReceiver(context.packageName, "net.ballmerlabs.scatterroutingservice")
+            log.v("meshtastic receiver subscribed")
         } catch (exc: Exception) {
             log.w("failed to subscribeReceiver: $exc")
             crashlytics.recordException(exc)

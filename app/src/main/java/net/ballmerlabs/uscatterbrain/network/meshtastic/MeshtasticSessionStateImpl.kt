@@ -307,22 +307,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
         }
     }
 
-    override fun handshake(): Completable {
-        return  datastore.getDefaultMerkleRoot().flatMapCompletable { root ->
-            log.v("initiate handshake with root me=$routerId ${root.encodeBase64()}")
-            radioModule.sendPacket(MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
-                .toBroadcast(from = routerId))
-                .doFinally { log.v("sendPacket complete") }
-        }
-            .doFinally { log.v("handshake complete") }
-            .andThen(handshake.updateAndGet { v ->
-                if (v.hasComplete()) {
-                    CompletableSubject.create()
-                } else {
-                    v
-                }
-            }!!)
-    }
+
 
 
     override fun handlePacket(packet: DataPacket): Observable<ScatterSerializable<*>> {
@@ -354,5 +339,15 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 }
             }
         }
+    }
+
+    override fun awaitHandshake(): Completable {
+        return handshake.updateAndGet { v ->
+            if (v.hasComplete()) {
+                CompletableSubject.create()
+            } else {
+                v
+            }
+        }!!
     }
 }
