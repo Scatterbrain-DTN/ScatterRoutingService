@@ -266,7 +266,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             }
                             .doOnNext { v -> log.v("sending merkle packet end=${v.end}") }
                             .doOnComplete { log.w("merkle hubs completed") }
-                            .toFlowable(BackpressureStrategy.BUFFER)
                             .map { v -> v as ScatterSerializable<*> }
 
                         val ds = datastream.map { v -> v.payload }

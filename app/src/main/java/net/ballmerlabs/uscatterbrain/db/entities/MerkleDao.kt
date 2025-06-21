@@ -6,8 +6,10 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.concurrent.AtomicBoolean
+import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
+import io.reactivex.FlowableEmitter
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.ObservableEmitter
@@ -300,8 +302,8 @@ abstract class MerkleDao {
     fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>): HubResponse {
         if (root == null)
             return HubResponse(
-                hubs = Observable.empty(),
-                exclude = Observable.empty()
+                hubs = Flowable.empty(),
+                exclude = Flowable.empty()
             )
         val exclude = ReplaySubject.create<ByteArray>()
         //out.onNext(root)
@@ -312,10 +314,10 @@ abstract class MerkleDao {
 
 
         return HubResponse(
-            hubs = Observable.create { obs ->
+            hubs = Flowable.create( { obs ->
                 getHubs(root, obs)
                 obs.onComplete()
-            }
+            }, BackpressureStrategy.BUFFER)
                 .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
                 .doFinally {
                     log.v("getHubs complete!")
@@ -331,7 +333,7 @@ abstract class MerkleDao {
                         Maybe.empty()
 
                 }
-            }.toObservable()
+            }
                 .doFinally {
                     log.w("remote completed")
                     remoteDone.set(true)
@@ -345,7 +347,7 @@ abstract class MerkleDao {
 
     private fun getHubs(
         root: MerkleBundle?,
-        hubs: ObservableEmitter<MerkleBundle>,
+        hubs: FlowableEmitter<MerkleBundle>,
     ) {
         if (root?.hash == null)
             return

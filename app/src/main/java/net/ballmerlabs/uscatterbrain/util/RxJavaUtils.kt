@@ -150,6 +150,15 @@ fun <T, R> Observable<T>.enumerateMap(func: (T, Int) -> R): Observable<R> {
 }
 
 
+fun <T, R> Flowable<T>.enumerateMap(func: (T, Int) -> R): Flowable<R> {
+    return this
+        .scan(Enumerate<R>()) { v, k ->
+            val idx = v.idx?:0
+            Enumerate(idx = idx+1, v = func(k, idx) )
+        }.skip(1).map { v-> v.v!! }
+}
+
+
 fun <T> Flowable<T>.concatMapLast(func: (T) -> T): Flowable<T> {
     return this
         .map { v -> MapLast(v = v, u = null) }

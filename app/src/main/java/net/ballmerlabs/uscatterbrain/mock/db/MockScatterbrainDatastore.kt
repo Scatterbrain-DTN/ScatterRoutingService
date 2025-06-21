@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.mock.db
 
 import android.content.Context
 import com.goterl.lazysodium.interfaces.Sign
+import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
@@ -41,7 +42,7 @@ class MockScatterbrainDatastore @Inject constructor(
     override fun getMerkleHubs(remote: Flowable<ByteArray>): Single<HubResponse> {
         val out = Single.just(
             HubResponse(
-                hubs = Observable.create { obs ->
+                hubs = Flowable.create( { obs ->
                     for (x in 0..16) {
                         obs.onNext(MerkleBundle(
                             id = 0,
@@ -52,8 +53,8 @@ class MockScatterbrainDatastore @Inject constructor(
                         ))
                     }
                     obs.onComplete()
-                },
-                exclude = Observable.empty()
+                }, BackpressureStrategy.BUFFER),
+                exclude = Flowable.empty()
         ))
         remote.ignoreElements().onErrorComplete().subscribe()
         return out

@@ -146,7 +146,6 @@ class GroupHandle @Inject constructor(
                             socket,
                             send.hubs
                                 .doOnNext { v -> LOG.v("send hub ${v.hash?.toByteString()}") }
-                                .toFlowable(BackpressureStrategy.BUFFER)
                         ).onErrorComplete()).toList()
                     }
 
