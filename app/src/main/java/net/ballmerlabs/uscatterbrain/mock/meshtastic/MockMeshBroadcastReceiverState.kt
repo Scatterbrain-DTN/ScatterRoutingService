@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.mock.meshtastic
 
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.NodeInfo
-import io.reactivex.Observable
+import io.reactivex.Flowable
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionScope
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MessageStatusEvent
@@ -25,19 +25,19 @@ class MockMeshBroadcastReceiverState :  MeshtasticBroadcastReceiverState {
         TODO("Not yet implemented")
     }
 
-    override fun onMessageStatus(): Observable<MessageStatusEvent> {
+    override fun onMessageStatus(): Flowable<MessageStatusEvent> {
         TODO("Not yet implemented")
     }
 
-    override fun onConnectionState(): Observable<String> {
+    override fun onConnectionState(): Flowable<String> {
         TODO("Not yet implemented")
     }
 
-    override fun onNodeChange(): Observable<NodeInfo> {
+    override fun onNodeChange(): Flowable<NodeInfo> {
         TODO("Not yet implemented")
     }
 
-    override fun onDataPacket(): Observable<DataPacket> {
+    override fun onDataPacket(): Flowable<DataPacket> {
         TODO("Not yet implemented")
     }
 

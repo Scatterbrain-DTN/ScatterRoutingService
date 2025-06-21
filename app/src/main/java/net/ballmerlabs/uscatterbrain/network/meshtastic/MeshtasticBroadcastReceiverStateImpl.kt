@@ -3,8 +3,10 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.NodeInfo
 import com.jakewharton.rxrelay2.PublishRelay
-import io.reactivex.Observable
+import io.reactivex.Flowable
 import io.reactivex.Scheduler
+import io.reactivex.processors.PublishProcessor
+import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -17,42 +19,42 @@ class MeshtasticBroadcastReceiverStateImpl @Inject constructor(
 ) : MeshtasticBroadcastReceiverState {
     private val log by scatterLog()
 
-    private val messageStatus = PublishRelay.create<MessageStatusEvent>()
-    private val connectionState = PublishRelay.create<String>()
-    private val nodeChange = PublishRelay.create<NodeInfo>()
-    private val dataPacket = PublishRelay.create<DataPacket>()
+    private val messageStatus = PublishProcessor.create<MessageStatusEvent>()
+    private val connectionState = PublishProcessor.create<String>()
+    private val nodeChange = PublishProcessor.create<NodeInfo>()
+    private val dataPacket = PublishProcessor.create<DataPacket>()
     override fun acceptMessageStatus(messageStatus: MessageStatusEvent) {
         log.v("acceptMessageStatus $messageStatus")
-        this.messageStatus.accept(messageStatus)
+        this.messageStatus.onNext(messageStatus)
     }
 
-    override fun onMessageStatus(): Observable<MessageStatusEvent> {
+    override fun onMessageStatus(): Flowable<MessageStatusEvent> {
         return messageStatus.delay(0, TimeUnit.SECONDS, callbacks)
     }
 
     override fun acceptConnectionState(connectionState: String) {
-        this.connectionState.accept(connectionState)
+        this.connectionState.onNext(connectionState)
     }
 
-    override fun onConnectionState(): Observable<String> {
+    override fun onConnectionState(): Flowable<String> {
         return connectionState.delay(0, TimeUnit.SECONDS, callbacks)
     }
 
     override fun acceptNodeChange(nodeInfo: NodeInfo) {
         log.v("acceptNodeChange $nodeInfo")
-        this.nodeChange.accept(nodeInfo)
+        this.nodeChange.onNext(nodeInfo)
     }
 
-    override fun onNodeChange(): Observable<NodeInfo> {
+    override fun onNodeChange(): Flowable<NodeInfo> {
         return nodeChange.delay(0, TimeUnit.SECONDS, callbacks)
     }
 
     override fun acceptDataPacket(dataPacket: DataPacket) {
         log.v("acceptDataPacket $dataPacket")
-        this.dataPacket.accept(dataPacket)
+        this.dataPacket.onNext(dataPacket)
     }
 
-    override fun onDataPacket(): Observable<DataPacket> {
+    override fun onDataPacket(): Flowable<DataPacket> {
         return dataPacket.delay(0, TimeUnit.SECONDS, callbacks)
     }
 

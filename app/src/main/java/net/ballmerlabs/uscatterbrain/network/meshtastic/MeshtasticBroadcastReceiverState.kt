@@ -3,7 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.MessageStatus
 import com.geeksville.mesh.NodeInfo
-import io.reactivex.Observable
+import io.reactivex.Flowable
 
 data class MessageStatusEvent(
     val packetId: Int,
@@ -16,8 +16,8 @@ interface MeshtasticBroadcastReceiverState {
     fun acceptConnectionState(connectionState: String)
     fun acceptNodeChange(nodeInfo: NodeInfo)
     fun acceptDataPacket(dataPacket: DataPacket)
-    fun onMessageStatus(): Observable<MessageStatusEvent>
-    fun onConnectionState(): Observable<String>
-    fun onNodeChange(): Observable<NodeInfo>
-    fun onDataPacket(): Observable<DataPacket>
+    fun onMessageStatus(): Flowable<MessageStatusEvent>
+    fun onConnectionState(): Flowable<String>
+    fun onNodeChange(): Flowable<NodeInfo>
+    fun onDataPacket(): Flowable<DataPacket>
 }

@@ -143,12 +143,12 @@ class MeshtasticSessionStateImpl @Inject constructor(
         }
     }
 
-    private fun handleAnnouncePacket(packet: MeshtasticAnnouncePacket, to: String?): Observable<ScatterSerializable<*>> {
+    private fun handleAnnouncePacket(packet: MeshtasticAnnouncePacket, to: String?): Flowable<ScatterSerializable<*>> {
         if (remoteLuid == null)
             remoteLuid = packet.remoteLuid
-        return mapStageObservable(Stage.ACK) { s ->
+        return mapStagePublisher(Stage.ACK) { s ->
             log.v("handleAnnouncePacket id=$routerId")
-            datastore.getDefaultMerkleRoot().flatMapObservable { root ->
+            datastore.getDefaultMerkleRoot().flatMapPublisher { root ->
                 val code = if (radioModule.getSessionCount() > MAX_SESSIONS) {
                     radioModule.startBacklog(routerId)
                     MeshtasticAckCode.FULL
@@ -157,13 +157,13 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 }
 
                 when(to) {
-                    DataPacket.ID_BROADCAST -> Observable.just(
+                    DataPacket.ID_BROADCAST -> Flowable.just(
                         MeshtasticAnnouncePacket(
                             advertiser.getHashLuid(),
                             root
                         )
                     ).doOnSubscribe { log.v("replying to broadcast me=$routerId") }
-                    routerId -> Observable.fromIterable(
+                    routerId -> Flowable.fromIterable(
                         listOf(
                             MeshtasticAnnouncePacket(
                                 advertiser.getHashLuid(),
@@ -175,21 +175,21 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             code
                         ))
                     ).doOnSubscribe { log.v("replying to unicast me=$routerId") }
-                    null -> Observable.error(IllegalStateException("packet with null to field"))
-                    else -> Observable.error(IllegalStateException("packet with invalid to field $to my=$routerId"))
+                    null -> Flowable.error(IllegalStateException("packet with null to field"))
+                    else -> Flowable.error(IllegalStateException("packet with invalid to field $to my=$routerId"))
                 }
 
             }
         }
     }
 
-    private fun handleAnnounceAckPacket(packet: MeshtasticAnnounceAckPacket): Observable<ScatterSerializable<*>> {
-        return mapStageObservable(Stage.SYNACK) { s ->
+    private fun handleAnnounceAckPacket(packet: MeshtasticAnnounceAckPacket): Flowable<ScatterSerializable<*>> {
+        return mapStagePublisher(Stage.SYNACK) { s ->
             log.v("handleAnnounceAckPacket id=$routerId")
             when (packet.code) {
                 MeshtasticAckCode.FULL -> {
                     radioModule.startBacklog(routerId)
-                    Observable.empty()
+                    Flowable.empty()
                 }
 
                 else -> {
@@ -200,19 +200,19 @@ class MeshtasticSessionStateImpl @Inject constructor(
                         MeshtasticAckCode.TRANSACTION
                     }
 
-                    Observable.just(MeshtasticAnnounceSynAckPacket(code))
+                    Flowable.just(MeshtasticAnnounceSynAckPacket(code))
                 }
             }
         }
     }
 
-    private fun handleAnnounceSynAckPacket(packet: MeshtasticAnnounceSynAckPacket): Observable<ScatterSerializable<*>> {
-        return mapStageObservable(Stage.MERKLE) { s ->
+    private fun handleAnnounceSynAckPacket(packet: MeshtasticAnnounceSynAckPacket): Flowable<ScatterSerializable<*>> {
+        return mapStagePublisher(Stage.MERKLE) { s ->
             log.v("handleAnnounceSynAckPacket id=$routerId code=${packet.code}")
             when (packet.code) {
-                MeshtasticAckCode.FULL -> Observable.empty()
-                MeshtasticAckCode.WAIT -> Observable.empty()
-                else -> datastore.getDefaultMerkleRoot().flatMapObservable { root ->
+                MeshtasticAckCode.FULL -> Flowable.empty()
+                MeshtasticAckCode.WAIT -> Flowable.empty()
+                else -> datastore.getDefaultMerkleRoot().flatMapPublisher { root ->
 
                     val stream = currentMerkleStream.updateAndGet { s ->
                         when(s) {
@@ -231,8 +231,8 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             .flatMap { h ->
                                 Flowable.fromIterable(h.hashes)
                             }
-                    ).flatMapObservable { hubresponse ->
-                        val obs: Observable<ScatterSerializable<*>>  =
+                    ).flatMapPublisher { hubresponse ->
+                        val obs: Flowable<ScatterSerializable<*>>  =
                             hubresponse.exclude.toList().flatMapObservable { hashes ->
                                 log.w("got merkle hash list ${hashes.size}")
                                 datastore.getTopRandomMessages(50, hashes)
@@ -243,8 +243,10 @@ class MeshtasticSessionStateImpl @Inject constructor(
                                 MeshtasticStreamPacket.fromStream(p).toObservable()
                             }.concatMapLast { v ->
                                 MeshtasticStreamPacket(seq = v.seq, body = v.payload, end = true)
-                            }.map { v -> v as ScatterSerializable<*> }
+                            }.toFlowable(BackpressureStrategy.BUFFER)
+                                .map { v -> v as ScatterSerializable<*> }
                                 .doFinally { log.v("obs completed") }
+
 
 
                         val resp = hubresponse.hubs
@@ -264,6 +266,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             }
                             .doOnNext { v -> log.v("sending merkle packet end=${v.end}") }
                             .doOnComplete { log.w("merkle hubs completed") }
+                            .toFlowable(BackpressureStrategy.BUFFER)
                             .map { v -> v as ScatterSerializable<*> }
 
                         val ds = datastream.map { v -> v.payload }
@@ -312,8 +315,8 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
 
 
-    override fun handlePacket(packet: DataPacket): Observable<ScatterSerializable<*>> {
-        return Single.just(packet).flatMapObservable { v ->
+    override fun handlePacket(packet: DataPacket): Flowable<ScatterSerializable<*>> {
+        return Single.just(packet).flatMapPublisher { v ->
             val p = v.bytes?.fromMeshtastic()
             log.v("meshtastic packet ${p?.type}")
             when (p?.type) {
@@ -321,10 +324,10 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE_ACK -> handleAnnounceAckPacket(p.get())
                 Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE_SYNACK -> handleAnnounceSynAckPacket(p.get())
                 Scatterbrain.MessageType.MESHTASTIC_MERKLE -> currentMerkleStream.get()
-                    ?.onPacket(p.get())!!.toObservable()
+                    ?.onPacket(p.get())!!.toFlowable()
                 Scatterbrain.MessageType.MESHTASTIC_STREAM -> currentDataStream.get()
-                    ?.onPacket(p.get())!!.toObservable()
-                else -> Observable.just(MeshtasticErrPacket(Scatterbrain.MeshtasticErrCode.INVALID_ARGUMENT))
+                    ?.onPacket(p.get())!!.toFlowable()
+                else -> Flowable.just(MeshtasticErrPacket(Scatterbrain.MeshtasticErrCode.INVALID_ARGUMENT))
             }
         }.onErrorResumeNext { e: Throwable ->
             log.e("meshtastic error $e")
@@ -332,12 +335,12 @@ class MeshtasticSessionStateImpl @Inject constructor(
             when (e) {
                 is ErrorStage -> {
                     stage.set(e.stage)
-                    Observable.empty()
+                    Flowable.empty()
                 }
 
                 else -> {
                     stage.set(Stage.FAIL)
-                    Observable.error(e)
+                    Flowable.error(e)
                 }
             }
         }

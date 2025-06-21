@@ -5,6 +5,7 @@ import com.geeksville.mesh.MessageStatus
 import io.ktor.util.encodeBase64
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
+import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
@@ -76,8 +77,8 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         return currentTransactions.size
     }
 
-    override fun handlePacket(dataPacket: DataPacket): Observable<DataPacket> {
-        return connection.getMyId().flatMapObservable { myID ->
+    override fun handlePacket(dataPacket: DataPacket): Flowable<DataPacket> {
+        return connection.getMyId().flatMapPublisher { myID ->
             val from = dataPacket.from
 
             log.v("handlePacket from=$from my=$myID" )
@@ -89,11 +90,11 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                               dataPacket.reply(v, dataPacket.from)
                         }
                 else
-                    Observable.empty<DataPacket>()
+                    Flowable.empty<DataPacket>()
                         .doOnComplete { log.v("got packet without from") }
             } else {
                 log.w("got connection from self??")
-                Observable.empty()
+                Flowable.empty()
             }
         }
     }
