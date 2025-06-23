@@ -18,6 +18,7 @@ import io.reactivex.Single
 import io.reactivex.processors.PublishProcessor
 import io.reactivex.processors.ReplayProcessor
 import io.reactivex.schedulers.Schedulers
+import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
@@ -356,6 +357,7 @@ abstract class MerkleDao {
             }
             .subscribe(rs)
 
+        val hubsComplete = CompletableSubject.create()
         val hubs = Flowable.create( { obs ->
             getHubs(root, obs, rs, exclude, mutableSetOf())
             obs.onComplete()
@@ -363,11 +365,11 @@ abstract class MerkleDao {
        //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
             .doFinally {
                 log.v("getHubs complete!")
-
+                hubsComplete.onComplete()
             }
         return HubResponse(
             hubs = hubs,
-            exclude = rs.ignoreElements().andThen(hubs.ignoreElements().delay(1, TimeUnit.SECONDS))
+            exclude = hubsComplete
                 .andThen(Flowable.defer {
                     Flowable.fromIterable(exclude)
                 })
@@ -392,7 +394,9 @@ abstract class MerkleDao {
         val item = remote
             .mergeWith(Completable.fromAction {
                 hubs.onNext(root)
-            }).firstElement()
+            })
+            .firstElement()
+            .onErrorComplete()
             .blockingGet()
         //val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
         //val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
