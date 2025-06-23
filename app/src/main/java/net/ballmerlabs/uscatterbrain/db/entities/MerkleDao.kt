@@ -357,7 +357,7 @@ abstract class MerkleDao {
             .subscribe(rs)
 
         val hubs = Flowable.create( { obs ->
-            getHubs(root, obs, rs, exclude, mutableSetOf(), mutableSetOf())
+            getHubs(root, obs, rs, exclude, mutableSetOf())
             obs.onComplete()
         }, BackpressureStrategy.BUFFER)
        //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
@@ -367,8 +367,10 @@ abstract class MerkleDao {
             }
         return HubResponse(
             hubs = hubs,
-            exclude = rs.ignoreElements().andThen(hubs.ignoreElements())
-                .andThen(Flowable.fromIterable(exclude))
+            exclude = rs.ignoreElements().andThen(hubs.ignoreElements().delay(1, TimeUnit.SECONDS))
+                .andThen(Flowable.defer {
+                    Flowable.fromIterable(exclude)
+                })
                 .doFinally {
                     log.w("remote completed")
                 }
@@ -382,7 +384,6 @@ abstract class MerkleDao {
         hubs: FlowableEmitter<MerkleBundle>,
         remote: Flowable<RemoteItem>,
         exclude: MutableList<ByteArray>,
-        previous: MutableSet<String>,
         next: MutableSet<String>
     ) {
         if (root?.hash == null)
@@ -400,7 +401,6 @@ abstract class MerkleDao {
         log.v("comparing hash ${item?.item?.toHexString()}, ${root.hash.toHexString()}")
         if (
             (item?.item != null && item.item.contentEquals(root.hash)) ||
-            previous.contains(root.hash.toHexString()) ||
             next.contains(root.hash.toHexString()) ||
             (item?.item != null && next.contains(item.item.toHexString()))
                 ) {
@@ -410,20 +410,19 @@ abstract class MerkleDao {
         }
 
         if (item?.item != null)
-            previous.add(item.item.toHexString())
-        previous.add(root.hash.toHexString())
+            next.add(item.item.toHexString())
         next.add(root.hash.toHexString())
 
 
 
         if (childOneHub != null) {
         //    log.v("getHubs: ${root.id} ${childOneHub.hash?.toHexString()}")
-            getHubs(childOneHub, hubs, remote, exclude, previous, next)
+            getHubs(childOneHub, hubs, remote, exclude, next)
         }
 
         if (childTwoHub != null) {
           //  log.v("getHubs: ${root.id} ${childTwoHub.hash?.toHexString()}")
-            getHubs(childTwoHub, hubs, remote, exclude, previous, next)
+            getHubs(childTwoHub, hubs, remote, exclude, next)
         }
 
 
