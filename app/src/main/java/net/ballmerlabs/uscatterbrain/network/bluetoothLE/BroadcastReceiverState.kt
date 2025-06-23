@@ -8,6 +8,7 @@ import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
+import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.network.TransactionError

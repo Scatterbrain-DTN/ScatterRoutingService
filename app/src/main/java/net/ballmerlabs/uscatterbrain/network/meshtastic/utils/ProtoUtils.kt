@@ -39,7 +39,7 @@ fun ByteArray.fromMeshtastic(): ScatterSerializable.Companion.TypedPacket {
     return ret
 }
 
-fun <T: ScatterSerializable<U>, U: MessageLite> DataPacket.reply(message: T, from: String?): DataPacket {
+fun <T: ScatterSerializable<U>, U: MessageLite> DataPacket.reply(message: T, replyTo: Int, from: String?): DataPacket {
     val bytes = message.toMeshtastic()
     val log by scatterLog()
     log.v("reply from=$from to=$to")
@@ -47,5 +47,6 @@ fun <T: ScatterSerializable<U>, U: MessageLite> DataPacket.reply(message: T, fro
         to = from,
         bytes = bytes,
         dataType = PORT_NUMBER,
+        replyId = replyTo
     )
 }

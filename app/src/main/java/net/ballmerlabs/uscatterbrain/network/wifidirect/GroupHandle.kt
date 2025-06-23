@@ -116,6 +116,7 @@ class GroupHandle @Inject constructor(
             socket.getInputStream(),
             operationsScheduler
         ).repeat().takeWhile { p -> !p.optout }
+            .doFinally { LOG.v("getIncomingMerkleHashes completed!") }
     }
 
     private fun sendMerkleHashes(socket: Socket, bundles: Flowable<MerkleBundle>): Completable {
@@ -124,10 +125,8 @@ class GroupHandle @Inject constructor(
                 .setHashes(listOf(ByteString.copyFrom(bundle.hash!!)))
         }.concatWith(Flowable.just(DeclareHashesPacket.newBuilder().optOut()))
             .concatMapCompletable { packet ->
-                LOG.v("packet~!")
-
                 packet.build().writeToStream(socket.getOutputStream(), operationsScheduler)
-                    .flatMapCompletable { v -> v.doOnComplete { LOG.v("hub sent") } }
+                    .flatMapCompletable { v -> v }
             }
 
     }
@@ -145,7 +144,6 @@ class GroupHandle @Inject constructor(
                         send.exclude.mergeWith(sendMerkleHashes(
                             socket,
                             send.hubs
-                                .doOnNext { v -> LOG.v("send hub ${v.hash?.toByteString()}") }
                         ).onErrorComplete()).toList()
                     }
 

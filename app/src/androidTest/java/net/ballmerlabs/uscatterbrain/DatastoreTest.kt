@@ -333,7 +333,7 @@ class DatastoreTest {
             .doFinally { remote.onComplete() }
             .toList().blockingGet()
 
-        println("got hubs ${iter.size}")
+        //println("got hubs ${iter.size}")
 
         val control = database.scatterMessageDao().getTopRandomExcludingHash(100, listOf()).blockingGet()
         assertEquals(control.size, 2)

@@ -16,6 +16,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnouncePacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.reply
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.toBroadcast
+import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -31,7 +32,9 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     val database: Datastore,
 ) : MeshtasticRadioModule {
 
+
     private val log by scatterLog()
+
 
     private val currentTransactions = ConcurrentHashMap<String, MeshtasticSessionSubcomponent>()
     private val backlog = ConcurrentLinkedQueue<MeshtasticSessionSubcomponent>()
@@ -87,7 +90,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                 if (from != null)
                     startSession(myID).state().handlePacket(dataPacket)
                         .map { v ->
-                              dataPacket.reply(v, dataPacket.from)
+                              dataPacket.reply(v, dataPacket.id, dataPacket.from)
                         }
                 else
                     Flowable.empty<DataPacket>()
@@ -104,17 +107,15 @@ class MeshtasticRadioModuleImpl @Inject constructor(
             connection.getMyId().flatMapCompletable { myId ->
                 log.v("sendPacket with id $id")
                 broadcastReceiver.onMessageStatus()
-                    .doOnNext { v -> log.v("messageStatus ${v.messageStatus}") }
                     .filter { v -> v.packetId == id }
-                    .flatMapMaybe { v ->
+                    .flatMap { v ->
                         log.v("sendPacket message status ${v.messageStatus}")
                         when (v.messageStatus) {
-                            MessageStatus.ERROR -> Maybe.error(IllegalStateException("message send err"))
-                            MessageStatus.DELIVERED -> Maybe.just(true)
-                            else -> Maybe.empty()
+                            MessageStatus.ERROR -> Flowable.error(IllegalStateException("message send err"))
+                            else -> Flowable.just(v)
                         }
-                    }.firstOrError()
-                    .ignoreElement()
+                    }.takeUntil { v -> v.messageStatus == MessageStatus.DELIVERED || v.messageStatus == MessageStatus.RECEIVED }
+                    .ignoreElements()
                     .mergeWith(
                         connection.send(dataPacket.apply {
                             this.id = id
@@ -134,7 +135,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                 log.v("packet? ${p.dataType} ${p.from}")
                 handlePacket(p)
             }.concatMapCompletable { v ->
-                sendPacket(v).retry(10)
+                sendPacket(v)
             }
             .doOnSubscribe { log.v("handlePackets subscribed") }
     }

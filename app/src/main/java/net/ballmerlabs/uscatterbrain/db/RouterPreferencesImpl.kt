@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import io.reactivex.Maybe
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -53,10 +54,10 @@ class RouterPreferencesImpl @Inject constructor(
     }
 
     override fun getStringSet(key: String, def: Set<String?>?): Maybe<Set<String?>> {
-        val k = stringPreferencesKey(key)
+        val k = stringSetPreferencesKey(key)
         return rxMaybe {
-            val flow: Flow<String?> =  preferences.data.map { pref -> pref[k] }
-            flow.toSet()
+            val flow: Flow<Set<String>?> =  preferences.data.map { pref -> pref[k] }
+            flow.firstOrNull()
         }
     }
 

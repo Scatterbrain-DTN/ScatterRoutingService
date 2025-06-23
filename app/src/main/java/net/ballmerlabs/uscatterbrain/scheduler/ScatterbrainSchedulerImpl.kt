@@ -248,6 +248,64 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         powerManager.release()
     }
 
+    private fun startDesktop(): Completable {
+        return preferences.getBoolean(context.getString(R.string.pref_desktop), false)
+            .toSingle(false)
+            .flatMapCompletable { v ->
+                preferences.getString(context.getString(R.string.pref_desktop_name), "")
+                    .flatMapCompletable { name ->
+                        LOG.v("autostart desktop $v name=$name")
+
+
+                        if (desktopApi.get() == null && v)
+                            startDesktopServer(name)
+                        else
+                            Completable.complete()
+                    }
+            }
+    }
+
+    private fun startBluetooth(): Completable {
+        return preferences.getStringSet(
+            context.getString(R.string.pref_enabled_transports),
+            setOf("wifi", "bluetooth")
+        )
+            .flatMapCompletable { transports ->
+                LOG.v("starting with transports ${transports.joinToString { "," }}")
+                if (transports.contains("bluetooth")) {
+                    Observable.just(client.state)
+                        .concatWith(client.observeStateChanges())
+                        .switchMapCompletable { state ->
+                            LOG.w("RxAndroidBle state change $state")
+                            when (state) {
+                                RxBleClient.State.READY -> {
+                                    LOG.w("ble enabled, resuming")
+                                    unpauseScan()
+                                    broadcastRouterState(RouterState.DISCOVERING)
+                                    registerReceiver()
+                                        .andThen(advertiser.startAdvertise(advertiser.getHashLuid()))
+                                        .andThen(leState.startServer())
+                                        .andThen(startDesktop())
+                                        .timeout(10, TimeUnit.SECONDS)
+                                }
+
+                                else -> {
+                                    LOG.w("ble disabled, pausing")
+                                    broadcastRouterState(RouterState.OFFLINE)
+                                    pauseScan()
+                                    leState.dumpPeers(true).andThen(unregisterReceiver())
+                                        .andThen(advertiser.stopAdvertise())
+                                        .andThen(leState.stopServer())
+                                }
+
+                            }
+                        }
+                } else {
+                    startDesktop()
+                }
+            }
+    }
+
     override fun start() {
         val discovering = discoveryLock.getAndSet(true)
         if (discovering) {
@@ -270,46 +328,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
                 }
             }.onErrorComplete()
-            .andThen(Observable.just(client.state))
-            .concatWith(client.observeStateChanges())
-            .switchMapCompletable { state ->
-            LOG.w("RxAndroidBle state change $state")
-            when(state) {
-                RxBleClient.State.READY -> {
-                    LOG.w("" +
-                            "ble enabled, resuming")
-                    unpauseScan()
-                    broadcastRouterState(RouterState.DISCOVERING)
-                    registerReceiver()
-                        .andThen(advertiser.startAdvertise(advertiser.getHashLuid()))
-                        .andThen(leState.startServer())
-                        .andThen(preferences.getBoolean(context.getString(R.string.pref_desktop), false)
-                            .toSingle(false)
-                            .flatMapCompletable { v ->
-                                preferences.getString(context.getString(R.string.pref_desktop_name), "")
-                                    .flatMapCompletable { name ->
-                                        LOG.v("autostart desktop $v name=$name")
-
-
-                                        if (desktopApi.get() == null && v)
-                                            startDesktopServer(name)
-                                        else
-                                            Completable.complete()
-                                    }
-                            })
-                        .timeout(10, TimeUnit.SECONDS)
-                }
-                else -> {
-                    LOG.w("ble disabled, pausing")
-                    broadcastRouterState(RouterState.OFFLINE)
-                    pauseScan()
-                    leState.dumpPeers(true).andThen(unregisterReceiver())
-                        .andThen(advertiser.stopAdvertise())
-                        .andThen(leState.stopServer())
-                }
-
-            }
-        }
+            .andThen(startBluetooth())
             .subscribe(
                 {
                     LOG.v("started advertise")

@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.concurrent.AtomicBoolean
+import com.geeksville.mesh.util.toHexString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
@@ -14,12 +15,15 @@ import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.ObservableEmitter
 import io.reactivex.Single
+import io.reactivex.processors.PublishProcessor
+import io.reactivex.processors.ReplayProcessor
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import okio.ByteString.Companion.toByteString
+import java.util.concurrent.TimeUnit
 
 @Dao
 abstract class MerkleDao {
@@ -244,6 +248,8 @@ abstract class MerkleDao {
         child: Long,
     ): Completable
 
+    @Query("SELECT hash from bundles")
+    abstract fun getAllHashes(): List<ByteArray>
 
     @Query("UPDATE messages SET bundle = :bundle WHERE messageID = :messageID")
     abstract fun updateBundleForMessage(bundle: Long, messageID: Long): Completable
@@ -299,70 +305,125 @@ abstract class MerkleDao {
     @Query("SELECT COUNT(*) FROM bundles WHERE hash = :hash")
     abstract fun getByHash(hash: ByteArray): Single<Int>
 
+
+    class RemoteItem(
+        val item: ByteArray?
+    )
+
+
+
+    fun getAllHubs(root: MerkleBundle?, list: MutableList<ByteArray> = mutableListOf()): List<ByteArray> {
+        if (root?.hash == null)
+            return list
+        list.add(root.hash)
+  //      val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
+   //     val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
+        val childOneHub = getNextHub(root.childOne)
+        val childTwoHub = getNextHub(root.childTwo)
+        if (childOneHub != null) {
+            //    log.v("getHubs: ${root.id} ${childOneHub.hash?.toHexString()}")
+            getAllHubs(childOneHub, list)
+        }
+
+        if (childTwoHub != null) {
+            //  log.v("getHubs: ${root.id} ${childTwoHub.hash?.toHexString()}")
+            getAllHubs(childTwoHub, list)
+        }
+
+        return list
+    }
+
+
+
     fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>): HubResponse {
         if (root == null)
             return HubResponse(
                 hubs = Flowable.empty(),
                 exclude = Flowable.empty()
             )
-        val exclude = ReplaySubject.create<ByteArray>()
+        val exclude = mutableListOf<ByteArray>()
         //out.onNext(root)
 
-
-        val done = AtomicBoolean(false)
         val remoteDone = AtomicBoolean(false)
 
+        val rs = PublishProcessor.create<RemoteItem>()
 
-        return HubResponse(
-            hubs = Flowable.create( { obs ->
-                getHubs(root, obs)
-                obs.onComplete()
-            }, BackpressureStrategy.BUFFER)
-                .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
-                .doFinally {
-                    log.v("getHubs complete!")
-                    done.set(true)
-                    if (remoteDone.get())
-                        exclude.onComplete()
-                }.doOnNext { v -> log.v("got hub ${v.hash?.toByteString()}") },
-            exclude = remote.concatMapMaybe { v ->
-                getByHash(v).flatMapMaybe { count ->
-                    if (count > 0)
-                        Maybe.just(v)
-                    else
-                        Maybe.empty()
-
-                }
+        remote
+            .delay(0, TimeUnit.SECONDS, Schedulers.single())
+            .map { v -> RemoteItem(v) }
+            .doFinally {
+                remoteDone.set(true)
             }
+            .subscribe(rs)
+
+        val hubs = Flowable.create( { obs ->
+            getHubs(root, obs, rs, exclude, mutableSetOf(), mutableSetOf())
+            obs.onComplete()
+        }, BackpressureStrategy.BUFFER)
+       //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
+            .doFinally {
+                log.v("getHubs complete!")
+
+            }
+        return HubResponse(
+            hubs = hubs,
+            exclude = rs.ignoreElements().andThen(hubs.ignoreElements())
+                .andThen(Flowable.fromIterable(exclude))
                 .doFinally {
                     log.w("remote completed")
-                    remoteDone.set(true)
-                    if (done.get()) {
-                        exclude.onComplete()
-                    }
                 }
 
         )
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     private fun getHubs(
         root: MerkleBundle?,
         hubs: FlowableEmitter<MerkleBundle>,
+        remote: Flowable<RemoteItem>,
+        exclude: MutableList<ByteArray>,
+        previous: MutableSet<String>,
+        next: MutableSet<String>
     ) {
         if (root?.hash == null)
             return
-        hubs.onNext(root)
+
+        val item = remote
+            .mergeWith(Completable.fromAction {
+                hubs.onNext(root)
+            }).firstElement()
+            .blockingGet()
+        //val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
+        //val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
         val childOneHub = getNextHub(root.childOne)
         val childTwoHub = getNextHub(root.childTwo)
+        log.v("comparing hash ${item?.item?.toHexString()}, ${root.hash.toHexString()}")
+        if (
+            (item?.item != null && item.item.contentEquals(root.hash)) ||
+            previous.contains(root.hash.toHexString()) ||
+            next.contains(root.hash.toHexString()) ||
+            (item?.item != null && next.contains(item.item.toHexString()))
+                ) {
+            log.w("MATCH! on ${root.hash.toHexString()}")
+            exclude.add(root.hash)
+            return
+        }
+
+        if (item?.item != null)
+            previous.add(item.item.toHexString())
+        previous.add(root.hash.toHexString())
+        next.add(root.hash.toHexString())
+
+
 
         if (childOneHub != null) {
-            log.v("getHubs: ${root.id} ${childOneHub.hash?.toByteString()}")
-            getHubs(childOneHub, hubs)
+        //    log.v("getHubs: ${root.id} ${childOneHub.hash?.toHexString()}")
+            getHubs(childOneHub, hubs, remote, exclude, previous, next)
         }
 
         if (childTwoHub != null) {
-            log.v("getHubs: ${root.id} ${childTwoHub.hash?.toByteString()}")
-            getHubs(childTwoHub, hubs)
+          //  log.v("getHubs: ${root.id} ${childTwoHub.hash?.toHexString()}")
+            getHubs(childTwoHub, hubs, remote, exclude, previous, next)
         }
 
 
@@ -540,7 +601,7 @@ abstract class MerkleDao {
                     }
                     iterativeMerkleInsert(message, root, bundles)
                         .doOnComplete {
-                            log.v("iterativeMerkleInsert of message ${message.fileGlobalHash.toByteString()} complete $root")
+                            log.v("iterativeMerkleInsert of message ${message.fileGlobalHash.toHexString()} complete $root")
                         }
                 }
 

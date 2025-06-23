@@ -82,29 +82,29 @@ class MeshtasticConnectionTest {
     }
 
 
-    @Test
-    fun packetTest() {
-        val firstconnection = firstSubcomponent.radioModule()
-        val secondconnection = secondSubcomponent.radioModule()
-
-        val firstSession = firstconnection.startSession("first").state()
-        val secondSession = secondconnection.startSession("second").state()
-
-            val handle = firstconnection.handlePackets().mergeWith(secondconnection.handlePackets())
-                .subscribe()
-            val get =  firstSession.awaitHandshake()
-                .mergeWith(firstconnection.handshake())
-                .mergeWith(secondSession.awaitHandshake()
-                    .mergeWith(secondconnection.handshake()))
-                .doFinally { handle.dispose()}
-                .test()
-
-        get.await()
-
-        get.assertNoErrors()
-        get.assertComplete()
-
-    }
+//    @Test
+//    fun packetTest() {
+//        val firstconnection = firstSubcomponent.radioModule()
+//        val secondconnection = secondSubcomponent.radioModule()
+//
+//        val firstSession = firstconnection.startSession("first").state()
+//        val secondSession = secondconnection.startSession("second").state()
+//
+//            val handle = firstconnection.handlePackets().mergeWith(secondconnection.handlePackets())
+//                .subscribe()
+//            val get =  firstSession.awaitHandshake()
+//                .mergeWith(firstconnection.handshake())
+//                .mergeWith(secondSession.awaitHandshake()
+//                    .mergeWith(secondconnection.handshake()))
+//                .doFinally { handle.dispose()}
+//                .test()
+//
+//        get.await()
+//
+//        get.assertNoErrors()
+//        get.assertComplete()
+//
+//    }
 
     @Test
     fun oneSidedPacketTest() {

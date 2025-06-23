@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
+import com.geeksville.mesh.util.toHexString
 import com.google.firebase.FirebaseApp
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
@@ -277,11 +278,31 @@ class ProtocolTests {
 
 
         val nr2 = ds1.merkleDao().getDefaultRoot().blockingGet()
+        val nr3 = ds2.merkleDao().getDefaultRoot().blockingGet()
 
 
         val o2 = ds1.merkleDao().getTopRandomExcludingHash(nr2.id!!, 500, out4).blockingGet()
 
-        assertEquals(big-1, o2.size)
+        for (v in o2) {
+            println("message: ${v.message.fileGlobalHash.toHexString()}")
+        }
+
+        val set1 = ds1.merkleDao().getAllHashes().map { v -> v.toHexString() }.toSet()
+        val set2 = ds2.merkleDao().getAllHashes().map { v -> v.toHexString() }.toSet()
+
+        val allhubs1 = ds1.merkleDao().getAllHubs(nr2).map { v -> v.toHexString() }.toSet()
+        val allhubs2 = ds2.merkleDao().getAllHubs(nr3).map { v -> v.toHexString() }.toSet()
+
+        val intersect = set1.intersect(set2)
+
+        datastore2.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        println("hubs intersect ${allhubs1.size} ${allhubs2.size} ${allhubs1.intersect(allhubs2).toSortedSet()}")
+        println("all intersect ${set1.size} ${set2.size} ${set1.intersect(set2).toSortedSet()}")
+
+
+        println("comparing ${big-1} ${o2.size} $out4")
+           assertEquals(big-1, o2.size)
     }
 
     @Test
@@ -340,6 +361,38 @@ class ProtocolTests {
         assertEquals(1, o2.size)
     }
 
+
+    @Test
+    fun merkleSyncSame() {
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1))
+            .setApplication("fmef")
+            .build()
+        datastore1.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        datastore2.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        ds1.merkleDao().merkleRehash().blockingAwait()
+        ds2.merkleDao().merkleRehash().blockingAwait()
+
+        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+            .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
+            .ignoreElement()
+        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+            .toFlowable()
+            .mergeWith(out1)
+            .lastOrError()
+            .blockingGet()
+            .toMutableList()
+
+        val nr = ds1.merkleDao().getDefaultRoot().blockingGet()
+        val root2 = ds2.merkleDao().getDefaultRoot().blockingGet()
+        assertNotEquals(root2.hash, nr.hash)
+
+        println("got out2 ${out2.map { v -> v.toByteString() }}")
+        val o = ds1.merkleDao().getTopRandomExcludingHash(nr.id!!, 500, out2).blockingGet()
+
+        assertEquals(0, o.size)
+    }
 
     @Test
     fun merkleSyncReverse() {

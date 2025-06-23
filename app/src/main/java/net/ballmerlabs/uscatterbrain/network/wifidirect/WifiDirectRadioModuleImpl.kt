@@ -22,6 +22,8 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import net.ballmerlabs.scatterproto.Optional
+import net.ballmerlabs.uscatterbrain.R
+import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WifiDirectInfoSubcomponent
 import net.ballmerlabs.uscatterbrain.WifiDirectProvider
@@ -73,6 +75,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val provider: WifiDirectProvider,
     private val leState: Provider<LeState>,
+    private val preferences: RouterPreferences
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
@@ -275,8 +278,17 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     }
 
     override fun wifiDirectIsUsable(): Single<Boolean> {
-        return Single.fromCallable {
-            manager.isWifiEnabled && manager.isP2pSupported
+        return preferences.getStringSet(
+            mContext.getString(R.string.pref_enabled_transports),
+            setOf("wifi", "bluetooth")
+        ).flatMapSingle { enabled ->
+            if (enabled.contains("wifi")) {
+                Single.fromCallable {
+                    manager.isWifiEnabled && manager.isP2pSupported
+                }
+            } else {
+                Single.just(false)
+            }
         }
     }
 

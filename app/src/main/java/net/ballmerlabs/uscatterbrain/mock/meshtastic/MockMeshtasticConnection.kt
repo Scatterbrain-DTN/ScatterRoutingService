@@ -13,6 +13,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBroadcastRecei
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnection
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionScope
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MessageStatusEvent
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -27,7 +28,7 @@ class MockMeshtasticConnection @Inject constructor(
     @Named(FakeMeshtasticConnectionSubcomponent.MY_ID) val myId: String
 ): MeshtasticConnection {
 
-
+    private val log by scatterLog()
 
     val owner = AtomicReference<MeshUser?>(null)
     val id = AtomicReference(myId)
@@ -59,10 +60,11 @@ class MockMeshtasticConnection @Inject constructor(
 
     override fun send(packet: DataPacket): Completable {
         return Completable.fromAction {
-            remoteState.acceptDataPacket(packet)
             localState.acceptMessageStatus(MessageStatusEvent(packet.id, MessageStatus.QUEUED))
             localState.acceptMessageStatus(MessageStatusEvent(packet.id, MessageStatus.ENROUTE))
             localState.acceptMessageStatus(MessageStatusEvent(packet.id, MessageStatus.DELIVERED))
+            log.v("mock send packet: to=${packet.to} from=${packet.from}")
+            remoteState.acceptDataPacket(packet)
         }
     }
 
