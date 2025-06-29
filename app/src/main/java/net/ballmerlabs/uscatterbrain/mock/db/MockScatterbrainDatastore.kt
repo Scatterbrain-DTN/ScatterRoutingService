@@ -14,27 +14,39 @@ import net.ballmerlabs.scatterbrainsdk.DesktopApp
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
-import net.ballmerlabs.uscatterbrain.db.entities.*
 import net.ballmerlabs.uscatterbrain.db.ACL
 import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.db.OpenFile
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
+import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
+import net.ballmerlabs.uscatterbrain.db.entities.DiskFile
+import net.ballmerlabs.uscatterbrain.db.entities.GlobalHash
+import net.ballmerlabs.uscatterbrain.db.entities.Hashes
+import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
+import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
+import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
+import net.ballmerlabs.uscatterbrain.db.entities.Metrics
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
+import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacket
+import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
+import net.ballmerlabs.uscatterbrain.network.proto.DeclareHashesPacket
+import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
+import proto.Scatterbrain.MessageFlag
 import java.io.File
 import java.io.Serializable
-import java.util.*
+import java.util.Date
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
-import net.ballmerlabs.uscatterbrain.network.proto.*
-import proto.Scatterbrain.MessageFlag
 
 @Singleton
 class MockScatterbrainDatastore @Inject constructor(
-    private val ctx: Context
-): ScatterbrainDatastore {
+    private val ctx: Context,
+) : ScatterbrainDatastore {
     override fun getDefaultMerkleRoot(): Single<ByteArray> {
         return Single.just(ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE))
     }
@@ -42,20 +54,23 @@ class MockScatterbrainDatastore @Inject constructor(
     override fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int?): Single<HubResponse> {
         val out = Single.just(
             HubResponse(
-                hubs = Flowable.create( { obs ->
-                    for (x in 0..(limit?:16)) {
-                        obs.onNext(MerkleBundle(
-                            id = 0,
-                            hash = ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE),
-                            childOne = 0,
-                            childTwo = 0,
-                            dirty = false,
-                        ))
+                hubs = Flowable.create({ obs ->
+                    for (x in 0..(limit ?: 16)) {
+                        obs.onNext(
+                            MerkleBundle(
+                                id = 0,
+                                hash = ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE),
+                                childOne = 0,
+                                childTwo = 0,
+                                dirty = false,
+                            )
+                        )
                     }
                     obs.onComplete()
                 }, BackpressureStrategy.BUFFER),
                 exclude = Flowable.empty()
-        ))
+            )
+        )
         remote.ignoreElements().onErrorComplete().subscribe()
         return out
     }
@@ -71,14 +86,16 @@ class MockScatterbrainDatastore @Inject constructor(
 
     override fun getDesktopIdentitiesByFingerprint(identity: UUID?): Single<List<DesktopApiIdentity>> {
         return Single.just(
-            listOf( DesktopApiIdentity(
-                fingerprint = UUID.randomUUID(),
-                isOwned = false,
-                name = "test",
-                sig = ByteArray(Sign.BYTES),
-                extraKeys = mapOf(),
-                publicKey = ByteArray(Sign.PUBLICKEYBYTES)
-            ))
+            listOf(
+                DesktopApiIdentity(
+                    fingerprint = UUID.randomUUID(),
+                    isOwned = false,
+                    name = "test",
+                    sig = ByteArray(Sign.BYTES),
+                    extraKeys = mapOf(),
+                    publicKey = ByteArray(Sign.PUBLICKEYBYTES)
+                )
+            )
         )
     }
 
@@ -87,11 +104,13 @@ class MockScatterbrainDatastore @Inject constructor(
     }
 
     override fun getApps(): Observable<SbApp> {
-        return Observable.just(SbApp(
-            name = "",
-            desktop = false,
-            id = null
-        ))
+        return Observable.just(
+            SbApp(
+                name = "",
+                desktop = false,
+                id = null
+            )
+        )
     }
 
     override fun updateStats(metrics: Metrics): Completable {
@@ -130,45 +149,55 @@ class MockScatterbrainDatastore @Inject constructor(
         return stream.sequencePackets.ignoreElements()
     }
 
-    override fun getTopRandomMessages(count: Int, delareHashes: List<ByteArray>, flag: List<MessageFlag>?): Flowable<WifiDirectRadioModule.BlockDataStream> {
-        return Flowable.fromIterable(listOf(
-            WifiDirectRadioModule.BlockDataStream(
-            DbMessage(
-                message = HashlessScatterMessage(
-                    body = byteArrayOf(),
-                    application = "test",
-                    sig = byteArrayOf(),
-                    sendDate = Date().time,
-                    sessionid = 0,
-                    extension = "test",
-                    receiveDate = Date().time,
-                    fileSize = 0.toLong(),
-                    fileGlobalHash = ByteArray(GenericHash.BYTES),
-                    packageName = "test"
-                ),
-                file = DiskFile(GlobalHash(ByteArray(GenericHash.BYTES), "test"), listOf(
-                    Hashes(
-                        hash = ByteArray(GenericHash.BYTES),
-                        parent = ByteArray(GenericHash.BYTES)
-                    )
-                )),
-                recipient_fingerprints = listOf(),
-                identity_fingerprints = listOf(),
-                flags = listOf()
-            ),
-                packetFlowable = Flowable.fromIterable(
-                    listOf(
-                        BlockSequencePacket.newBuilder()
-                            .setSequenceNumber(0)
-                            .setData(ByteString.empty())
-                            .setEnd(true)
-                            .build(),
-                    )
+    override fun getTopRandomMessages(
+        count: Int,
+        delareHashes: List<ByteArray>,
+        flag: List<MessageFlag>?,
+    ): Flowable<WifiDirectRadioModule.BlockDataStream> {
+        return Flowable.create({ f ->
+            for (x in 0..99) {
+                val message = WifiDirectRadioModule.BlockDataStream(
+                    DbMessage(
+                        message = HashlessScatterMessage(
+                            body = byteArrayOf(),
+                            application = "test",
+                            sig = byteArrayOf(),
+                            sendDate = Date().time,
+                            sessionid = 0,
+                            extension = "test",
+                            receiveDate = Date().time,
+                            fileSize = 0.toLong(),
+                            fileGlobalHash = ByteArray(GenericHash.BYTES),
+                            packageName = "test"
+                        ),
+                        file = DiskFile(
+                            GlobalHash(ByteArray(GenericHash.BYTES), "test"), listOf(
+                                Hashes(
+                                    hash = ByteArray(GenericHash.BYTES),
+                                    parent = ByteArray(GenericHash.BYTES)
+                                )
+                            )
+                        ),
+                        recipient_fingerprints = listOf(),
+                        identity_fingerprints = listOf(),
+                        flags = listOf()
+                    ),
+                    packetFlowable = Flowable.fromIterable(
+                        listOf(
+                            BlockSequencePacket.newBuilder()
+                                .setSequenceNumber(0)
+                                .setData(ByteString.empty())
+                                .setEnd(true)
+                                .build(),
+                        )
 
+                    )
                 )
-            ),
-            WifiDirectRadioModule.BlockDataStream.endOfStream()
-        ))
+                f.onNext(message)
+            }
+            f.onNext(WifiDirectRadioModule.BlockDataStream.endOfStream())
+            f.onComplete()
+        }, BackpressureStrategy.BUFFER)
     }
 
     override val allFiles: Observable<String>
@@ -210,11 +239,20 @@ class MockScatterbrainDatastore @Inject constructor(
         return Single.error(IllegalStateException("no identities for u, cry noises"))
     }
 
-    override fun addACLs(identityFingerprint: UUID, packagename: String, appsig: String, desktop: Boolean): Completable {
+    override fun addACLs(
+        identityFingerprint: UUID,
+        packagename: String,
+        appsig: String,
+        desktop: Boolean,
+    ): Completable {
         return Completable.complete()
     }
 
-    override fun deleteACLs(identityFingerprint: UUID, packageName: String, appsig: String): Completable {
+    override fun deleteACLs(
+        identityFingerprint: UUID,
+        packageName: String,
+        appsig: String,
+    ): Completable {
         return Completable.complete()
     }
 
@@ -223,7 +261,7 @@ class MockScatterbrainDatastore @Inject constructor(
     }
 
     override fun getDesktopApps(): Observable<DesktopApp> {
-      return Observable.empty()
+        return Observable.empty()
     }
 
     override fun messageCount(): Int {
@@ -280,19 +318,32 @@ class MockScatterbrainDatastore @Inject constructor(
     override val allIdentities: List<net.ballmerlabs.scatterbrainsdk.Identity>
         get() = listOf()
 
-    override fun getApiMessages(application: String, limit: Int): Single<ArrayList<ScatterMessage>> {
+    override fun getApiMessages(
+        application: String,
+        limit: Int,
+    ): Single<ArrayList<ScatterMessage>> {
         return Single.error(IllegalStateException("no apiMessages for u, cry noises"))
     }
 
     override fun getApiMessages(id: Long): ScatterMessage {
-        return ScatterMessage.Builder.newInstance(ctx,byteArrayOf()).build()
+        return ScatterMessage.Builder.newInstance(ctx, byteArrayOf()).build()
     }
 
-    override fun getApiMessagesSendDate(application: String, start: Date?, end: Date?, limit: Int): Single<ArrayList<ScatterMessage>> {
+    override fun getApiMessagesSendDate(
+        application: String,
+        start: Date?,
+        end: Date?,
+        limit: Int,
+    ): Single<ArrayList<ScatterMessage>> {
         return Single.error(IllegalStateException("no apiMessages for u, cry noises"))
     }
 
-    override fun getApiMessagesReceiveDate(application: String, start: Date?, end: Date?, limit: Int): Single<ArrayList<ScatterMessage>> {
+    override fun getApiMessagesReceiveDate(
+        application: String,
+        start: Date?,
+        end: Date?,
+        limit: Int,
+    ): Single<ArrayList<ScatterMessage>> {
         return Single.error(IllegalStateException("no apiMessages for u, cry noises"))
     }
 
@@ -300,7 +351,12 @@ class MockScatterbrainDatastore @Inject constructor(
         return Flowable.empty()
     }
 
-    override fun insertAndHashFileFromApi(message: ScatterMessage, blocksize: Int, packageName: String, sign: UUID?): Completable {
+    override fun insertAndHashFileFromApi(
+        message: ScatterMessage,
+        blocksize: Int,
+        packageName: String,
+        sign: UUID?,
+    ): Completable {
         return Completable.complete()
     }
 

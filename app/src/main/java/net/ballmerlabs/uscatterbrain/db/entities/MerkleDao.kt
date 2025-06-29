@@ -210,7 +210,7 @@ abstract class MerkleDao {
     @Query(
         """
         SELECT * FROM bundles AS disjoint 
-        WHERE disjoint.id NOT IN (
+        WHERE hash IS NOT NULL AND disjoint.id NOT IN (
             SELECT bundles.id FROM bundles 
             INNER JOIN bundles AS parent ON parent.childOne = bundles.id OR parent.childTwo = bundles.id 
         ) ORDER BY RANDOM()

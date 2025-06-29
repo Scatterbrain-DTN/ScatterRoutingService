@@ -1192,6 +1192,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun rehashMerkle(): Completable {
         return mDatastore.merkleDao().merkleRehash()
+            .subscribeOn(databaseScheduler)
     }
 
     override fun insertAndHashFileFromApi(

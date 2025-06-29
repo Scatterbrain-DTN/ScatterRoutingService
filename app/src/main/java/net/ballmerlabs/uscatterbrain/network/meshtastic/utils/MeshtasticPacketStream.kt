@@ -50,7 +50,6 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
         if (obs.hasObservers()) {
             pushPacket(packet)
         } else {
-            log.v("waiting add ${packet.seq} ${packet.end}")
             waiting.add(packet)
         }
 
