@@ -225,8 +225,11 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 ds,
                 parseScheduler
             ).doOnSuccess { v -> log.v("parsed blockheader end=${v.isEndOfStream}") }
-                .map { header ->
-                    WifiDirectRadioModule.BlockDataStream(
+                .flatMap { header ->
+                    if (header.isEndOfStream) {
+                        Single.just(true)
+                    } else {
+                    val s = WifiDirectRadioModule.BlockDataStream(
                         header,
                         ScatterSerializable.parseWrapperFromCRC(
                             BlockSequencePacketParser.parser,
@@ -238,7 +241,11 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             .takeWhile { p -> !p.isEnd },
                         datastore.cacheDir
                     )
-                }.flatMapCompletable { bds -> datastore.insertMessage(bds) }
+                        datastore.insertMessage(s).toSingleDefault(false)
+                    }
+                }.repeat()
+                .takeUntil { v -> v }
+                .ignoreElements()
 
                 .doFinally { log.v("out completed") }
 
@@ -290,17 +297,16 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 resp
                     .mergeWith(out)
                     .mergeWith(obs)
-                    .doOnComplete {
-                        log.v("sending handshake success")
-                        handshake.get().onComplete()
-                    }.doOnError { err ->
+                    .doOnError { err ->
+                        log.v("sending handshake error $err")
                         handshake.get().onError(err)
-                    }.doFinally {
+                    }
+                    .doFinally {
+                        handshake.get().onComplete()
                         currentMerkleStream.set(MeshtasticPacketStream(MeshtasticMerklePacketParser.parser))
                         currentDataStream.set(MeshtasticPacketStream(MeshtasticStreamPacketParser.parser))
+                        log.v("all stream packets complete")
                     }
-                    .doOnNext { v -> log.v("sending stream packet ${v.type}") }
-                    .doFinally { log.v("all stream packets complete") }
             }
         }.doFinally { log.v("getDefaultMerkleRoot complete") }
     }
