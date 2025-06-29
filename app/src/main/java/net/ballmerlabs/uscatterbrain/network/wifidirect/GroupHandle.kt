@@ -432,7 +432,6 @@ class GroupHandle @Inject constructor(
                                             32,
                                             declareHashesPacket
                                         )
-                                            .toFlowable(BackpressureStrategy.BUFFER)
                                     ).toObservable()
                                 )
                         }
@@ -726,7 +725,7 @@ class GroupHandle @Inject constructor(
                                                 datastore.getTopRandomMessages(
                                                     v,
                                                     declareHashesPacket
-                                                ).toFlowable(BackpressureStrategy.BUFFER),
+                                                ),
                                                 socket
                                             ).subscribeOn(operationsScheduler)
                                                 .toObservable()

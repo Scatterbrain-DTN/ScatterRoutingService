@@ -203,7 +203,7 @@ interface ScatterbrainDatastore {
             count: Int,
             delareHashes: List<ByteArray>,
             flag: List<MessageFlag>? = null
-    ): Observable<BlockDataStream>
+    ): Flowable<BlockDataStream>
 
     /**
      * gets a list of all the files in the datastore.
@@ -560,7 +560,7 @@ interface ScatterbrainDatastore {
 
     fun getDefaultMerkleRoot(): Single<ByteArray>
 
-    fun getMerkleHubs(remote: Flowable<ByteArray>): Single<HubResponse>
+    fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int? = null): Single<HubResponse>
 
 
     enum class WriteMode {

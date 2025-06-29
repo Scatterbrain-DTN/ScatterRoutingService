@@ -126,7 +126,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
             }.doOnComplete {
                 log.v("sendPacket complete")
             }
-        }
+        }.retryDelay(5, 1)
     }
 
     override fun handlePackets(): Completable {
@@ -141,9 +141,11 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     }
 
     override fun handshake(): Completable {
-        return  datastore.getDefaultMerkleRoot().flatMapCompletable { root ->
+        return datastore.rehashMerkle().andThen(datastore.getDefaultMerkleRoot())
+            .flatMapCompletable { root ->
+            log.v("default root ${root.size}")
             connection.getMyId().flatMapCompletable { routerId ->
-                log.v("initiate handshake with root me=$routerId ${root.encodeBase64()}")
+                log.v("initiate handshake with root me=$routerId")
                 sendPacket(
                     MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
                         .toBroadcast(from = routerId)

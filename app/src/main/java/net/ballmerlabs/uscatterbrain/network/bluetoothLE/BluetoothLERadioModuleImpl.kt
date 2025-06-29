@@ -552,7 +552,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 preferences.getInt(
                                     mContext.getString(R.string.pref_blockdatacap),
                                     30
-                                ).flatMapObservable { l ->
+                                ).flatMapPublisher { l ->
                                     datastore.getTopRandomMessages(
                                         l,
                                         declareHashesPacket.hashes

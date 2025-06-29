@@ -11,6 +11,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.SeqLike
 import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
+import net.ballmerlabs.uscatterbrain.util.enumerateMap
 import proto.Scatterbrain.MeshtasticStream
 import proto.Scatterbrain.MessageType
 import java.util.concurrent.TimeUnit
@@ -63,8 +64,8 @@ class MeshtasticStreamPacket(
                 .concatWith(stream.sequencePackets.concatMap { packet ->
                     packet.writeToStream(fragsize).flatMapPublisher { v -> v }
                 })
-                .zipWith(Flowable.interval(0, TimeUnit.SECONDS)) { v, seq ->
-                    MeshtasticStreamPacket(seq.toInt(), v)
+                .enumerateMap { v, seq ->
+                    MeshtasticStreamPacket(seq, v)
                 }
         }
     }

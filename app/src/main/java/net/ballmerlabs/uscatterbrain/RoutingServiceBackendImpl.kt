@@ -368,7 +368,9 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     override fun syncMeshtastic(): Completable {
         return meshtasticBinderProvider.getConnection()
-            .flatMapCompletable { c -> c.module().handshake() }
+            .flatMapCompletable { c ->
+                datastore.rehashMerkle().andThen(c.module().handshake())
+            }
     }
 
     private fun asyncRefreshPeers() {

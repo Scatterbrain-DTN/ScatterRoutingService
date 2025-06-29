@@ -403,8 +403,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         count: Int,
         delareHashes: List<ByteArray>,
         flag: List<MessageFlag>?,
-    ): Observable<BlockDataStream> {
-        return mDatastore.merkleDao().getDefaultRoot().flatMapObservable { root ->
+    ): Flowable<BlockDataStream> {
+        return mDatastore.merkleDao().getDefaultRoot().flatMapPublisher { root ->
             LOG.v("called getTopRandomMessages $count")
             mDatastore.merkleDao().getTopRandomExcludingHash(
                 root.id!!,
@@ -441,7 +441,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         )
                     ).toSingleDefault(v)
                 }
-                .toObservable()
                 .doOnError { err ->
                     LOG.e("getTopRandomMessages error $err")
                 }
@@ -662,10 +661,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .subscribeOn(databaseScheduler)
     }
 
-    override fun getMerkleHubs(remote: Flowable<ByteArray>): Single<HubResponse> {
+    override fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int?): Single<HubResponse> {
         return mDatastore.merkleDao().getDefaultRoot()
             .map { root ->
-                mDatastore.merkleDao().getHubs(root, remote)
+                mDatastore.merkleDao().getHubs(root, remote, limit)
             }.subscribeOn(databaseScheduler)
     }
 

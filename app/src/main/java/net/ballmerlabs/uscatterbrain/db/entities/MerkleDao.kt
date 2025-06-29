@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.concurrent.AtomicBoolean
+import androidx.room.concurrent.AtomicInt
 import com.geeksville.mesh.util.toHexString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
@@ -13,18 +14,13 @@ import io.reactivex.Flowable
 import io.reactivex.FlowableEmitter
 import io.reactivex.Maybe
 import io.reactivex.Observable
-import io.reactivex.ObservableEmitter
 import io.reactivex.Single
 import io.reactivex.processors.PublishProcessor
-import io.reactivex.processors.ReplayProcessor
-import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.CompletableSubject
-import io.reactivex.subjects.ReplaySubject
 import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.util.concurrent.TimeUnit
 
 @Dao
 abstract class MerkleDao {
@@ -336,7 +332,7 @@ abstract class MerkleDao {
 
 
 
-    fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>): HubResponse {
+    fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>, limit: Int? = null): HubResponse {
         if (root == null)
             return HubResponse(
                 hubs = Flowable.empty(),
@@ -350,7 +346,6 @@ abstract class MerkleDao {
         val rs = PublishProcessor.create<RemoteItem>()
 
         remote
-            .delay(0, TimeUnit.SECONDS, Schedulers.single())
             .map { v -> RemoteItem(v) }
             .doFinally {
                 remoteDone.set(true)
@@ -359,7 +354,7 @@ abstract class MerkleDao {
 
         val hubsComplete = CompletableSubject.create()
         val hubs = Flowable.create( { obs ->
-            getHubs(root, obs, rs, exclude, mutableSetOf())
+            getHubs(root, obs, rs, exclude, mutableSetOf(), AtomicInt(0), limit)
             obs.onComplete()
         }, BackpressureStrategy.BUFFER)
        //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
@@ -386,10 +381,15 @@ abstract class MerkleDao {
         hubs: FlowableEmitter<MerkleBundle>,
         remote: Flowable<RemoteItem>,
         exclude: MutableList<ByteArray>,
-        next: MutableSet<String>
+        next: MutableSet<String>,
+        count: AtomicInt = AtomicInt(0),
+        target: Int? = null,
     ) {
-        if (root?.hash == null)
+        val c = count.getAndIncrement()
+
+        if (root?.hash == null || (target != null && c >= target))
             return
+
 
         val item = remote
             .mergeWith(Completable.fromAction {
@@ -419,14 +419,15 @@ abstract class MerkleDao {
 
 
 
+
         if (childOneHub != null) {
         //    log.v("getHubs: ${root.id} ${childOneHub.hash?.toHexString()}")
-            getHubs(childOneHub, hubs, remote, exclude, next)
+            getHubs(childOneHub, hubs, remote, exclude, next, count, target)
         }
 
         if (childTwoHub != null) {
           //  log.v("getHubs: ${root.id} ${childTwoHub.hash?.toHexString()}")
-            getHubs(childTwoHub, hubs, remote, exclude, next)
+            getHubs(childTwoHub, hubs, remote, exclude, next, count, target)
         }
 
 

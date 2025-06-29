@@ -84,6 +84,19 @@ class MeshtasticProtoTest {
         assert(out.size == 10)
     }
 
+    @Test
+    fun streamAsync() {
+        val stream = MeshtasticPacketStream(DummySeqParser.parser)
+        for (x in 0..<10) {
+            stream.onPacket(DummySeq(x))
+        }
+        stream.onPacket(DummySeq(seq = 10, end = true))
+        val out = stream.toList().blockingGet()
+
+        println("out ${out.size}")
+        assert(out.size == 11)
+    }
+
     private fun testOutOfOrder(test: Array<Int>) {
         val stream = MeshtasticPacketStream(DummySeqParser.parser)
 

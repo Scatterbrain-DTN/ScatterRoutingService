@@ -1,6 +1,8 @@
 package net.ballmerlabs.uscatterbrain.mock.db
 
 import android.content.Context
+import com.google.protobuf.ByteString
+import com.goterl.lazysodium.interfaces.GenericHash
 import com.goterl.lazysodium.interfaces.Sign
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
@@ -33,17 +35,15 @@ import proto.Scatterbrain.MessageFlag
 class MockScatterbrainDatastore @Inject constructor(
     private val ctx: Context
 ): ScatterbrainDatastore {
-
-
     override fun getDefaultMerkleRoot(): Single<ByteArray> {
         return Single.just(ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE))
     }
 
-    override fun getMerkleHubs(remote: Flowable<ByteArray>): Single<HubResponse> {
+    override fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int?): Single<HubResponse> {
         val out = Single.just(
             HubResponse(
                 hubs = Flowable.create( { obs ->
-                    for (x in 0..16) {
+                    for (x in 0..(limit?:16)) {
                         obs.onNext(MerkleBundle(
                             id = 0,
                             hash = ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE),
@@ -130,8 +130,44 @@ class MockScatterbrainDatastore @Inject constructor(
         return Completable.complete()
     }
 
-    override fun getTopRandomMessages(count: Int, delareHashes: List<ByteArray>, flag: List<MessageFlag>?): Observable<WifiDirectRadioModule.BlockDataStream> {
-        return Observable.just(WifiDirectRadioModule.BlockDataStream.endOfStream())
+    override fun getTopRandomMessages(count: Int, delareHashes: List<ByteArray>, flag: List<MessageFlag>?): Flowable<WifiDirectRadioModule.BlockDataStream> {
+        return Flowable.fromIterable(listOf(
+            WifiDirectRadioModule.BlockDataStream(
+            DbMessage(
+                message = HashlessScatterMessage(
+                    body = byteArrayOf(),
+                    application = "test",
+                    sig = byteArrayOf(),
+                    sendDate = Date().time,
+                    sessionid = 0,
+                    extension = "test",
+                    receiveDate = Date().time,
+                    fileSize = 0.toLong(),
+                    fileGlobalHash = ByteArray(GenericHash.BYTES),
+                    packageName = "test"
+                ),
+                file = DiskFile(GlobalHash(ByteArray(GenericHash.BYTES), "test"), listOf(
+                    Hashes(
+                        hash = ByteArray(GenericHash.BYTES),
+                        parent = ByteArray(GenericHash.BYTES)
+                    )
+                )),
+                recipient_fingerprints = listOf(),
+                identity_fingerprints = listOf(),
+                flags = listOf()
+            ),
+                packetFlowable = Flowable.fromIterable(
+                    listOf(
+                        BlockSequencePacket.newBuilder()
+                            .setSequenceNumber(0)
+                            .setData(ByteString.empty())
+                            .setEnd(true)
+                            .build(),
+                    )
+
+                )
+            )
+        ))
     }
 
     override val allFiles: Observable<String>

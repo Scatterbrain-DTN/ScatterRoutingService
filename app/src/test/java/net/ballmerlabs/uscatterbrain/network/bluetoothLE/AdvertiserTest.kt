@@ -259,6 +259,10 @@ class AdvertiserTest {
                 TODO("Not yet implemented")
             }
 
+            override fun getAllHashes(): List<ByteArray> {
+                TODO("Not yet implemented")
+            }
+
         }
         advertiser = AdvertiserImpl(
             context = context,
