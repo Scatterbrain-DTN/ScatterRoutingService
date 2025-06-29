@@ -127,7 +127,7 @@ class MockScatterbrainDatastore @Inject constructor(
     }
 
     override fun insertMessage(stream: WifiDirectRadioModule.BlockDataStream): Completable {
-        return Completable.complete()
+        return stream.sequencePackets.ignoreElements()
     }
 
     override fun getTopRandomMessages(count: Int, delareHashes: List<ByteArray>, flag: List<MessageFlag>?): Flowable<WifiDirectRadioModule.BlockDataStream> {
@@ -166,7 +166,8 @@ class MockScatterbrainDatastore @Inject constructor(
                     )
 
                 )
-            )
+            ),
+            WifiDirectRadioModule.BlockDataStream.endOfStream()
         ))
     }
 

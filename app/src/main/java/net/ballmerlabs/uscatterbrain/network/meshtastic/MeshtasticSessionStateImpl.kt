@@ -220,50 +220,29 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 .doOnNext { v -> log.v("received stream packet ${v.seq} ${v.end}") }
                 .map { v -> v.payload }
                 .doOnNext { v -> log.v("receiving stream ${v.size}") }
-
             val out = ScatterSerializable.parseWrapperFromCRC(
                 BlockHeaderPacketParser.parser,
                 ds,
                 parseScheduler
-            ).retryWhen { err ->
-                err.flatMap { e ->
-                    when (e) {
-                        is MessageSizeException -> Flowable.just(e)
-                        is MessageValidationException -> Flowable.just(e)
-                        else -> Flowable.error(e)
-                    }
-                }
-            }
-                .flatMap { headerPacket ->
-                    if (headerPacket.isEndOfStream) {
-                        log.v("header packets end of stream")
-                        Single.just(0)
-                    } else {
-                        log.v("header packet! ${headerPacket.application}")
-                        val m = WifiDirectRadioModule.BlockDataStream(
-                            headerPacket,
-                            ScatterSerializable.parseWrapperFromCRC(
-                                BlockSequencePacketParser.parser,
-                                ds,
-                                parseScheduler,
-                            )
-                                .repeat()
-                                .doOnNext { v -> log.v("sequence packet next end=${v.isEnd}") }
-                                .takeWhile { p -> !p.isEnd }
-                                .doFinally {
-                                    log.v("sequence packets end")
-                                },
-                            datastore.cacheDir
+            ).doOnSuccess { v -> log.v("parsed blockheader end=${v.isEndOfStream}") }
+                .map { header ->
+                    WifiDirectRadioModule.BlockDataStream(
+                        header,
+                        ScatterSerializable.parseWrapperFromCRC(
+                            BlockSequencePacketParser.parser,
+                            ds,
+                            parseScheduler
                         )
-                        datastore.insertMessage(m).andThen(m.await()).toSingleDefault(1)
-                    }
-                }
-                .repeat()
-                .takeWhile { n -> n > 0 }
-                .ignoreElements()
-                .onErrorComplete()
-                .andThen(datastore.rehashMerkle())
+                            .repeat()
+                            .doOnNext { v -> log.v("parsed sequence ${v.isEnd}") }
+                            .takeWhile { p -> !p.isEnd },
+                        datastore.cacheDir
+                    )
+                }.flatMapCompletable { bds -> datastore.insertMessage(bds) }
+
                 .doFinally { log.v("out completed") }
+
+
             datastore.getMerkleHubs(
                 stream.toFlowable(BackpressureStrategy.BUFFER)
                     .concatMap { h ->
@@ -283,9 +262,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             }
                             .map { v -> v as ScatterSerializable<*> }
                             .doFinally { log.v("obs completed") }
-
-
-
 
 
                     }.doOnNext { v -> log.v("sending stream packet ${v.type}") }
