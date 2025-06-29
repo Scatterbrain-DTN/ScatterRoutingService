@@ -8,8 +8,10 @@ import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
+import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
@@ -20,7 +22,9 @@ import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import javax.inject.Named
 
 @MeshtasticConnectionScope
 class MeshtasticRadioModuleImpl @Inject constructor(
@@ -30,6 +34,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     val sessionBuilder: MeshtasticSessionSubcomponent.Builder,
     val advertiser: Advertiser,
     val database: Datastore,
+    @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler
 ) : MeshtasticRadioModule {
 
 
@@ -126,7 +131,8 @@ class MeshtasticRadioModuleImpl @Inject constructor(
             }.doOnComplete {
                 log.v("sendPacket complete")
             }
-        }.retryDelay(5, 1)
+        }.timeout(45, TimeUnit.SECONDS, timeoutScheduler)
+            .retryDelay(5, 1)
     }
 
     override fun handlePackets(): Completable {

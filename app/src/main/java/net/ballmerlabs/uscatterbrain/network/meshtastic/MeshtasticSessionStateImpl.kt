@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.util.anonymize
 import com.geeksville.mesh.util.toHexString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
@@ -11,8 +10,6 @@ import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
-import net.ballmerlabs.scatterproto.MessageSizeException
-import net.ballmerlabs.scatterproto.MessageValidationException
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
@@ -194,7 +191,9 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     }
 
                     Flowable.just(MeshtasticAnnounceSynAckPacket(code))
-                        .map { v -> v as ScatterSerializable<*> }.concatWith(handleMerkleStream())
+                        .map { v -> val scatterSerializable = v as ScatterSerializable<*>
+                            scatterSerializable
+                        }.concatWith(handleMerkleStream())
                 }
             }
         }
@@ -219,7 +218,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
             val ds = datastream
                 .doOnNext { v -> log.v("received stream packet ${v.seq} ${v.end}") }
                 .map { v -> v.payload }
-                .doOnNext { v -> log.v("receiving stream ${v.size}") }
             val out = ScatterSerializable.parseWrapperFromCRC(
                 BlockHeaderPacketParser.parser,
                 ds,
@@ -229,19 +227,21 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     if (header.isEndOfStream) {
                         Single.just(true)
                     } else {
-                    val s = WifiDirectRadioModule.BlockDataStream(
-                        header,
-                        ScatterSerializable.parseWrapperFromCRC(
-                            BlockSequencePacketParser.parser,
-                            ds,
-                            parseScheduler
+                        val s = WifiDirectRadioModule.BlockDataStream(
+                            header,
+                            ScatterSerializable.parseWrapperFromCRC(
+                                BlockSequencePacketParser.parser,
+                                ds,
+                                parseScheduler
+                            )
+                                .repeat()
+                                .doOnNext { v -> log.v("parsed sequence ${v.isEnd}") }
+                                .takeWhile { p -> !p.isEnd },
+                            datastore.cacheDir
                         )
-                            .repeat()
-                            .doOnNext { v -> log.v("parsed sequence ${v.isEnd}") }
-                            .takeWhile { p -> !p.isEnd },
-                        datastore.cacheDir
-                    )
-                        datastore.insertMessage(s).toSingleDefault(false)
+                        datastore.insertMessage(s)
+                            .doOnComplete { log.w("inserted message!") }
+                            .toSingleDefault(false)
                     }
                 }.repeat()
                 .takeUntil { v -> v }
@@ -255,19 +255,21 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     .concatMap { h ->
                         Flowable.fromIterable(h.hashes)
                     },
-                limit = 16
+                limit = 8
             ).flatMapPublisher { hubresponse ->
                 val obs: Flowable<ScatterSerializable<*>> =
                     hubresponse.exclude.toList().flatMapPublisher { hashes ->
                         log.w("got merkle hash list ${hashes.size}")
-                        datastore.getTopRandomMessages(50, hashes)
+                        datastore.getTopRandomMessages(50, hashes, fileSize = 512)
                             .doOnNext { v -> log.v("sending stream packet end=${v.headerPacket.isEndOfStream}") }
                             .concatMap { p ->
                                 MeshtasticStreamPacket.fromStream(p)
                             }.concatMapLast { v ->
                                 MeshtasticStreamPacket(seq = v.seq, body = v.payload, end = true)
                             }
-                            .map { v -> v as ScatterSerializable<*> }
+                            .map { v -> val scatterSerializable = v as ScatterSerializable<*>
+                                scatterSerializable
+                            }
                             .doFinally { log.v("obs completed") }
 
 
@@ -289,7 +291,9 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     }
                     .doOnNext { v -> log.v("sending merkle packet hashes=${v.hashes.size} end=${v.end} size=${v.packet.serializedSize}") }
                     .doOnComplete { log.w("merkle hubs completed") }
-                    .map { v -> v as ScatterSerializable<*> }
+                    .map { v -> val scatterSerializable = v as ScatterSerializable<*>
+                        scatterSerializable
+                    }
 
 
 

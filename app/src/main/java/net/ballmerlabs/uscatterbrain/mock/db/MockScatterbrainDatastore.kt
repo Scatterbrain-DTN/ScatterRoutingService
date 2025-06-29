@@ -153,6 +153,7 @@ class MockScatterbrainDatastore @Inject constructor(
         count: Int,
         delareHashes: List<ByteArray>,
         flag: List<MessageFlag>?,
+        fileSize: Long?
     ): Flowable<WifiDirectRadioModule.BlockDataStream> {
         return Flowable.create({ f ->
             for (x in 0..99) {

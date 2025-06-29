@@ -109,6 +109,7 @@ abstract class MerkleDao {
         SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash
             WHERE bundle IN parent
             AND (:flag IS NULL OR (SELECT COUNT(*) FROM (SELECT(:flag) INTERSECT SELECT flagKey FROM message_flags WHERE parentMessage = messageID)) > 0)
+            AND (:fileSize IS NULL OR fileSize <= :fileSize)
             ORDER BY fileSize ASC, shareCount ASC LIMIT :count
     """
     )
@@ -116,7 +117,8 @@ abstract class MerkleDao {
         id: Long,
         count: Int,
         hashes: List<ByteArray>,
-        flag: List<Int>? = null
+        flag: List<Int>? = null,
+        fileSize: Long? = null
     ): Single<List<DbMessage>>
 
 

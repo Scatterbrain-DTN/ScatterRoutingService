@@ -403,6 +403,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         count: Int,
         delareHashes: List<ByteArray>,
         flag: List<MessageFlag>?,
+        fileSize: Long?
     ): Flowable<BlockDataStream> {
         return mDatastore.merkleDao().getDefaultRoot().flatMapPublisher { root ->
             LOG.v("called getTopRandomMessages $count")
@@ -410,7 +411,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 root.id!!,
                 count,
                 delareHashes,
-                flag?.map { v -> v.number }
+                flag?.map { v -> v.number },
+                fileSize
             )
                 .subscribeOn(databaseScheduler)
                 .doOnSubscribe { LOG.v("subscribed to getTopRandomMessages") }

@@ -202,7 +202,8 @@ interface ScatterbrainDatastore {
     fun getTopRandomMessages(
             count: Int,
             delareHashes: List<ByteArray>,
-            flag: List<MessageFlag>? = null
+            flag: List<MessageFlag>? = null,
+            fileSize: Long? = null
     ): Flowable<BlockDataStream>
 
     /**
