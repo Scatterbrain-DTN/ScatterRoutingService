@@ -57,7 +57,7 @@ class RouterPreferencesImpl @Inject constructor(
         val k = stringSetPreferencesKey(key)
         return rxMaybe {
             val flow: Flow<Set<String>?> =  preferences.data.map { pref -> pref[k] }
-            flow.firstOrNull()
+            flow.firstOrNull()?:def
         }
     }
 
