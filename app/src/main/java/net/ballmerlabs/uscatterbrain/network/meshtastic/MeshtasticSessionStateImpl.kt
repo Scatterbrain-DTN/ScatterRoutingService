@@ -36,6 +36,7 @@ import proto.Scatterbrain.MeshtasticAckCode
 import proto.Scatterbrain.MeshtasticStream
 import java.nio.ByteBuffer
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
@@ -53,6 +54,8 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
     private val log by scatterLog()
 
+    private val handshakeInProgress = AtomicBoolean(false)
+
     val stage = AtomicReference(Stage.ANNOUNCE)
     private var remoteLuid: UUID? = null
     private val currentMerkleStream =
@@ -69,7 +72,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
             when(u) {
                 null -> {
                     val stream = MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
-                    val buf = InputStreamFlowableSubscriber(1024*2048, blocksize = MeshtasticStreamPacket.fragsize)
+                    val buf = InputStreamFlowableSubscriber(1024*64, blocksize = MeshtasticStreamPacket.fragsize)
                     stream.map{ v -> v.payload }.subscribe(buf)
                     Pair(stream, buf)
                 }
@@ -86,6 +89,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
     }
 
     init {
+        log.w("MeshtasticSessionStateImpl init $routerId")
         getStream()
     }
 
@@ -165,6 +169,10 @@ class MeshtasticSessionStateImpl @Inject constructor(
     ): Flowable<ScatterSerializable<*>> {
         if (remoteLuid == null)
             remoteLuid = packet.remoteLuid
+        if (handshakeInProgress.getAndSet(true)) {
+            log.w("attempting duplicate handshake with $routerId, ignoring")
+            return Flowable.empty()
+        }
         return mapStagePublisher(Stage.ACK) { s ->
             log.v("handleAnnouncePacket id=$routerId")
             datastore.getDefaultMerkleRoot().flatMapPublisher { root ->
@@ -183,16 +191,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             code
                         )
                     ).doOnSubscribe { log.v("replying to broadcast me=$routerId") }
-
-                    routerId -> Flowable.fromIterable(
-                        listOf(
-                            MeshtasticAnnounceAckPacket(
-                                advertiser.getHashLuid(),
-                                root,
-                                code
-                            )
-                        )
-                    ).doOnSubscribe { log.v("replying to unicast me=$routerId") }
 
                     null -> Flowable.error(IllegalStateException("packet with null to field"))
                     else -> Flowable.error(IllegalStateException("packet with invalid to field $to my=$routerId"))
@@ -222,7 +220,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     Flowable.just(MeshtasticAnnounceSynAckPacket(code))
                         .map { v -> val scatterSerializable = v as ScatterSerializable<*>
                             scatterSerializable
-                        }.mergeWith(handleMerkleStream())
+                        }.concatWith(handleMerkleStream())
                 }
             }
         }
@@ -279,10 +277,11 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     },
                 limit = 8
             ).flatMapPublisher { hubresponse ->
+                log.w("got hubsresponse")
                 val obs: Flowable<ScatterSerializable<*>> =
                     hubresponse.exclude.toList().flatMapPublisher { hashes ->
                         log.w("got merkle hash list ${hashes.size}")
-                        datastore.getTopRandomMessages(50, hashes, fileSize = 2048)
+                        datastore.getTopRandomMessages(50, hashes, fileSize = 1024*32)
                             .concatMap { p ->
                                 MeshtasticStreamPacket.fromStream(p)
                             }.enumerateMap { v, seq ->
@@ -327,6 +326,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     .doFinally {
                         closeStream()
                         handshake.get().onComplete()
+                        handshakeInProgress.set(false)
                         log.v("all stream packets complete")
                     }
             }

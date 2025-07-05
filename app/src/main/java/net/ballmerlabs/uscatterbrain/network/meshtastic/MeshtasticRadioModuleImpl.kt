@@ -147,6 +147,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     }
 
     override fun handshake(): Completable {
+        log.w("explicit handshake!")
         return datastore.rehashMerkle().andThen(datastore.getDefaultMerkleRoot())
             .flatMapCompletable { root ->
             log.v("default root ${root.size}")

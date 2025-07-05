@@ -320,6 +320,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 val options = context.resources.getStringArray(R.array.meshtastic_options)
                 LOG.v("attempting meshtastic connection with $meshtastic")
                 when(meshtastic) {
+                    "disabled" -> Completable.complete()
                     options[0] -> Completable.complete()
                     else -> Completable.defer {
                         meshtasticBinderProvider.connectBinderAsync()

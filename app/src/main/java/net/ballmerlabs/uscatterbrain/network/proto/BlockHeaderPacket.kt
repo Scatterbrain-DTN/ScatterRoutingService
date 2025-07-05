@@ -113,7 +113,6 @@ data class BlockHeaderPacket(
     val isSigned: Boolean = packet.sig.size() != 0
 
     override fun validate(): Boolean {
-        val log by scatterLog()
         return fromFingerprint.size <= MAX_FINGERPRINTS && toFingerprint.size <= MAX_FINGERPRINTS && application.length <= MAX_APPLICATION_NAME && isValidFilename(
             extension
         ) && isValidFilename(packet.filename) && userFilename.length <= MAX_FILENAME && signature.size <= MAX_SIG && mime.length <= MAX_FILENAME && hashes.size <= MAX_BLOCKS

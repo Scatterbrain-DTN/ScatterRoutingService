@@ -66,6 +66,7 @@ class MeshtasticStreamPacket(
                 .blockingGet()
                 .doOnComplete { log.v("wrote meshtastic header packet") }
                 .concatWith(stream.sequencePackets.concatMap { packet ->
+                    log.v("writing sequence packet end=${packet.isEnd}")
                     packet.writeToStream(fragsize)
                         .blockingGet()
                         .doOnComplete { log.v("wrote meshtastic sequence packet") }

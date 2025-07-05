@@ -211,7 +211,7 @@ data class DbMessage(
                 ),
                 sendDate = Date().time,
                 receiveDate = Date().time,
-                fileSize = newFile.length(),
+                fileSize = bytes?.size?.toLong() ?: newFile.length(),
                 packageName = packageName
             )
             val dbmessage = DbMessage(
