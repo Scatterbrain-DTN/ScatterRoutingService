@@ -1,5 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
+import android.content.Context
+import android.content.pm.PackageManager
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 
 const val PORT_NUMBER = 288
@@ -32,3 +34,14 @@ const val ACTION_MESSAGE_STATUS = "$prefix.MESSAGE_STATUS"
 
 const val MAX_SESSIONS = 8
 const val MESHTASTIC_MAX_LEN = 254
+
+const val MAX_FORWARD_SIZE = (1024 * 32).toLong()
+
+fun Context.isAppInstalled(packageName: String): Boolean {
+    return try {
+        this.packageManager.getPackageInfo(packageName, PackageManager.GET_ACTIVITIES)
+        true
+    } catch (e: PackageManager.NameNotFoundException) {
+        false
+    }
+}

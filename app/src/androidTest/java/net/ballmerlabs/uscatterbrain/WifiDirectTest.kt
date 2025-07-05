@@ -150,7 +150,8 @@ class WifiDirectTest {
                     get() = false
 
             } },
-            BroadcasterImpl(ctx)
+            BroadcasterImpl(ctx),
+            mock {  }
         )
         val component = DaggerRoutingServiceComponent.builder()
             .applicationContext(ctx)

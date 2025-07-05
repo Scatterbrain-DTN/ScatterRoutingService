@@ -41,6 +41,7 @@ import net.ballmerlabs.uscatterbrain.db.entities.JustPackageSig
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Keys
 import net.ballmerlabs.uscatterbrain.db.entities.Metrics
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
@@ -152,6 +153,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val preferences: RouterPreferences,
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val broadcaster: Broadcaster,
+    private val advertiser: Advertiser
 ) : ScatterbrainDatastore {
     private val LOG by scatterLog()
     private val mOpenFiles: ConcurrentHashMap<File, OpenFile> = ConcurrentHashMap()
@@ -1196,6 +1198,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun rehashMerkle(): Completable {
         return mDatastore.merkleDao().merkleRehash()
+            .andThen(advertiser.setAdvertisingLuid())
             .subscribeOn(databaseScheduler)
     }
 

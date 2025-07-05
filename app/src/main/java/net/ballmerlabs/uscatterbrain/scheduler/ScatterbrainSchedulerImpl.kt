@@ -15,31 +15,25 @@ import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.disposables.Disposable
-import kotlinx.collections.immutable.immutableListOf
-import kotlinx.collections.immutable.persistentListOf
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.RouterState
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
-import net.ballmerlabs.uscatterbrain.RoutingServiceBackend
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WakeLockProvider
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
-import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLERadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.ScanBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
-import net.ballmerlabs.uscatterbrain.network.desktop.DesktopAddr
-import net.ballmerlabs.uscatterbrain.network.desktop.DesktopAddrs
-import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSessionState
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
-import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBinderProvider
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProvider
+import net.ballmerlabs.uscatterbrain.network.meshtastic.isAppInstalled
+import net.ballmerlabs.uscatterbrain.network.meshtastic.prefix
 import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
@@ -77,10 +71,11 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val powerManager: WakeLockProvider,
     val broadcaster: Broadcaster,
     val wifiManager: WifiManager,
-    val preferences: RouterPreferences
+    val preferences: RouterPreferences,
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
-   // private var pendingIntentLegacy = ScanBroadcastReceiver.newPendingIntentLegacy(context)
+
+    // private var pendingIntentLegacy = ScanBroadcastReceiver.newPendingIntentLegacy(context)
     private val discoveryLock = AtomicReference(false)
     override val isDiscovering: Boolean
         get() = discoveryLock.get()
@@ -105,12 +100,12 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     override fun broadcastIdentities(identities: List<IdentityPacket>): Completable {
         return desktopApi.get()?.desktopServer()?.broadcastIdentities(identities)
-            ?:Completable.complete()
+            ?: Completable.complete()
     }
 
     override fun broadcastMessages(messages: List<DbMessage>): Completable {
         return desktopApi.get()?.desktopServer()?.broadcastMessages(messages)
-            ?:Completable.complete()
+            ?: Completable.complete()
     }
 
     private fun broadcastRouterState(routerState: RouterState) {
@@ -140,9 +135,11 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             .doOnSuccess { sock ->
                 desktopApi.set(
                     desktopBuilder.get()
-                        .serviceConfig(DesktopApiSubcomponent.ServiceConfig(
-                            name = name
-                        ))
+                        .serviceConfig(
+                            DesktopApiSubcomponent.ServiceConfig(
+                                name = name
+                            )
+                        )
                         .portSocket(sock)
                         .build().apply {
                             desktopServer().serve()
@@ -159,9 +156,13 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     override fun pauseScan() {
         LOG.w("pauseScan")
-      client.backgroundScanner.stopBackgroundBleScan(ScanBroadcastReceiver.newPendingIntent(context))
-      //  ScanBroadcastReceiver.newPendingIntent(context).cancel()
-       // client.backgroundScanner.stopBackgroundBleScan(pendingIntentLegacy)
+        client.backgroundScanner.stopBackgroundBleScan(
+            ScanBroadcastReceiver.newPendingIntent(
+                context
+            )
+        )
+        //  ScanBroadcastReceiver.newPendingIntent(context).cancel()
+        // client.backgroundScanner.stopBackgroundBleScan(pendingIntentLegacy)
         /*
         PendingIntent.getBroadcast(
             context,
@@ -187,7 +188,10 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
             // Indicates this device's details have changed.
             intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
-            context.applicationContext.registerReceiver(wifiDirectBroadcastReceiver.asReceiver(), intentFilter)
+            context.applicationContext.registerReceiver(
+                wifiDirectBroadcastReceiver.asReceiver(),
+                intentFilter
+            )
 
         }.subscribeOn(operationsScheduler)
     }
@@ -265,45 +269,40 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             }
     }
 
-    private fun startBluetooth(): Completable {
-        return preferences.getStringSet(
-            context.getString(R.string.pref_enabled_transports),
-            setOf("wifi", "bluetooth")
-        )
-            .flatMapCompletable { transports ->
-                LOG.v("starting with transports ${transports.joinToString { "," }}")
-                if (transports.contains("bluetooth")) {
-                    Observable.just(client.state)
-                        .concatWith(client.observeStateChanges())
-                        .switchMapCompletable { state ->
-                            LOG.w("RxAndroidBle state change $state")
-                            when (state) {
-                                RxBleClient.State.READY -> {
-                                    LOG.w("ble enabled, resuming")
-                                    unpauseScan()
-                                    broadcastRouterState(RouterState.DISCOVERING)
-                                    registerReceiver()
-                                        .andThen(advertiser.startAdvertise(advertiser.getHashLuid()))
-                                        .andThen(leState.startServer())
-                                        .andThen(startDesktop())
-                                        .timeout(10, TimeUnit.SECONDS)
-                                }
-
-                                else -> {
-                                    LOG.w("ble disabled, pausing")
-                                    broadcastRouterState(RouterState.OFFLINE)
-                                    pauseScan()
-                                    leState.dumpPeers(true).andThen(unregisterReceiver())
-                                        .andThen(advertiser.stopAdvertise())
-                                        .andThen(leState.stopServer())
-                                }
-
-                            }
+    private fun startBluetooth(transports: Set<String?>): Completable {
+        LOG.v("attempting to start bluetooth with transports: $transports")
+        return if (transports.contains("bluetooth")) {
+            LOG.v("starting!")
+            Observable.just(client.state)
+                .mergeWith(client.observeStateChanges())
+                .switchMapCompletable { state ->
+                    LOG.w("RxAndroidBle state change $state")
+                    when (state) {
+                        RxBleClient.State.READY -> {
+                            LOG.w("ble enabled, resuming")
+                            unpauseScan()
+                            broadcastRouterState(RouterState.DISCOVERING)
+                            registerReceiver()
+                                .andThen(advertiser.startAdvertise(advertiser.getHashLuid()))
+                                .andThen(leState.startServer())
+                                .andThen(startDesktop())
+                                .timeout(10, TimeUnit.SECONDS)
                         }
-                } else {
-                    startDesktop()
+
+                        else -> {
+                            LOG.w("ble disabled, pausing")
+                            broadcastRouterState(RouterState.OFFLINE)
+                            pauseScan()
+                            leState.dumpPeers(true).andThen(unregisterReceiver())
+                                .andThen(advertiser.stopAdvertise())
+                                .andThen(leState.stopServer())
+                        }
+
+                    }
                 }
-            }
+        } else {
+            startDesktop()
+        }
     }
 
     override fun start() {
@@ -312,24 +311,37 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             broadcastRouterState(RouterState.DISCOVERING)
             return
         }
+        val meshtasticInstalled = context.isAppInstalled(prefix)
         pauseScan()
         state.shouldScan = true
-        val disp = broadcastTransactionResult(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
-            .andThen(preferences.getString(context.getString(R.string.pref_meshtastic), "disabled"))
-            .flatMapCompletable { meshtastic ->
-                val options = context.resources.getStringArray(R.array.meshtastic_options)
-                LOG.v("attempting meshtastic connection with $meshtastic")
-                when(meshtastic) {
-                    "disabled" -> Completable.complete()
-                    options[0] -> Completable.complete()
-                    else -> Completable.defer {
+        val disp = broadcastTransactionResult(
+            HandshakeResult(
+                0,
+                0,
+                HandshakeResult.TransactionStatus.STATUS_SUCCESS
+            )
+        )
+            .andThen(
+                preferences.getStringSet(
+                    context.getString(R.string.pref_enabled_transports),
+                   if (meshtasticInstalled)
+                       setOf("wifi", "bluetooth", "meshtastic")
+                    else
+                       setOf("wifi", "bluetooth")
+                )
+            )
+            .flatMapCompletable { transports ->
+                if (transports.contains("meshtastic") && meshtasticInstalled)
+                    Completable.defer {
                         meshtasticBinderProvider.connectBinderAsync()
                         meshtasticBinderProvider.awaitConnection().ignoreElement()
                     }.doOnComplete { LOG.v("meshtastic binder connected on start!") }
-
+                else {
+                    Completable.complete()
                 }
-            }.onErrorComplete()
-            .andThen(startBluetooth())
+                    .andThen(startBluetooth(transports))
+
+            }
             .subscribe(
                 {
                     LOG.v("started advertise")

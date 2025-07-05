@@ -1,8 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
+import android.content.Context
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.util.toHexString
-import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
@@ -10,9 +10,10 @@ import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
-import net.ballmerlabs.scatterproto.CircularBuffer
 import net.ballmerlabs.scatterproto.InputStreamFlowableSubscriber
 import net.ballmerlabs.scatterproto.ScatterSerializable
+import net.ballmerlabs.uscatterbrain.R
+import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounceAckPacket
@@ -34,7 +35,6 @@ import net.ballmerlabs.uscatterbrain.util.scatterLog
 import proto.Scatterbrain
 import proto.Scatterbrain.MeshtasticAckCode
 import proto.Scatterbrain.MeshtasticStream
-import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -48,6 +48,8 @@ class MeshtasticSessionStateImpl @Inject constructor(
     val datastore: ScatterbrainDatastore,
     val radioModule: MeshtasticRadioModule,
     val advertiser: Advertiser,
+    val preferences: RouterPreferences,
+    val context: Context,
     @Named(MeshtasticSessionSubcomponent.PARSE_SCHEDULER) val parseScheduler: Scheduler,
     @Named(MeshtasticSessionSubcomponent.ROUTER_ID) val routerId: String,
 ) : MeshtasticSessionState {
@@ -62,20 +64,27 @@ class MeshtasticSessionStateImpl @Inject constructor(
         AtomicReference(
             MeshtasticPacketStream(MeshtasticMerklePacketParser.parser)
         )
-    private val currentDataStream = AtomicReference<Pair<MeshtasticPacketStream<MeshtasticStreamPacket, MeshtasticStream>, InputStreamFlowableSubscriber>?>(null)
+    private val currentDataStream =
+        AtomicReference<Pair<MeshtasticPacketStream<MeshtasticStreamPacket, MeshtasticStream>, InputStreamFlowableSubscriber>?>(
+            null
+        )
 
     private val handshake = AtomicReference(CompletableSubject.create())
 
 
     private fun getStream(): InputStreamFlowableSubscriber {
         return currentDataStream.updateAndGet { u ->
-            when(u) {
+            when (u) {
                 null -> {
                     val stream = MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
-                    val buf = InputStreamFlowableSubscriber(1024*64, blocksize = MeshtasticStreamPacket.fragsize)
-                    stream.map{ v -> v.payload }.subscribe(buf)
+                    val buf = InputStreamFlowableSubscriber(
+                        1024 * 64,
+                        blocksize = MeshtasticStreamPacket.fragsize
+                    )
+                    stream.map { v -> v.payload }.subscribe(buf)
                     Pair(stream, buf)
                 }
+
                 else -> u
             }
         }!!.second
@@ -218,7 +227,8 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     }
 
                     Flowable.just(MeshtasticAnnounceSynAckPacket(code))
-                        .map { v -> val scatterSerializable = v as ScatterSerializable<*>
+                        .map { v ->
+                            val scatterSerializable = v as ScatterSerializable<*>
                             scatterSerializable
                         }.concatWith(handleMerkleStream())
                 }
@@ -281,20 +291,41 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 val obs: Flowable<ScatterSerializable<*>> =
                     hubresponse.exclude.toList().flatMapPublisher { hashes ->
                         log.w("got merkle hash list ${hashes.size}")
-                        datastore.getTopRandomMessages(50, hashes, fileSize = 1024*32)
-                            .concatMap { p ->
-                                MeshtasticStreamPacket.fromStream(p)
-                            }.enumerateMap { v, seq ->
-                                MeshtasticStreamPacket(seq, v)
+                        preferences.getString(context.getString(R.string.pref_meshtastic), "all")
+                            .flatMapPublisher { opt ->
+                                when (opt) {
+                                    "all" -> datastore.getTopRandomMessages(
+                                        50,
+                                        hashes,
+                                        fileSize = MAX_FORWARD_SIZE
+                                    )
+
+                                    else -> datastore.getTopRandomMessages(
+                                        50,
+                                        hashes,
+                                        fileSize = MAX_FORWARD_SIZE,
+                                        flag = listOf(Scatterbrain.MessageFlag.FORWARD_MESHTASTIC)
+                                    )
+                                }
+                                    .concatMap { p ->
+                                        MeshtasticStreamPacket.fromStream(p)
+                                    }.enumerateMap { v, seq ->
+                                        MeshtasticStreamPacket(seq, v)
+                                    }
+                                    .concatMapLast { v ->
+                                        MeshtasticStreamPacket(
+                                            seq = v.seq,
+                                            body = v.payload,
+                                            end = true
+                                        )
+                                    }
+                                    .doOnNext { v -> log.v("${routerId} sending stream packet with seq=${v.seq}") }
+                                    .map { v ->
+                                        val scatterSerializable = v as ScatterSerializable<*>
+                                        scatterSerializable
+                                    }
+                                    .doFinally { log.v("obs completed") }
                             }
-                            .concatMapLast { v ->
-                                MeshtasticStreamPacket(seq = v.seq, body = v.payload, end = true)
-                            }
-                            .doOnNext { v -> log.v("${routerId} sending stream packet with seq=${v.seq}") }
-                            .map { v -> val scatterSerializable = v as ScatterSerializable<*>
-                                scatterSerializable
-                            }
-                            .doFinally { log.v("obs completed") }
 
 
                     }.doOnNext { v -> log.v("sending stream packet ${v.type}") }
@@ -310,7 +341,8 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     }
                     .doOnNext { v -> log.v("sending merkle packet hashes=${v.hashes.size} end=${v.end} size=${v.packet.serializedSize}") }
                     .doOnComplete { log.w("merkle hubs completed") }
-                    .map { v -> val scatterSerializable = v as ScatterSerializable<*>
+                    .map { v ->
+                        val scatterSerializable = v as ScatterSerializable<*>
                         scatterSerializable
                     }
 

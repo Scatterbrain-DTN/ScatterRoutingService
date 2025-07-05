@@ -34,6 +34,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.mock
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -141,7 +142,8 @@ class DatastoreTest {
                     get() = false
 
             } },
-            BroadcasterImpl(ctx)
+            BroadcasterImpl(ctx),
+            mock {  }
         )
         database.clearAllTables()
     }

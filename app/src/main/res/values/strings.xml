@@ -19,13 +19,11 @@
     <string name="powersave_passive">passive</string>
     <string name="powersave_opportunistic">opportunistic</string>
     <string-array name="meshtastic_options">
-        <item>disabled</item>
         <item>optin</item>
         <item>all</item>
     </string-array>
 
     <string-array name="meshtastic_descriptions">
-        <item>Disabled</item>
         <item>Opt-in</item>
         <item>All small messages</item>
     </string-array>
