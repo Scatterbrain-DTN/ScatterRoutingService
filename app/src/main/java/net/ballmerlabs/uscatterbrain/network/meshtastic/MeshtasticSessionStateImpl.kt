@@ -33,6 +33,7 @@ import net.ballmerlabs.uscatterbrain.util.enumerateMap
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import proto.Scatterbrain
 import proto.Scatterbrain.MeshtasticAckCode
+import proto.Scatterbrain.MeshtasticStream
 import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
@@ -58,13 +59,29 @@ class MeshtasticSessionStateImpl @Inject constructor(
         AtomicReference(
             MeshtasticPacketStream(MeshtasticMerklePacketParser.parser)
         )
-    private val currentDataStream = AtomicReference(
-        MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
-    )
-
-    private val streamBuffer = InputStreamFlowableSubscriber(1024*16)
+    private val currentDataStream = AtomicReference<Pair<MeshtasticPacketStream<MeshtasticStreamPacket, MeshtasticStream>, InputStreamFlowableSubscriber>?>(null)
 
     private val handshake = AtomicReference(CompletableSubject.create())
+
+
+    fun getStream(): InputStreamFlowableSubscriber {
+        return currentDataStream.updateAndGet { u ->
+            when(u) {
+                null -> {
+                    val stream = MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
+                    val buf = InputStreamFlowableSubscriber(1024*16)
+                    stream.map{ v -> v.payload }.subscribe(buf)
+                    Pair(stream, buf)
+                }
+                else -> u
+            }
+        }!!.second
+
+    }
+
+    init {
+        getStream()
+    }
 
     override fun <R> mapStageSingle(onSuccess: Stage, func: (Stage) -> Single<R>): Single<R> {
         return Single.fromCallable {
@@ -214,17 +231,10 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     else -> s
                 }
             }!!
-            val datastream = currentDataStream.updateAndGet { s ->
-                when (s) {
-                    null -> MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
-                    else -> s
-                }
-            }!!
 
-            datastream
-                .doOnNext { v -> log.v("received stream packet ${v.seq} ${v.end}") }
-                .map { v -> v.payload }
-                .subscribe(streamBuffer)
+
+
+            val streamBuffer = getStream()
 
             val out = ScatterSerializable.parseWrapperFromCRC(
                 BlockHeaderPacketParser.parser,
@@ -314,7 +324,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     .doFinally {
                         handshake.get().onComplete()
                         currentMerkleStream.set(MeshtasticPacketStream(MeshtasticMerklePacketParser.parser))
-                        currentDataStream.set(MeshtasticPacketStream(MeshtasticStreamPacketParser.parser))
+                        //currentDataStream.set(MeshtasticPacketStream(MeshtasticStreamPacketParser.parser))
                         log.v("all stream packets complete")
                     }
             }
@@ -352,7 +362,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     merkle?.onPacket(p.get())!!.toFlowable()
                 }
 
-                Scatterbrain.MessageType.MESHTASTIC_STREAM -> currentDataStream.get()
+                Scatterbrain.MessageType.MESHTASTIC_STREAM -> currentDataStream.get()?.first
                     ?.onPacket(p.get())!!.toFlowable()
 
                 else -> Flowable.just(MeshtasticErrPacket(Scatterbrain.MeshtasticErrCode.INVALID_ARGUMENT))

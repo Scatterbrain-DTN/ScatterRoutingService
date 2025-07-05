@@ -28,6 +28,7 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
         obs.onComplete()
     }
 
+    @Synchronized
     fun pushPacket(packet: T) {
         if (packet.seq == currentSeq.get()) {
             currentSeq.incrementAndGet()

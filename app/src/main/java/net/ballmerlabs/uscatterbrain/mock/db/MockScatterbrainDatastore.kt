@@ -197,10 +197,12 @@ class MockScatterbrainDatastore @Inject constructor(
                             val s = BlockSequencePacket.newBuilder()
                                 .setSequenceNumber(x)
                                 .setData(ByteString.empty())
-                                .setEnd(true)
+                                .setEnd(false)
                                 .build()
                             f.onNext(s)
                         }
+                        f.onNext(BlockSequencePacket.newBuilder()
+                            .setEnd(true).build())
                         f.onComplete()
                     },
                         BackpressureStrategy.BUFFER
