@@ -148,11 +148,6 @@ afterEvaluate {
                 classpath += configurations.compile
             }
 
-            task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
-                classifier = 'javadoc'
-                from androidJavadocs.destinationDir
-            }
-
             task androidSourcesJar(type: Jar) {
                 classifier = 'sources'
                 from android.sourceSets.main.java.source
@@ -231,10 +226,8 @@ afterEvaluate {
         artifacts {
             if (isAndroidProject()) {
                 archives androidSourcesJar
-                archives androidJavadocsJar
             } else {
                 archives sourcesJar
-                archives javadocJar
             }
         }
 }
