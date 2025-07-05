@@ -303,10 +303,10 @@ abstract class ScatterSerializable<T : MessageLite>(
             val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).int
             val s2 = ByteBuffer.wrap(typesize).order(ByteOrder.BIG_ENDIAN).int
             if (s > MESSAGE_SIZE_CAP) {
-                throw MessageSizeException()
+                throw MessageSizeException(s)
             }
             if (s2 > BLOCK_SIZE_CAP) {
-                throw MessageSizeException()
+                throw MessageSizeException(s2)
             }
             val co = CodedInputStream.newInstance(inputStream, s + 1)
             val typeBytes = co.readRawBytes(s2)

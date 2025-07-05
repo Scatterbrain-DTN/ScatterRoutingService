@@ -58,15 +58,13 @@ class MeshtasticStreamPacket(
                 }
         }
 
-        fun fromStream(stream: WifiDirectRadioModule.BlockDataStream): Flowable<MeshtasticStreamPacket> {
+        fun fromStream(stream: WifiDirectRadioModule.BlockDataStream): Flowable<ByteArray> {
             return stream.headerPacket.writeToStream(fragsize)
                 .flatMapPublisher { v -> v }
                 .concatWith(stream.sequencePackets.concatMap { packet ->
                     packet.writeToStream(fragsize).flatMapPublisher { v -> v }
                 })
-                .enumerateMap { v, seq ->
-                    MeshtasticStreamPacket(seq, v)
-                }
+
         }
     }
 }

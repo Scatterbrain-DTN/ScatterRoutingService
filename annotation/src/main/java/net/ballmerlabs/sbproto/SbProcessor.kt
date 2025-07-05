@@ -109,10 +109,10 @@ class SbProcessor(
                             "          val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).int\n" +
                             "          val s2 = ByteBuffer.wrap(typesize).order(ByteOrder.BIG_ENDIAN).int\n" +
                             "          if (s > BLOCK_SIZE_CAP) {\n" +
-                            "              throw MessageSizeException()\n" +
+                            "              throw MessageSizeException(s)\n" +
                             "          }\n" +
                             "          if (s2 > BLOCK_SIZE_CAP) {\n" +
-                            "              throw MessageSizeException()\n" +
+                            "              throw MessageSizeException(s2)\n" +
                             "          }\n" +
                             "          val co = CodedInputStream.newInstance(inputStream, s + 1)\n" +
                             "          val typeBytes = co.readRawBytes(s2)\n" +

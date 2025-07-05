@@ -658,8 +658,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun getDefaultMerkleRoot(): Single<ByteArray> {
-        return mDatastore.merkleDao().getDefaultRoot()
-            .map { v -> v.hash!! }
+        return mDatastore.merkleDao().getRootsRandom()
+            .map { v -> v.first { v -> v.hash != null }.hash!! }
             .subscribeOn(databaseScheduler)
     }
 

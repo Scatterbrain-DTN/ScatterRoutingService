@@ -143,7 +143,7 @@ class GroupHandle @Inject constructor(
                         val send = database.merkleDao().getHubs(root, incoming)
                         send.exclude.mergeWith(sendMerkleHashes(
                             socket,
-                            send.hubs
+                            send.hubs.map { v -> v.bundle },
                         ).onErrorComplete()).toList()
                     }
 

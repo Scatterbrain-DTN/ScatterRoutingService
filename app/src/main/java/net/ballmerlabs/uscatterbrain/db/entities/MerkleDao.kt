@@ -18,9 +18,11 @@ import io.reactivex.Single
 import io.reactivex.processors.PublishProcessor
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.db.HubResponse
+import net.ballmerlabs.uscatterbrain.db.MerkleElement
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import java.util.concurrent.atomic.AtomicReference
 
 @Dao
 abstract class MerkleDao {
@@ -212,7 +214,7 @@ abstract class MerkleDao {
     @Query(
         """
         SELECT * FROM bundles AS disjoint 
-        WHERE hash IS NOT NULL AND disjoint.id NOT IN (
+        WHERE disjoint.id NOT IN (
             SELECT bundles.id FROM bundles 
             INNER JOIN bundles AS parent ON parent.childOne = bundles.id OR parent.childTwo = bundles.id 
         ) ORDER BY RANDOM()
@@ -356,7 +358,7 @@ abstract class MerkleDao {
 
         val hubsComplete = CompletableSubject.create()
         val hubs = Flowable.create( { obs ->
-            getHubs(root, obs, rs, exclude, mutableSetOf(), AtomicInt(0), limit)
+            getHubs(root, root, obs, rs, exclude, mutableSetOf(), mutableSetOf(), AtomicInt(0), AtomicReference(getEndHash(root, setOf())), limit, )
             obs.onComplete()
         }, BackpressureStrategy.BUFFER)
        //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
@@ -379,23 +381,25 @@ abstract class MerkleDao {
 
     @OptIn(ExperimentalStdlibApi::class)
     private fun getHubs(
+        permaRoot: MerkleBundle?,
         root: MerkleBundle?,
-        hubs: FlowableEmitter<MerkleBundle>,
+        hubs: FlowableEmitter<MerkleElement>,
         remote: Flowable<RemoteItem>,
         exclude: MutableList<ByteArray>,
-        next: MutableSet<String>,
+        nextTheirs: MutableSet<String>,
+        nextOurs: MutableSet<String>,
         count: AtomicInt = AtomicInt(0),
+        doneHash: AtomicReference<ByteArray>,
         target: Int? = null,
     ) {
         val c = count.getAndIncrement()
-
-        if (root?.hash == null || (target != null && c >= target))
+        if (root?.hash == null || permaRoot?.hash == null || (target != null && c >= target))
             return
 
 
         val item = remote
             .mergeWith(Completable.fromAction {
-                hubs.onNext(root)
+                hubs.onNext(MerkleElement(bundle = root, last = doneHash.get()?.contentEquals(root.hash)?:false))
             })
             .firstElement()
             .onErrorComplete()
@@ -407,32 +411,52 @@ abstract class MerkleDao {
         log.v("comparing hash ${item?.item?.toHexString()}, ${root.hash.toHexString()}")
         if (
             (item?.item != null && item.item.contentEquals(root.hash)) ||
-            next.contains(root.hash.toHexString()) ||
-            (item?.item != null && next.contains(item.item.toHexString()))
+            nextOurs.contains(root.hash.toHexString()) ||
+            nextTheirs.contains(item?.item?.toHexString())
                 ) {
             log.w("MATCH! on ${root.hash.toHexString()}")
             exclude.add(root.hash)
+            doneHash.set(getEndHash(permaRoot, exclude.toSet()))
             return
         }
 
         if (item?.item != null)
-            next.add(item.item.toHexString())
-        next.add(root.hash.toHexString())
+            nextOurs.add(item.item.toHexString())
+        nextTheirs.add(root.hash.toHexString())
 
 
 
 
         if (childOneHub != null) {
         //    log.v("getHubs: ${root.id} ${childOneHub.hash?.toHexString()}")
-            getHubs(childOneHub, hubs, remote, exclude, next, count, target)
+            getHubs(permaRoot, childOneHub, hubs, remote, exclude, nextTheirs,nextOurs, count, doneHash, target)
         }
 
         if (childTwoHub != null) {
           //  log.v("getHubs: ${root.id} ${childTwoHub.hash?.toHexString()}")
-            getHubs(childTwoHub, hubs, remote, exclude, next, count, target)
+            getHubs(permaRoot, childTwoHub, hubs, remote, exclude, nextTheirs, nextOurs, count, doneHash, target)
         }
 
 
+    }
+
+    private fun getEndHash(root: MerkleBundle, skip: Set<ByteArray>): ByteArray? {
+        val childOneHub = getNextHub(root.childOne)
+        val childTwoHub = getNextHub(root.childTwo)
+        var end = root.hash
+        if (childOneHub != null && !skip.contains(childOneHub.hash)) {
+            val h = getEndHash(childOneHub, skip)
+            if (h != null)
+                end = h
+        }
+
+        if (childTwoHub != null && !skip.contains(childTwoHub.hash)) {
+            val h = getEndHash(childTwoHub, skip)
+            if (h != null)
+                end = h
+        }
+
+        return end
     }
 
 

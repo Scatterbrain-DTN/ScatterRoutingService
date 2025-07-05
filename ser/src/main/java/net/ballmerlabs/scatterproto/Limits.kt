@@ -36,7 +36,7 @@ fun sanitizeFilename(name: String): String {
     }
 }
 
-class MessageSizeException: Throwable()
+data class MessageSizeException(val actual: Int): Throwable()
 class MessageValidationException(
     val packet: MessageType
 ): Throwable("failed to validate packet ${packet.name}")

@@ -1,18 +1,20 @@
 package net.ballmerlabs.uscatterbrain.util
 
+import com.github.davidmoten.rx2.flowable.Transformers
+import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
-import java.util.concurrent.Flow
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 fun <T> Observable<T>.retryDelay(count: Int, seconds: Int): Observable<T> {
     return this
         .retryWhen { errors: Observable<Throwable> ->
             errors
-                .zipWith(Observable.range(1, count)) { _: Throwable, i: Int -> i}
+                .zipWith(Observable.range(1, count)) { _: Throwable, i: Int -> i }
                 .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
         }
 }
@@ -53,7 +55,7 @@ fun <T> Maybe<T>.retryDelay(seconds: Int): Maybe<T> {
     return this
         .retryWhen { errors ->
             errors
-                .concatMapMaybe{ Maybe.timer(seconds.toLong(), TimeUnit.SECONDS) }
+                .concatMapMaybe { Maybe.timer(seconds.toLong(), TimeUnit.SECONDS) }
         }
 }
 
@@ -70,7 +72,7 @@ fun <T> Observable<T>.retryDelay(count: Int, seconds: Int, timeUnit: TimeUnit): 
     return this
         .retryWhen { errors: Observable<Throwable> ->
             errors
-                .zipWith(Observable.range(1, count)) { _: Throwable, i: Int -> i}
+                .zipWith(Observable.range(1, count)) { _: Throwable, i: Int -> i }
                 .concatMapSingle { Single.timer(seconds.toLong(), timeUnit) }
         }
 }
@@ -86,20 +88,20 @@ fun <T> Flowable<T>.retryDelay(count: Int, seconds: Int): Flowable<T> {
 
 fun Completable.retryDelay(count: Int, seconds: Int): Completable {
     return this
-            .retryWhen { errors: Flowable<Throwable> ->
-                errors
-                        .zipWith(Flowable.range(1, count)) { _: Throwable, i: Int -> i }
-                        .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
-            }
+        .retryWhen { errors: Flowable<Throwable> ->
+            errors
+                .zipWith(Flowable.range(1, count)) { _: Throwable, i: Int -> i }
+                .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
 }
 
 fun <T> Single<T>.retryDelay(count: Int, seconds: Int): Single<T> {
     return this
-            .retryWhen { errors ->
-                errors
-                        .zipWith(Flowable.range(1, count)) { _, i: Int -> i }
-                        .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
-            }
+        .retryWhen { errors ->
+            errors
+                .zipWith(Flowable.range(1, count)) { _, i: Int -> i }
+                .concatMapSingle { Single.timer(seconds.toLong(), TimeUnit.SECONDS) }
+        }
 }
 
 fun <T> Maybe<T>.retryDelay(count: Int, seconds: Int): Maybe<T> {
@@ -107,74 +109,49 @@ fun <T> Maybe<T>.retryDelay(count: Int, seconds: Int): Maybe<T> {
         .retryWhen { errors ->
             errors
                 .zipWith(Flowable.range(1, count)) { _, i: Int -> i }
-                .concatMapMaybe{ Maybe.timer(seconds.toLong(), TimeUnit.SECONDS) }
+                .concatMapMaybe { Maybe.timer(seconds.toLong(), TimeUnit.SECONDS) }
         }
 }
 
 data class MapLast<T>(
     val v: T?,
-    val u: T?
+    val u: T?,
+)
+
+data class MapLastFix<T>(
+    val v: T?,
 )
 
 fun <T> Observable<T>.concatMapLast(func: (T) -> T): Observable<T> {
-    return this
-        .map { v -> MapLast(v = v, u = null) }
-        .concatWith(Observable.just(MapLast(v= null, u = null)))
-        .scan { v, u ->
-            if (u.v == null) {
-                MapLast(v = func(v.v!!)!!, u = null)
-            } else {
-                MapLast(v = v.v!!, u = u.v)
-            }
-        }.flatMap { v ->
-            if(v.v != null)
-                Observable.just(v.v)
-                    .concatWith(if (v.u != null) Observable.just(v.u) else Observable.empty())
-            else
-                Observable.empty()
-        }
-
+    return this.toFlowable(BackpressureStrategy.BUFFER)
+        .compose(Transformers.mapLast(func))
+        .toObservable()
 }
 
 data class Enumerate<R>(
     val idx: Int? = null,
-    val v: R? = null
+    val v: R? = null,
 )
 
 fun <T, R> Observable<T>.enumerateMap(func: (T, Int) -> R): Observable<R> {
-        return this
-            .scan(Enumerate<R>()) { v, k ->
-                val idx = v.idx?:0
-                Enumerate(idx = idx+1, v = func(k, idx) )
-        }.skip(1).map { v-> v.v!! }
+    return this
+        .scan(Enumerate<R>()) { v, k ->
+            val idx = v.idx ?: 0
+            Enumerate(idx = idx + 1, v = func(k, idx))
+        }.skip(1).map { v -> v.v!! }
 }
 
 
 fun <T, R> Flowable<T>.enumerateMap(func: (T, Int) -> R): Flowable<R> {
     return this
         .scan(Enumerate<R>()) { v, k ->
-            val idx = v.idx?:0
-            Enumerate(idx = idx+1, v = func(k, idx) )
-        }.skip(1).map { v-> v.v!! }
+            val idx = v.idx ?: 0
+            Enumerate(idx = idx + 1, v = func(k, idx))
+        }.skip(1).map { v -> v.v!! }
 }
 
 
 fun <T> Flowable<T>.concatMapLast(func: (T) -> T): Flowable<T> {
-    return this
-        .map { v -> MapLast(v = v, u = null) }
-        .concatWith(Flowable.just(MapLast(v= null, u = null)))
-        .scan { v, u ->
-            if (u.v == null) {
-                MapLast(v = func(v.v!!)!!, u = null)
-            } else {
-                MapLast(v = v.v!!, u = u.v)
-            }
-        }.flatMap { v ->
-            if(v.v != null)
-                Flowable.just(v.v)
-                    .concatWith(if (v.u != null) Flowable.just(v.u) else Flowable.empty())
-            else
-                Flowable.empty()
-        }
+    return this.compose(Transformers.mapLast(func))
 
 }

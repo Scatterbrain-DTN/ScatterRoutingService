@@ -2,23 +2,26 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.utils
 
 import androidx.room.concurrent.AtomicInt
 import com.google.protobuf.MessageLite
+import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Observer
+import io.reactivex.processors.PublishProcessor
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.reactivestreams.Subscriber
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
     val parser: ScatterSerializable.Companion.Parser<U, T>
-) : Observable<T>() {
+) : Flowable<T>() {
     private val log by scatterLog()
     private val currentSeq = AtomicInt(0)
     private val waiting = ConcurrentLinkedQueue<T>()
     val buf = TreeMap<Int, T>()
-    val obs = PublishSubject.create<T>()
+    val obs = PublishProcessor.create<T>()
 
     fun close() {
         log.v("stream for ${parser.type} completed")
@@ -47,7 +50,7 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
 
     @Synchronized
     fun onPacket(packet: T): Maybe<ScatterSerializable<*>> {
-        if (obs.hasObservers()) {
+        if (obs.hasSubscribers()) {
             pushPacket(packet)
         } else {
             waiting.add(packet)
@@ -56,7 +59,8 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
         return Maybe.empty()
     }
 
-    override fun subscribeActual(observer: Observer<in T>?) {
+    @Synchronized
+    override fun subscribeActual(observer: Subscriber<in T>?) {
         if (observer != null) {
             obs.subscribe(observer)
             var t = waiting.poll()

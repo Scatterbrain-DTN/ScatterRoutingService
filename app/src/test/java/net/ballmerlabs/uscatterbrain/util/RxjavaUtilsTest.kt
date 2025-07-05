@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.util
 
 import android.os.Build
+import io.reactivex.Flowable
 import io.reactivex.Observable
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,18 +27,42 @@ class RxjavaUtilsTest {
         assert(items == test)
     }
 
+    @Test
+    fun enumerateMapBoth() {
+        val items = (0..30).toList()
+
+        val testList = items.toMutableList()
+
+        testList[items.size-1] = 99
+
+
+        val test = Observable.fromIterable(items)
+            .enumerateMap { v, idx ->
+                idx
+            }.concatMapLast { v -> 99 }
+            .toList()
+            .blockingGet()
+
+        println(items)
+        println(test)
+        assert(testList == test)
+    }
+
 
     @Test
     fun concatMapLast() {
         for (x in 1..11) {
             println("running $x")
+            val testList = Observable.range(0, x).toList().blockingGet().toMutableList()
+            testList[testList.size-1] = -1
             val list = Observable.range(0, x)
                 .concatMapLast { v -> -1 }
                 .toList()
                 .blockingGet()
 
             println(list)
-            assert(list.last() == -1)
+            println(testList)
+            assert(list == testList)
         }
     }
 }

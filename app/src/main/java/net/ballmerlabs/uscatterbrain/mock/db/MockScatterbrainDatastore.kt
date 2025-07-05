@@ -16,6 +16,7 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 import net.ballmerlabs.uscatterbrain.db.ACL
 import net.ballmerlabs.uscatterbrain.db.HubResponse
+import net.ballmerlabs.uscatterbrain.db.MerkleElement
 import net.ballmerlabs.uscatterbrain.db.OpenFile
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
@@ -55,14 +56,18 @@ class MockScatterbrainDatastore @Inject constructor(
         val out = Single.just(
             HubResponse(
                 hubs = Flowable.create({ obs ->
-                    for (x in 0..(limit ?: 16)) {
+                    val l = (limit ?: 16)
+                    for (x in 0..l) {
                         obs.onNext(
+                            MerkleElement(
                             MerkleBundle(
                                 id = 0,
                                 hash = ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE),
                                 childOne = 0,
                                 childTwo = 0,
                                 dirty = false,
+                            ),
+                                x == l
                             )
                         )
                     }
@@ -172,26 +177,33 @@ class MockScatterbrainDatastore @Inject constructor(
                             packageName = "test"
                         ),
                         file = DiskFile(
-                            GlobalHash(ByteArray(GenericHash.BYTES), "test"), listOf(
-                                Hashes(
-                                    hash = ByteArray(GenericHash.BYTES),
-                                    parent = ByteArray(GenericHash.BYTES)
-                                )
-                            )
+                            GlobalHash(ByteArray(GenericHash.BYTES), "test"), Observable.create { obs ->
+                                for (x in 0..<30) {
+                                    obs.onNext(Hashes(
+                                        hash = ByteArray(GenericHash.BYTES),
+                                        parent = ByteArray(GenericHash.BYTES)
+                                    ))
+                                }
+                                obs.onComplete()
+                            }.toList().blockingGet()
                         ),
                         recipient_fingerprints = listOf(),
                         identity_fingerprints = listOf(),
                         flags = listOf()
                     ),
-                    packetFlowable = Flowable.fromIterable(
-                        listOf(
-                            BlockSequencePacket.newBuilder()
-                                .setSequenceNumber(0)
+                    packetFlowable = Flowable.create({ f ->
+
+                        for (x in 0..<30) {
+                            val s = BlockSequencePacket.newBuilder()
+                                .setSequenceNumber(x)
                                 .setData(ByteString.empty())
                                 .setEnd(true)
-                                .build(),
-                        )
-
+                                .build()
+                            f.onNext(s)
+                        }
+                        f.onComplete()
+                    },
+                        BackpressureStrategy.BUFFER
                     )
                 )
                 f.onNext(message)

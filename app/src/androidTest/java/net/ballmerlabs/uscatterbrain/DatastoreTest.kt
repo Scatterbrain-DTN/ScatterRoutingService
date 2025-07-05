@@ -333,6 +333,10 @@ class DatastoreTest {
             .doFinally { remote.onComplete() }
             .toList().blockingGet()
 
+
+        assert(iter.last().last)
+        assert(!iter.first().last)
+
         //println("got hubs ${iter.size}")
 
         val control = database.scatterMessageDao().getTopRandomExcludingHash(100, listOf()).blockingGet()
@@ -347,11 +351,11 @@ class DatastoreTest {
 
         val testBundles = database.merkleDao().getAllBundles()
 
-        val excludeBundles = database.merkleDao().testBundlesExcludingHash(listOf(iter[1].hash!!, iter[2].hash!!))
+        val excludeBundles = database.merkleDao().testBundlesExcludingHash(listOf(iter[1].bundle.hash!!, iter[2].bundle.hash!!))
 
         println("testBundles = ${testBundles.size} excludeBundles = ${excludeBundles.size}")
 
-        val messages3 = database.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf(iter[1].hash!!)).blockingGet()
+        val messages3 = database.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf(iter[1].bundle.hash!!)).blockingGet()
         for (m in messages3) {
             println(m)
         }
@@ -399,7 +403,7 @@ class DatastoreTest {
             println(item)
         }
         assertEquals(hubs.size, 4)
-        val ids = hubs.map { v -> v.id }
+        val ids = hubs.map { v -> v.bundle.id }
         assert(ids.contains(b5i))
         assert(ids.contains(b3i))
         assert(ids.contains(b1i))

@@ -153,6 +153,8 @@ dependencies {
     testImplementation 'net.java.dev.jna:jna:5.17.0@aar'
     testImplementation 'net.java.dev.jna:jna-platform:5.17.0'
 
+    implementation libs.rxjava2.extras.v022
+
     implementation libs.dagger
     testImplementation libs.dagger
     implementation libs.dagger.android

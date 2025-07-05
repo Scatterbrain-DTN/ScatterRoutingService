@@ -36,8 +36,8 @@ gradleVersionsPlugin = "0.21.0"
 hilt = "2.56.2"
 hilt-navigation-compose = "1.2.0"
 hiltAndroid = "2.55"
-jna = "5.12.1"
-jna-platform = "5.11.0"
+jna = "5.17.0"
+jna-platform = "5.17.0"
 junit = "4.13.2"
 junit-version = "1.2.1"
 kotlin = "2.1.20"
@@ -55,7 +55,6 @@ kotlinx-coroutines-core-version = "1.7.3"
 kotlinx-serialization-json = "1.8.1"
 kotlinxCoroutinesRx2 = "1.8.1"
 ktor-server-websockets = "3.0.0-rc-1"
-lazysodium-android = "5.1.0"
 legacySupportV4 = "1.0.0"
 lifecycle = "2.9.1"
 lifecycle-service = "2.9.1"
@@ -80,7 +79,7 @@ protobuf-gradle-plugin = "0.9.5"
 protobuf-kotlin = "4.30.2"
 publish-plugin = "1.3.0"
 recyclerview = "1.4.0"
-robolectric = "4.9.2"
+robolectric = "4.14.1"
 room = "2.7.1"
 roomRxjava2 = "2.7.1"
 rules = "1.6.1"
@@ -92,6 +91,7 @@ rxandroidble = "1.19.1"
 rxdogtag = "1.0.2"
 rxjava2-debug = "1.4.0"
 rxjava2Extras = "0.1.38"
+rxjava2ExtrasVersion = "0.2.2"
 rxJavaVersion = "2.2.18"
 rxrelay = "2.1.1"
 security-crypto = "1.1.0-beta01"
@@ -188,8 +188,6 @@ hilt-android-v255 = { module = "com.google.dagger:hilt-android", version.ref = "
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hilt-navigation-compose" }
 jetbrains-kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines-core-version" }
-jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
-jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna-platform" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 kotlin-bip39 = { module = "cash.z.ecc.android:kotlin-bip39", version.ref = "kotlinBip39" }
 kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -207,7 +205,6 @@ kotlinx-coroutines-guava = { group = "org.jetbrains.kotlinx", name = "kotlinx-co
 kotlinx-coroutines-rx2 = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-rx2", version.ref = "kotlinxCoroutinesRx2" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization-json" }
 ktor-server-websockets = { module = "io.ktor:ktor-server-websockets", version.ref = "ktor-server-websockets" }
-lazysodium-android = { module = "com.goterl:lazysodium-android", version.ref = "lazysodium-android" }
 lifecycle-common-java8 = { group = "androidx.lifecycle", name = "lifecycle-common-java8", version.ref = "lifecycle" }
 lifecycle-livedata-ktx = { group = "androidx.lifecycle", name = "lifecycle-livedata-ktx", version.ref = "lifecycle" }
 lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle" }
@@ -244,6 +241,7 @@ rxdogtag = { module = "com.uber.rxdogtag:rxdogtag", version.ref = "rxdogtag" }
 rxjava = { module = "io.reactivex.rxjava2:rxjava", version.ref = "rxJavaVersion" }
 rxjava2-debug = { module = "com.akaita.java:rxjava2-debug", version.ref = "rxjava2-debug" }
 rxjava2-extras = { module = "com.github.davidmoten:rxjava2-extras", version.ref = "rxjava2Extras" }
+rxjava2-extras-v022 = { module = "com.github.davidmoten:rxjava2-extras", version.ref = "rxjava2ExtrasVersion" }
 rxrelay = { module = "com.jakewharton.rxrelay2:rxrelay", version.ref = "rxrelay" }
 sqlite-android = { module = "com.github.requery:sqlite-android", version.ref = "sqliteAndroid" }
 streamsupport-minifuture = { group = "net.sourceforge.streamsupport", name = "streamsupport-minifuture", version.ref = "streamsupport-minifuture" }
