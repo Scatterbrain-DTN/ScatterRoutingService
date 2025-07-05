@@ -64,7 +64,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
     private val handshake = AtomicReference(CompletableSubject.create())
 
 
-    fun getStream(): InputStreamFlowableSubscriber {
+    private fun getStream(): InputStreamFlowableSubscriber {
         return currentDataStream.updateAndGet { u ->
             when(u) {
                 null -> {
@@ -77,6 +77,12 @@ class MeshtasticSessionStateImpl @Inject constructor(
             }
         }!!.second
 
+    }
+
+    fun closeStream() {
+        val stream = currentDataStream.getAndSet(null)
+        stream?.second?.close()
+        currentMerkleStream.set(MeshtasticPacketStream(MeshtasticMerklePacketParser.parser))
     }
 
     init {
@@ -159,6 +165,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
     ): Flowable<ScatterSerializable<*>> {
         if (remoteLuid == null)
             remoteLuid = packet.remoteLuid
+        closeStream()
         return mapStagePublisher(Stage.ACK) { s ->
             log.v("handleAnnouncePacket id=$routerId")
             datastore.getDefaultMerkleRoot().flatMapPublisher { root ->
@@ -323,8 +330,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     }
                     .doFinally {
                         handshake.get().onComplete()
-                        currentMerkleStream.set(MeshtasticPacketStream(MeshtasticMerklePacketParser.parser))
-                        //currentDataStream.set(MeshtasticPacketStream(MeshtasticStreamPacketParser.parser))
                         log.v("all stream packets complete")
                     }
             }
