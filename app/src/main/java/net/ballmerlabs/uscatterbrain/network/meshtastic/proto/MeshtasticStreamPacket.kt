@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic.proto
 
+import androidx.work.impl.schedulers
 import com.google.protobuf.ByteString
 import io.reactivex.Flowable
 import io.reactivex.Observable
@@ -12,6 +13,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
 import net.ballmerlabs.uscatterbrain.util.enumerateMap
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import proto.Scatterbrain.MeshtasticStream
 import proto.Scatterbrain.MessageType
 import java.util.concurrent.TimeUnit
@@ -45,7 +47,6 @@ class MeshtasticStreamPacket(
 
     companion object {
         const val fragsize = MESHTASTIC_MAX_LEN-Int.SIZE_BYTES*3
-
         fun fromDbMessage(dbMessage: DbMessage, sequence: Flowable<BlockSequencePacket>): Flowable<MeshtasticStreamPacket> {
             val stream = WifiDirectRadioModule.BlockDataStream(dbMessage, sequence)
             return stream.headerPacket.writeToStream(fragsize)
@@ -59,10 +60,15 @@ class MeshtasticStreamPacket(
         }
 
         fun fromStream(stream: WifiDirectRadioModule.BlockDataStream): Flowable<ByteArray> {
-            return stream.headerPacket.writeToStream(fragsize)
-                .flatMapPublisher { v -> v }
+            val log by scatterLog()
+            return stream.headerPacket
+                .writeToStream(fragsize)
+                .blockingGet()
+                .doOnComplete { log.v("wrote meshtastic header packet") }
                 .concatWith(stream.sequencePackets.concatMap { packet ->
-                    packet.writeToStream(fragsize).flatMapPublisher { v -> v }
+                    packet.writeToStream(fragsize)
+                        .blockingGet()
+                        .doOnComplete { log.v("wrote meshtastic sequence packet") }
                 })
 
         }

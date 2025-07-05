@@ -69,7 +69,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
             when(u) {
                 null -> {
                     val stream = MeshtasticPacketStream(MeshtasticStreamPacketParser.parser)
-                    val buf = InputStreamFlowableSubscriber(1024*16)
+                    val buf = InputStreamFlowableSubscriber(1024*2048, blocksize = MeshtasticStreamPacket.fragsize)
                     stream.map{ v -> v.payload }.subscribe(buf)
                     Pair(stream, buf)
                 }
@@ -165,7 +165,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
     ): Flowable<ScatterSerializable<*>> {
         if (remoteLuid == null)
             remoteLuid = packet.remoteLuid
-        closeStream()
         return mapStagePublisher(Stage.ACK) { s ->
             log.v("handleAnnouncePacket id=$routerId")
             datastore.getDefaultMerkleRoot().flatMapPublisher { root ->
@@ -223,7 +222,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     Flowable.just(MeshtasticAnnounceSynAckPacket(code))
                         .map { v -> val scatterSerializable = v as ScatterSerializable<*>
                             scatterSerializable
-                        }.concatWith(handleMerkleStream())
+                        }.mergeWith(handleMerkleStream())
                 }
             }
         }
@@ -238,8 +237,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     else -> s
                 }
             }!!
-
-
 
             val streamBuffer = getStream()
 
@@ -286,7 +283,6 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     hubresponse.exclude.toList().flatMapPublisher { hashes ->
                         log.w("got merkle hash list ${hashes.size}")
                         datastore.getTopRandomMessages(50, hashes, fileSize = 2048)
-                            .doOnNext { v -> log.v("sending stream packet end=${v.headerPacket.isEndOfStream}") }
                             .concatMap { p ->
                                 MeshtasticStreamPacket.fromStream(p)
                             }.enumerateMap { v, seq ->
@@ -295,7 +291,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                             .concatMapLast { v ->
                                 MeshtasticStreamPacket(seq = v.seq, body = v.payload, end = true)
                             }
-                            .doOnNext { v -> log.v("sending stream packet with seq=${v.seq}") }
+                            .doOnNext { v -> log.v("${routerId} sending stream packet with seq=${v.seq}") }
                             .map { v -> val scatterSerializable = v as ScatterSerializable<*>
                                 scatterSerializable
                             }
@@ -329,6 +325,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                         handshake.get().onError(err)
                     }
                     .doFinally {
+                        closeStream()
                         handshake.get().onComplete()
                         log.v("all stream packets complete")
                     }
@@ -367,8 +364,12 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     merkle?.onPacket(p.get())!!.toFlowable()
                 }
 
-                Scatterbrain.MessageType.MESHTASTIC_STREAM -> currentDataStream.get()?.first
-                    ?.onPacket(p.get())!!.toFlowable()
+                Scatterbrain.MessageType.MESHTASTIC_STREAM -> {
+                    val packet: MeshtasticStreamPacket = p.get()
+                    log.v("$routerId received stream packet with seq=${packet.seq}")
+                    currentDataStream.get()?.first
+                        ?.onPacket(packet)!!.toFlowable()
+                }
 
                 else -> Flowable.just(MeshtasticErrPacket(Scatterbrain.MeshtasticErrCode.INVALID_ARGUMENT))
             }

@@ -21,7 +21,8 @@ const val MAX_METADATA = 32
 const val MAX_METADATA_VALUE = 512
 const val MAX_FORCE_UKE_SIZE = 16
 const val MESSAGE_SIZE_CAP = 1024*16
-val MAX_BLOCKS = floor( MESSAGE_SIZE_CAP.toDouble() / BLOCK_SIZE_CAP)
+const val MAX_BLOCKSTREAM: Long = 1024.toLong() *1024*1024*4096
+val MAX_BLOCKS = floor( MAX_BLOCKSTREAM.toDouble() / BLOCK_SIZE_CAP)
 const val MAX_FINGERPRINTS = 16
 
 fun isValidFilename(name: String): Boolean {

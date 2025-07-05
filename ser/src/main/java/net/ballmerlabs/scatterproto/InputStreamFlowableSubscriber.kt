@@ -10,10 +10,9 @@ import kotlin.math.min
  * serves as a bridge between a flowable and an inputstream with
  * a static sized buffer to old unread data
  */
-class InputStreamFlowableSubscriber(capacity: Int) : InputStreamCallback(capacity), FlowableSubscriber<ByteArray?> {
+class InputStreamFlowableSubscriber(capacity: Int, val blocksize: Int = DEFAULT_BLOCKSIZE) : InputStreamCallback(capacity), FlowableSubscriber<ByteArray?> {
     private var isDisposed = false
     private var subscription: Subscription? = null
-    private var blocksize: Int = DEFAULT_BLOCKSIZE
 
     override fun onSubscribe(s: Subscription) {
         s.request(blocksize * 20.toLong())

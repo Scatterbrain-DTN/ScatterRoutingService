@@ -41,6 +41,21 @@ class CircularBufferTest {
 
 
     @Test
+    fun flowableSubscriberTest() {
+        val callback = InputStreamFlowableSubscriber(1024*16)
+        val validate = Random.nextBytes(10)
+        callback.onNext(validate)
+        callback.onNext(validate)
+        val test = ByteArray(10)
+        val test2 = ByteArray(10)
+        callback.read(test)
+        callback.read(test2)
+        assert(validate.contentEquals(test))
+        assert(validate.contentEquals(test2))
+    }
+
+
+    @Test
     fun inputStreamCallbackBlocks() {
         val complete = AtomicBoolean(false)
         val written = AtomicBoolean(false)

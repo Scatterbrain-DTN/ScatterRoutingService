@@ -10,9 +10,11 @@ import io.reactivex.processors.PublishProcessor
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import okio.withLock
 import org.reactivestreams.Subscriber
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.locks.ReentrantLock
 
 class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
     val parser: ScatterSerializable.Companion.Parser<U, T>
@@ -20,6 +22,7 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
     private val log by scatterLog()
     private val currentSeq = AtomicInt(0)
     private val waiting = ConcurrentLinkedQueue<T>()
+    private val lock = ReentrantLock()
     val buf = TreeMap<Int, T>()
     val obs = PublishProcessor.create<T>()
 
@@ -28,7 +31,6 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
         obs.onComplete()
     }
 
-    @Synchronized
     fun pushPacket(packet: T) {
         if (packet.seq == currentSeq.get()) {
             currentSeq.incrementAndGet()
@@ -49,25 +51,27 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
             close()
     }
 
-    @Synchronized
     fun onPacket(packet: T): Maybe<ScatterSerializable<*>> {
-        if (obs.hasSubscribers()) {
-            pushPacket(packet)
-        } else {
-            waiting.add(packet)
-        }
+        lock.withLock {
+            if (obs.hasSubscribers()) {
+                pushPacket(packet)
+            } else {
+                waiting.add(packet)
+            }
 
-        return Maybe.empty()
+            return Maybe.empty()
+        }
     }
 
-    @Synchronized
     override fun subscribeActual(observer: Subscriber<in T>?) {
-        if (observer != null) {
-            obs.subscribe(observer)
-            var t = waiting.poll()
-            while(t != null) {
-                pushPacket(t)
-                t = waiting.poll()
+        lock.withLock {
+            if (observer != null) {
+                obs.subscribe(observer)
+                var t = waiting.poll()
+                while (t != null) {
+                    pushPacket(t)
+                    t = waiting.poll()
+                }
             }
         }
     }

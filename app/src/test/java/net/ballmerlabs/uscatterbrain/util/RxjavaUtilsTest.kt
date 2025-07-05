@@ -14,11 +14,11 @@ class RxjavaUtilsTest {
 
     @Test
     fun enumerateMap() {
-        val items = (0..30).toList()
+        val items = (0..30).toList().map { v -> Pair(v, v) }
 
         val test = Observable.fromIterable(items)
             .enumerateMap { v, idx ->
-                idx
+                Pair(v.first, idx)
             }.toList()
             .blockingGet()
 
@@ -29,17 +29,17 @@ class RxjavaUtilsTest {
 
     @Test
     fun enumerateMapBoth() {
-        val items = (0..30).toList()
+        val items = (0..30).toList().map { v -> Pair(v, v) }
 
         val testList = items.toMutableList()
 
-        testList[items.size-1] = 99
+        testList[items.size-1] = Pair(testList[items.size-1].first,99)
 
 
         val test = Observable.fromIterable(items)
             .enumerateMap { v, idx ->
-                idx
-            }.concatMapLast { v -> 99 }
+                Pair(v.first, idx)
+            }.concatMapLast { v -> Pair(v.first, 99) }
             .toList()
             .blockingGet()
 

@@ -171,6 +171,7 @@ class MockScatterbrainDatastore @Inject constructor(
                             sendDate = Date().time,
                             sessionid = 0,
                             extension = "test",
+                            mimeType = "application/test",
                             receiveDate = Date().time,
                             fileSize = 0.toLong(),
                             fileGlobalHash = ByteArray(GenericHash.BYTES),
@@ -204,9 +205,7 @@ class MockScatterbrainDatastore @Inject constructor(
                         f.onNext(BlockSequencePacket.newBuilder()
                             .setEnd(true).build())
                         f.onComplete()
-                    },
-                        BackpressureStrategy.BUFFER
-                    )
+                    }, BackpressureStrategy.BUFFER)
                 )
                 f.onNext(message)
             }
