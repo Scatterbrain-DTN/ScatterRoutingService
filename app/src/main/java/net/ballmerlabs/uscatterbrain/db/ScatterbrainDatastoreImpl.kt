@@ -1031,6 +1031,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             )
                 .setApplication(message.message.application)
                 .setTo(message.toFingerprint.firstOrNull())
+                .receiveDate(Date(message.message.receiveDate))
+                .sendDate(Date(message.message.sendDate))
                 .build()
         } else {
             ApiMessageBuilder.newInstance(
@@ -1041,6 +1043,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             )
                 .setApplication(message.message.application)
                 .setTo(message.toFingerprint.firstOrNull())
+                .receiveDate(Date(message.message.receiveDate))
+                .sendDate(Date(message.message.sendDate))
                 .build()
         }
     }
