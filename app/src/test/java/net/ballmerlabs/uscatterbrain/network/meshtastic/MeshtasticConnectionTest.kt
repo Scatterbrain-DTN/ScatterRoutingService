@@ -61,7 +61,9 @@ class MeshtasticConnectionTest {
                 net.ballmerlabs.uscatterbrain.mock.network.wifidirect.MockWifiDirectBroadcastReceiver(
                     mock { })
             )
-            .mockPreferences(MockRouterPreferences())
+            .mockPreferences(MockRouterPreferences().apply {
+                putValue("meshtastic_enabled", "all")
+            })
             .bluetoothManager(mock {  })
             .wifiManager(mock { })
             .build()!!
