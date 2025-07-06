@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import com.geeksville.mesh.DataPacket
 import io.reactivex.plugins.RxJavaPlugins
+import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.mock.DaggerFakeRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.mock.FakeRoutingServiceComponent
@@ -22,6 +23,7 @@ import org.junit.runner.RunWith
 import org.mockito.Mock
 import org.mockito.Mockito
 import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -48,7 +50,9 @@ class MeshtasticConnectionTest {
 
     fun buildModule(local: MeshtasticBroadcastReceiverState, remote: MeshtasticBroadcastReceiverState, myId: String): FakeMeshtasticConnectionSubcomponent {
         return (DaggerFakeRoutingServiceComponent.builder()
-            .applicationContext(mock {  })
+            .applicationContext(mock {
+                on { getString(R.string.pref_meshtastic) } doReturn "meshtastic_enabled"
+            })
             .wifiP2pManager(mock { })
             .rxBleClient(mock { })
             .packetOutputStream(java.io.ByteArrayOutputStream())
