@@ -122,6 +122,7 @@ class GroupHandle @Inject constructor(
     private fun sendMerkleHashes(socket: Socket, bundles: Flowable<MerkleBundle>): Completable {
         return bundles.map { bundle ->
             DeclareHashesPacket.newBuilder()
+                .setMode(DeclareHashesMode.MERKLEPROOF)
                 .setHashes(listOf(ByteString.copyFrom(bundle.hash!!)))
         }.concatWith(Flowable.just(DeclareHashesPacket.newBuilder().optOut()))
             .concatMapCompletable { packet ->
@@ -137,6 +138,7 @@ class GroupHandle @Inject constructor(
             .flatMap { root ->
                 when (mode) {
                     DeclareHashesMode.MERKLEPROOF -> {
+                        LOG.v("declareHashes merkle")
                         val incoming = getIncomingMerkleHashes(socket)
                             .map { v -> v.hashes[0] }
 
@@ -148,6 +150,7 @@ class GroupHandle @Inject constructor(
                     }
 
                     DeclareHashesMode.NORMAL -> {
+                        LOG.v("declareHashes normal")
                         declareHashesCompat(socket)
                     }
 
@@ -155,7 +158,7 @@ class GroupHandle @Inject constructor(
                         declareHashesCompat(socket)
                     }
                 }
-            }
+            }.doOnSuccess { v -> LOG.v("declareHashes packet received $v") }
     }
 
     //transfer declare hashes packet as SEME

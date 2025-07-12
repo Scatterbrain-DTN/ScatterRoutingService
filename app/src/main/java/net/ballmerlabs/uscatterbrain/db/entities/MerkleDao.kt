@@ -195,8 +195,10 @@ abstract class MerkleDao {
     """
     )
     abstract fun getRoots(): Single<List<MerkleBundle>>
+
     fun getDefaultRoot(): Single<MerkleBundle> {
         return getRootsRandom().flatMapObservable { v -> Observable.fromIterable(v) }
+            .filter { v -> v.hash != null }
             .firstElement()
             .switchIfEmpty(Single.defer {
                 val bundle = MerkleBundle(
@@ -208,7 +210,8 @@ abstract class MerkleDao {
                         this.id = id
                     }
                 }
-            })
+            }).doOnSuccess { v -> log.v("getDefaultRoot ${v.hash?.toHexString()}") }
+
     }
 
     @Query(
@@ -358,7 +361,7 @@ abstract class MerkleDao {
 
         val hubsComplete = CompletableSubject.create()
         val hubs = Flowable.create( { obs ->
-            getHubs(root, root, obs, rs, exclude, mutableSetOf(), mutableSetOf(), AtomicInt(0), AtomicReference(getEndHash(root, setOf())), limit, )
+            getHubs(root, root, obs, rs, exclude, mutableSetOf(), mutableSetOf(), AtomicInt(0), AtomicReference(getEndHash(root, setOf())), limit )
             obs.onComplete()
         }, BackpressureStrategy.BUFFER)
        //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }

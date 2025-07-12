@@ -8,6 +8,7 @@ import android.os.ParcelUuid
 import android.provider.DocumentsContract
 import android.util.Pair
 import android.webkit.MimeTypeMap
+import com.geeksville.mesh.util.toHexString
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import io.reactivex.BackpressureStrategy
@@ -665,6 +666,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun getDefaultMerkleRoot(): Single<ByteArray> {
         return mDatastore.merkleDao().getRootsRandom()
             .map { v -> v.first { v -> v.hash != null }.hash!! }
+            .doOnSuccess { v -> LOG.v("getDefaultMerkle ${v.toHexString()}") }
             .subscribeOn(databaseScheduler)
     }
 
