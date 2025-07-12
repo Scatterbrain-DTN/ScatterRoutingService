@@ -51,6 +51,7 @@ import proto.Scatterbrain.MessageFlag
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [Build.VERSION_CODES.TIRAMISU])
@@ -165,9 +166,10 @@ class AdvertiserTest {
                 hash: ByteArray,
                 root: Long,
                 pos: Long,
-            ): Maybe<MerkleInsertCond> {
+            ): MerkleInsertCond {
                 TODO("Not yet implemented")
             }
+
 
             override fun getInsertionPoints(
                 hash: ByteArray,
@@ -196,15 +198,19 @@ class AdvertiserTest {
                 TODO("Not yet implemented")
             }
 
-            override fun updateParentChildOne(parent: Long, child: Long): Completable {
+            override fun insertBundleEntitySync(bundles: List<MerkleBundle>): List<Long> {
                 TODO("Not yet implemented")
             }
 
-            override fun updateParentChildTwo(parent: Long, child: Long): Completable {
+            override fun updateParentChildOne(parent: Long, child: Long){
                 TODO("Not yet implemented")
             }
 
-            override fun updateBundleForMessage(bundle: Long, messageID: Long): Completable {
+            override fun updateParentChildTwo(parent: Long, child: Long) {
+                TODO("Not yet implemented")
+            }
+
+            override fun updateBundleForMessage(bundle: Long, messageID: Long) {
                 TODO("Not yet implemented")
             }
 
@@ -351,9 +357,14 @@ class AdvertiserTest {
         leState.connectionCache[luid] = fakeConnection
         val hash = advertiser.getHashLuid()
         advertiser.randomizeLuidAndRemove()
-        advertiser.isAdvertising.onNext(Pair(Optional.of(mock {  }), AdvertisingSetCallback.ADVERTISE_SUCCESS))
-        advertiser.advertisingDataUpdated.onNext(AdvertisingSetCallback.ADVERTISE_SUCCESS)
-        advertiser.awaitNotBusy().blockingAwait()
+
+        advertiser.awaitNotBusy()
+            .mergeWith(Completable.timer(10, TimeUnit.SECONDS).andThen(
+                Completable.fromAction {
+                advertiser.isAdvertising.onNext(Pair(Optional.of(mock {  }), AdvertisingSetCallback.ADVERTISE_SUCCESS))
+                advertiser.advertisingDataUpdated.onNext(AdvertisingSetCallback.ADVERTISE_SUCCESS)
+            }))
+            .blockingAwait()
         assertNotEquals(hash, advertiser.getHashLuid())
 
     }

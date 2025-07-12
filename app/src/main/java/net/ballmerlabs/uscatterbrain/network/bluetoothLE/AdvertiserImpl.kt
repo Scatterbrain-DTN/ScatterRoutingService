@@ -149,6 +149,7 @@ class AdvertiserImpl @Inject constructor(
             } else {
                 isAdvertising.onNext(Pair(Optional.empty(), status))
             }
+            advertisingDataUpdated.onNext(ADVERTISE_SUCCESS)
         }
 
         override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
@@ -243,6 +244,7 @@ class AdvertiserImpl @Inject constructor(
                 }.doOnError { err -> LOG.w("failed to set advertising luid: $err, retry") }
             cmp.retryDelay(10, 5)
                 .timeout(80, TimeUnit.SECONDS, timeoutScheduler)
+                .doOnComplete { LOG.v("setAdvertisingLuid complete") }
                 .doOnError { err -> LOG.e("FATAL: failed to set advertising data, out of retries: $err") }
         }
     }

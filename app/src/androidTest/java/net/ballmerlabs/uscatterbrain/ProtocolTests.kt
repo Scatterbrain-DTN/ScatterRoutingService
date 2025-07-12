@@ -43,6 +43,7 @@ import okio.ByteString.Companion.toByteString
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -386,7 +387,10 @@ class ProtocolTests {
 
         val nr = ds1.merkleDao().getDefaultRoot().blockingGet()
         val root2 = ds2.merkleDao().getDefaultRoot().blockingGet()
+        assertNotNull(root2.hash)
+        assertNotNull(nr.hash)
         assertNotEquals(root2.hash, nr.hash)
+        assertNotEquals(out2.size, 0)
 
         println("got out2 ${out2.map { v -> v.toByteString() }}")
         val o = ds1.merkleDao().getTopRandomExcludingHash(nr.id!!, 500, out2).blockingGet()

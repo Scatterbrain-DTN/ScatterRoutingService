@@ -154,7 +154,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val preferences: RouterPreferences,
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val broadcaster: Broadcaster,
-    private val advertiser: Advertiser
+    private val advertiser: Advertiser,
 ) : ScatterbrainDatastore {
     private val LOG by scatterLog()
     private val mOpenFiles: ConcurrentHashMap<File, OpenFile> = ConcurrentHashMap()
@@ -194,8 +194,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .andThen(
                 mDatastore.scatterMessageDao()
                     .insertMessage(message)
-                    .flatMapCompletable { m -> mDatastore.merkleDao().insertMerkle(m) })
-            .subscribeOn(databaseScheduler)
+                    .flatMapCompletable { m ->
+                        Completable.fromAction {
+                            mDatastore.merkleDao().insertMerkle(m)
+                        }.subscribeOn(databaseScheduler)
+                    }
+                    .subscribeOn(databaseScheduler)
+            )
     }
 
     override fun insertMessages(messages: List<DbMessage>): Completable {
@@ -406,7 +411,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         count: Int,
         delareHashes: List<ByteArray>,
         flag: List<MessageFlag>?,
-        fileSize: Long?
+        fileSize: Long?,
     ): Flowable<BlockDataStream> {
         return mDatastore.merkleDao().getDefaultRoot().flatMapPublisher { root ->
             LOG.v("called getTopRandomMessages $count")
@@ -1204,7 +1209,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun rehashMerkle(): Completable {
-        return mDatastore.merkleDao().merkleRehash()
+        return mDatastore.merkleDao().merkleRehash(databaseScheduler)
             .andThen(advertiser.setAdvertisingLuid())
             .subscribeOn(databaseScheduler)
     }
@@ -1283,7 +1288,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         signed = if (message.fromFingerprint != null) 1 else 0
                     )
                 )
-            )
+            ).doOnComplete { LOG.v("inserted message from api!") }
+            .subscribeOn(databaseScheduler)
             .concatWith(
                 scheduler.get().broadcastTransactionResult(
                     HandshakeResult(

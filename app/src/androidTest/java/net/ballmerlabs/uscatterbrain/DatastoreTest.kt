@@ -229,7 +229,7 @@ class DatastoreTest {
         val gh = LibsodiumInterface.merkleHash(byteArrayOf(1, 2 ,3))
 
         val root = database.merkleDao().getDefaultRoot().blockingGet()
-        val isp1 = database.merkleDao().getInsertionPoint(gh, root.id!!.toLong(), 0).blockingGet()
+        val isp1 = database.merkleDao().getInsertionPoint(gh, root.id!!.toLong(), 0)
 
         val ndisp1 = database.merkleDao().getInsertionPointWithoutDb(gh, root.id!!.toLong(), 0)
 
@@ -246,7 +246,7 @@ class DatastoreTest {
 
 
         val gh2 = LibsodiumInterface.merkleHash(byteArrayOf(2, 3 ,4, 5))
-        val isp = database.merkleDao().getInsertionPoint(gh2, root.id!!.toLong(), 0).blockingGet()
+        val isp = database.merkleDao().getInsertionPoint(gh2, root.id!!.toLong(), 0)
 
         val ndisp = database.merkleDao().getInsertionPointWithoutDb(gh, root.id!!.toLong(), 0)
 

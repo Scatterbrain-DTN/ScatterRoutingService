@@ -12,20 +12,24 @@ import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.FlowableEmitter
-import io.reactivex.Maybe
 import io.reactivex.Observable
+import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.processors.PublishProcessor
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.db.MerkleElement
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import okio.withLock
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
 
 @Dao
 abstract class MerkleDao {
+    private val lock = ReentrantLock()
     private val log by scatterLog()
 
     @Query("SELECT * FROM messages WHERE bundle = :id ORDER BY fileGlobalHash ASC")
@@ -120,7 +124,7 @@ abstract class MerkleDao {
         count: Int,
         hashes: List<ByteArray>,
         flag: List<Int>? = null,
-        fileSize: Long? = null
+        fileSize: Long? = null,
     ): Single<List<DbMessage>>
 
 
@@ -152,7 +156,7 @@ abstract class MerkleDao {
              ORDER BY pos DESC LIMIT 1
     """
     )
-    abstract fun getInsertionPoint(hash: ByteArray, root: Long, pos: Long): Maybe<MerkleInsertCond>
+    abstract fun getInsertionPoint(hash: ByteArray, root: Long, pos: Long): MerkleInsertCond
 
 
     @Query(
@@ -198,7 +202,6 @@ abstract class MerkleDao {
 
     fun getDefaultRoot(): Single<MerkleBundle> {
         return getRootsRandom().flatMapObservable { v -> Observable.fromIterable(v) }
-            .filter { v -> v.hash != null }
             .firstElement()
             .switchIfEmpty(Single.defer {
                 val bundle = MerkleBundle(
@@ -228,6 +231,9 @@ abstract class MerkleDao {
     @Insert
     abstract fun insertBundleEntity(bundles: List<MerkleBundle>): Single<List<Long>>
 
+    @Insert
+    abstract fun insertBundleEntitySync(bundles: List<MerkleBundle>): List<Long>
+
     @Query(
         """
         UPDATE bundles SET
@@ -238,7 +244,7 @@ abstract class MerkleDao {
     abstract fun updateParentChildOne(
         parent: Long,
         child: Long,
-    ): Completable
+    )
 
     @Query(
         """
@@ -250,13 +256,13 @@ abstract class MerkleDao {
     abstract fun updateParentChildTwo(
         parent: Long,
         child: Long,
-    ): Completable
+    )
 
     @Query("SELECT hash from bundles")
     abstract fun getAllHashes(): List<ByteArray>
 
     @Query("UPDATE messages SET bundle = :bundle WHERE messageID = :messageID")
-    abstract fun updateBundleForMessage(bundle: Long, messageID: Long): Completable
+    abstract fun updateBundleForMessage(bundle: Long, messageID: Long)
 
     fun getInsertionPointWithoutDb(
         hash: ByteArray,
@@ -311,17 +317,19 @@ abstract class MerkleDao {
 
 
     class RemoteItem(
-        val item: ByteArray?
+        val item: ByteArray?,
     )
 
 
-
-    fun getAllHubs(root: MerkleBundle?, list: MutableList<ByteArray> = mutableListOf()): List<ByteArray> {
+    fun getAllHubs(
+        root: MerkleBundle?,
+        list: MutableList<ByteArray> = mutableListOf(),
+    ): List<ByteArray> {
         if (root?.hash == null)
             return list
         list.add(root.hash)
-  //      val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
-   //     val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
+        //      val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
+        //     val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
         val childOneHub = getNextHub(root.childOne)
         val childTwoHub = getNextHub(root.childTwo)
         if (childOneHub != null) {
@@ -336,7 +344,6 @@ abstract class MerkleDao {
 
         return list
     }
-
 
 
     fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>, limit: Int? = null): HubResponse {
@@ -360,11 +367,22 @@ abstract class MerkleDao {
             .subscribe(rs)
 
         val hubsComplete = CompletableSubject.create()
-        val hubs = Flowable.create( { obs ->
-            getHubs(root, root, obs, rs, exclude, mutableSetOf(), mutableSetOf(), AtomicInt(0), AtomicReference(getEndHash(root, setOf())), limit )
+        val hubs = Flowable.create({ obs ->
+            getHubs(
+                root,
+                root,
+                obs,
+                rs,
+                exclude,
+                mutableSetOf(),
+                mutableSetOf(),
+                AtomicInt(0),
+                AtomicReference(getEndHash(root, setOf())),
+                limit
+            )
             obs.onComplete()
         }, BackpressureStrategy.BUFFER)
-       //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
+            //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
             .doFinally {
                 log.v("getHubs complete!")
                 hubsComplete.onComplete()
@@ -402,7 +420,12 @@ abstract class MerkleDao {
 
         val item = remote
             .mergeWith(Completable.fromAction {
-                hubs.onNext(MerkleElement(bundle = root, last = doneHash.get()?.contentEquals(root.hash)?:false))
+                hubs.onNext(
+                    MerkleElement(
+                        bundle = root,
+                        last = doneHash.get()?.contentEquals(root.hash) ?: false
+                    )
+                )
             })
             .firstElement()
             .onErrorComplete()
@@ -416,7 +439,7 @@ abstract class MerkleDao {
             (item?.item != null && item.item.contentEquals(root.hash)) ||
             nextOurs.contains(root.hash.toHexString()) ||
             nextTheirs.contains(item?.item?.toHexString())
-                ) {
+        ) {
             log.w("MATCH! on ${root.hash.toHexString()}")
             exclude.add(root.hash)
             doneHash.set(getEndHash(permaRoot, exclude.toSet()))
@@ -431,13 +454,35 @@ abstract class MerkleDao {
 
 
         if (childOneHub != null) {
-        //    log.v("getHubs: ${root.id} ${childOneHub.hash?.toHexString()}")
-            getHubs(permaRoot, childOneHub, hubs, remote, exclude, nextTheirs,nextOurs, count, doneHash, target)
+            //    log.v("getHubs: ${root.id} ${childOneHub.hash?.toHexString()}")
+            getHubs(
+                permaRoot,
+                childOneHub,
+                hubs,
+                remote,
+                exclude,
+                nextTheirs,
+                nextOurs,
+                count,
+                doneHash,
+                target
+            )
         }
 
         if (childTwoHub != null) {
-          //  log.v("getHubs: ${root.id} ${childTwoHub.hash?.toHexString()}")
-            getHubs(permaRoot, childTwoHub, hubs, remote, exclude, nextTheirs, nextOurs, count, doneHash, target)
+            //  log.v("getHubs: ${root.id} ${childTwoHub.hash?.toHexString()}")
+            getHubs(
+                permaRoot,
+                childTwoHub,
+                hubs,
+                remote,
+                exclude,
+                nextTheirs,
+                nextOurs,
+                count,
+                doneHash,
+                target
+            )
         }
 
 
@@ -508,40 +553,39 @@ abstract class MerkleDao {
 //
 
 
-    @OptIn(ExperimentalStdlibApi::class)
-    private fun merkleRehash(root: Long?, pos: Long = 0) {
-        if (root == null) {
-            return
-        }
+    open fun merkleRehash(root: Long?, pos: Long = 0) {
+        lock.withLock {
+            if (root == null) {
+                return
+            }
 
-        val child1 = getChildOne(root)
-        val child2 = getChildTwo(root)
-        merkleRehash(child1, pos = pos + 1)
-        merkleRehash(child2, pos = pos + 1)
+            val child1 = getChildOne(root)
+            val child2 = getChildTwo(root)
+            merkleRehash(child1, pos = pos + 1)
+            merkleRehash(child2, pos = pos + 1)
 
-        val messages = getMessagesForBundle(root)
-        val bundles = getBundlesForBundle(root)
-        val mhash = messages.map { v -> v.fileGlobalHash }
-        val bhash = bundles.map { v -> v.hash!! }
+            val messages = getMessagesForBundle(root)
+            val bundles = getBundlesForBundle(root)
+            val mhash = messages.map { v -> v.fileGlobalHash }
+            val bhash = bundles.map { v -> v.hash!! }
 //        log.v("merkleRehash depth=$pos root=$root")
 //        log.v("\tmhash=${mhash.map { v -> v.toHexString() }}")
 //        log.v("\tbhash=${bhash.map { v -> v.toHexString() }}")
-        val q = bhash + mhash
-        val b = q.sortedWith { v, n -> v.compare(n) }
+            val q = bhash + mhash
+            val b = q.sortedWith { v, n -> v.compare(n) }
 //        log.v("\tcombined=${b.map { v -> v.toHexString() }}")
-        val hash = LibsodiumInterface.merkleHash(b)
+            val hash = LibsodiumInterface.merkleHash(b)
 //        log.v("\tfinal=${hash.toHexString()}")
-        updateBundleHash(hash, root)
+            updateBundleHash(hash, root)
+        }
     }
 
-
-    @OptIn(ExperimentalStdlibApi::class)
-    fun merkleRehash(): Completable {
+    fun merkleRehash(scheduler: Scheduler = Schedulers.single()): Completable {
         return getDefaultRoot().flatMapCompletable { r ->
- //           log.v("merkleRehash start $r")
+            //           log.v("merkleRehash start $r")
             Completable.fromAction {
                 merkleRehash(r.id)
-            }
+            }.subscribeOn(scheduler)
         }
     }
 
@@ -549,8 +593,8 @@ abstract class MerkleDao {
         message: HashlessScatterMessage,
         point: MerkleInsertCond,
         bundles: ArrayList<MerkleBundle>,
-    ): Completable {
-        return if (point.complete(message.fileGlobalHash)) {
+    ) {
+        if (point.complete(message.fileGlobalHash)) {
             message.bundle = point.parent
             //log.v("updateParent pos=${point.pos} parent=${point.parent}")
             updateBundleForMessage(point.parent, message.messageID!!)
@@ -568,15 +612,15 @@ abstract class MerkleDao {
 //                "childTwo=${bundle.id}"
 //            else
 //                "DIRTY"
-          //  log.v("updateParent pos=${point.pos} parent=${point.parent} $c")
+            //  log.v("updateParent pos=${point.pos} parent=${point.parent} $c")
             if (point.childOne) {
                 updateParentChildOne(point.parent, bundle.id!!)
-                    .andThen(iterativeMerkleInsert(message, isp, bundles))
+
+                iterativeMerkleInsert(message, isp, bundles)
             } else if (point.childTwo) {
                 updateParentChildTwo(point.parent, bundle.id!!)
-                    .andThen(iterativeMerkleInsert(message, isp, bundles))
-            } else
-                Completable.complete()
+                iterativeMerkleInsert(message, isp, bundles)
+            }
 
         }
     }
@@ -613,32 +657,31 @@ abstract class MerkleDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     abstract fun insertBundleEntity(bundle: MerkleBundle): Single<Long>
 
-    @OptIn(ExperimentalStdlibApi::class)
-    fun insertMerkle(message: HashlessScatterMessage): Completable {
-        return getDefaultRoot()
-            .flatMapMaybe { root ->
-                getInsertionPoint(message.fileGlobalHash, root.id!!, 0)
-            }
-            .flatMapCompletable { root ->
-                val bundles =
-                    ArrayList((0..<(message.fileGlobalHash.size * Byte.SIZE_BITS - root.pos)).map { v ->
-                        MerkleBundle(
-                            hash = null,
-                            dirty = true
-                        )
-                    })
+    open fun insertMerkle(message: HashlessScatterMessage) {
+        lock.withLock {
+            val r = getDefaultRoot().blockingGet()
 
-                insertBundleEntity(bundles).flatMapCompletable { ids ->
-                    for ((bundle, id) in bundles.zip(ids)) {
-                        bundle.id = id
-                    }
-                    iterativeMerkleInsert(message, root, bundles)
-                        .doOnComplete {
-                            log.v("iterativeMerkleInsert of message ${message.fileGlobalHash.toHexString()} complete $root")
-                        }
-                }
+            val root = getInsertionPoint(message.fileGlobalHash, r.id!!, 0)
 
+            val bundles =
+                ArrayList((0..<(message.fileGlobalHash.size * Byte.SIZE_BITS - root.pos)).map { v ->
+                    MerkleBundle(
+                        hash = null,
+                        dirty = true
+                    )
+                })
+
+            val ids = insertBundleEntitySync(bundles)
+            for ((bundle, id) in bundles.zip(ids)) {
+                bundle.id = id
             }
+            log.v("prepared!")
+            iterativeMerkleInsert(message, root, bundles)
+            log.v("prepared done!!")
+
+
+        }
+
     }
 
 
