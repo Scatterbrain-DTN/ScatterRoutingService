@@ -226,7 +226,7 @@ interface RoutingServiceComponent {
             @Singleton
             @Named(NamedSchedulers.DATABASE)
             fun provideDatabaseScheduler(): Scheduler {
-                return RxJavaPlugins.createComputationScheduler(ScatterbrainThreadFactory(NamedSchedulers.DATABASE))
+                return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.DATABASE))
             }
 
             @Provides
