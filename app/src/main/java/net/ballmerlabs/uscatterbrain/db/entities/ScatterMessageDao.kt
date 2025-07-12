@@ -52,7 +52,7 @@ abstract class ScatterMessageDao {
 
 
     @Transaction
-    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (application = :application) AND (receiveDate BETWEEN :start AND :end) ORDER BY receiveDate LIMIT :limit")
+    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash WHERE (application = :application) AND (receiveDate BETWEEN :start AND :end) ORDER BY receiveDate DESC LIMIT :limit")
     abstract fun getByReceiveDateChrono(
         application: String,
         start: Long,
@@ -98,7 +98,7 @@ abstract class ScatterMessageDao {
     abstract fun getByApplication(application: String): Single<List<DbMessage>>
 
     @Transaction
-    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash where application IN (:application) ORDER BY receiveDate LIMIT :limit")
+    @Query("SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash where application IN (:application) ORDER BY receiveDate DESC LIMIT :limit")
     abstract fun getByApplicationChrono(
         application: String,
         limit: Int = -1,

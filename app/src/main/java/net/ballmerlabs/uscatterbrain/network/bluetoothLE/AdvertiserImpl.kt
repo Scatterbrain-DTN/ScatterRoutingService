@@ -230,6 +230,7 @@ class AdvertiserImpl @Inject constructor(
                                             if (root.hash != null)
                                                 builder.addServiceData(ParcelUuid(MERKLE_DATA), root.hash)
 
+                                            LOG.v("setting advertising data ${root.hash}")
                                             v.first.item!!.setAdvertisingData(builder.build())
                                         } catch (exc: SecurityException) {
                                             throw exc
@@ -241,7 +242,7 @@ class AdvertiserImpl @Inject constructor(
                         }
                 }.doOnError { err -> LOG.w("failed to set advertising luid: $err, retry") }
             cmp.retryDelay(10, 5)
-                .timeout(10, TimeUnit.SECONDS, timeoutScheduler)
+                .timeout(80, TimeUnit.SECONDS, timeoutScheduler)
                 .doOnError { err -> LOG.e("FATAL: failed to set advertising data, out of retries: $err") }
         }
     }
@@ -378,51 +379,55 @@ class AdvertiserImpl @Inject constructor(
             val advertise = isAdvertising
                 .firstOrError()
                 .flatMapCompletable { v ->
-                    if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
-                        Completable.complete()
-                    else
-                        Completable.fromAction {
-                            LOG.v("Starting LE advertise")
-                            setRandomizeTimer(30)
-                            val settings = AdvertisingSetParameters.Builder()
-                                .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                                .setLegacyMode(false)
-                                .setConnectable(true)
-                                .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
-                                .setSecondaryPhy(BluetoothDevice.PHY_LE_2M)
-                                .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
-                                .build()
-                            val serviceDataBuilder = AdvertiseData.Builder()
-                                .setIncludeDeviceName(false)
-                                .setIncludeTxPowerLevel(false)
-                                .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT))
+                    database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
+                        if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
+                            Completable.complete()
+                        else
+                            Completable.fromAction {
+                                LOG.v("Starting LE advertise")
+                                setRandomizeTimer(30)
+                                val settings = AdvertisingSetParameters.Builder()
+                                    .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                                    .setLegacyMode(false)
+                                    .setConnectable(true)
+                                    .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
+                                    .setSecondaryPhy(BluetoothDevice.PHY_LE_2M)
+                                    .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                                    .build()
+                                val serviceDataBuilder = AdvertiseData.Builder()
+                                    .setIncludeDeviceName(false)
+                                    .setIncludeTxPowerLevel(false)
+                                    .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT))
 
-                            val serviceData = serviceDataBuilder.addServiceData(
-                                ParcelUuid(LUID_DATA),
-                                luid.toBytes()
-                            )
-                                .build()
+                                val builder = serviceDataBuilder.addServiceData(
+                                    ParcelUuid(LUID_DATA),
+                                    luid.toBytes()
+                                )
 
-                            try {
-                                manager.adapter.bluetoothLeAdvertiser.stopAdvertisingSet(
-                                    advertiseSetCallback
-                                )
-                                manager.adapter.bluetoothLeAdvertiser.startAdvertisingSet(
-                                    settings,
-                                    serviceData,
-                                    null,
-                                    null,
-                                    null,
-                                    advertiseSetCallback
-                                )
-                            } catch (exc: SecurityException) {
-                                throw exc
-                            } catch (exc: Exception) {
-                                LOG.e("failed to advertise $exc")
+                                if (root.hash != null)
+                                    builder.addServiceData(ParcelUuid(MERKLE_DATA), root.hash)
+
+                                try {
+                                    manager.adapter.bluetoothLeAdvertiser.stopAdvertisingSet(
+                                        advertiseSetCallback
+                                    )
+                                    manager.adapter.bluetoothLeAdvertiser.startAdvertisingSet(
+                                        settings,
+                                        builder.build(),
+                                        null,
+                                        null,
+                                        null,
+                                        advertiseSetCallback
+                                    )
+                                } catch (exc: SecurityException) {
+                                    throw exc
+                                } catch (exc: Exception) {
+                                    LOG.e("failed to advertise $exc")
+                                }
+                                LOG.v("advertise start")
                             }
-                            LOG.v("advertise start")
-                        }
-                            .andThen(mapAdvertiseComplete(true))
+                                .andThen(mapAdvertiseComplete(true))
+                    }
                 }
                 .timeout(30, TimeUnit.SECONDS, timeoutScheduler)
                 .doOnError { err ->
@@ -436,6 +441,7 @@ class AdvertiserImpl @Inject constructor(
                 }
 
             advertise.retryDelay(5, 5)
+
         }
     }
 

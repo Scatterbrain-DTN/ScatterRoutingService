@@ -88,8 +88,8 @@ class RoutingServiceBackendImpl @Inject constructor(
             }
         }
      //  RxBleLog.setLogLevel(RxBleLog.DEBUG)
-     // RxDogTag.install()
-     // RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
+     //RxDogTag.install()
+    // RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
     }
 
 

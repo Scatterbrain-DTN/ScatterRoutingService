@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.SmallTest
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
+import com.akaita.java.rxjava2debug.extensions.RxJavaAssemblyException
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
@@ -34,7 +35,15 @@ class ApiTest: TestBase() {
     }
 
     private fun syncSendMesssages(messages: List<ScatterMessage>) {
-        regularBinder.sendMessages(messages)
+        try {
+            regularBinder.sendMessages(messages)
+        }   catch (exc: RxJavaAssemblyException) {
+            println(exc.stacktrace())
+            throw exc
+        }
+            catch (exc: Exception) {
+            throw exc
+        }
     }
 
     @ExperimentalCoroutinesApi
@@ -99,7 +108,7 @@ class ApiTest: TestBase() {
 
     @Test
     @Throws(TimeoutException::class)
-    fun transactionBufferOverflow() {
+     fun transactionBufferOverflow() {
         val size = 20
         val application = LibsodiumInterface.base64enc(Random.nextBytes(1024))
         val list = ArrayList<ScatterMessage>()

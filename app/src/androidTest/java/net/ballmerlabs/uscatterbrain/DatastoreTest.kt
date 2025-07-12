@@ -22,6 +22,7 @@ import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate9
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockAdvertiser
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.network.proto.*
@@ -143,7 +144,7 @@ class DatastoreTest {
 
             } },
             BroadcasterImpl(ctx),
-            mock {  }
+            MockAdvertiser()
         )
         database.clearAllTables()
     }
