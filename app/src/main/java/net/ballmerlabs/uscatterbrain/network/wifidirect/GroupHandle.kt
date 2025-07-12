@@ -426,13 +426,21 @@ class GroupHandle @Inject constructor(
                             readBlockDataSeme(socket)
                                 .toObservable()
                                 .mergeWith(
-                                    writeBlockDataSeme(
-                                        socket,
-                                        datastore.getTopRandomMessages(
-                                            32,
-                                            declareHashesPacket
-                                        )
-                                    ).toObservable()
+                                    preferences.getInt(
+                                        mContext.getString(R.string.pref_blockdatacap),
+                                        2048
+                                    )
+                                        .onErrorReturnItem(2048)
+                                        .flatMapObservable { v ->
+                                            writeBlockDataSeme(
+                                                socket,
+                                                datastore.getTopRandomMessages(
+                                                    v,
+                                                    declareHashesPacket
+                                                )
+
+                                            ).toObservable()
+                                        }
                                 )
                         }
                         .reduce(stats) { obj, st -> obj.from(st) }
@@ -545,7 +553,7 @@ class GroupHandle @Inject constructor(
                             .toSingleDefault(v)
                     }
             }.ignoreElements()
-            .timeout(60, TimeUnit.SECONDS, timeoutScheduler)
+            .timeout(250, TimeUnit.SECONDS, timeoutScheduler)
     }
 
     private fun sendConnectedIps(sock: Socket, selfLuid: UUID): Single<IpAnnouncePacket> {
@@ -717,9 +725,9 @@ class GroupHandle @Inject constructor(
                                 .mergeWith(
                                     preferences.getInt(
                                         mContext.getString(R.string.pref_blockdatacap),
-                                        100
+                                        2048
                                     )
-                                        .onErrorReturnItem(100)
+                                        .onErrorReturnItem(2048)
                                         .flatMapObservable { v ->
                                             writeBlockDataUke(
                                                 datastore.getTopRandomMessages(

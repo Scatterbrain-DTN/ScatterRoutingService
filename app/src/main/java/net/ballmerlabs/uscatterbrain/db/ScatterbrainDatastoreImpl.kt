@@ -549,6 +549,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 Single.fromCallable {
                     mDatastore.identityDao().insertIdentity(singleid)
                 }.subscribeOn(databaseScheduler)
+                    .toMaybe()
+                    .onErrorComplete()
                     .flatMapCompletable { identityId ->
                         Observable.fromCallable { if (singleid.clientACL != null) singleid.clientACL else ArrayList() }
                             .flatMap { source -> Observable.fromIterable(source) }
@@ -567,7 +569,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             }
                     }
                     .doOnError { e -> LOG.e("failed to insert identity: $e") }
-                    .onErrorComplete()
             }
     }
 
