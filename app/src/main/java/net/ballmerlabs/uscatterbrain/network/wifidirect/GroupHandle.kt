@@ -143,10 +143,10 @@ class GroupHandle @Inject constructor(
                             .map { v -> v.hashes[0] }
 
                         val send = database.merkleDao().getHubs(root, incoming)
-                        send.exclude.mergeWith(sendMerkleHashes(
+                        sendMerkleHashes(
                             socket,
                             send.hubs.map { v -> v.bundle },
-                        ).onErrorComplete()).toList()
+                        ).andThen(send.exclude).toList()
                     }
 
                     DeclareHashesMode.NORMAL -> {
