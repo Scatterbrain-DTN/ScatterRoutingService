@@ -281,6 +281,7 @@ class GroupHandle @Inject constructor(
             .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
             .flatMap { i -> datastore.rehashMerkle().toSingleDefault(i) }
+            .onErrorResumeNext { e -> datastore.rehashMerkle().andThen(Single.error(e)) }
             .doOnError { e -> LOG.e("uke: error when reading message: $e") }
     }
 
@@ -340,6 +341,7 @@ class GroupHandle @Inject constructor(
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
             .doOnError { e -> LOG.e("seme: error when reading message: $e") }
             .flatMap { i -> datastore.rehashMerkle().toSingleDefault(i) }
+            .onErrorResumeNext { e -> datastore.rehashMerkle().andThen(Single.error(e)) }
             .doOnSuccess { LOG.v("seme read blockdata complete") }
     }
 

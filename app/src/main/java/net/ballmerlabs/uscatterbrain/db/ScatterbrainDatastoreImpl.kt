@@ -413,7 +413,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         flag: List<MessageFlag>?,
         fileSize: Long?,
     ): Flowable<BlockDataStream> {
-        return mDatastore.merkleDao().getDefaultRoot().flatMapPublisher { root ->
+        return mDatastore.merkleDao().getDefaultRoot()
+            .doOnSubscribe { LOG.v("getDefaultRoot getTopRandomMessage") }
+            .flatMapPublisher { root ->
             LOG.v("called getTopRandomMessages $count")
             mDatastore.merkleDao().getTopRandomExcludingHash(
                 root.id!!,

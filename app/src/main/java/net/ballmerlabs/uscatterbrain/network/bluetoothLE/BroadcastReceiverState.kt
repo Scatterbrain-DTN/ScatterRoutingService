@@ -35,8 +35,6 @@ import javax.inject.Singleton
 class BroadcastReceiverState @Inject constructor(
     val advertiser: Advertiser,
     val leState: Provider<LeState>,
-    @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) val scheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.BLE_ADVERTISE) val batchScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
     val bootstrapRequestProvider: Provider<BootstrapRequestSubcomponent.Builder>,
     val scatterbrainScheduler: Provider<ScatterbrainScheduler>,
@@ -112,7 +110,7 @@ class BroadcastReceiverState @Inject constructor(
                                             e.printStackTrace()
                                         }
                                         .onErrorComplete()
-                                }
+                                 }
                                     // .doOnDispose { scatterbrainScheduler.unpauseScan() }
                                     .doFinally {
                                         tlock.set(false)
@@ -121,8 +119,6 @@ class BroadcastReceiverState @Inject constructor(
                                         //   scatterbrainScheduler.unpauseScan()
                                         connectLock.set(false)
                                     }
-                                    .subscribeOn(batchScheduler)
-                                    .observeOn(scheduler)
                                     .doFinally { batchDisposables.remove(luid) }
                                     .subscribe()
                             }
@@ -135,8 +131,7 @@ class BroadcastReceiverState @Inject constructor(
                     }
                 }
             }
-        }.subscribeOn(batchScheduler)
-            .observeOn(scheduler)
+        }
             .subscribe(
             {},
             {err -> LOG.w("scan result err") }

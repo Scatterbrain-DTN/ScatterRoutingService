@@ -213,7 +213,7 @@ abstract class MerkleDao {
                         this.id = id
                     }
                 }
-            }).doOnSuccess { v -> log.v("getDefaultRoot ${v.hash?.toHexString()}") }
+            })
 
     }
 
@@ -581,7 +581,9 @@ abstract class MerkleDao {
     }
 
     fun merkleRehash(scheduler: Scheduler = Schedulers.single()): Completable {
-        return getDefaultRoot().flatMapCompletable { r ->
+        return getDefaultRoot()
+            .doOnSubscribe { log.v("getDefaultRoot merkleRehash") }
+            .flatMapCompletable { r ->
             //           log.v("merkleRehash start $r")
             Completable.fromAction {
                 merkleRehash(r.id)
@@ -659,7 +661,9 @@ abstract class MerkleDao {
 
     open fun insertMerkle(message: HashlessScatterMessage) {
         lock.withLock {
-            val r = getDefaultRoot().blockingGet()
+            val r = getDefaultRoot()
+                .doOnSubscribe { log.v("getDefaultRoot insertMerkle") }
+                .blockingGet()
 
             val root = getInsertionPoint(message.fileGlobalHash, r.id!!, 0)
 

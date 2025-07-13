@@ -381,7 +381,9 @@ class AdvertiserImpl @Inject constructor(
             val advertise = isAdvertising
                 .firstOrError()
                 .flatMapCompletable { v ->
-                    database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
+                    database.merkleDao().getDefaultRoot()
+                        .doOnSubscribe { LOG.v("getDefaultRoot startAdvertise") }
+                        .flatMapCompletable { root ->
                         if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
                             Completable.complete()
                         else

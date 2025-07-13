@@ -532,11 +532,6 @@ class LeStateImpl @Inject constructor(
                 .ignoreElement().toSingleDefault(res)
         }
 
-        val connectWait = if (reverse)
-            connectionSubject.takeUntil { v -> v == luid }.ignoreElements()
-        else
-            Completable.complete()
-
         return connectSingle.doOnSubscribe { connectionSubject.onNext(luid) }
             .doFinally { advertiser.setBusy(false) }
 
