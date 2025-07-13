@@ -50,6 +50,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
     val advertiser: Advertiser,
     val preferences: RouterPreferences,
     val context: Context,
+    val finalizer: MeshtasticSessionFinalizer,
     @Named(MeshtasticSessionSubcomponent.PARSE_SCHEDULER) val parseScheduler: Scheduler,
     @Named(MeshtasticSessionSubcomponent.ROUTER_ID) val routerId: String,
 ) : MeshtasticSessionState {
@@ -431,5 +432,10 @@ class MeshtasticSessionStateImpl @Inject constructor(
                 v
             }
         }!!
+    }
+
+    @Throws(Throwable::class)
+    protected fun finalize() {
+        finalizer.onFinalize()
     }
 }

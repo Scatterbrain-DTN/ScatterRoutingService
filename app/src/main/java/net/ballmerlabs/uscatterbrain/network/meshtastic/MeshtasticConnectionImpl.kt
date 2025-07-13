@@ -24,6 +24,7 @@ class MeshtasticConnectionImpl @Inject constructor(
     val receiver: MeshBroadcastReceiver,
     val intentFilter: IntentFilter,
     val crashlytics: FirebaseWrapper,
+    val finalizer: MeshtasticConnectionFinalizer,
     @Named(MeshtasticConnectionSubcomponent.NamedSchedulers.BINDER_SCHEDULER) val scheduler: Scheduler,
 ) : MeshtasticConnection {
 
@@ -106,5 +107,10 @@ class MeshtasticConnectionImpl @Inject constructor(
         return Completable.fromAction {
             service.stopProvideLocation()
         }.subscribeOn(scheduler)
+    }
+
+    @Throws(Throwable::class)
+    protected fun finalize() {
+        finalizer.onFinalize()
     }
 }

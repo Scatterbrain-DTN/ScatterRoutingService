@@ -47,12 +47,28 @@ interface MeshtasticSessionSubcomponent {
             fun providesParseScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(PARSE_SCHEDULER))
             }
+
+            @Provides
+            @MeshtasticSessionScope
+            fun providesFinalizer(
+                @Named(PARSE_SCHEDULER) scheduler: Scheduler
+            ): MeshtasticSessionFinalizer {
+                return object : MeshtasticSessionFinalizer {
+                    override fun onFinalize() {
+                        scheduler.shutdown()
+                    }
+                }
+            }
         }
-    }
+     }
 
 
     fun state(): MeshtasticSessionState
 
 
     fun creationDate(): Date
+}
+
+interface MeshtasticSessionFinalizer {
+    fun onFinalize()
 }

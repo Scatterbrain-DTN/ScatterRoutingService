@@ -75,10 +75,28 @@ interface MeshtasticConnectionSubcomponent {
             fun providesCallbackScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.CALLBACK_SCHEDULER))
             }
+
+            @Provides
+            @MeshtasticConnectionScope
+            fun providesConnectionFinalizer(
+                @Named(NamedSchedulers.CALLBACK_SCHEDULER)
+                scheduler: Scheduler
+            ): MeshtasticConnectionFinalizer {
+                return object : MeshtasticConnectionFinalizer {
+                    override fun onFinalize() {
+                        scheduler.shutdown()
+                    }
+                }
+            }
         }
     }
 
     fun connection(): MeshtasticConnection
 
     fun module(): MeshtasticRadioModule
+}
+
+
+interface MeshtasticConnectionFinalizer {
+    fun onFinalize()
 }
