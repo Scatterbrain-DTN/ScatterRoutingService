@@ -37,6 +37,10 @@ const val MESHTASTIC_MAX_LEN = 254
 
 const val MAX_FORWARD_SIZE = (1024 * 32).toLong()
 
+const val UKE_TIMEOUT = 500.toLong()
+const val SEME_TIMEOUT = 256.toLong()
+const val SEME_TRANSACTION_TIMEOUT = SEME_TIMEOUT
+
 fun Context.isAppInstalled(packageName: String): Boolean {
     return try {
         this.packageManager.getPackageInfo(packageName, PackageManager.GET_ACTIVITIES)

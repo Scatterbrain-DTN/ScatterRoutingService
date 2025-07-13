@@ -31,6 +31,7 @@ import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
+import net.ballmerlabs.uscatterbrain.network.meshtastic.SEME_TIMEOUT
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
@@ -58,7 +59,6 @@ import kotlin.math.abs
  * the previous transport layer. The SEME is the group owner and any number of UKEs
  * may join the group. Currently only one is supported though because of limitations imposed by
  * bluetooth LE.
- * TODO: wait for multiple LE handshakes and batch bootstrap requests maybe?
  *
  * Manually setting the group passphrase requires a very new API level (android 10 or above)
  */
@@ -600,7 +600,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
 
             val disp = bootstrapSeme(
                 req.name, req.passphrase, band, req, advertiser.getHashLuid(), mode
-            )
+            ).timeout(SEME_TIMEOUT, TimeUnit.SECONDS, timeoutScheduler)
                 .doFinally { groupDisposable.getAndSet(null)?.dispose() }
                 .subscribe(
                     {}, { err ->

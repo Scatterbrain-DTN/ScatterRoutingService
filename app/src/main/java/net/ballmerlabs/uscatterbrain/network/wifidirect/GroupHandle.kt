@@ -24,6 +24,8 @@ import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.meshtastic.SEME_TRANSACTION_TIMEOUT
+import net.ballmerlabs.uscatterbrain.network.meshtastic.UKE_TIMEOUT
 import net.ballmerlabs.uscatterbrain.network.proto.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.retryDelay
@@ -482,10 +484,10 @@ class GroupHandle @Inject constructor(
                 .repeat()
                 .observeOn(operationsScheduler)
                 .timeout(
-                    60,
+                    UKE_TIMEOUT,
                     TimeUnit.SECONDS,
                     timeoutScheduler
-                ) //TODO: remove hardcoded time
+                )
                 .onErrorResumeNext(Flowable.empty())
                 .flatMapSingle { s ->
                     bootstrapUkeSocket(s.socket, mode)
@@ -558,7 +560,7 @@ class GroupHandle @Inject constructor(
                             .toSingleDefault(v)
                     }
             }.ignoreElements()
-            .timeout(250, TimeUnit.SECONDS, timeoutScheduler)
+            .timeout(SEME_TRANSACTION_TIMEOUT, TimeUnit.SECONDS, timeoutScheduler)
     }
 
     private fun sendConnectedIps(sock: Socket, selfLuid: UUID): Single<IpAnnouncePacket> {
@@ -653,7 +655,8 @@ class GroupHandle @Inject constructor(
                     LOG.w("bootstrapUke completed SOMEHOW: ${serverSocket.socket.localPort}")
                 }
 
-        }.subscribe(
+        }
+            .subscribe(
             { },
             { e ->
                 LOG.w("uke process err $e")
