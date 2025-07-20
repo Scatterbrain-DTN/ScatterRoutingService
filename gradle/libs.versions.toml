@@ -31,7 +31,7 @@ firebase-bom = "33.15.0"
 firebaseCrashlytics = "19.4.4"
 fragment-ktx = "1.8.8"
 google-services = "4.4.2"
-gradle = "8.10.1"
+gradle = "8.11.0"
 gradleVersionsPlugin = "0.21.0"
 hilt = "2.56.2"
 hilt-navigation-compose = "1.2.0"
@@ -112,8 +112,9 @@ zxing-android-embedded = "4.3.0"
 zxing-core = "3.3.0" #do not update
 
 [libraries]
+gradle = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanistPermissions" }
-agp = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
 activity-compose = { group = "androidx.activity", name = "activity-compose" }
 android-identicons = { module = "com.github.lelloman:android-identicons", version.ref = "androidIdenticons" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
@@ -143,7 +144,6 @@ androidx-startup-runtime = { module = "androidx.startup:startup-runtime", versio
 androidx-work-gcm = { module = "androidx.work:work-gcm", version.ref = "workGcm" }
 androidx-work-multiprocess = { module = "androidx.work:work-multiprocess", version.ref = "workMultiprocess" }
 androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "workRuntime" }
-androidx-work-runtime-ktx-v2100 = { module = "androidx.work:work-runtime-ktx", version.ref = "work-runtime-ktx" }
 androidx-work-rxjava2 = { module = "androidx.work:work-rxjava2", version.ref = "workRxjava2" }
 androidx-work-testing = { module = "androidx.work:work-testing", version.ref = "workTesting" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
@@ -179,12 +179,9 @@ firebase-crashlytics-gradle = { group = "com.google.firebase", name ="firebase-c
 fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragment-ktx" }
 google-firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics", version.ref = "firebaseCrashlytics" }
 google-services = { group = "com.google.gms", name = "google-services", version.ref = "google-services" }
-gradle-v8101 = { module = "com.android.tools.build:gradle", version.ref = "gradle" }
 gradle-versions-plugin = { module = "com.github.ben-manes:gradle-versions-plugin", version.ref = "gradleVersionsPlugin" }
-hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-android-gradle-plugin = { group = "com.google.dagger", name = "hilt-android-gradle-plugin", version.ref = "hilt" }
 hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
-hilt-android-v255 = { module = "com.google.dagger:hilt-android", version.ref = "hiltAndroid" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hilt-navigation-compose" }
 jetbrains-kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines-core-version" }
@@ -196,10 +193,8 @@ kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref =
 kotlin-serialization = { group = "org.jetbrains.kotlin", name = "kotlin-serialization", version.ref = "kotlin" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin-stdlib" }
 kotlin-stdlib-jdk7 = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk7", version.ref = "kotlin-stdlib-jdk7" }
-kotlin-stdlib-v2120 = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin-stdlib-version" }
 kotlinpoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version.ref = "kotlinpoet-ksp" }
 kotlinx-collections-immutable = { group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable", version.ref = "kotlinx-collections-immutable" }
-kotlinx-collections-immutable-v037 = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinx-collections-immutable-version" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx-coroutines-android" }
 kotlinx-coroutines-guava = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-guava", version.ref = "kotlinx-coroutines-android" }
 kotlinx-coroutines-rx2 = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-rx2", version.ref = "kotlinxCoroutinesRx2" }
@@ -241,7 +236,6 @@ rxdogtag = { module = "com.uber.rxdogtag:rxdogtag", version.ref = "rxdogtag" }
 rxjava = { module = "io.reactivex.rxjava2:rxjava", version.ref = "rxJavaVersion" }
 rxjava2-debug = { module = "com.akaita.java:rxjava2-debug", version.ref = "rxjava2-debug" }
 rxjava2-extras = { module = "com.github.davidmoten:rxjava2-extras", version.ref = "rxjava2Extras" }
-rxjava2-extras-v022 = { module = "com.github.davidmoten:rxjava2-extras", version.ref = "rxjava2ExtrasVersion" }
 rxrelay = { module = "com.jakewharton.rxrelay2:rxrelay", version.ref = "rxrelay" }
 sqlite-android = { module = "com.github.requery:sqlite-android", version.ref = "sqliteAndroid" }
 streamsupport-minifuture = { group = "net.sourceforge.streamsupport", name = "streamsupport-minifuture", version.ref = "streamsupport-minifuture" }
@@ -252,6 +246,7 @@ zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embe
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing-core" }
 
 [bundles]
+hilt = ["hilt-android", "hilt-navigation-compose"]
 # Core AndroidX
 androidx = ["core-ktx", "appcompat", "appcompat-resources", "cardview", "fragment-ktx", "activity-compose"]
 
@@ -271,10 +266,6 @@ coroutines = ["kotlinx-coroutines-android", "kotlinx-coroutines-guava"]
 # Data Storage
 datastore = ["datastore"]
 room = ["room-runtime", "room-ktx"]
-
-# Dependency Injection
-hilt = ["hilt-android", "hilt-navigation-compose"]
-
 # Testing
 testing = ["junit", "ext-junit"]
 testing-android = ["espresso-core", "compose-ui-test-junit4"]

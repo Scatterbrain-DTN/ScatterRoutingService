@@ -353,9 +353,12 @@ class RoutingServiceBackendImpl @Inject constructor(
             context.getString(R.string.pref_transactiontimeout),
             RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
         ).flatMapCompletable { l ->
+            LOG.v("refreshPeers with timeout $l")
             leState.refreshPeers()
+                .doOnComplete { LOG.v("leState refreshPeers complete") }
                 .andThen(
                     meshtasticBinderProvider.getConnection()
+                        .doOnComplete { LOG.v("meshtastic getConnection complete") }
                         .flatMapCompletable { c -> c.module().handshake() }
                 )
                 .timeout(
@@ -381,6 +384,7 @@ class RoutingServiceBackendImpl @Inject constructor(
             RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
         ).flatMapCompletable { l ->
             refreshPeers()
+                .doOnComplete { LOG.v("refreshPeers complete") }
                 .timeout(
                     l,
                     TimeUnit.SECONDS,

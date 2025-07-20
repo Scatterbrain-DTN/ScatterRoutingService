@@ -15,7 +15,7 @@ buildscript {
         gradlePluginPortal()
     }
     dependencies {
-        classpath libs.agp
+        classpath libs.gradle
         classpath libs.org.jacoco.core
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath "com.google.dagger:hilt-android-gradle-plugin:$hilt_version"

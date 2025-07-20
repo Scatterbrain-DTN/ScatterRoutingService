@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.plus
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.sbproto.SbPacket
 import proto.Scatterbrain.ElectLeader
@@ -29,15 +30,15 @@ class ElectLeaderPacket(
         } else {
             val hashbytes = ByteArray(GenericHash.BYTES)
             var bytes = ByteString.EMPTY
-            bytes.concat(packet.valBody.salt)
+            bytes += bytes.concat(packet.valBody.salt)
             bytes = bytes.concat(ByteString.copyFrom(
-                ElectLeaderPacket.Companion.uuidToBytes(
+                uuidToBytes(
                     tieBreak
                 )
             ))
             val buffer = ByteBuffer.allocate(Integer.SIZE)
             buffer.putInt(packet.valBody.provides)
-            bytes.concat(ByteString.copyFrom(buffer.array()))
+            bytes += bytes.concat(ByteString.copyFrom(buffer.array()))
             LibsodiumInterface.sodium.crypto_generichash(
                 hashbytes,
                 hashbytes.size,

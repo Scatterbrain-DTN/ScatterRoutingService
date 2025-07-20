@@ -121,7 +121,7 @@ dependencies {
     implementation libs.rxrelay
     implementation libs.rxdogtag
     implementation libs.rxandroidble
-    implementation libs.kotlinx.collections.immutable.v037
+    implementation libs.kotlinx.collections.immutable
 
     testImplementation libs.mockclient
     androidTestImplementation libs.mockclient
@@ -153,7 +153,7 @@ dependencies {
     testImplementation 'net.java.dev.jna:jna:5.17.0@aar'
     testImplementation 'net.java.dev.jna:jna-platform:5.17.0'
 
-    implementation libs.rxjava2.extras.v022
+    implementation libs.rxjava2.extras
 
     implementation libs.dagger
     testImplementation libs.dagger
@@ -220,7 +220,7 @@ dependencies {
     implementation(libs.androidx.work.runtime)
 
     // Kotlin + coroutines
-    implementation(libs.androidx.work.runtime.ktx.v2100)
+    implementation(libs.androidx.work.runtime)
 
     // optional - RxJava2 support
     implementation(libs.androidx.work.rxjava2)
