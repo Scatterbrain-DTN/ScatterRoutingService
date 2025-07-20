@@ -6,7 +6,7 @@ import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 class Migrate23: Migration(22, 23) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE desktop_clients ADD COLUMN remote_fingerprint BLOB")
-        val clients = db.query("SELECT remotekey FROM desktop_clients");
+        val clients = db.query("SELECT remotekey FROM desktop_clients")
         clients.moveToFirst()
         for(x in 0 until  clients.count) {
             val b = clients.getBlob(0)

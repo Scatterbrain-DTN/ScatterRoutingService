@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothGattServer
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
@@ -78,6 +79,7 @@ class ServerDisconnectOperation(
                 .getConnectionState(device.bluetoothDevice, BluetoothProfile.GATT) == BluetoothProfile.STATE_DISCONNECTED
     }
 
+    @SuppressLint("RestrictedApi")
     override fun provideException(deadObjectException: DeadObjectException): BleException {
         return BleDisconnectedException(deadObjectException, device.macAddress, BleDisconnectedException.UNKNOWN_STATUS)
     }

@@ -3,8 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 import com.geeksville.mesh.DataPacket
 import io.reactivex.Completable
 import io.reactivex.Flowable
-import io.reactivex.Observable
-import io.reactivex.Single
 
 interface MeshtasticRadioModule {
     fun sendPacket(dataPacket: DataPacket): Completable

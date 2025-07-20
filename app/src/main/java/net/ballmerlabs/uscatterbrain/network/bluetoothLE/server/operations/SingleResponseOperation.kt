@@ -66,7 +66,6 @@ abstract class SingleResponseOperation<T: Any>(
      */
     protected abstract fun startOperation(bluetoothGatt: GattServerConnection): Boolean
 
-    @Suppress("unused")
     protected open fun timeoutFallbackProcedure(
         rxBleGattCallback: GattServerConnection,
         timeoutScheduler: Scheduler?

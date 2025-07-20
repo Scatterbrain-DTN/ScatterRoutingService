@@ -1,6 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.operations
 
+import android.Manifest
 import android.bluetooth.BluetoothDevice
+import androidx.annotation.RequiresPermission
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerConnection
@@ -22,6 +24,7 @@ class SendResponseOperation(
         return Single.just(data)
     }
 
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override fun startOperation(bluetoothGatt: GattServerConnection): Boolean {
         return bluetoothGatt.server().sendResponse(mac, requestId,  status, 0, data)
     }

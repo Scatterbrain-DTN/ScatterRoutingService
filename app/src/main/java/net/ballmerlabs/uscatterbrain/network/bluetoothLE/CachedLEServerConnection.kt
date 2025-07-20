@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import com.google.protobuf.Message
-import com.google.protobuf.MessageLite
 import com.polidea.rxandroidble2.RxBleDevice
 import io.reactivex.Completable
 import net.ballmerlabs.scatterproto.ScatterSerializable

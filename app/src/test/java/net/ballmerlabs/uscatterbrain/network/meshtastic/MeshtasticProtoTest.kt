@@ -1,4 +1,4 @@
-package net.ballmerlabs.uscatterbrain.network.meshtastic;
+package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import android.os.Build
 import io.mockk.InternalPlatformDsl.toArray

@@ -51,7 +51,7 @@ afterEvaluate {
         uploadArchives {
             repositories {
                 mavenDeployer {
-                    beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+                    beforeDeployment {  deployment -> signing.signPom(deployment) }
 
                     pom.groupId = GROUP
                     pom.artifactId = POM_ARTIFACT_ID

@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.db
 
 import io.reactivex.Flowable
-import io.reactivex.Observable
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 
 data class MerkleElement(
