@@ -89,7 +89,7 @@ class RoutingServiceBackendImpl @Inject constructor(
         }
      //  RxBleLog.setLogLevel(RxBleLog.DEBUG)
      //RxDogTag.install()
-    // RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
+     //RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
     }
 
 
@@ -358,8 +358,11 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .doOnComplete { LOG.v("leState refreshPeers complete") }
                 .andThen(
                     meshtasticBinderProvider.getConnection()
+                        .doOnError { e -> LOG.v("failed to get meshtastic connection $e") }
                         .doOnComplete { LOG.v("meshtastic getConnection complete") }
-                        .flatMapCompletable { c -> c.module().handshake() }
+                        .flatMapCompletable { c ->
+                            c.module().handshake()
+                        }
                 )
                 .timeout(
                     l,
@@ -384,6 +387,7 @@ class RoutingServiceBackendImpl @Inject constructor(
             RoutingServiceBackend.DEFAULT_TRANSACTIONTIMEOUT
         ).flatMapCompletable { l ->
             refreshPeers()
+                .doOnError { e -> LOG.e("refreshPeers error $e") }
                 .doOnComplete { LOG.v("refreshPeers complete") }
                 .timeout(
                     l,
@@ -399,10 +403,7 @@ class RoutingServiceBackendImpl @Inject constructor(
             }
             .subscribe(
                 { LOG.v("async refresh peers successful") },
-                { err ->
-                    LOG.e("error in async refresh peers: $err")
-                    err.printStackTrace()
-                }
+                { err -> LOG.e("error in async refresh peers: $err") }
             )
         protocolDisposableSet.add(d)
         disp.set(d)

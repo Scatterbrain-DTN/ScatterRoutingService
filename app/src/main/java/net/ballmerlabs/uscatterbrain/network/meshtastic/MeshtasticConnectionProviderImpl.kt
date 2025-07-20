@@ -73,6 +73,7 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
                 }
             }
             .firstElement()
+            .onErrorComplete()
     }
 
     init {

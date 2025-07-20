@@ -151,7 +151,10 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         return datastore.rehashMerkle().andThen(datastore.getDefaultMerkleRoot())
             .flatMapCompletable { root ->
             log.v("default root ${root.size}")
-            connection.getMyId().flatMapCompletable { routerId ->
+            connection.getMyId()
+                .toMaybe()
+                .onErrorComplete()
+                .flatMapCompletable { routerId ->
                 log.v("initiate handshake with root me=$routerId")
                 sendPacket(
                     MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
