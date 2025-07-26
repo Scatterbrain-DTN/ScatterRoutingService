@@ -9,7 +9,7 @@ import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import java.io.File
 import java.util.Date
 import java.util.UUID

@@ -36,7 +36,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.network.proto.DeclareHashesPacket
 import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
-import proto.Scatterbrain.MessageFlag
+import scatterbrain.Scatterbrain.MessageFlag
 import java.io.File
 import java.io.Serializable
 import java.util.Date

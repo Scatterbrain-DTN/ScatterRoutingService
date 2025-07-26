@@ -3,8 +3,8 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.desktop.SessionMessage
-import proto.Scatterbrain
-import proto.Scatterbrain.GetEvents
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.GetEvents
 
 @SbPacket(messageType = Scatterbrain.MessageType.GET_EVENTS)
 class GetEventsCommand(

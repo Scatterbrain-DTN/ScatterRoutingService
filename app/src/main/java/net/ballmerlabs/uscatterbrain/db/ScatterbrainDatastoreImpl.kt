@@ -53,7 +53,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import proto.Scatterbrain.MessageFlag
+import scatterbrain.Scatterbrain.MessageFlag
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileDescriptor

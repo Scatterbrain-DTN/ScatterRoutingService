@@ -6,7 +6,7 @@ import com.goterl.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import java.util.SortedSet
 import java.util.TreeMap
 import java.util.TreeSet
@@ -14,7 +14,7 @@ import java.util.UUID
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 /**
  * wrapper class for Identity protobuf message

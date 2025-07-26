@@ -4,8 +4,8 @@ import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toUuid
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
-import proto.Scatterbrain.MessageType
-import proto.Scatterbrain.SendMessageCmd
+import scatterbrain.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.SendMessageCmd
 import java.util.UUID
 
 @SbPacket(messageType = MessageType.SEND_MESSAGE)

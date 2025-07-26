@@ -3,9 +3,9 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
-import proto.Scatterbrain
-import proto.Scatterbrain.MessageType
-import proto.Scatterbrain.RespCode
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.RespCode
 import java.util.UUID
 
 @SbPacket(messageType = MessageType.GENERATE_IDENTITY_RESPONSE)

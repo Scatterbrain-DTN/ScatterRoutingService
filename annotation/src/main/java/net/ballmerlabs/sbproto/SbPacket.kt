@@ -1,6 +1,6 @@
 package net.ballmerlabs.sbproto
 
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 @Retention(AnnotationRetention.RUNTIME)
 @Target(AnnotationTarget.CLASS)

@@ -3,8 +3,8 @@ package net.ballmerlabs.uscatterbrain
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.proto.ApiHeader
-import proto.Scatterbrain
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.MessageType
 
 class IdentityResponse(
     packet: Scatterbrain.IdentityResponse

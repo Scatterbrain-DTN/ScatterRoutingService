@@ -14,8 +14,8 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
 import net.ballmerlabs.uscatterbrain.util.enumerateMap
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import proto.Scatterbrain.MeshtasticStream
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MeshtasticStream
+import scatterbrain.Scatterbrain.MessageType
 import java.util.concurrent.TimeUnit
 
 @SbPacket(messageType = MessageType.MESHTASTIC_STREAM)

@@ -4,9 +4,9 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 import com.google.protobuf.ByteString
-import proto.Scatterbrain
-import proto.Scatterbrain.MeshtasticForwardSettings
-import proto.Scatterbrain.MessageFlag
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.MeshtasticForwardSettings
+import scatterbrain.Scatterbrain.MessageFlag
 
 @Entity(
     tableName = "message_flags",

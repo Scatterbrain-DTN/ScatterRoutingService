@@ -3,14 +3,14 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain.Luid
+import scatterbrain.Scatterbrain.Luid
 
 import java.nio.ByteBuffer
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 fun getHashUuid(uuid: UUID?): UUID? {
     return if(uuid == null)

@@ -6,8 +6,8 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
-import proto.Scatterbrain
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.MessageType
 import java.util.UUID
 
 @SbPacket(messageType = MessageType.MESSAGE)

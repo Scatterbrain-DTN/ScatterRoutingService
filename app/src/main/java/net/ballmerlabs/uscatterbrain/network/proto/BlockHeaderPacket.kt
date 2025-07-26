@@ -15,9 +15,9 @@ import net.ballmerlabs.scatterproto.sanitizeFilename
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import proto.Scatterbrain.BlockData
-import proto.Scatterbrain.MessageFlag
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.BlockData
+import scatterbrain.Scatterbrain.MessageFlag
+import scatterbrain.Scatterbrain.MessageType
 import java.util.Date
 import java.util.EnumMap
 import java.util.HashMap

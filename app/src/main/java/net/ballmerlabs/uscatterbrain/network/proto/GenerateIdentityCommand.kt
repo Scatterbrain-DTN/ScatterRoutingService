@@ -2,8 +2,8 @@ package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
-import proto.Scatterbrain
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.GENERATE_IDENTITY)
 class GenerateIdentityCommand(

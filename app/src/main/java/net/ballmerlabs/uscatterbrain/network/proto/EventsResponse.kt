@@ -2,8 +2,8 @@ package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
-import proto.Scatterbrain
-import proto.Scatterbrain.SbEvents
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.SbEvents
 
 @SbPacket(messageType = Scatterbrain.MessageType.DESKTOP_EVENTS)
 class SbEventsResponse(

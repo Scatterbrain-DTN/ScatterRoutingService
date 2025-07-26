@@ -1,11 +1,11 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.GET_IDENTITY)
 class GetIdentityCommand(

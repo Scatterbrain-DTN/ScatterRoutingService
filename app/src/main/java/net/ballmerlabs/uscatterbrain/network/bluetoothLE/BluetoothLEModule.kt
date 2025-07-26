@@ -6,7 +6,7 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterproto.Optional
 import net.ballmerlabs.scatterproto.Provides
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import java.util.UUID
 
 interface BluetoothLEModule {

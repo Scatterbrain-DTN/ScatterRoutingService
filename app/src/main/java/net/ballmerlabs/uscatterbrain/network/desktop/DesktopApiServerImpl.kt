@@ -37,7 +37,7 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.PortSocket
 import net.ballmerlabs.uscatterbrain.scheduler.DesktopSession
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import java.net.Inet6Address
 import java.net.Socket
 import java.util.UUID

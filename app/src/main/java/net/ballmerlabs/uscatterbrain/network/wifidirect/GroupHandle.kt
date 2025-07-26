@@ -31,8 +31,8 @@ import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import okio.ByteString.Companion.toByteString
-import proto.Scatterbrain
-import proto.Scatterbrain.DeclareHashesMode
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.DeclareHashesMode
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID

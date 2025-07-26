@@ -2,9 +2,9 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.proto
 
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
-import proto.Scatterbrain
-import proto.Scatterbrain.MeshtasticErr
-import proto.Scatterbrain.MeshtasticErrCode
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.MeshtasticErr
+import scatterbrain.Scatterbrain.MeshtasticErrCode
 
 @SbPacket(messageType = Scatterbrain.MessageType.MESHTASTIC_ERR)
 class MeshtasticErrPacket(

@@ -21,7 +21,7 @@ import net.ballmerlabs.uscatterbrain.network.*
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
-import proto.Scatterbrain.MessageFlag
+import scatterbrain.Scatterbrain.MessageFlag
 import java.io.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder

@@ -17,7 +17,7 @@ import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import java.net.InetAddress
 import java.util.UUID
 import javax.inject.Inject

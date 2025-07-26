@@ -21,10 +21,10 @@ import org.mockito.Mockito
 import org.mockito.MockitoAnnotations
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import proto.Scatterbrain
-import proto.Scatterbrain.Ack
-import proto.Scatterbrain.MeshtasticAnnounceAck
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.Ack
+import scatterbrain.Scatterbrain.MeshtasticAnnounceAck
+import scatterbrain.Scatterbrain.MessageType
 import java.util.UUID
 
 @SbPacket(messageType = MessageType.ACK)

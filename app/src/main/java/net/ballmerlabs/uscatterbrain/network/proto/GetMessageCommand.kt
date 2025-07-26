@@ -1,14 +1,14 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain
-import proto.Scatterbrain.GetMessagesCmd
-import proto.Scatterbrain.GetMessagesCmd.TimeRange
-import proto.Scatterbrain.GetMessagesCmd.TimeSliceCase
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.GetMessagesCmd
+import scatterbrain.Scatterbrain.GetMessagesCmd.TimeRange
+import scatterbrain.Scatterbrain.GetMessagesCmd.TimeSliceCase
 
 import java.util.Date
 import net.ballmerlabs.scatterproto.*
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 data class TimeSlice(
     val fromval: Date?,

@@ -3,7 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toUuid
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import java.util.UUID
 
 @SbPacket(messageType = Scatterbrain.MessageType.IMPORT_IDENTITY)

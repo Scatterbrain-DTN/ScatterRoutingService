@@ -1,6 +1,6 @@
 package net.ballmerlabs.scatterproto
 
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 import java.util.regex.Pattern
 import kotlin.math.floor
 

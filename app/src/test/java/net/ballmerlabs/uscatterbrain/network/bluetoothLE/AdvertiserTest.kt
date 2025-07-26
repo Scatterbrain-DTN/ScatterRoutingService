@@ -46,8 +46,8 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import proto.Scatterbrain
-import proto.Scatterbrain.MessageFlag
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.MessageFlag
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*

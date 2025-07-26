@@ -2,9 +2,9 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.proto
 
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
-import proto.Scatterbrain.MeshtasticAckCode
-import proto.Scatterbrain.MeshtasticAnnounceSynAck
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MeshtasticAckCode
+import scatterbrain.Scatterbrain.MeshtasticAnnounceSynAck
+import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.MESHTASTIC_ANNOUNCE_SYNACK)
 class MeshtasticAnnounceSynAckPacket(

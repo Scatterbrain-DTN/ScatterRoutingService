@@ -37,8 +37,8 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import proto.Scatterbrain.DeclareHashesMode
-import proto.pairingAck
+import scatterbrain.Scatterbrain.DeclareHashesMode
+import scatterbrain.pairingAck
 import java.util.Random
 import java.util.UUID
 import java.util.concurrent.TimeUnit

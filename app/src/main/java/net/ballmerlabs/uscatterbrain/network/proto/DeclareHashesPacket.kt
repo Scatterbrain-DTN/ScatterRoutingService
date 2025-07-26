@@ -4,9 +4,9 @@ import com.google.protobuf.ByteString
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.MAX_DECLAREHASHES
 import net.ballmerlabs.scatterproto.ScatterSerializable
-import proto.Scatterbrain
-import proto.Scatterbrain.DeclareHashesMode
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.DeclareHashesMode
+import scatterbrain.Scatterbrain.MessageType
 
 /**
  * wrapper class for DeclareHashes protobuf message. Used to avoid sending

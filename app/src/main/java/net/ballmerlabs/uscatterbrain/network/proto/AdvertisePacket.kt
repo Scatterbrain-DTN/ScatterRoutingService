@@ -6,9 +6,9 @@ import net.ballmerlabs.scatterproto.Provides
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.providesToValArray
 import net.ballmerlabs.scatterproto.valToProvidesArray
-import proto.Scatterbrain.Advertise
-import proto.Scatterbrain.DeclareHashesMode
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.Advertise
+import scatterbrain.Scatterbrain.DeclareHashesMode
+import scatterbrain.Scatterbrain.MessageType
 
 /**
  * Wrapper class for advertisepacket protocol buffer message.

@@ -7,11 +7,11 @@ import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
-import proto.Scatterbrain
-import proto.Scatterbrain.SbEvent
-import proto.Scatterbrain.SbEvent.NewIdentity
-import proto.Scatterbrain.SbEvent.NewMessage
-import proto.Scatterbrain.SbEvent.NoBodyMessage
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.SbEvent
+import scatterbrain.Scatterbrain.SbEvent.NewIdentity
+import scatterbrain.Scatterbrain.SbEvent.NewMessage
+import scatterbrain.Scatterbrain.SbEvent.NoBodyMessage
 
 @SbPacket(messageType = Scatterbrain.MessageType.DESKTOP_EVENT)
 class DesktopEvent(

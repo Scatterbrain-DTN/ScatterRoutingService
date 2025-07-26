@@ -9,8 +9,8 @@ import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
 
-import proto.Scatterbrain
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.MessageType
 
 fun ScatterMessage.toProto(): Scatterbrain.ApiMessage {
     var builder = Scatterbrain.ApiMessage.newBuilder()

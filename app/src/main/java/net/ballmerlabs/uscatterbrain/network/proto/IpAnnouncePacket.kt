@@ -1,12 +1,12 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain
-import proto.Scatterbrain.IpAnnounceItem
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.IpAnnounceItem
 import java.net.InetSocketAddress
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 data class Address (
     val is_uke: Boolean,

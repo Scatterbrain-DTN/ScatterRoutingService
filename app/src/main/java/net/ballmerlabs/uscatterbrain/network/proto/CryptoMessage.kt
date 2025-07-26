@@ -5,12 +5,12 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.SecretBox
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 
 import java.io.ByteArrayInputStream
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.CRYPTO_MESSAGE)
 class CryptoMessage(

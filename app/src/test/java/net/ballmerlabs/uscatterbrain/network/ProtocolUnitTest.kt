@@ -27,7 +27,7 @@ import org.junit.internal.runners.JUnit38ClassRunner
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*

@@ -1,9 +1,9 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain.Ack
+import scatterbrain.Scatterbrain.Ack
 import net.ballmerlabs.scatterproto.*
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.ACK)
 data class AckPacket(private val ack: Ack) : ScatterSerializable<Ack>(ack, MessageType.ACK) {

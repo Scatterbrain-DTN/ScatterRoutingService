@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.utils
 
 import com.google.protobuf.MessageLite
 import net.ballmerlabs.scatterproto.ScatterSerializable
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 abstract class SeqLike<T: MessageLite>(
     packet: T,

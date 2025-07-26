@@ -27,7 +27,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*

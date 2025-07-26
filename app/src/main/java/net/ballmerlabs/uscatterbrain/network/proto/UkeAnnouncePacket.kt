@@ -2,12 +2,12 @@ package net.ballmerlabs.uscatterbrain.network.proto
 
 
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain.ExtraUke
-import proto.Scatterbrain.JustUkes
+import scatterbrain.Scatterbrain.ExtraUke
+import scatterbrain.Scatterbrain.JustUkes
 import java.nio.ByteBuffer
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 /**
  * wrapper class for ElectLeader protobuf message

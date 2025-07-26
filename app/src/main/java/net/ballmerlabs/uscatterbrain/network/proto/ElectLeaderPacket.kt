@@ -4,13 +4,13 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.plus
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain.ElectLeader
+import scatterbrain.Scatterbrain.ElectLeader
 
 import java.nio.ByteBuffer
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 /**
  * wrapper class for ElectLeader protobuf message

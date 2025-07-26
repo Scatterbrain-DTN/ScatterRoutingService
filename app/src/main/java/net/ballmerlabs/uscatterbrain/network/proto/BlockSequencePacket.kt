@@ -3,13 +3,13 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain.BlockSequence
+import scatterbrain.Scatterbrain.BlockSequence
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 /**
  * Wrapper class for protocol buffer BlockSequence message

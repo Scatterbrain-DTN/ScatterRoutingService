@@ -32,9 +32,9 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
 import net.ballmerlabs.uscatterbrain.util.enumerateMap
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import proto.Scatterbrain
-import proto.Scatterbrain.MeshtasticAckCode
-import proto.Scatterbrain.MeshtasticStream
+import scatterbrain.Scatterbrain
+import scatterbrain.Scatterbrain.MeshtasticAckCode
+import scatterbrain.Scatterbrain.MeshtasticStream
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference

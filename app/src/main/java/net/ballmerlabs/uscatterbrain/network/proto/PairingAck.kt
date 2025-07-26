@@ -3,9 +3,9 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.Box
 import net.ballmerlabs.sbproto.SbPacket
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import net.ballmerlabs.scatterproto.*
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.PAIRING_ACK)
 class PairingAck(

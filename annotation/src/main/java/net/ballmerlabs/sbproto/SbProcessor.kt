@@ -33,7 +33,7 @@ import com.squareup.kotlinpoet.ksp.writeTo
 import net.ballmerlabs.scatterproto.InvalidPacketException
 import net.ballmerlabs.scatterproto.MessageSizeException
 import net.ballmerlabs.scatterproto.ScatterSerializable
-import proto.Scatterbrain
+import scatterbrain.Scatterbrain
 import java.io.IOException
 import java.io.InputStream
 import java.nio.ByteBuffer
@@ -130,7 +130,7 @@ class SbProcessor(
                 .addStatement(
                     "val buf = ByteBuffer.wrap(bytes)\n" +
                     "val type = buf.order(ByteOrder.BIG_ENDIAN).getInt()\n" +
-                    "val typeEnum = proto.Scatterbrain.MessageType.forNumber(type)\n" +
+                    "val typeEnum = scatterbrain.Scatterbrain.MessageType.forNumber(type)\n" +
                     "val parser = when(typeEnum) {"
                 )
                 .returns(ScatterSerializable.Companion.TypedPacket::class)

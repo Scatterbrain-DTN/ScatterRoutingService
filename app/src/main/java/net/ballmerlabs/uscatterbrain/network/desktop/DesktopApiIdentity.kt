@@ -11,8 +11,8 @@ import net.ballmerlabs.scatterbrainsdk.internal.writeParcelableMap
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
-import proto.Scatterbrain.ApiIdentity
-import proto.Scatterbrain.MessageType
+import scatterbrain.Scatterbrain.ApiIdentity
+import scatterbrain.Scatterbrain.MessageType
 import java.util.UUID
 
 //@SbPacket(messageType = MessageType.API_IDENTITY)
