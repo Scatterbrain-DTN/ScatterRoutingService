@@ -112,7 +112,7 @@ class ElectLeaderPacket(
         private fun hashFromBuilder(): ByteString {
             val hashbytes = ByteArray(GenericHash.BYTES)
             var bytes = ByteString.EMPTY
-            bytes.concat(ByteString.copyFrom(salt))
+            bytes = bytes.concat(ByteString.copyFrom(salt))
             bytes = bytes.concat(ByteString.copyFrom(
                 ElectLeaderPacket.Companion.uuidToBytes(
                     tiebreaker!!
@@ -120,7 +120,7 @@ class ElectLeaderPacket(
             ))
             val buffer = ByteBuffer.allocate(Integer.SIZE)
             buffer.putInt(provides!!.`val`)
-            bytes.concat(ByteString.copyFrom(buffer.array()))
+            bytes = bytes.concat(ByteString.copyFrom(buffer.array()))
             LibsodiumInterface.sodium.crypto_generichash(
                 hashbytes,
                 hashbytes.size,

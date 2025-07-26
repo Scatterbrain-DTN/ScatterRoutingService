@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">ScatterRoutingService</string>
-    <string name="description_group">Permissions to control the scatterbrain router</string>
 
     <!-- preferences -->
     <string name="pref_declarehashescap">declarehashescap</string>
@@ -8,10 +7,8 @@
     <string name="pref_desktop_name">desktop_name</string>
     <string name="pref_blockdatacap">blockdatacap</string>
     <string name="pref_powersave">powersave_mode</string>
-    <string name="pref_peercachedelay">peercachedelay</string>
     <string name="pref_transactiontimeout">transactiontimeout</string>
     <string name="pref_sizecap">sizecap</string>
-    <string name="pref_incognito">incognito</string>
     <string name="pref_meshtastic">meshtastic_enabled</string>
     <string name="pref_enabled_transports">enabled_transports</string>
     <string name="pref_desktop">desktop_start</string>

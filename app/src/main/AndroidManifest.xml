@@ -45,7 +45,8 @@
         <receiver
             android:name=".network.bluetoothLE.LuidRandomizeReceiver"
             android:enabled="true"
-            android:exported="true"/>
+            android:exported="true"
+            android:permission="net.ballmerlabs.scatterroutingservice.permission.SUPERUSER" />
         <receiver android:name=".network.bluetoothLE.ScanBroadcastReceiverImpl" />
 
         <service

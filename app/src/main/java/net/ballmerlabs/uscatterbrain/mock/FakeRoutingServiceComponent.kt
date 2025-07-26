@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.mock
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
@@ -382,6 +383,7 @@ interface FakeRoutingServiceComponent {
                 return mock()
             }
 
+            @SuppressLint("WakelockTimeout", "Wakelock")
             @Provides
             @JvmStatic
             fun providesPowerManager(context: Context?): PowerManager {

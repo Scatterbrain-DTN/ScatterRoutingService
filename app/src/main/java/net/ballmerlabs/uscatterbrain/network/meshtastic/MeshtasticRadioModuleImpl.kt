@@ -2,15 +2,9 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.MessageStatus
-import io.ktor.util.encodeBase64
-import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
-import io.reactivex.Maybe
-import io.reactivex.Observable
 import io.reactivex.Scheduler
-import io.reactivex.Single
-import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
@@ -34,7 +28,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     val sessionBuilder: MeshtasticSessionSubcomponent.Builder,
     val advertiser: Advertiser,
     val database: Datastore,
-    @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler
+    @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
 ) : MeshtasticRadioModule {
 
 
@@ -89,13 +83,13 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         return connection.getMyId().flatMapPublisher { myID ->
             val from = dataPacket.from
 
-            log.v("handlePacket from=$from my=$myID" )
+            log.v("handlePacket from=$from my=$myID")
 
             if (from != myID) {
                 if (from != null)
                     startSession(myID).state().handlePacket(dataPacket)
                         .map { v ->
-                              dataPacket.reply(v, dataPacket.id, dataPacket.from)
+                            dataPacket.reply(v, dataPacket.id, dataPacket.from)
                         }
                 else
                     Flowable.empty<DataPacket>()
@@ -119,7 +113,8 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                             MessageStatus.ERROR -> Flowable.error(IllegalStateException("message send err"))
                             else -> Flowable.just(v)
                         }
-                    }.takeUntil { v -> v.messageStatus == MessageStatus.DELIVERED || v.messageStatus == MessageStatus.RECEIVED }
+                    }
+                    .takeUntil { v -> v.messageStatus == MessageStatus.DELIVERED || v.messageStatus == MessageStatus.RECEIVED }
                     .ignoreElements()
                     .mergeWith(
                         connection.send(dataPacket.apply {
@@ -127,7 +122,8 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                             from = myId
                         }).doOnError { err -> log.e("failed to sendPacket: $err") }
                             .doOnComplete { log.v("initiated sendPacket") }
-                            .onErrorComplete())
+                            .onErrorComplete()
+                    )
             }.doOnComplete {
                 log.v("sendPacket complete")
             }
@@ -150,20 +146,20 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         log.w("explicit handshake!")
         return datastore.rehashMerkle().andThen(datastore.getDefaultMerkleRoot())
             .flatMapCompletable { root ->
-            log.v("default root ${root.size}")
-            connection.getMyId()
-                .toMaybe()
-                .onErrorComplete()
-                .flatMapCompletable { routerId ->
-                log.v("initiate handshake with root me=$routerId")
-                sendPacket(
-                    MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
-                        .toBroadcast(from = routerId)
-                )
-                    .doFinally { log.v("sendPacket complete") }
+                log.v("default root ${root.size}")
+                connection.getMyId()
+                    .toMaybe()
+                    .onErrorComplete()
+                    .flatMapCompletable { routerId ->
+                        log.v("initiate handshake with root me=$routerId")
+                        sendPacket(
+                            MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
+                                .toBroadcast(from = routerId)
+                        )
+                            .doFinally { log.v("sendPacket complete") }
+                    }
+                    .doFinally { log.v("handshake complete") }
             }
-                .doFinally { log.v("handshake complete") }
-        }
 
     }
 }
