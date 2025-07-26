@@ -4,6 +4,3 @@
 [submodule "lazysodium-android"]
 	path = lazysodium-android
 	url = https://github.com/terl/lazysodium-android
-[submodule "ser/src/main/proto/meshtastic"]
-	path = ser/src/main/meshtastic
-	url = https://github.com/meshtastic/protobufs.git
