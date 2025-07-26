@@ -4,3 +4,6 @@
 [submodule "lazysodium-android"]
 	path = lazysodium-android
 	url = https://github.com/terl/lazysodium-android
+[submodule "ser/src/main/proto"]
+	path = ser/src/main/proto
+	url = https://github.com/Scatterbrain-DTN/proto.git
