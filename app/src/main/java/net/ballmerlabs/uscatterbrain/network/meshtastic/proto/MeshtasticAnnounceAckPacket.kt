@@ -6,8 +6,8 @@ import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
-import scatterbrain.Scatterbrain.MeshtasticAckCode
-import scatterbrain.Scatterbrain.MeshtasticAnnounceAck
+import scatterbrain.Meshtastic.MeshtasticAckCode
+import scatterbrain.Meshtastic.MeshtasticAnnounceAck
 import scatterbrain.Scatterbrain.MessageType
 import java.util.UUID
 

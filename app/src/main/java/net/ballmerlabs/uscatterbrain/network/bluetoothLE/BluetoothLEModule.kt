@@ -6,6 +6,7 @@ import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterproto.Optional
 import net.ballmerlabs.scatterproto.Provides
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
+import scatterbrain.Bootstrap
 import scatterbrain.Scatterbrain
 import java.util.UUID
 
@@ -69,12 +70,12 @@ interface BluetoothLEModule {
             }
         }
 
-        fun toProto(): Scatterbrain.Role {
+        fun toProto(): Bootstrap.Role {
             return when(this) {
-                ROLE_SUPERSEME -> Scatterbrain.Role.SUPER_SEME
-                ROLE_SEME -> Scatterbrain.Role.SEME
-                ROLE_SUPERUKE -> Scatterbrain.Role.SUPER_UKE
-                ROLE_UKE -> Scatterbrain.Role.UKE
+                ROLE_SUPERSEME -> Bootstrap.Role.SUPER_SEME
+                ROLE_SEME -> Bootstrap.Role.SEME
+                ROLE_SUPERUKE -> Bootstrap.Role.SUPER_UKE
+                ROLE_UKE -> Bootstrap.Role.UKE
             }
         }
     }

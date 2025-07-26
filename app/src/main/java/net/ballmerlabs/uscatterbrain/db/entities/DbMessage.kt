@@ -9,7 +9,9 @@ import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
+import scatterbrain.Meshtastic
 import scatterbrain.Scatterbrain
+import scatterbrain.Transfer
 import java.io.File
 import java.util.Date
 import java.util.UUID
@@ -233,8 +235,8 @@ data class DbMessage(
                     arrayListOf(IdentityId(message.fromFingerprint!!)),
                 if (message.forwardMeshtastic != null) {
                     listOf(MessageFlags(
-                        flagKey = Scatterbrain.MessageFlag.FORWARD_MESHTASTIC.number,
-                        flagBytes = Scatterbrain.MeshtasticForwardSettings
+                        flagKey = Transfer.MessageFlag.FORWARD_MESHTASTIC.number,
+                        flagBytes = Meshtastic.MeshtasticForwardSettings
                             .newBuilder()
                             .apply {
                                 if (message.forwardMeshtastic?.channel != null) {

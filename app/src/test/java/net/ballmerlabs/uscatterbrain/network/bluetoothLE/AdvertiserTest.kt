@@ -46,8 +46,8 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import scatterbrain.Bootstrap
 import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.MessageFlag
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.*
@@ -311,7 +311,7 @@ class AdvertiserTest {
         val ukes = mutableMapOf<UUID, UpgradePacket>()
         var s = 0.toLong()
         for (x in 0..40) {
-            val packet = UpgradePacket.newBuilder(Scatterbrain.Role.UKE)
+            val packet = UpgradePacket.newBuilder(Bootstrap.Role.UKE)
                 .setProvides(Provides.BLE)
                 .setSessionID(1)
                 .setFrom(UUID.randomUUID())

@@ -7,7 +7,7 @@ import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.MeshtasticAnnounce
+import scatterbrain.Meshtastic.MeshtasticAnnounce
 import java.util.UUID
 
 @SbPacket(messageType = Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE)

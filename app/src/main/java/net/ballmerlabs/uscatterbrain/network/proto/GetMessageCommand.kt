@@ -1,10 +1,9 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.GetMessagesCmd
-import scatterbrain.Scatterbrain.GetMessagesCmd.TimeRange
-import scatterbrain.Scatterbrain.GetMessagesCmd.TimeSliceCase
+import scatterbrain.Desktop.GetMessagesCmd
+import scatterbrain.Desktop.GetMessagesCmd.TimeRange
+import scatterbrain.Desktop.GetMessagesCmd.TimeSliceCase
 
 import java.util.Date
 import net.ballmerlabs.scatterproto.*

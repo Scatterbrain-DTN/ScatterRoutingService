@@ -3,7 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import net.ballmerlabs.scatterproto.Provides
 import net.ballmerlabs.uscatterbrain.network.proto.AdvertisePacket
-import scatterbrain.Scatterbrain.DeclareHashesMode
+import scatterbrain.Merkle.DeclareHashesMode
 import java.util.concurrent.atomic.AtomicReference
 
 /**

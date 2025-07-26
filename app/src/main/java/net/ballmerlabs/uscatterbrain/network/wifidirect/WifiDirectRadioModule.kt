@@ -10,7 +10,7 @@ import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import java.io.File
 import java.util.UUID
 import net.ballmerlabs.uscatterbrain.network.proto.*
-import scatterbrain.Scatterbrain.DeclareHashesMode
+import scatterbrain.Merkle.DeclareHashesMode
 import java.util.concurrent.TimeUnit
 
 /**

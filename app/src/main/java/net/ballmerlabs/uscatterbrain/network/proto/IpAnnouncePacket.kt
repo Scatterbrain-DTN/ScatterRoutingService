@@ -2,10 +2,11 @@ package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
 import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.IpAnnounceItem
+import scatterbrain.Bootstrap.IpAnnounceItem
 import java.net.InetSocketAddress
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*
+import scatterbrain.Bootstrap
 import scatterbrain.Scatterbrain.MessageType
 
 data class Address (
@@ -15,8 +16,8 @@ data class Address (
 
 @SbPacket(messageType = MessageType.IP_ANNOUNCE)
 class IpAnnouncePacket(
-    announce: Scatterbrain.IpAnnounce
-) : ScatterSerializable<Scatterbrain.IpAnnounce>(announce, MessageType.IP_ANNOUNCE) {
+    announce: Bootstrap.IpAnnounce
+) : ScatterSerializable<Bootstrap.IpAnnounce>(announce, MessageType.IP_ANNOUNCE) {
     val self: UUID
         get() = packet.self.toUuid()
 
@@ -52,7 +53,7 @@ class IpAnnouncePacket(
                 list
             }
 
-            val builder = Scatterbrain.IpAnnounce.newBuilder()
+            val builder = Bootstrap.IpAnnounce.newBuilder()
                 .setSelf(self.toProto())
                 .addAllItems(inner)
                 //.setType(Scatterbrain.MessageType.IP_ANNOUNCE)

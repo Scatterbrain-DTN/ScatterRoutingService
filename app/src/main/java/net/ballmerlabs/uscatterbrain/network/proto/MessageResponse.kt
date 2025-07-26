@@ -8,12 +8,13 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
+import scatterbrain.Desktop
 
 import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 
-fun ScatterMessage.toProto(): Scatterbrain.ApiMessage {
-    var builder = Scatterbrain.ApiMessage.newBuilder()
+fun ScatterMessage.toProto(): Desktop.ApiMessage {
+    var builder = Desktop.ApiMessage.newBuilder()
         .setApplication(application)
         .setExtension(extension)
         .setMime(mime)
@@ -36,7 +37,7 @@ fun ScatterMessage.toProto(): Scatterbrain.ApiMessage {
     return builder.build()
 }
 
-fun Scatterbrain.ApiMessage.fromProto(context: Context): ScatterMessage {
+fun Desktop.ApiMessage.fromProto(context: Context): ScatterMessage {
     return ScatterMessage.Builder.newInstance(context, body.toByteArray())
         .setTo(toFingerprint.toUuid())
         .setApplication(application)
@@ -45,8 +46,8 @@ fun Scatterbrain.ApiMessage.fromProto(context: Context): ScatterMessage {
 
 @SbPacket(messageType = MessageType.MESSAGE_RESPONSE)
 class MessageResponse(
-    packet: Scatterbrain.MessageResponse
-): ScatterSerializable<Scatterbrain.MessageResponse>(packet, MessageType.MESSAGE_RESPONSE) {
+    packet: Desktop.MessageResponse
+): ScatterSerializable<Desktop.MessageResponse>(packet, MessageType.MESSAGE_RESPONSE) {
 
     fun getMessages(context: Context): List<ScatterMessage> {
         return packet.messsageList.map { v -> v.fromProto(context) }
@@ -55,9 +56,9 @@ class MessageResponse(
     constructor(
         header: ApiHeader,
         messages: List<ScatterMessage>,
-        respcode: Scatterbrain.RespCode
+        respcode: Desktop.RespCode
     ): this(
-        Scatterbrain.MessageResponse.newBuilder()
+        Desktop.MessageResponse.newBuilder()
             .addAllMesssage(messages.map { v -> v.toProto() })
             .setHeader(header.packet)
             .setCode(respcode)

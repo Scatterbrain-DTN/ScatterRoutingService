@@ -27,6 +27,7 @@ import org.junit.internal.runners.JUnit38ClassRunner
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import scatterbrain.Bootstrap
 import scatterbrain.Scatterbrain
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -451,7 +452,7 @@ class ProtocolUnitTest {
         val metadata = mapOf("fmef" to "fmefval")
         val provides = Provides.WIFIP2P
         val sessionid = 5
-        val upgradePacket = UpgradePacket.newBuilder(Scatterbrain.Role.UKE)
+        val upgradePacket = UpgradePacket.newBuilder(Bootstrap.Role.UKE)
             .setMetadata(metadata)
             .setProvides(provides)
             .setSessionID(sessionid)

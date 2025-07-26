@@ -3,7 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.SbEvents
+import scatterbrain.Desktop.SbEvents
 
 @SbPacket(messageType = Scatterbrain.MessageType.DESKTOP_EVENTS)
 class SbEventsResponse(

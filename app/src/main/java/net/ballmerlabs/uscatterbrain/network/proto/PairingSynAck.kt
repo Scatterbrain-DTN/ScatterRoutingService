@@ -3,13 +3,14 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.MAX_APPLICATION_NAME
 import net.ballmerlabs.scatterproto.ScatterSerializable
+import scatterbrain.Desktop
 import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.PAIRING_SYNACK)
 class PairingSynAck(
-    packet: Scatterbrain.PairingSynAck
-): ScatterSerializable<Scatterbrain.PairingSynAck>(packet, MessageType.PAIRING_SYNACK) {
+    packet: Desktop.PairingSynAck
+): ScatterSerializable<Desktop.PairingSynAck>(packet, MessageType.PAIRING_SYNACK) {
     val message: String
         get() = packet.message
 

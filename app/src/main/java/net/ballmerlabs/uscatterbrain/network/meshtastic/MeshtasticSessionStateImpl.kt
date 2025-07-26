@@ -32,9 +32,11 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
 import net.ballmerlabs.uscatterbrain.util.enumerateMap
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import scatterbrain.Meshtastic
 import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.MeshtasticAckCode
-import scatterbrain.Scatterbrain.MeshtasticStream
+import scatterbrain.Meshtastic.MeshtasticAckCode
+import scatterbrain.Meshtastic.MeshtasticStream
+import scatterbrain.Transfer
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -305,7 +307,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                                         50,
                                         hashes,
                                         fileSize = MAX_FORWARD_SIZE,
-                                        flag = listOf(Scatterbrain.MessageFlag.FORWARD_MESHTASTIC)
+                                        flag = listOf(Transfer.MessageFlag.FORWARD_MESHTASTIC)
                                     )
                                 }
                                     .concatMap { p ->
@@ -404,7 +406,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                         ?.onPacket(packet)!!.toFlowable()
                 }
 
-                else -> Flowable.just(MeshtasticErrPacket(Scatterbrain.MeshtasticErrCode.INVALID_ARGUMENT))
+                else -> Flowable.just(MeshtasticErrPacket(Meshtastic.MeshtasticErrCode.INVALID_ARGUMENT))
             }
         }.doOnNext { p -> log.v("replying with ${p.type}") }
             .onErrorResumeNext { e: Throwable ->

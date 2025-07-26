@@ -4,8 +4,9 @@ import com.google.protobuf.ByteString
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.MAX_DECLAREHASHES
 import net.ballmerlabs.scatterproto.ScatterSerializable
+import scatterbrain.Merkle
 import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.DeclareHashesMode
+import scatterbrain.Merkle.DeclareHashesMode
 import scatterbrain.Scatterbrain.MessageType
 
 /**
@@ -16,8 +17,8 @@ import scatterbrain.Scatterbrain.MessageType
  */
 @SbPacket(messageType = MessageType.DECLARE_HASHES)
 data class DeclareHashesPacket(
-    val p: Scatterbrain.DeclareHashes,
-) : ScatterSerializable<Scatterbrain.DeclareHashes>(p, MessageType.DECLARE_HASHES) {
+    val p: Merkle.DeclareHashes,
+) : ScatterSerializable<Merkle.DeclareHashes>(p, MessageType.DECLARE_HASHES) {
 
     val optout: Boolean
         get() = packet.optout
@@ -60,7 +61,7 @@ data class DeclareHashesPacket(
 
         fun build(): DeclareHashesPacket {
             return DeclareHashesPacket(
-                Scatterbrain.DeclareHashes.newBuilder()
+                Merkle.DeclareHashes.newBuilder()
                     .addAllHashes(hashes)
                     .setOptout(optout)
                     .setExists(exists)

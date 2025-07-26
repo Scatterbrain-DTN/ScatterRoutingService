@@ -3,7 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain.Luid
+import scatterbrain.Bootstrap.Luid
 
 import java.nio.ByteBuffer
 import java.util.UUID

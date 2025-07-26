@@ -21,9 +21,8 @@ import org.mockito.Mockito
 import org.mockito.MockitoAnnotations
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.Ack
-import scatterbrain.Scatterbrain.MeshtasticAnnounceAck
+import scatterbrain.Meshtastic.MeshtasticAnnounceAck
 import scatterbrain.Scatterbrain.MessageType
 import java.util.UUID
 

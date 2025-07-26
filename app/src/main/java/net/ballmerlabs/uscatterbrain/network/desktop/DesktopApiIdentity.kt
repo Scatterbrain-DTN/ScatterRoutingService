@@ -11,7 +11,7 @@ import net.ballmerlabs.scatterbrainsdk.internal.writeParcelableMap
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
-import scatterbrain.Scatterbrain.ApiIdentity
+import scatterbrain.Desktop.ApiIdentity
 import scatterbrain.Scatterbrain.MessageType
 import java.util.UUID
 

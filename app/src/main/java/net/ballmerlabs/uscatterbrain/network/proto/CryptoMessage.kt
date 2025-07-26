@@ -10,12 +10,13 @@ import scatterbrain.Scatterbrain
 import java.io.ByteArrayInputStream
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
+import scatterbrain.Desktop
 import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.CRYPTO_MESSAGE)
 class CryptoMessage(
-    packet: Scatterbrain.CryptoMessage,
-) : ScatterSerializable<Scatterbrain.CryptoMessage>(packet, MessageType.CRYPTO_MESSAGE) {
+    packet: Desktop.CryptoMessage,
+) : ScatterSerializable<Desktop.CryptoMessage>(packet, MessageType.CRYPTO_MESSAGE) {
     override fun validate(): Boolean {
         return packet.nonce.size() == SecretBox.NONCEBYTES && packet.encrypted.size() <= net.ballmerlabs.scatterproto.BLOCK_SIZE_CAP
     }
@@ -75,7 +76,7 @@ class CryptoMessage(
                 throw IllegalStateException("failed to encrypt")
             }
             val packet =
-                Scatterbrain.CryptoMessage.newBuilder().setNonce(ByteString.copyFrom(nonce))
+                Desktop.CryptoMessage.newBuilder().setNonce(ByteString.copyFrom(nonce))
                     .setEncrypted(ByteString.copyFrom(out)).build()
             val m =  CryptoMessage(packet)
             /*

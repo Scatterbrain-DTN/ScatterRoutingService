@@ -6,8 +6,8 @@ import net.ballmerlabs.scatterproto.Provides
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.providesToValArray
 import net.ballmerlabs.scatterproto.valToProvidesArray
-import scatterbrain.Scatterbrain.Advertise
-import scatterbrain.Scatterbrain.DeclareHashesMode
+import scatterbrain.Bootstrap.Advertise
+import scatterbrain.Merkle.DeclareHashesMode
 import scatterbrain.Scatterbrain.MessageType
 
 /**

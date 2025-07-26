@@ -9,8 +9,8 @@ import net.ballmerlabs.scatterproto.providesToVal
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.valToProvides
 import scatterbrain.Scatterbrain.MessageType
-import scatterbrain.Scatterbrain.Role
-import scatterbrain.Scatterbrain.Upgrade
+import scatterbrain.Bootstrap.Role
+import scatterbrain.Bootstrap.Upgrade
 import java.util.UUID
 
 /**

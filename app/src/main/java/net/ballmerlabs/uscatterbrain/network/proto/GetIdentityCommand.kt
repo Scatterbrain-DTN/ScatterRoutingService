@@ -5,18 +5,19 @@ import scatterbrain.Scatterbrain
 
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*
+import scatterbrain.Desktop
 import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.GET_IDENTITY)
 class GetIdentityCommand(
-    packet: Scatterbrain.GetIdentityCommand
-): ScatterSerializable<Scatterbrain.GetIdentityCommand>(packet, MessageType.GET_IDENTITY) {
+    packet: Desktop.GetIdentityCommand
+): ScatterSerializable<Desktop.GetIdentityCommand>(packet, MessageType.GET_IDENTITY) {
 
     constructor(
         header: ApiHeader,
         id: UUID
     ): this(
-        Scatterbrain.GetIdentityCommand.newBuilder()
+        Desktop.GetIdentityCommand.newBuilder()
             .setIdentity(id.toProto())
             .setHeader(header.packet)
             .build()
@@ -24,7 +25,7 @@ class GetIdentityCommand(
 
     val owned: Boolean = packet.owned
 
-    val id: UUID? = if (packet.idCase == Scatterbrain.GetIdentityCommand.IdCase.IDENTITY) packet.identity?.toUuid() else null
+    val id: UUID? = if (packet.idCase == Desktop.GetIdentityCommand.IdCase.IDENTITY) packet.identity?.toUuid() else null
 
     override fun validate(): Boolean {
         return true

@@ -4,7 +4,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.plus
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain.ElectLeader
+import scatterbrain.Bootstrap.ElectLeader
 
 import java.nio.ByteBuffer
 import java.util.UUID

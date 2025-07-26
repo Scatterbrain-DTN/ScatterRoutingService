@@ -2,34 +2,34 @@ package net.ballmerlabs.uscatterbrain.network.proto
 
 
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.desktop.SessionMessage
+import scatterbrain.Desktop
 import scatterbrain.Scatterbrain.MessageType
-import scatterbrain.Scatterbrain.RespCode
+import scatterbrain.Desktop.RespCode
 
 @SbPacket(messageType = MessageType.UNIT_RESPONSE)
 class UnitResponse(
-    packet: Scatterbrain.UnitResponse,
-): ScatterSerializable<Scatterbrain.UnitResponse>(packet, MessageType.UNIT_RESPONSE), SessionMessage {
+    packet: Desktop.UnitResponse,
+): ScatterSerializable<Desktop.UnitResponse>(packet, MessageType.UNIT_RESPONSE), SessionMessage {
 
     constructor(
         success: RespCode,
         message: String? = null,
     ): this (
         if (message == null)
-            Scatterbrain.UnitResponse.newBuilder()
+            Desktop.UnitResponse.newBuilder()
             .setCode(success)
             .build()
         else
-            Scatterbrain.UnitResponse.newBuilder()
+            Desktop.UnitResponse.newBuilder()
                 .setCode(success)
                 .setMessageCode(message)
                 .build()
     )
 
     val message: String? = if(
-        packet.unitresponseMaybeMessageCase == Scatterbrain.UnitResponse.UnitresponseMaybeMessageCase.MESSAGE_CODE
+        packet.unitresponseMaybeMessageCase == Desktop.UnitResponse.UnitresponseMaybeMessageCase.MESSAGE_CODE
         )
         packet.messageCode
     else

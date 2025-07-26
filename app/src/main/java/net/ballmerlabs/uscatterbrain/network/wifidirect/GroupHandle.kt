@@ -30,9 +30,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import okio.ByteString.Companion.toByteString
-import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.DeclareHashesMode
+import scatterbrain.Merkle.DeclareHashesMode
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID

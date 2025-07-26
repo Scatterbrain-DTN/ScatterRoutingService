@@ -17,6 +17,7 @@ import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
+import scatterbrain.Bootstrap
 import scatterbrain.Scatterbrain
 import java.net.InetAddress
 import java.util.UUID
@@ -123,10 +124,10 @@ open class WifiDirectBootstrapRequest : BootstrapRequest {
                 ?: throw IllegalArgumentException("passphrase was null")
 
             val role = when(packet.role) {
-                Scatterbrain.Role.UKE -> BluetoothLEModule.Role.ROLE_UKE
-                Scatterbrain.Role.SUPER_UKE -> BluetoothLEModule.Role.ROLE_SUPERUKE
-                Scatterbrain.Role.SUPER_SEME -> BluetoothLEModule.Role.ROLE_SUPERSEME
-                Scatterbrain.Role.SEME -> BluetoothLEModule.Role.ROLE_SEME
+                Bootstrap.Role.UKE -> BluetoothLEModule.Role.ROLE_UKE
+                Bootstrap.Role.SUPER_UKE -> BluetoothLEModule.Role.ROLE_SUPERUKE
+                Bootstrap.Role.SUPER_SEME -> BluetoothLEModule.Role.ROLE_SUPERSEME
+                Bootstrap.Role.SEME -> BluetoothLEModule.Role.ROLE_SEME
                 else -> throw IllegalArgumentException("invalid role ${packet.role}")
             }
 

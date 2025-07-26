@@ -35,7 +35,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.SendMessageCommand
 import net.ballmerlabs.uscatterbrain.network.proto.UnitResponse
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.RespCode
+import scatterbrain.Desktop.RespCode
 import java.io.InputStream
 import java.net.Socket
 import java.util.UUID

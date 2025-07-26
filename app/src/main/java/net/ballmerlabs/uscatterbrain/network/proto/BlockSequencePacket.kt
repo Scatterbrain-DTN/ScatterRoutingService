@@ -3,7 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import com.google.protobuf.ByteString
 import com.goterl.lazysodium.interfaces.GenericHash
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain.BlockSequence
+import scatterbrain.Transfer.BlockSequence
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder

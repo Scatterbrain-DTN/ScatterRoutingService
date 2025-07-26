@@ -4,20 +4,21 @@ import net.ballmerlabs.sbproto.SbPacket
 import scatterbrain.Scatterbrain
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*
+import scatterbrain.Desktop
 import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.API_HEADER)
 class ApiHeader(
-    packet: Scatterbrain.ApiHeader,
-) : ScatterSerializable<Scatterbrain.ApiHeader>(packet, MessageType.API_HEADER) {
+    packet: Desktop.ApiHeader,
+) : ScatterSerializable<Desktop.ApiHeader>(packet, MessageType.API_HEADER) {
     val session: UUID = packet.session.toUuid()
-    val stream: Int? = if (packet.streamCase == Scatterbrain.ApiHeader.StreamCase.STREAM_NOT_SET) null
+    val stream: Int? = if (packet.streamCase == Desktop.ApiHeader.StreamCase.STREAM_NOT_SET) null
         else packet.streamId
     constructor(
         session: UUID,
         stream: Int
     ): this(
-        Scatterbrain.ApiHeader.newBuilder()
+        Desktop.ApiHeader.newBuilder()
             .setSession(session.toProto())
             .setStreamId(stream)
             .build()

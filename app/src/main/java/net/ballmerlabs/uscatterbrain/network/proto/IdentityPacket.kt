@@ -15,6 +15,7 @@ import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
 import scatterbrain.Scatterbrain.MessageType
+import scatterbrain.Trust
 
 /**
  * wrapper class for Identity protobuf message
@@ -27,8 +28,8 @@ import scatterbrain.Scatterbrain.MessageType
  * @property keymap associative array of user-defined keys in any format
  */
 @SbPacket(messageType = MessageType.IDENTITY)
-data class IdentityPacket(private val p: Scatterbrain.Identity) :
-        ScatterSerializable<Scatterbrain.Identity>(p, MessageType.IDENTITY),
+data class IdentityPacket(private val p: Trust.Identity) :
+        ScatterSerializable<Trust.Identity>(p, MessageType.IDENTITY),
         MutableMap<String, ByteString> {
     val name: String
         get() = packet.`val`.givenname
@@ -187,14 +188,14 @@ data class IdentityPacket(private val p: Scatterbrain.Identity) :
             }
             return try {
                 val packet = if (gone)
-                    Scatterbrain.Identity.newBuilder()
+                    Trust.Identity.newBuilder()
                             .setEnd(true)
                             .build()
                 else
-                    Scatterbrain.Identity.newBuilder()
+                    Trust.Identity.newBuilder()
                         //.setType(MessageType.IDENTITY)
                             .setVal(
-                                    Scatterbrain.Identity.Body.newBuilder()
+                                    Trust.Identity.Body.newBuilder()
                                             .setGivenname(name)
                                             .setSig(ByteString.copyFrom(sig?: signEd25519()))
                                             .putAllKeys(pubkeyMap)

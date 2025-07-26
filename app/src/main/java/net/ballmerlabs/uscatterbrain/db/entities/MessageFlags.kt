@@ -4,9 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
 import com.google.protobuf.ByteString
-import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.MeshtasticForwardSettings
-import scatterbrain.Scatterbrain.MessageFlag
+import scatterbrain.Transfer
 
 @Entity(
     tableName = "message_flags",
@@ -26,19 +24,19 @@ data class MessageFlags(
     val id: Long? = null,
     ) {
 
-    fun toProto(): Scatterbrain.BlockData.MessageFlags {
+    fun toProto(): Transfer.BlockData.MessageFlags {
         return when(flagKey) {
-            MessageFlag.FORWARD_MESHTASTIC_VALUE -> Scatterbrain.BlockData.MessageFlags
+            Transfer.MessageFlag.FORWARD_MESHTASTIC_VALUE -> Transfer.BlockData.MessageFlags
                 .newBuilder()
-                .setTag(MessageFlag.FORWARD_MESHTASTIC)
+                .setTag(Transfer.MessageFlag.FORWARD_MESHTASTIC)
                 .apply {
                     if (flagBytes != null)
                         setBlob(ByteString.copyFrom(flagBytes))
                 }
                 .build()
-            else -> Scatterbrain.BlockData.MessageFlags
+            else -> Transfer.BlockData.MessageFlags
                 .newBuilder()
-                .setTag(MessageFlag.forNumber(flagKey))
+                .setTag(Transfer.MessageFlag.forNumber(flagKey))
                 .build()
         }
     }

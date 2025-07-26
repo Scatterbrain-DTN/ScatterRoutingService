@@ -9,7 +9,7 @@ import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MESHTASTIC_MAX_LEN
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.SeqLike
-import scatterbrain.Scatterbrain.MeshtasticMerkle
+import scatterbrain.Meshtastic.MeshtasticMerkle
 import scatterbrain.Scatterbrain.MessageType
 import kotlin.math.floor
 import kotlin.math.sqrt

@@ -2,13 +2,14 @@ package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
+import scatterbrain.Desktop
 import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.GENERATE_IDENTITY)
 class GenerateIdentityCommand(
-    packet: Scatterbrain.GenerateIdentityCommand
-): ScatterSerializable<Scatterbrain.GenerateIdentityCommand>(packet, MessageType.GENERATE_IDENTITY) {
+    packet: Desktop.GenerateIdentityCommand
+): ScatterSerializable<Desktop.GenerateIdentityCommand>(packet, MessageType.GENERATE_IDENTITY) {
 
     val header: ApiHeader = ApiHeader(packet.header)
 

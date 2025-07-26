@@ -6,13 +6,14 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
+import scatterbrain.Desktop
 import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 import java.util.UUID
 
 @SbPacket(messageType = MessageType.MESSAGE)
 data class DesktopMessage(
-    private val p: Scatterbrain.ApiMessage,
+    private val p: Desktop.ApiMessage,
     val fromFingerprint: UUID? = p.fromFingerprint?.toUuid(),
     val toFingerprint: UUID? = p.toFingerprint?.toUuid(),
     val mime: String = p.mime,
@@ -20,11 +21,11 @@ data class DesktopMessage(
     val body: ByteArray = p.body.toByteArray(),
     val application: String = p.application,
     val extension: String = p.extension,
-): ScatterSerializable<Scatterbrain.ApiMessage>(p, MessageType.MESSAGE) {
+): ScatterSerializable<Desktop.ApiMessage>(p, MessageType.MESSAGE) {
     companion object {
         fun fromPacket(packet: ScatterMessage): DesktopMessage {
             return DesktopMessage(
-                Scatterbrain.ApiMessage.newBuilder()
+                Desktop.ApiMessage.newBuilder()
                 .setFromFingerprint(packet.fromFingerprint?.toProto())
                 .setToFingerprint(packet.toFingerprint?.toProto())
                 .setMime(packet.mime)

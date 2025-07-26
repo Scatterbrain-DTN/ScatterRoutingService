@@ -3,10 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 import android.content.Context
 import android.content.IntentFilter
 import android.net.ConnectivityManager
-import android.net.ConnectivityManager.NetworkCallback
-import android.net.Network
-import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pConfig
@@ -21,7 +17,6 @@ import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
-import net.ballmerlabs.scatterproto.Optional
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
@@ -37,8 +32,7 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.MockFirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import scatterbrain.Scatterbrain.DeclareHashesMode
-import scatterbrain.pairingAck
+import scatterbrain.Merkle.DeclareHashesMode
 import java.util.Random
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -164,7 +158,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         LOG.v("unregistering broadcast receier")
         try {
             mContext.unregisterReceiver(mBroadcastReceiver.asReceiver())
-        } catch (illegalArgumentException: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             //firebaseWrapper.recordException(illegalArgumentException)
             LOG.w("attempted to unregister nonexistent receiver, ignore.")
         }

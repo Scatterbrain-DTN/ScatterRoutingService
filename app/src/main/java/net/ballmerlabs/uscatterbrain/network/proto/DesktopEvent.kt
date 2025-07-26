@@ -8,10 +8,10 @@ import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
 import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.SbEvent
-import scatterbrain.Scatterbrain.SbEvent.NewIdentity
-import scatterbrain.Scatterbrain.SbEvent.NewMessage
-import scatterbrain.Scatterbrain.SbEvent.NoBodyMessage
+import scatterbrain.Desktop.SbEvent
+import scatterbrain.Desktop.SbEvent.NewIdentity
+import scatterbrain.Desktop.SbEvent.NewMessage
+import scatterbrain.Desktop.SbEvent.NoBodyMessage
 
 @SbPacket(messageType = Scatterbrain.MessageType.DESKTOP_EVENT)
 class DesktopEvent(

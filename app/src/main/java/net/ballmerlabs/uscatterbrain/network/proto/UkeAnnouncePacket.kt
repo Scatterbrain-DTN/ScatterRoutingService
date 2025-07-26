@@ -2,8 +2,8 @@ package net.ballmerlabs.uscatterbrain.network.proto
 
 
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain.ExtraUke
-import scatterbrain.Scatterbrain.JustUkes
+import scatterbrain.Bootstrap.ExtraUke
+import scatterbrain.Bootstrap.JustUkes
 import java.nio.ByteBuffer
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*

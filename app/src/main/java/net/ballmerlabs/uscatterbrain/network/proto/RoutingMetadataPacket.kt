@@ -3,10 +3,11 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import com.google.protobuf.ByteString
 import net.ballmerlabs.sbproto.SbPacket
 import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.RoutingMetadata
+import scatterbrain.Transfer.RoutingMetadata
 import java.util.UUID
 import net.ballmerlabs.scatterproto.*
 import scatterbrain.Scatterbrain.MessageType
+import scatterbrain.Uuid
 
 /**
  * wrapper class for RoutingMetadata protobuf message
@@ -67,7 +68,7 @@ class RoutingMetadataPacket(packet: RoutingMetadata):
             val packet = RoutingMetadata.newBuilder()
                 .putAllKeyval(map.mapKeys { entry -> entry.key.toString()}
                     .mapValues { v -> ByteString.copyFrom(v.value) })
-                .setId(Scatterbrain.ProtoUuid.newBuilder()
+                .setId(Uuid.ProtoUuid.newBuilder()
                     .setLower(uuid!!.leastSignificantBits)
                     .setUpper(uuid!!.mostSignificantBits))
                 .setEndofstream(empty)

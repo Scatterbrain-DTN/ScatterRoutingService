@@ -13,6 +13,7 @@ import io.reactivex.Single
 import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 import scatterbrain.Scatterbrain.TypePrefix
+import scatterbrain.Uuid
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -70,12 +71,12 @@ fun valToProvides(v: Int): Provides {
 }
 
 
-fun Scatterbrain.ProtoUuid.toUuid(): UUID {
+fun Uuid.ProtoUuid.toUuid(): UUID {
     return UUID(upper, lower)
 }
 
-fun UUID.toProto(): Scatterbrain.ProtoUuid {
-    return Scatterbrain.ProtoUuid.newBuilder().setLower(leastSignificantBits)
+fun UUID.toProto(): Uuid.ProtoUuid {
+    return Uuid.ProtoUuid.newBuilder().setLower(leastSignificantBits)
         .setUpper(mostSignificantBits).build()
 }
 
