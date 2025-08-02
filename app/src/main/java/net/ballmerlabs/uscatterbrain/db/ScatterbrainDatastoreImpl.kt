@@ -13,6 +13,7 @@ import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
+import io.reactivex.CompletableSource
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
@@ -20,6 +21,7 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.BiFunction
+import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.DesktopApp
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
@@ -163,6 +165,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val userDirectoryObserver: FileObserver
     private val cachedPackages = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val disposable = CompositeDisposable()
+    private val rehashAwaitables = ConcurrentHashMap<CompletableSubject, Boolean>()
 
     override fun getStats(handshakeResult: HandshakeResult): Maybe<HandshakeResult> {
         return mDatastore.identityDao().getNumIdentities().flatMapMaybe { idc ->
@@ -413,7 +416,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         flag: List<MessageFlag>?,
         fileSize: Long?,
     ): Flowable<BlockDataStream> {
-        return mDatastore.merkleDao().getDefaultRoot()
+        return awaitAllMerkle().andThen(mDatastore.merkleDao().getDefaultRoot())
             .doOnSubscribe { LOG.v("getDefaultRoot getTopRandomMessage") }
             .flatMapPublisher { root ->
             LOG.v("called getTopRandomMessages $count")
@@ -1210,10 +1213,23 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             )
     }
 
+    override fun awaitAllMerkle(): Completable {
+        return Observable.fromIterable(rehashAwaitables.keys)
+            .doOnSubscribe { LOG.v("awaitAllMerkle awaiting pending merkle rehash ${rehashAwaitables.size}") }
+            .flatMapCompletable { v -> v }
+            .doFinally { LOG.v("awaitAllMerkle completed") }
+    }
+
     override fun rehashMerkle(): Completable {
-        return mDatastore.merkleDao().merkleRehash(databaseScheduler)
-            .andThen(advertiser.setAdvertisingLuid())
-            .subscribeOn(databaseScheduler)
+        return Completable.fromAction {
+            val subject = CompletableSubject.create()
+            val obs = mDatastore.merkleDao().merkleRehash(databaseScheduler)
+                .andThen(advertiser.setAdvertisingLuid())
+                .doFinally { rehashAwaitables.remove(subject) }
+                .subscribeOn(databaseScheduler)
+            obs.subscribe(subject)
+            rehashAwaitables[subject] = true
+        }
     }
 
     override fun insertAndHashFileFromApi(

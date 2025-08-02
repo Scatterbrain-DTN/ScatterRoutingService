@@ -466,6 +466,11 @@ interface ScatterbrainDatastore {
     fun getPackages(): Single<ArrayList<String>>
 
     /**
+     * Waits until all merkle rehash operations have completed
+     */
+    fun awaitAllMerkle(): Completable
+
+    /**
      * delete entities from database by fingerprint
      * @param identity
      * @return completable

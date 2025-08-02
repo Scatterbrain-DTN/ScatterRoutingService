@@ -598,7 +598,6 @@ abstract class MerkleDao {
     ) {
         if (point.complete(message.fileGlobalHash)) {
             message.bundle = point.parent
-            //log.v("updateParent pos=${point.pos} parent=${point.parent}")
             updateBundleForMessage(point.parent, message.messageID!!)
 
         } else {
@@ -608,16 +607,8 @@ abstract class MerkleDao {
                 bundle.id!!,
                 point.pos
             )!!
-//            val c = if (point.childOne)
-//                "childOne=${bundle.id}"
-//            else if (point.childTwo)
-//                "childTwo=${bundle.id}"
-//            else
-//                "DIRTY"
-            //  log.v("updateParent pos=${point.pos} parent=${point.parent} $c")
             if (point.childOne) {
                 updateParentChildOne(point.parent, bundle.id!!)
-
                 iterativeMerkleInsert(message, isp, bundles)
             } else if (point.childTwo) {
                 updateParentChildTwo(point.parent, bundle.id!!)
@@ -679,11 +670,7 @@ abstract class MerkleDao {
             for ((bundle, id) in bundles.zip(ids)) {
                 bundle.id = id
             }
-            log.v("prepared!")
             iterativeMerkleInsert(message, root, bundles)
-            log.v("prepared done!!")
-
-
         }
 
     }

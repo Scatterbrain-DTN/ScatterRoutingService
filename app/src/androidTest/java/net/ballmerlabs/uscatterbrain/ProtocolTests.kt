@@ -44,6 +44,8 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import scatterbrain.Bootstrap
+import scatterbrain.Merkle
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -216,11 +218,11 @@ class ProtocolTests {
         datastore1.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
         val root = ds1.merkleDao().getDefaultRoot().blockingGet()
-        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .ignoreElement()
 
 
-        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF).toObservable()
             .mergeWith(out1)
             .firstOrError()
             .blockingGet()
@@ -248,8 +250,8 @@ class ProtocolTests {
         ds1.merkleDao().merkleRehash().blockingAwait()
         ds2.merkleDao().merkleRehash().blockingAwait()
 
-        val out1 = groupHandleTwo.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
-        val out2 = groupHandleOne.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+        val out1 = groupHandleTwo.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF).ignoreElement()
+        val out2 = groupHandleOne.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF).toObservable()
             .mergeWith(out1)
             .lastOrError()
             .blockingGet()
@@ -268,8 +270,8 @@ class ProtocolTests {
 
         ds2.merkleDao().merkleRehash().blockingAwait()
 
-        val out3 = groupHandleTwo.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
-        val out4 = groupHandleOne.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+        val out3 = groupHandleTwo.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF).ignoreElement()
+        val out4 = groupHandleOne.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF).toObservable()
             .mergeWith(out3)
             .lastOrError()
             .blockingGet()
@@ -321,10 +323,10 @@ class ProtocolTests {
         ds1.merkleDao().merkleRehash().blockingAwait()
         ds2.merkleDao().merkleRehash().blockingAwait()
 
-        val out1 = groupHandleTwo.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+        val out1 = groupHandleTwo.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
             .ignoreElement()
-        val out2 = groupHandleOne.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+        val out2 = groupHandleOne.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .toFlowable()
             .mergeWith(out1)
             .lastOrError()
@@ -344,8 +346,8 @@ class ProtocolTests {
 
         ds2.merkleDao().merkleRehash().blockingAwait()
 
-        val out3 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
-        val out4 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+        val out3 = groupHandleOne.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF).ignoreElement()
+        val out4 = groupHandleTwo.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF).toObservable()
             .mergeWith(out3)
             .lastOrError()
             .blockingGet()
@@ -375,10 +377,10 @@ class ProtocolTests {
         ds1.merkleDao().merkleRehash().blockingAwait()
         ds2.merkleDao().merkleRehash().blockingAwait()
 
-        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
             .ignoreElement()
-        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .toFlowable()
             .mergeWith(out1)
             .lastOrError()
@@ -413,10 +415,10 @@ class ProtocolTests {
         ds1.merkleDao().merkleRehash().blockingAwait()
         ds2.merkleDao().merkleRehash().blockingAwait()
 
-        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
             .ignoreElement()
-        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF)
+        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .toFlowable()
             .mergeWith(out1)
             .lastOrError()
@@ -432,8 +434,8 @@ class ProtocolTests {
 
         assertEquals(1, o.size)
 
-        val out3 = groupHandleTwo.declareHashesMerkle(clientSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).ignoreElement()
-        val out4 = groupHandleOne.declareHashesMerkle(serverSocket, Scatterbrain.DeclareHashesMode.MERKLEPROOF).toObservable()
+        val out3 = groupHandleTwo.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF).ignoreElement()
+        val out4 = groupHandleOne.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF).toObservable()
             .mergeWith(out3).firstOrError()
             .blockingGet()
             .toMutableList()
@@ -673,7 +675,8 @@ class ProtocolTests {
         val metadata = mapOf("fmef" to "fmefval")
         val provides = Provides.WIFIP2P
         val sessionid = 5
-        val upgradePacket = net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket.newBuilder(Scatterbrain.Role.SEME)
+        val upgradePacket = UpgradePacket.newBuilder(
+            Bootstrap.Role.SEME)
             .setMetadata(metadata)
             .setProvides(provides)
             .setSessionID(sessionid)
