@@ -282,6 +282,10 @@ class MockScatterbrainDatastore @Inject constructor(
         return 0
     }
 
+    override fun awaitAllMerkle(): Completable {
+        return Completable.complete()
+    }
+
     override fun deleteByPath(path: File): Int {
         return 0
     }
