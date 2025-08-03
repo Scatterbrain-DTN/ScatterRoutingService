@@ -85,7 +85,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 
     private val globalDisposable = AtomicReference<Disposable?>()
     override fun broadcastTransactionResult(transactionStats: HandshakeResult): Completable {
-
         return datastore.getStats(transactionStats).flatMapCompletable { res ->
             LOG.v("send transaction result ${res.metrics.size}")
             Completable.defer {

@@ -164,4 +164,6 @@ interface WifiDirectBroadcastReceiver {
      * @return the same completable as parameter
      */
     fun wrapConnection(connection: Completable): Completable
+
+    fun connectionPending(pending: Boolean): Completable
 }

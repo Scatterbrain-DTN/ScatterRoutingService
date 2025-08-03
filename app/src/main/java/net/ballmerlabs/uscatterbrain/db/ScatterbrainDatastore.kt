@@ -564,6 +564,12 @@ interface ScatterbrainDatastore {
      */
     fun rehashMerkle(): Completable
 
+    /**
+     * Triggers an async rehash of all unhashed merkle nodes
+     * @return completable
+     */
+    fun rehashMerkleAsync(): Completable
+
     fun getDefaultMerkleRoot(): Single<ByteArray>
 
     fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int? = null): Single<HubResponse>

@@ -108,6 +108,10 @@ class MockScatterbrainDatastore @Inject constructor(
         return Completable.complete()
     }
 
+    override fun rehashMerkleAsync(): Completable {
+        return Completable.complete()
+    }
+
     override fun getApps(): Observable<SbApp> {
         return Observable.just(
             SbApp(

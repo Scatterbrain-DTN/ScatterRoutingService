@@ -62,13 +62,6 @@ interface BluetoothLEModule {
         ROLE_SUPERSEME,
         ROLE_UKE,
         ROLE_SEME;
-        fun toSuper(): Role {
-            return when(this) {
-                ROLE_UKE -> ROLE_SUPERUKE
-                ROLE_SEME -> ROLE_SUPERSEME
-                else -> this
-            }
-        }
 
         fun toProto(): Bootstrap.Role {
             return when(this) {

@@ -48,6 +48,10 @@ class MockWifiDirectBroadcastReceiver(private val broadcastReceiver: BroadcastRe
             .doFinally { ignoreShutdown.set(false) }
     }
 
+    override fun connectionPending(pending: Boolean): Completable {
+        return Completable.complete()
+    }
+
     override fun <T> wrapConnection(connection: Observable<T>): Observable<T> {
         return connection
             .doOnSubscribe { ignoreShutdown.set(true) }

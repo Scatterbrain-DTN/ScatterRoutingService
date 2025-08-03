@@ -117,7 +117,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         const val LUID_RANDOMIZE_DELAY = 400
 
         // scatterbrain service uuid. This is the same for every scatterbrain router.
-        val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
+        //val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
+        val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd91")
         val SERVICE_UUID_LEGACY: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd91")
 
         // GATT characteristic uuid for semaphor used for a device to  lock a channel.

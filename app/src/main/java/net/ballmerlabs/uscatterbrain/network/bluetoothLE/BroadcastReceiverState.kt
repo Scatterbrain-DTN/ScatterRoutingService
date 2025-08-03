@@ -114,12 +114,10 @@ class BroadcastReceiverState @Inject constructor(
                                     // .doOnDispose { scatterbrainScheduler.unpauseScan() }
                                     .doFinally {
                                         tlock.set(false)
-                                    }
-                                    .doFinally {
                                         //   scatterbrainScheduler.unpauseScan()
                                         connectLock.set(false)
+                                        batchDisposables.remove(luid)
                                     }
-                                    .doFinally { batchDisposables.remove(luid) }
                                     .subscribe()
                             }
                             if (d.isDisposed) {

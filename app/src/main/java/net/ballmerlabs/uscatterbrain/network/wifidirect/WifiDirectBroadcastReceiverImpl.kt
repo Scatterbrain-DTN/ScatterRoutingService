@@ -82,6 +82,9 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor() : BroadcastReceiver(
     private val p2pStateSubject = BehaviorSubject.create<P2pState>()
     private val currentGroup = BehaviorSubject.create<Maybe<WifiGroupSubcomponent>>()
     private val ignoreShutdown = AtomicBoolean(false)
+    val actionDisposable = AtomicReference<Disposable>()
+
+    private val connectionPending = AtomicBoolean(false)
 
     private val mListener = PeerListListener { value ->
         peerList.set(value.deviceList)
@@ -89,6 +92,26 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor() : BroadcastReceiver(
         deviceListSubject.onNext(value)
     }
     private val peerList = AtomicReference<Collection<WifiP2pDevice>>(setOf())
+
+
+    override fun connectionPending(pending: Boolean): Completable {
+        return Completable.defer {
+            if (pending) {
+                connectionPending.set(true)
+                Completable.complete()
+            } else {
+                connectionSubject
+                    .firstOrError()
+                    .flatMapCompletable { c ->
+                    LOG.e("connectionPending groupFormed = ${c.groupFormed}")
+                    if (!c.groupFormed)
+                        removeCurrentGroup()
+                    else
+                        Completable.complete()
+                }
+            }
+        }
+    }
 
     override fun <T> wrapConnection(connection: Maybe<T>): Maybe<T> {
         return connection
@@ -117,10 +140,9 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor() : BroadcastReceiver(
     override fun removeCurrentGroup(): Completable {
         LOG.e("removeCurrentGroup called")
 
+        currentGroup.onNext(Maybe.empty())
         return getCurrentGroup().flatMapCompletable { v ->
             v.groupHandle().shutdownUke()
-
-            currentGroup.onNext(Maybe.empty())
             radioModule.get().removeGroup().onErrorComplete()
                 .andThen(Completable.defer {
                     val entries = leState.get().connection()
@@ -279,17 +301,12 @@ class WifiDirectBroadcastReceiverImpl @Inject constructor() : BroadcastReceiver(
         if (info != null) {
             LOG.v("WIFI_P2P_CONNECTION_CHANGED_ACTION ${info.groupFormed} ${info.isGroupOwner} ${info.groupOwnerAddress}")
             connectionSubject.onNext(info)
-            /*
-            if ((!info.groupFormed || info.groupOwnerAddress == null) && ! ignoreShutdown.get()) {
-                val disp = removeCurrentGroup()
-                    .subscribeOn(computationScheduler)
-                    .observeOn(computationScheduler)
-                    .subscribe()
-
-                actionDisposable.getAndSet(disp)?.dispose()
-            }
-
-             */
+            if (!info.groupFormed && !connectionPending.get())
+                actionDisposable.getAndSet(removeCurrentGroup().subscribe())?.dispose()
+            else if (!(network?.isConnected?:false) && !connectionPending.get())
+               actionDisposable.getAndSet(removeCurrentGroup().subscribe())?.dispose()
+        } else {
+            actionDisposable.getAndSet(removeCurrentGroup().subscribe())?.dispose()
         }
     }
 

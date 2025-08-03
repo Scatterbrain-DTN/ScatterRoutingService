@@ -1221,6 +1221,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun rehashMerkle(): Completable {
+        return mDatastore.merkleDao().merkleRehash(databaseScheduler)
+                .andThen(advertiser.setAdvertisingLuid())
+                .subscribeOn(databaseScheduler)
+    }
+
+    override fun rehashMerkleAsync(): Completable {
         return Completable.fromAction {
             val subject = CompletableSubject.create()
             val obs = mDatastore.merkleDao().merkleRehash(databaseScheduler)

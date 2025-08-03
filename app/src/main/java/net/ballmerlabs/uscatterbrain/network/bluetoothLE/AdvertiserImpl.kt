@@ -391,7 +391,7 @@ class AdvertiserImpl @Inject constructor(
                                 LOG.v("Starting LE advertise")
                                 setRandomizeTimer(30)
                                 val settings = AdvertisingSetParameters.Builder()
-                                    .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                                    .setInterval(AdvertisingSetParameters.INTERVAL_MEDIUM)
                                     .setLegacyMode(false)
                                     .setConnectable(true)
                                     .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
@@ -409,7 +409,12 @@ class AdvertiserImpl @Inject constructor(
                                 )
 
                                 if (root.hash != null)
-                                    builder.addServiceData(ParcelUuid(MERKLE_DATA), root.hash)
+                                    builder.addServiceData(
+                                        ParcelUuid(MERKLE_DATA),
+                                        root.hash
+                                    )
+
+
 
                                 try {
                                     manager.adapter.bluetoothLeAdvertiser.stopAdvertisingSet(

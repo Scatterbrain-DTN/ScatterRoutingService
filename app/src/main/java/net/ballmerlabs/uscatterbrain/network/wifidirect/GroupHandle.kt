@@ -179,7 +179,7 @@ class GroupHandle @Inject constructor(
                         ).flatMapCompletable { v -> v }
                     )
             }.map { v -> v.hashes }
-            .firstOrError()
+            .lastOrError()
     }
 
     //transfer identity packet as UKE

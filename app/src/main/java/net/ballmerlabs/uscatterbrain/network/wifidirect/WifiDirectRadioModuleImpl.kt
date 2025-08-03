@@ -69,7 +69,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val provider: WifiDirectProvider,
     private val leState: Provider<LeState>,
-    private val preferences: RouterPreferences
+    private val preferences: RouterPreferences,
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
@@ -350,13 +350,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                     passphrase = passphrase, networkName = name, band = band
                 )
             ).build()!!.fakeWifiP2pConfig()
-            initiateConnection(fakeConfig.asConfig()).andThen(awaitConnection(timeout).doOnSuccess {
-                LOG.v(
-                    "connection awaited"
-                )
-            })
+            initiateConnection(fakeConfig.asConfig())
+                .andThen(awaitConnection(timeout))
 
-        }.doOnError { err ->
+        }.onErrorResumeNext { err: Throwable ->
+            mBroadcastReceiver.removeCurrentGroup()
+                .andThen(Single.error(err))
+        }
+            .doOnError { err ->
             err.printStackTrace()
             firebaseWrapper.recordException(err)
         }
@@ -554,12 +555,20 @@ class WifiDirectRadioModuleImpl @Inject constructor(
      * group
      */
     private fun awaitConnection(timeout: Int): Single<WifiDirectInfo> {
-        return mBroadcastReceiver.observeConnectionInfo()
+        return mBroadcastReceiver.connectionPending(true)
+            .andThen(mBroadcastReceiver.observeConnectionInfo())
             .doOnNext { v -> LOG.v("awaiting wifidirect connection ${v.isGroupOwner} ${v.groupOwnerAddress}") }
             .takeUntil { info -> !info.isGroupOwner && info.groupOwnerAddress != null }
             .lastOrError().timeout(timeout.toLong(), TimeUnit.SECONDS, timeoutScheduler)
             .doOnSuccess { info -> LOG.v("connect to group returned: " + info.groupOwnerAddress) }
             .doOnError { err -> LOG.e("connect to group failed: $err") }
+            .flatMap { v ->
+                mBroadcastReceiver.connectionPending(false)
+                    .toSingleDefault(v)
+            }.onErrorResumeNext { err: Throwable ->
+                mBroadcastReceiver.connectionPending(false)
+                    .andThen(Single.error(err))
+            }
     }
 
     override fun bootstrapUke(
