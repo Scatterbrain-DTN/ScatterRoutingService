@@ -106,11 +106,11 @@ abstract class MerkleDao {
                 UNION ALL
                 SELECT childOne FROM bundles AS child, parent 
                 WHERE child.id = parent.id 
-                AND (SELECT hash from bundles WHERE id = child.childOne) NOT IN (:hashes)
+                AND (SELECT hash from bundles WHERE id = childOne) NOT IN (:hashes)
                 UNION ALL
                 SELECT childTwo FROM bundles AS child, parent 
                 WHERE child.id = parent.id 
-                AND (SELECT hash FROM bundles WHERE id = child.childTwo) NOT IN (:hashes)
+                AND (SELECT hash FROM bundles WHERE id = childTwo) NOT IN (:hashes)
         )
         SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash
             WHERE bundle IN parent
