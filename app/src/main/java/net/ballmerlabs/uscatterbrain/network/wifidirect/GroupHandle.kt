@@ -24,6 +24,7 @@ import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.meshtastic.SEME_TRANSACTION_TIMEOUT
 import net.ballmerlabs.uscatterbrain.network.meshtastic.UKE_TIMEOUT
 import net.ballmerlabs.uscatterbrain.network.proto.*
@@ -60,6 +61,7 @@ class GroupHandle @Inject constructor(
     private val preferences: RouterPreferences,
     private val serverSocket: PortSocket,
     private val groupFinalizer: GroupFinalizer,
+    private val broadcastReceiverState: BroadcastReceiverState
 ) {
     val LOG by scatterLog()
     private val connectedPeers = ConcurrentHashMap<InetSocketAddress, InetSocketAddress>()
@@ -428,6 +430,7 @@ class GroupHandle @Inject constructor(
                     declareHashesMerkle(socket, mode)
                         .doOnSuccess { LOG.v("received declare hashes packet seme") }
                         .flatMapObservable { declareHashesPacket ->
+                            LOG.v("declareHashesPacket ${declareHashesPacket.size}")
                             readBlockDataSeme(socket)
                                 .toObservable()
                                 .mergeWith(
@@ -624,7 +627,7 @@ class GroupHandle @Inject constructor(
             serverSocket.accept(operationsScheduler)
                 .observeOn(operationsScheduler)
                 .mergeWith(Completable.defer {
-                    advertiser.setAdvertisingLuid(luid = advertiser.getHashLuid())
+                    advertiser.setAdvertisingLuid()
                 })
                 .doOnCancel { LOG.e("uke group handle canceled canceled") }
                 .doOnError { err -> LOG.w("uke socket error $err, probably just a disconnect") }
@@ -636,6 +639,7 @@ class GroupHandle @Inject constructor(
                         .andThen(
                             bootstrapUkeSocket(sock.socket, mode)
                                 .subscribeOn(operationsScheduler)
+
                                 .doOnError { err -> LOG.w("uke bootstrapUkeSocket failed $err") })
                         .flatMap { v ->
                             scheduler.get().broadcastTransactionResult(v)
@@ -749,6 +753,7 @@ class GroupHandle @Inject constructor(
                         }
                 }
         }.doOnSuccess { LOG.v("bootstrapUkeSocket complete") }
+            .doFinally { broadcastReceiverState.killBatch(UUID.randomUUID()) }
     }
 
     fun shutdownUke() {

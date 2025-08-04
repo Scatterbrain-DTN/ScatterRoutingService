@@ -512,6 +512,7 @@ class LeStateImpl @Inject constructor(
                             }
 
 
+
                     newconnection.connection().subscribeConnection(rawConnection)
                     /*
                     s.connection().setOnDisconnect(device.macAddress) {

@@ -7,21 +7,25 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import com.geeksville.mesh.IMeshService
 import io.reactivex.Observable
+import io.reactivex.Scheduler
 
 import net.ballmerlabs.scatterbrainsdk.BinderWrapper
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Singleton
 class MeshtasticBinderProviderImpl @Inject constructor(
     val context: Context,
-    val firebaseCrashlytics: FirebaseWrapper
+    val firebaseCrashlytics: FirebaseWrapper,
+   @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) val mainScheduler: Scheduler
 ) : MeshtasticBinderProvider {
     private val log by scatterLog()
     override fun connectBinder(): Observable<IMeshService> {
-        return Observable.create<IMeshService?> { obs ->
+        return Observable.create { obs ->
             val callback = object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName, service: IBinder) {
                     obs.onNext(IMeshService.Stub.asInterface(service))
@@ -46,7 +50,8 @@ class MeshtasticBinderProviderImpl @Inject constructor(
                 )
             }
             context.bindService(intent, callback, Context.BIND_AUTO_CREATE)
-        }.doOnError { err ->
+        }.subscribeOn(mainScheduler)
+            .doOnError { err ->
             log.e("error in meshtasticc binder: $err")
             firebaseCrashlytics.recordException(err)
         }

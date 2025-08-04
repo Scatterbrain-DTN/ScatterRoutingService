@@ -89,6 +89,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
     @Named(ScatterbrainTransactionSubcomponent.NamedSchedulers.BLE_WRITE) private val bleWriteScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) private val timeoutScheduler: Scheduler,
     private val finalizer: TransactionFinalizer,
+    private val broadcastReceiverState: BroadcastReceiverState
 ) : BluetoothLEModule {
     private val LOG by scatterLog()
 
@@ -117,8 +118,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         const val LUID_RANDOMIZE_DELAY = 400
 
         // scatterbrain service uuid. This is the same for every scatterbrain router.
-        //val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
-        val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd91")
+        val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
+        //val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd91")
         val SERVICE_UUID_LEGACY: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd91")
 
         // GATT characteristic uuid for semaphor used for a device to  lock a channel.
@@ -312,7 +313,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                 session.votingStage.serverPackets.andThen(session.votingStage.verifyPackets())
                             }
                         }
-                        .andThen(wifiDirectRadioModule.wifiDirectIsUsable()).flatMap { usable ->
+                        .andThen(wifiDirectRadioModule.wifiDirectIsUsable())
+                        .flatMap { usable ->
                             val uke = session.votingStage.selectUke()
                             session.role = uke
                             LOG.v("selected role: ${session.role}")
@@ -366,6 +368,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 session.addStage(
                     TransactionResult.STAGE_UPGRADE,
                     { serverConn ->
+                        session.upgradeStage?.didUpgrade = true
                         LOG.v("gatt server upgrade stage")
                         val upgrade = session.upgradeStage?.getUpgrade()
                         when (session.role.role) {
@@ -804,17 +807,17 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     Single.zip(serverResult, clientResult) { s, c ->
                         s.merge(c)
                     }.flatMapMaybe { v -> v }
+                        .flatMapSingle { v ->
+                            ackBarrier(
+                                serverConnection,
+                                clientConnection,
+                                v,
+                                luid,
+                                device
+                            )
+                        }
                 }
-                    .flatMapMaybe { v -> v }
-                    .concatMap { v ->
-                        ackBarrier(
-                            serverConnection,
-                            clientConnection,
-                            v,
-                            luid,
-                            device
-                        ).toMaybe()
-                    }.toSingle(TransactionResult.err(IllegalStateException("no stage selected")))
+                    .flatMap { v -> v }
             }
             .doOnNext { transactionResult ->
                 val stage = transactionResult.stage ?: TransactionResult.STAGE_TERMINATE
@@ -854,6 +857,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                 LOG.e("TERMINATION: session $device terminated")
                 if (session.role.role != BluetoothLEModule.Role.ROLE_UKE) {
                     //   state.updateDisconnected(luid)
+                }
+
+                if (session.upgradeStage?.didUpgrade != true) {
+                    broadcastReceiverState.killBatch(luid)
                 }
                 session.votingStage.reset()
                 serverConnection.unlockLuid(luid)

@@ -15,6 +15,7 @@ import io.reactivex.Maybe
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.MaybeSubject
 import net.ballmerlabs.uscatterbrain.R
@@ -25,6 +26,7 @@ import net.ballmerlabs.uscatterbrain.WifiDirectProvider
 import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.network.meshtastic.SEME_TIMEOUT
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
@@ -43,6 +45,11 @@ import javax.inject.Named
 import javax.inject.Provider
 import javax.inject.Singleton
 import kotlin.math.abs
+
+class SemeServer (
+    var server: Disposable? ,
+    var client: Disposable?
+)
 
 /**
  * Transport layer radio module for wifi direct. Currently this module only supports
@@ -70,10 +77,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val provider: WifiDirectProvider,
     private val leState: Provider<LeState>,
     private val preferences: RouterPreferences,
+    private val broadcastReceiverState: BroadcastReceiverState
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
-    private val groupDisposable = AtomicReference<CompositeDisposable?>(null)
+    private val groupDisposable = AtomicReference<SemeServer>(null)
 
     fun createGroupSingle(band: Int): Single<WifiDirectInfo> {
         val res = Single.defer {
@@ -247,6 +255,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         selfLuid: UUID,
         mode: DeclareHashesMode,
     ): Single<WifiGroupSubcomponent> {
+        broadcastReceiverState.killBatch(remoteLuid)
         val create = requestGroupInfo().switchIfEmpty(
             createGroupSingle(band).ignoreElement().andThen(requestGroupInfo())
         ).retryDelay(3, 1)
@@ -354,8 +363,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 .andThen(awaitConnection(timeout))
 
         }.onErrorResumeNext { err: Throwable ->
-            mBroadcastReceiver.removeCurrentGroup()
-                .andThen(Single.error(err))
+            mBroadcastReceiver.removeCurrentGroup().andThen(Single.error(err))
         }
             .doOnError { err ->
             err.printStackTrace()
@@ -578,6 +586,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         mode: DeclareHashesMode,
     ): Single<WifiDirectBootstrapRequest> {
         return Single.defer {
+            broadcastReceiverState.killBatch(remoteLuid)
             mBroadcastReceiver.getCurrentGroup().switchIfEmpty(
                 mBroadcastReceiver.wrapConnection(createGroup(band, remoteLuid, selfLuid, mode))
             ).map { v -> v.request() }.doOnSuccess { v -> LOG.w("uke returned upgrade ${v.band}") }
@@ -595,25 +604,30 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         mode: DeclareHashesMode,
     ) {
         LOG.w("bootstrapSeme started")
-        if (groupDisposable.get() == null) {
+        if (groupDisposable.get()?.client == null) {
             val band = if (Build.VERSION.SDK_INT > Build.VERSION_CODES.VANILLA_ICE_CREAM)
                 FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO
             else
                 req.band
 
-            val disp = bootstrapSeme(
-                req.name, req.passphrase, band, req, advertiser.getHashLuid(), mode
-            ).timeout(SEME_TIMEOUT, TimeUnit.SECONDS, timeoutScheduler)
-                .doFinally { groupDisposable.getAndSet(null)?.dispose() }
-                .subscribe(
-                    {}, { err ->
+            val server = SemeServer(
+                server = null,
+                client = bootstrapSeme(
+                    req.name, req.passphrase, band, req, advertiser.getHashLuid(), mode, remote,
+                ).timeout(SEME_TIMEOUT, TimeUnit.SECONDS, timeoutScheduler)
+                    .doOnError { err ->
                         LOG.e("bootstrapSeme failed $err, removing group")
                         mBroadcastReceiver.removeCurrentGroup()
-                    })
+                    }.doOnDispose { broadcastReceiverState.killBatch(remote) }
+                    .doFinally {
+                        broadcastReceiverState.killBatch(remote)
+                        groupDisposable.get()?.client = null
+                    }
+                    .subscribe({}, {})
+            )
 
-            val cd = CompositeDisposable()
-            cd.add(disp)
-            groupDisposable.set(cd)
+            groupDisposable.set(server)
+
         } else {
             LOG.e("bootstrapSeme already in progress, skipping")
         }
@@ -626,6 +640,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
         req: WifiDirectBootstrapRequest,
         self: UUID,
         mode: DeclareHashesMode,
+        remote: UUID
     ): Completable {
         return Completable.defer {
             mBroadcastReceiver.getCurrentGroup().switchIfEmpty(Completable.defer {
@@ -640,8 +655,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 serverSocketManager.getServerSocket().flatMap { socket ->
                     mBroadcastReceiver.createCurrentGroup(req)
                 }.map { g ->
-                    val disp = g.groupHandle().semeServer(mode).subscribe()
-                    groupDisposable.get()!!.add(disp)
+                    val obs = g.groupHandle().semeServer(mode).subscribe()
+                    groupDisposable.get()?.server = obs
                     g
                 }
             }.doOnError { err ->
@@ -655,10 +670,14 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         .andThen(leState.get().dumpPeers(true).onErrorComplete())
                         .andThen(leState.get().refreshPeers().onErrorComplete())
                         .andThen(Completable.error(err))
-                }.doOnDispose { LOG.e("wifi direct client/seme DISPOSED") }.doFinally {
+                }.doOnDispose {
+                    LOG.e("wifi direct client/seme DISPOSED")
+                    leState.get().updateGone(remote, Throwable("wifi disposed"))
+                }.doFinally {
                     LOG.w("wifi direct client/seme complete")
                     //    ukes.clear()
                     // m.release()
+                  //  leState.get().updateGone(remote, Throwable("wifi complete"))
                     scheduler.get().releaseWakeLock()
                 }
         }

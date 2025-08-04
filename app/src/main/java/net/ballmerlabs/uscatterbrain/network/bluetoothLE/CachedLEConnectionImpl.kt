@@ -114,6 +114,14 @@ open class CachedLEConnectionImpl @Inject constructor(
 
     override fun subscribeConnection(rawConnection: Observable<RxBleConnection>) {
         disposable.add(channelNotif)
+
+        val disp = connection.subscribe(
+            {},
+            {}
+        )
+
+        disposable.add(disp)
+
         rawConnection.doOnSubscribe { disp ->
             disposable.add(disp)
             LOG.v("subscribed to connection subject")
@@ -123,12 +131,6 @@ open class CachedLEConnectionImpl @Inject constructor(
             .onErrorResumeNext{ err: Throwable -> onDisconnect().andThen(Observable.error(err)) }
             .concatWith(onDisconnect())
             .subscribe(connection)
-        val disp = connection.subscribe(
-            {},
-            {}
-        )
-
-        disposable.add(disp)
     }
 
     private fun onDisconnect(): Completable {

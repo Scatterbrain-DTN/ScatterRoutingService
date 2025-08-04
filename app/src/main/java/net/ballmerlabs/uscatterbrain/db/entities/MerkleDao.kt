@@ -653,7 +653,6 @@ abstract class MerkleDao {
     open fun insertMerkle(message: HashlessScatterMessage) {
         lock.withLock {
             val r = getDefaultRoot()
-                .doOnSubscribe { log.v("getDefaultRoot insertMerkle") }
                 .blockingGet()
 
             val root = getInsertionPoint(message.fileGlobalHash, r.id!!, 0)

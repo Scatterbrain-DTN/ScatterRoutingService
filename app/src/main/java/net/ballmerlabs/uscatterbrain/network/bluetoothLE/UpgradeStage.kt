@@ -10,6 +10,7 @@ import java.util.Random
 class UpgradeStage(private val provides: UpgradePacket) : LeDeviceSession.Stage {
     var sessionID = Random(System.nanoTime()).nextInt()
 
+    var didUpgrade: Boolean = false
     override fun reset() {
         sessionID = Random(System.nanoTime()).nextInt()
     }
