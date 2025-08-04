@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 import android.os.ParcelUuid
 import com.akaita.java.rxjava2debug.extensions.RxJavaAssemblyException
 import com.polidea.rxandroidble2.scan.ScanResult
+import io.ktor.util.encodeBase64
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.disposables.Disposable
@@ -58,6 +59,7 @@ class BroadcastReceiverState @Inject constructor(
     @OptIn(ExperimentalStdlibApi::class)
     @Synchronized
     fun batch(scanResult: List<ScanResult>, count: Int = 1) {
+
         batch.putAll(scanResult.distinctBy { v -> v.bleDevice.macAddress }
             .map { r -> Pair(r, true) })
         val c = batchCounter.accumulateAndGet(count) { v, acc ->
@@ -85,12 +87,12 @@ class BroadcastReceiverState @Inject constructor(
                                     result.scanRecord.serviceData.containsKey(mk) &&
                                     root.hash.contentEquals(remoteroot)
                                 ) {
-                                    LOG.v("luid $luid has unchanged merkle root, ignoring")
+                                    LOG.v("luid $luid has unchanged merkle root ${remoteroot?.toHexString()}, ignoring")
                                     batchDisposables.remove(luid)
                                     return@flatMapCompletable Completable.complete()
                                 }
 
-                                LOG.w("luid $luid has merkle root ${remoteroot?.toHexString()}, ignoring")
+                                LOG.w("luid $luid has merkle root ${remoteroot?.toHexString()}, attempting connection")
 
                                 if (leState.get().updateActive(luid)) {
                                     scatterbrainScheduler.get().acquireWakelock()

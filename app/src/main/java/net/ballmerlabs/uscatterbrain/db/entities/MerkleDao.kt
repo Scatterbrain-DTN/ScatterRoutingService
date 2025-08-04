@@ -106,11 +106,11 @@ abstract class MerkleDao {
                 UNION ALL
                 SELECT childOne FROM bundles AS child, parent 
                 WHERE child.id = parent.id 
-                AND (SELECT hash from bundles WHERE id = childOne) NOT IN (:hashes)
+                AND (SELECT hash from bundles WHERE id = child.childOne) NOT IN (:hashes)
                 UNION ALL
                 SELECT childTwo FROM bundles AS child, parent 
                 WHERE child.id = parent.id 
-                AND (SELECT hash FROM bundles WHERE id = childTwo) NOT IN (:hashes)
+                AND (SELECT hash FROM bundles WHERE id = child.childTwo) NOT IN (:hashes)
         )
         SELECT * FROM messages INNER JOIN globalhash ON fileGlobalHash = globalhash.globalhash
             WHERE bundle IN parent
@@ -127,6 +127,8 @@ abstract class MerkleDao {
         fileSize: Long? = null,
     ): Single<List<DbMessage>>
 
+    @Query("SELECT id FROM bundles WHERE hash NOT IN (:hashes)")
+    abstract fun getNotHashes(hashes: List<ByteArray>): Single<List<Long>>
 
     @Query("SELECT * FROM bundles WHERE hash NOT IN (:hashes)")
     abstract fun testBundlesExcludingHash(hashes: List<ByteArray>): List<MerkleBundle>
@@ -278,6 +280,9 @@ abstract class MerkleDao {
         )
     }
 
+    @Query("SELECT COUNT(*) FROM messages")
+    abstract fun getMessageCount(): Single<Long>
+
     @Query("SELECT * FROM bundles WHERE id = :id")
     abstract fun getBundle(id: Long): MerkleBundle
 
@@ -390,6 +395,7 @@ abstract class MerkleDao {
         return HubResponse(
             hubs = hubs,
             exclude = hubsComplete
+                .andThen(rs.ignoreElements())
                 .andThen(Flowable.defer {
                     Flowable.fromIterable(exclude)
                 })
@@ -446,8 +452,9 @@ abstract class MerkleDao {
             return
         }
 
-        if (item?.item != null)
+        if (item?.item != null) {
             nextOurs.add(item.item.toHexString())
+        }
         nextTheirs.add(root.hash.toHexString())
 
 

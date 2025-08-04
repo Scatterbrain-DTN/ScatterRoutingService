@@ -21,7 +21,8 @@ import javax.inject.Singleton
 class MeshtasticBinderProviderImpl @Inject constructor(
     val context: Context,
     val firebaseCrashlytics: FirebaseWrapper,
-   @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) val mainScheduler: Scheduler
+   @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) val mainScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) val computation: Scheduler
 ) : MeshtasticBinderProvider {
     private val log by scatterLog()
     override fun connectBinder(): Observable<IMeshService> {
@@ -50,8 +51,7 @@ class MeshtasticBinderProviderImpl @Inject constructor(
                 )
             }
             context.bindService(intent, callback, Context.BIND_AUTO_CREATE)
-        }.subscribeOn(mainScheduler)
-            .doOnError { err ->
+        }.doOnError { err ->
             log.e("error in meshtasticc binder: $err")
             firebaseCrashlytics.recordException(err)
         }

@@ -36,7 +36,7 @@ data class DeclareHashesPacket(
     data class Builder(
         var hashes: List<ByteString> = arrayListOf(),
         var optout: Boolean = false,
-        var mode: DeclareHashesMode = DeclareHashesMode.NORMAL,
+        var mode: DeclareHashesMode = DeclareHashesMode.MERKLEPROOF,
         var exists: Boolean = false,
     ) {
         fun setHashes(hashes: List<ByteString>) = apply {
@@ -51,8 +51,8 @@ data class DeclareHashesPacket(
             this.mode = mode
         }
 
-        fun optOut() = apply {
-            optout = true
+        fun optOut(v: Boolean = true) = apply {
+            optout = v
         }
 
         fun setExists(exists: Boolean) = apply {

@@ -229,7 +229,7 @@ class ProtocolTests {
 
         assertEquals(out2.size, 0)
 
-        val out = ds1.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf()).blockingGet()
+        val out = ds1.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf<ByteArray>()).blockingGet()
         assertEquals(1, out.size)
 
 

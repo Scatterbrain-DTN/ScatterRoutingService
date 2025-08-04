@@ -430,10 +430,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .subscribeOn(databaseScheduler)
                 .doOnSubscribe { LOG.v("subscribed to getTopRandomMessages") }
                 .toFlowable()
-                .doOnNext { message ->
-                    LOG.v("retrieved messages: ${message.size}")
-                }
-                .flatMap { source -> Flowable.fromIterable(source) }
+                .zipWith(mDatastore.merkleDao().getMessageCount().toFlowable()){ source, count ->
+                    LOG.v("retrieved messages: ${source.size}/$count")
+                    Flowable.fromIterable(source)
+                }.flatMap { v -> v }
                 .map { message ->
                     if (message.message.body == null) {
                         BlockDataStream(

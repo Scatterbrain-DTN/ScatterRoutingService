@@ -7,6 +7,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.By
 import com.google.protobuf.ByteString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
@@ -305,6 +306,30 @@ class DatastoreTest {
         assertEquals(dirty.size, 0)
     }
 
+    @Test
+    fun merkleTopRandomMany() {
+        val size = 16
+        for (x in 0..<size) {
+            val apiMessage = ScatterMessage.Builder.newInstance(ctx, UUID.randomUUID().toBytes())
+                .setApplication("fmef")
+                .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+        }
+
+        database.merkleDao().merkleRehash().blockingAwait()
+
+        val root = database.merkleDao().getDefaultRoot().blockingGet()
+
+
+        val get = database.merkleDao().getTopRandomExcludingHash(root.id!!, 200, listOf()).blockingGet()
+
+        assertEquals(size, get.size)
+
+        val getroot = database.merkleDao().getTopRandomExcludingHash(root.id!!, 200, listOf(root.hash!!)).blockingGet()
+
+        assertEquals(0, getroot.size)
+
+    }
 
     @Test
     fun merkleTopRandom() {
@@ -316,7 +341,7 @@ class DatastoreTest {
         database.merkleDao().merkleRehash().blockingAwait()
 
         var root = database.merkleDao().getDefaultRoot().blockingGet()
-        val messages = database.merkleDao().getTopRandomExcludingHash(root.id!!, 200, listOf()).blockingGet()
+        val messages = database.merkleDao().getTopRandomExcludingHash(root.id!!, 200, listOf<ByteArray>()).blockingGet()
 
         assertEquals(messages.size, 1)
 
@@ -349,7 +374,7 @@ class DatastoreTest {
 
         assertEquals(control2.size, 1)
 
-        val messages2 = database.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf()).blockingGet()
+        val messages2 = database.merkleDao().getTopRandomExcludingHash(root.id!!, 100, listOf<ByteArray>()).blockingGet()
         assertEquals(messages2.size, 2)
 
         val testBundles = database.merkleDao().getAllBundles()

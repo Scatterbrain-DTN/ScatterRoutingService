@@ -131,6 +131,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     override fun startDesktopServer(name: String): Completable {
         LOG.w("startDesktopServer called")
         return serverSocketManager.getServerSocket()
+            .subscribeOn(operationsScheduler)
+            .observeOn(operationsScheduler)
             .doOnSuccess { sock ->
                 desktopApi.set(
                     desktopBuilder.get()
@@ -193,12 +195,14 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             )
 
         }.subscribeOn(operationsScheduler)
+            .observeOn(operationsScheduler)
     }
 
     private fun unregisterReceiver(): Completable {
         return Completable.fromAction {
             context.applicationContext.unregisterReceiver(wifiDirectBroadcastReceiver.asReceiver())
         }.subscribeOn(operationsScheduler)
+            .observeOn(operationsScheduler)
             .doOnError { err -> LOG.w("failed to unregister receiver $err") }
             .onErrorComplete()
     }
@@ -273,6 +277,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         return if (transports.contains("bluetooth")) {
             LOG.v("starting!")
             Observable.just(client.state)
+                .subscribeOn(operationsScheduler)
+                .observeOn(operationsScheduler)
                 .mergeWith(client.observeStateChanges())
                 .switchMapCompletable { state ->
                     LOG.w("RxAndroidBle state change $state")
@@ -292,7 +298,11 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                             LOG.w("ble disabled, pausing")
                             broadcastRouterState(RouterState.OFFLINE)
                             pauseScan()
-                            leState.dumpPeers(true).andThen(unregisterReceiver())
+                            leState.dumpPeers(true)
+                                .subscribeOn(operationsScheduler)
+                                .observeOn(operationsScheduler)
+                                .andThen(unregisterReceiver())
+
                                 .andThen(advertiser.stopAdvertise())
                                 .andThen(leState.stopServer())
                         }
@@ -319,7 +329,8 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 0,
                 HandshakeResult.TransactionStatus.STATUS_SUCCESS
             )
-        )
+        ).subscribeOn(operationsScheduler)
+            .observeOn(operationsScheduler)
             .andThen(
                 preferences.getStringSet(
                     context.getString(R.string.pref_enabled_transports),
@@ -334,7 +345,9 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                     Completable.defer {
                         meshtasticBinderProvider.connectBinderAsync()
                         meshtasticBinderProvider.awaitConnection().ignoreElement()
-                    }.doOnComplete { LOG.v("meshtastic binder connected on start!") }
+                    } .subscribeOn(operationsScheduler)
+                        .observeOn(operationsScheduler)
+                        .doOnComplete { LOG.v("meshtastic binder connected on start!") }
                 else {
                     Completable.complete()
                 }

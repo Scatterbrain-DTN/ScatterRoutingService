@@ -663,7 +663,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 LOG.w("seme error: $err")
                 err.printStackTrace()
             }).timeout(45, TimeUnit.SECONDS, timeoutScheduler)
-                .flatMapCompletable { h -> h.groupHandle().bootstrapSeme(self, mode) }
+                .flatMapCompletable { h -> h.groupHandle().bootstrapSeme(self, DeclareHashesMode.MERKLEPROOF) }
                 .onErrorResumeNext { err: Throwable ->
                     LOG.w("seme error $err, dumping current group")
                     mBroadcastReceiver.removeCurrentGroup().onErrorComplete()

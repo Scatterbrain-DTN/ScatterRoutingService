@@ -21,6 +21,7 @@ import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WifiGroupScope
 import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
+import net.ballmerlabs.uscatterbrain.db.MerkleElement
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
@@ -117,16 +118,19 @@ class GroupHandle @Inject constructor(
             DeclareHashesPacketParser.parser,
             socket.getInputStream(),
             operationsScheduler
-        ).repeat().takeWhile { p -> !p.optout }
+        ).repeat()
+            .doOnNext { v -> LOG.v("received merkle hash ${v.optout}") }
+            .takeUntil { p -> p.optout }
             .doFinally { LOG.v("getIncomingMerkleHashes completed!") }
     }
 
-    private fun sendMerkleHashes(socket: Socket, bundles: Flowable<MerkleBundle>): Completable {
+    private fun sendMerkleHashes(socket: Socket, bundles: Flowable<MerkleElement>): Completable {
         return bundles.map { bundle ->
             DeclareHashesPacket.newBuilder()
                 .setMode(DeclareHashesMode.MERKLEPROOF)
-                .setHashes(listOf(ByteString.copyFrom(bundle.hash!!)))
-        }.concatWith(Flowable.just(DeclareHashesPacket.newBuilder().optOut()))
+                .optOut(bundle.last)
+                .setHashes(listOf(ByteString.copyFrom(bundle.bundle.hash!!)))
+        }
             .concatMapCompletable { packet ->
                 packet.build().writeToStream(socket.getOutputStream(), operationsScheduler)
                     .flatMapCompletable { v -> v }
@@ -147,8 +151,9 @@ class GroupHandle @Inject constructor(
                         val send = database.merkleDao().getHubs(root, incoming)
                         sendMerkleHashes(
                             socket,
-                            send.hubs.map { v -> v.bundle },
-                        ).andThen(send.exclude).toList()
+                            send.hubs,
+                        ).andThen(send.exclude.toList())
+                            .doOnSuccess { v -> LOG.v("got exclude ${v.size}") }
                     }
 
                     DeclareHashesMode.NORMAL -> {

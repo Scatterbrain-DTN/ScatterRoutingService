@@ -26,6 +26,7 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.Bl
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import scatterbrain.Merkle
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.util.Random
@@ -118,8 +119,8 @@ class BluetoothLERadioModuleImpl @Inject constructor(
         const val LUID_RANDOMIZE_DELAY = 400
 
         // scatterbrain service uuid. This is the same for every scatterbrain router.
-        val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
-        //val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd91")
+       // val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd90")
+        val SERVICE_UUID_NEXT: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd91")
         val SERVICE_UUID_LEGACY: UUID = UUID.fromString("9a21e79f-4a6d-4e28-95c6-257f5e47fd91")
 
         // GATT characteristic uuid for semaphor used for a device to  lock a channel.
@@ -386,7 +387,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                         band,
                                         session.remoteLuid,
                                         advertiser.getHashLuid(),
-                                        session.advertiseStage.declareHashesMode
+                                        Merkle.DeclareHashesMode.MERKLEPROOF
                                     ).flatMapCompletable { bootstrapReq ->
                                         LOG.e("uke upgrade callback")
                                         serverConn.serverNotify(

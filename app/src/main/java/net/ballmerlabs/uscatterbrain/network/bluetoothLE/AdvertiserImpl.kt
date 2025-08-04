@@ -203,11 +203,13 @@ class AdvertiserImpl @Inject constructor(
         LOG.w("randomize timer set")
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     override fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
             if (cooldown.get())
                 return@defer Completable.complete()
             val cmp = database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
+                LOG.v("setAdvertisingLuid with merkle root ${root.hash?.toHexString()}")
                     isAdvertising
                         .firstOrError()
                         .flatMapCompletable { v ->
