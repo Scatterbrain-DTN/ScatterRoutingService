@@ -158,6 +158,10 @@ class AdvertiserTest {
                 TODO("Not yet implemented")
             }
 
+            override fun getNotHashes(hashes: List<ByteArray>): Single<List<Long>> {
+                TODO("Not yet implemented")
+            }
+
             override fun testBundlesExcludingHash(hashes: List<ByteArray>): List<MerkleBundle> {
                 TODO("Not yet implemented")
             }
@@ -211,6 +215,10 @@ class AdvertiserTest {
             }
 
             override fun updateBundleForMessage(bundle: Long, messageID: Long) {
+                TODO("Not yet implemented")
+            }
+
+            override fun getMessageCount(): Single<Long> {
                 TODO("Not yet implemented")
             }
 

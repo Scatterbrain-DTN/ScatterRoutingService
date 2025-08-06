@@ -12,6 +12,7 @@ import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
+import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.GroupFinalizer
@@ -120,22 +121,39 @@ class GroupHandle @Inject constructor(
             operationsScheduler
         ).repeat()
             .doOnNext { v -> LOG.v("received merkle hash ${v.optout}") }
-            .takeUntil { p -> p.optout }
+            .takeWhile { p -> !p.optout }
             .doFinally { LOG.v("getIncomingMerkleHashes completed!") }
     }
 
     private fun sendMerkleHashes(socket: Socket, bundles: Flowable<MerkleElement>): Completable {
         return bundles.map { bundle ->
+            LOG.v("sending merkle hash")
             DeclareHashesPacket.newBuilder()
                 .setMode(DeclareHashesMode.MERKLEPROOF)
-                .optOut(bundle.last)
                 .setHashes(listOf(ByteString.copyFrom(bundle.bundle.hash!!)))
-        }
+        }.concatWith(Single.just(DeclareHashesPacket.newBuilder().optOut()))
             .concatMapCompletable { packet ->
                 packet.build().writeToStream(socket.getOutputStream(), operationsScheduler)
                     .flatMapCompletable { v -> v }
             }
 
+
+    }
+
+    fun declareHashesBarrier(socket: Socket): Completable {
+        return ScatterSerializable.parseWrapperFromCRC(
+            DeclareHashesPacketParser.parser,
+            socket.inputStream,
+            operationsScheduler
+        ).toObservable()
+            .doOnSubscribe { LOG.v("declareHashesBarrier start") }
+            .mergeWith(
+            DeclareHashesPacket.newBuilder().optOut().build()
+                .writeToStream(socket.outputStream, operationsScheduler)
+                .flatMapCompletable { v -> v }
+        ).ignoreElements()
+            .doFinally { LOG.v("declareHashesBarrier complete") }
+            .doOnError { err -> LOG.e("error in declareHashesBarrier: $err") }
     }
 
     fun declareHashesMerkle(socket: Socket, mode: DeclareHashesMode): Single<List<ByteArray>> {
@@ -144,15 +162,20 @@ class GroupHandle @Inject constructor(
             .flatMap { root ->
                 when (mode) {
                     DeclareHashesMode.MERKLEPROOF -> {
+                        val complete = CompletableSubject.create()
                         LOG.v("declareHashes merkle")
                         val incoming = getIncomingMerkleHashes(socket)
                             .map { v -> v.hashes[0] }
+                            .doFinally {
+                                LOG.w("remote complete")
+                                complete.onComplete()
+                            }
 
                         val send = database.merkleDao().getHubs(root, incoming)
-                        sendMerkleHashes(
+                      sendMerkleHashes(
                             socket,
                             send.hubs,
-                        ).andThen(send.exclude.toList())
+                        ).andThen(complete.andThen( send.exclude.toList()))
                             .doOnSuccess { v -> LOG.v("got exclude ${v.size}") }
                     }
 
@@ -308,10 +331,7 @@ class GroupHandle @Inject constructor(
                 err.flatMap { e ->
                     when (e) {
                         is MessageSizeException -> Flowable.just(e)
-                        is MessageValidationException -> Flowable.just(
-                            e
-                        )
-
+                        is MessageValidationException -> Flowable.just(e)
                         else -> Flowable.error(e)
                     }
                 }
@@ -436,6 +456,7 @@ class GroupHandle @Inject constructor(
                         .doOnSuccess { LOG.v("received declare hashes packet seme") }
                         .flatMapObservable { declareHashesPacket ->
                             LOG.v("declareHashesPacket ${declareHashesPacket.size}")
+                            declareHashesBarrier(socket).andThen(
                             readBlockDataSeme(socket)
                                 .toObservable()
                                 .mergeWith(
@@ -454,7 +475,7 @@ class GroupHandle @Inject constructor(
 
                                             ).toObservable()
                                         }
-                                )
+                                ))
                         }
                         .reduce(stats) { obj, st -> obj.from(st) }
                 }
@@ -734,6 +755,7 @@ class GroupHandle @Inject constructor(
                             LOG.v("received declare hashes packet uke")
                         }
                         .flatMap { declareHashesPacket ->
+                            declareHashesBarrier(socket).andThen(
                             readBlockDataUke(socket)
                                 .subscribeOn(operationsScheduler)
                                 .toObservable()
@@ -754,7 +776,7 @@ class GroupHandle @Inject constructor(
                                                 .toObservable()
                                         }
                                 )
-                                .reduce(stats) { obj, stats -> obj.from(stats) }
+                                .reduce(stats) { obj, stats -> obj.from(stats) })
                         }
                 }
         }.doOnSuccess { LOG.v("bootstrapUkeSocket complete") }

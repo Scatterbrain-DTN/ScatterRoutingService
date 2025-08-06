@@ -362,9 +362,6 @@ class DatastoreTest {
             .toList().blockingGet()
 
 
-        assert(iter.last().last)
-        assert(!iter.first().last)
-
         //println("got hubs ${iter.size}")
 
         val control = database.scatterMessageDao().getTopRandomExcludingHash(100, listOf()).blockingGet()

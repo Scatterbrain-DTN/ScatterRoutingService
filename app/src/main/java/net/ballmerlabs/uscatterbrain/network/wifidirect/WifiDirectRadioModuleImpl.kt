@@ -672,7 +672,6 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                         .andThen(Completable.error(err))
                 }.doOnDispose {
                     LOG.e("wifi direct client/seme DISPOSED")
-                    leState.get().updateGone(remote, Throwable("wifi disposed"))
                 }.doFinally {
                     LOG.w("wifi direct client/seme complete")
                     //    ukes.clear()

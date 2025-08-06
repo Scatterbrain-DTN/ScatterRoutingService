@@ -335,12 +335,24 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
 
                 val resp = hubresponse.hubs
+                    .map { hub ->
+                        listOf(hub.bundle.hash!!)
+                    }.concatWith(Single.just(listOf()))
                     .enumerateMap { hub, seq ->
-                        MeshtasticMerklePacket(
-                            seq = seq,
-                            hashes = listOf(hub.bundle.hash!!),
-                            end = hub.last
-                        )
+                        if (hub.isEmpty()) {
+                            MeshtasticMerklePacket(
+                                seq = seq,
+                                hashes = listOf(),
+                                end = true
+                            )
+                        } else {
+                            MeshtasticMerklePacket(
+                                seq = seq,
+                                hashes = hub,
+                                end = false
+                            )
+                        }
+
                     }
                     .doOnNext { v -> log.v("sending merkle packet hashes=${v.hashes.size} end=${v.end} size=${v.packet.serializedSize}") }
                     .doOnComplete { log.w("merkle hubs completed") }

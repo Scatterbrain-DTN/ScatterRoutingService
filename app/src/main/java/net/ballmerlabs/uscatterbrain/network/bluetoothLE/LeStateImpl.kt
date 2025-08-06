@@ -342,7 +342,7 @@ class LeStateImpl @Inject constructor(
         LOG.w("updateGone ")
         when (err) {
             is BleDisconnectedException -> {
-                if (err.state != 0 && err.state != -1) {
+                if (err.state != 0 && err.state != -1 && err.state != 19) {
                     activeLuids.remove(luid)
                 }
             }

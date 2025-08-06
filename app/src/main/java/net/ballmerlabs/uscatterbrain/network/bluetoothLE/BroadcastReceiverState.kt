@@ -45,7 +45,6 @@ class BroadcastReceiverState @Inject constructor(
     private val batch = ConcurrentHashMap<ScanResult, Boolean>()
     val connectLock = AtomicBoolean()
     var shouldScan = false
-    val tlock = AtomicBoolean(false)
     val reset = AtomicInteger(0)
 
     /**
@@ -81,45 +80,45 @@ class BroadcastReceiverState @Inject constructor(
                             LOG.v("lock held for $luid, waiting for scan")
                         val d = batchDisposables.computeIfAbsent(luid) { d ->
                             database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
-                                val mk = ParcelUuid(MERKLE_DATA)
-                                val remoteroot = result.scanRecord.serviceData[mk]
-                                if (root.hash != null &&
-                                    result.scanRecord.serviceData.containsKey(mk) &&
-                                    root.hash.contentEquals(remoteroot)
-                                ) {
-                                    LOG.v("luid $luid has unchanged merkle root ${remoteroot?.toHexString()}, ignoring")
-                                    batchDisposables.remove(luid)
-                                    return@flatMapCompletable Completable.complete()
-                                }
-
-                                LOG.w("luid $luid has merkle root ${remoteroot?.toHexString()}, attempting connection")
-
-                                if (leState.get().updateActive(luid)) {
-                                    scatterbrainScheduler.get().acquireWakelock()
-                                    leState.get().processScanResult(luid, result.bleDevice)
-                                        .doOnComplete { LOG.w("processScanResult from scanner completed") }
-                                        .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
-                                } else {
-                                    //    LOG.v("skipping scan result ${result.bleDevice.macAddress} updateActive fail")
-                                    Completable.complete()
-                                }
-                                    .doOnError { e ->
-                                        LOG.e("process scan result error $e $luid")
-                                        if (e is TransactionError) {
-                                            leState.get().updateGone(e.luid, e)
-                                        } else {
-                                            leState.get().updateGone(luid, e)
-                                        }
-                                        if (e is RxJavaAssemblyException) {
-                                            LOG.e(e.stacktrace())
-                                        }
-                                        e.printStackTrace()
+                                    val mk = ParcelUuid(MERKLE_DATA)
+                                    val remoteroot = result.scanRecord.serviceData[mk]
+                                    if (root.hash != null &&
+                                        result.scanRecord.serviceData.containsKey(mk) &&
+                                        root.hash.contentEquals(remoteroot)
+                                    ) {
+                                        LOG.v("luid $luid has unchanged merkle root ${remoteroot?.toHexString()}, ignoring")
+                                        batchDisposables.remove(luid)
+                                        return@flatMapCompletable Completable.complete()
                                     }
-                                    .onErrorComplete()
+
+                                    LOG.w("luid $luid has merkle root ${remoteroot?.toHexString()}, attempting connection")
+
+                                    if (leState.get().updateActive(luid)) {
+                                        scatterbrainScheduler.get().acquireWakelock()
+                                        leState.get().processScanResult(luid, result.bleDevice)
+                                            .doOnComplete { LOG.w("processScanResult from scanner completed") }
+                                            .doOnSubscribe { LOG.v("subscribed processScanResult scanner") }
+                                    } else {
+                                        //    LOG.v("skipping scan result ${result.bleDevice.macAddress} updateActive fail")
+                                        Completable.complete()
+                                    }
+                                        .doOnError { e ->
+                                            LOG.e("process scan result error $e $luid")
+                                            if (e is TransactionError) {
+                                                leState.get().updateGone(e.luid, e)
+                                            } else {
+                                                leState.get().updateGone(luid, e)
+                                            }
+                                            if (e is RxJavaAssemblyException) {
+                                                LOG.e(e.stacktrace())
+                                            }
+                                            e.printStackTrace()
+                                        }
+                                        .onErrorComplete()
+
                             }.observeOn(sched)
                                 // .doOnDispose { scatterbrainScheduler.unpauseScan() }
                                 .doFinally {
-                                    tlock.set(false)
                                     //   scatterbrainScheduler.unpauseScan()
                                     connectLock.set(false)
                                     batchDisposables.remove(luid)

@@ -67,7 +67,6 @@ class MockScatterbrainDatastore @Inject constructor(
                                 childTwo = 0,
                                 dirty = false,
                             ),
-                                x == l
                             )
                         )
                     }

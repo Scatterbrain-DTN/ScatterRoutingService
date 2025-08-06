@@ -5,13 +5,14 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import androidx.room.concurrent.AtomicBoolean
 import androidx.room.concurrent.AtomicInt
 import com.geeksville.mesh.util.toHexString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.FlowableEmitter
+import io.reactivex.FlowableSubscriber
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
@@ -22,8 +23,10 @@ import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.db.MerkleElement
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
+import net.ballmerlabs.uscatterbrain.util.QueueSubject
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import okio.withLock
+import org.reactivestreams.Subscription
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 
@@ -359,20 +362,19 @@ abstract class MerkleDao {
             )
         val exclude = mutableListOf<ByteArray>()
         //out.onNext(root)
+//        val rs = PublishProcessor.create<RemoteItem>()
+//        val p = remote.map { v -> RemoteItem(v) }.publish()
+//        p.subscribe(rs)
 
-        val remoteDone = AtomicBoolean(false)
-
-        val rs = PublishProcessor.create<RemoteItem>()
-
-        remote
-            .map { v -> RemoteItem(v) }
-            .doFinally {
-                remoteDone.set(true)
-            }
+        val remoteComplete = CompletableSubject.create()
+        val rs = QueueSubject<RemoteItem>()
+        remote.map { item -> RemoteItem(item) }
+            .doFinally { remoteComplete.onComplete()  }
             .subscribe(rs)
 
         val hubsComplete = CompletableSubject.create()
         val hubs = Flowable.create({ obs ->
+        //    p.connect()
             getHubs(
                 root,
                 root,
@@ -382,7 +384,6 @@ abstract class MerkleDao {
                 mutableSetOf(),
                 mutableSetOf(),
                 AtomicInt(0),
-                AtomicReference(getEndHash(root, setOf())),
                 limit
             )
             obs.onComplete()
@@ -394,12 +395,12 @@ abstract class MerkleDao {
             }
         return HubResponse(
             hubs = hubs,
-            exclude = hubsComplete
-                .andThen(rs.ignoreElements())
+            exclude = remoteComplete.andThen(hubsComplete)
                 .andThen(Flowable.defer {
                     Flowable.fromIterable(exclude)
                 })
                 .doFinally {
+
                     log.w("remote completed")
                 }
 
@@ -411,31 +412,30 @@ abstract class MerkleDao {
         permaRoot: MerkleBundle?,
         root: MerkleBundle?,
         hubs: FlowableEmitter<MerkleElement>,
-        remote: Flowable<RemoteItem>,
+        remote: QueueSubject<RemoteItem>,
         exclude: MutableList<ByteArray>,
         nextTheirs: MutableSet<String>,
         nextOurs: MutableSet<String>,
         count: AtomicInt = AtomicInt(0),
-        doneHash: AtomicReference<ByteArray>,
         target: Int? = null,
     ) {
         val c = count.getAndIncrement()
         if (root?.hash == null || permaRoot?.hash == null || (target != null && c >= target))
             return
-
-
-        val item = remote
+        val item = remote.get()
+            .subscribeOn(Schedulers.io())
+            .toObservable()
             .mergeWith(Completable.fromAction {
                 hubs.onNext(
                     MerkleElement(
                         bundle = root,
-                        last = doneHash.get()?.contentEquals(root.hash) ?: false
                     )
                 )
             })
             .firstElement()
             .onErrorComplete()
             .blockingGet()
+
         //val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
         //val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
         val childOneHub = getNextHub(root.childOne)
@@ -448,7 +448,6 @@ abstract class MerkleDao {
         ) {
             log.w("MATCH! on ${root.hash.toHexString()}")
             exclude.add(root.hash)
-            doneHash.set(getEndHash(permaRoot, exclude.toSet()))
             return
         }
 
@@ -471,7 +470,6 @@ abstract class MerkleDao {
                 nextTheirs,
                 nextOurs,
                 count,
-                doneHash,
                 target
             )
         }
@@ -487,7 +485,6 @@ abstract class MerkleDao {
                 nextTheirs,
                 nextOurs,
                 count,
-                doneHash,
                 target
             )
         }
@@ -495,24 +492,24 @@ abstract class MerkleDao {
 
     }
 
-    private fun getEndHash(root: MerkleBundle, skip: Set<ByteArray>): ByteArray? {
-        val childOneHub = getNextHub(root.childOne)
-        val childTwoHub = getNextHub(root.childTwo)
-        var end = root.hash
-        if (childOneHub != null && !skip.contains(childOneHub.hash)) {
-            val h = getEndHash(childOneHub, skip)
-            if (h != null)
-                end = h
-        }
-
-        if (childTwoHub != null && !skip.contains(childTwoHub.hash)) {
-            val h = getEndHash(childTwoHub, skip)
-            if (h != null)
-                end = h
-        }
-
-        return end
-    }
+//    private fun getEndHash(root: MerkleBundle, skip: Set<String>): ByteArray? {
+//        val childOneHub = getNextHub(root.childOne)
+//        val childTwoHub = getNextHub(root.childTwo)
+//        var end = root.hash
+//        if (childOneHub != null && !skip.contains(childOneHub.hash?.toHexString())) {
+//            val h = getEndHash(childOneHub, skip)
+//            if (h != null)
+//                end = h
+//        }
+//
+//        if (childTwoHub != null && !skip.contains(childTwoHub.hash?.toHexString())) {
+//            val h = getEndHash(childTwoHub, skip)
+//            if (h != null)
+//                end = h
+//        }
+//
+//        return end
+//    }
 
 
     @Query(

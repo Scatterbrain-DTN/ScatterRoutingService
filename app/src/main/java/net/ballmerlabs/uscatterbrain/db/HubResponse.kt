@@ -5,7 +5,6 @@ import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 
 data class MerkleElement(
     val bundle: MerkleBundle,
-    val last: Boolean
 )
 
 data class HubResponse(

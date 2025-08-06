@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
@@ -11,9 +12,11 @@ import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.Hash
 import com.goterl.lazysodium.interfaces.Sign
 import io.reactivex.BackpressureStrategy
+import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.plugins.RxJavaPlugins
+import io.reactivex.processors.PublishProcessor
 import io.reactivex.subjects.PublishSubject
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
@@ -39,6 +42,7 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBootstrapReque
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectInfo
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiGroupInfo
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiSessionConfig
+import net.ballmerlabs.uscatterbrain.util.QueueSubject
 import okio.ByteString.Companion.toByteString
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -309,6 +313,21 @@ class ProtocolTests {
     }
 
     @Test
+    fun queueSubject() {
+        val test = Flowable.range(0, 50)
+        val queue = QueueSubject<Int>()
+        test.doOnNext { v -> Log.v("debug", "item $v") }
+            .subscribe(queue)
+
+        for (x in 0..<50) {
+            assertEquals(x, queue.get().blockingGet())
+        }
+
+        assert(queue.get().isEmpty.blockingGet())
+
+    }
+
+    @Test
     fun merkleSync() {
         val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1))
             .setApplication("fmef")
@@ -326,6 +345,7 @@ class ProtocolTests {
         val out1 = groupHandleTwo.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
             .ignoreElement()
+
         val out2 = groupHandleOne.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .toFlowable()
             .mergeWith(out1)
