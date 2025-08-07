@@ -466,13 +466,9 @@ class LeStateImpl @Inject constructor(
                      */
 
                     val rawConnection =
-                        Completable.fromAction {
-                            advertiser.setBusy(true)
-                        }.andThen(Completable.timer(200, TimeUnit.MILLISECONDS, connectScheduler))
+                       Completable.timer(200, TimeUnit.MILLISECONDS, connectScheduler)
                             .andThen(
                                 device.establishConnection(false, Timeout(30, TimeUnit.SECONDS))
-                                    .subscribeOn(connectScheduler)
-                                    .observeOn(newconnection.bleParse())
                                     .doOnError { err ->
                                         when (err) {
                                             is BleDisconnectedException -> {

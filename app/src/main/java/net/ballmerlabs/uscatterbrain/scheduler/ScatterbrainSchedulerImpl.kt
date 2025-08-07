@@ -66,6 +66,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val meshtasticBinderProvider: MeshtasticConnectionProvider,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val operationsScheduler: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) private val mainThread: Scheduler,
     val serverSocketManager: ServerSocketManager,
     val desktopBuilder: Provider<DesktopApiSubcomponent.Builder>,
     private val powerManager: WakeLockProvider,
@@ -345,12 +346,12 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                     Completable.defer {
                         meshtasticBinderProvider.connectBinderAsync()
                         meshtasticBinderProvider.awaitConnection().ignoreElement()
-                    } .subscribeOn(operationsScheduler)
+                    } .subscribeOn(mainThread)
                         .observeOn(operationsScheduler)
                         .doOnComplete { LOG.v("meshtastic binder connected on start!") }
                 else {
                     Completable.complete()
-                }
+                }.onErrorComplete()
                     .andThen(startBluetooth(transports))
 
             }
