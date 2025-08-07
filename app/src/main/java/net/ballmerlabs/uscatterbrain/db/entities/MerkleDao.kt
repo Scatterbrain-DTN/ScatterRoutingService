@@ -11,12 +11,9 @@ import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.FlowableEmitter
-import io.reactivex.FlowableSubscriber
-import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
-import io.reactivex.processors.PublishProcessor
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.db.HubResponse
@@ -26,8 +23,6 @@ import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.util.QueueSubject
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import okio.withLock
-import org.reactivestreams.Subscription
-import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 
 @Dao
@@ -369,12 +364,12 @@ abstract class MerkleDao {
         val remoteComplete = CompletableSubject.create()
         val rs = QueueSubject<RemoteItem>()
         remote.map { item -> RemoteItem(item) }
-            .doFinally { remoteComplete.onComplete()  }
+            .doFinally { remoteComplete.onComplete() }
             .subscribe(rs)
 
         val hubsComplete = CompletableSubject.create()
         val hubs = Flowable.create({ obs ->
-        //    p.connect()
+            //    p.connect()
             getHubs(
                 root,
                 root,
@@ -558,41 +553,41 @@ abstract class MerkleDao {
 
 
     open fun merkleRehash(root: Long?, pos: Long = 0) {
-        lock.withLock {
-            if (root == null) {
-                return
-            }
+        if (root == null) {
+            return
+        }
 
-            val child1 = getChildOne(root)
-            val child2 = getChildTwo(root)
-            merkleRehash(child1, pos = pos + 1)
-            merkleRehash(child2, pos = pos + 1)
+        val child1 = getChildOne(root)
+        val child2 = getChildTwo(root)
+        merkleRehash(child1, pos = pos + 1)
+        merkleRehash(child2, pos = pos + 1)
 
-            val messages = getMessagesForBundle(root)
-            val bundles = getBundlesForBundle(root)
-            val mhash = messages.map { v -> v.fileGlobalHash }
-            val bhash = bundles.map { v -> v.hash!! }
+        val messages = getMessagesForBundle(root)
+        val bundles = getBundlesForBundle(root)
+        val mhash = messages.map { v -> v.fileGlobalHash }
+        val bhash = bundles.map { v -> v.hash!! }
 //        log.v("merkleRehash depth=$pos root=$root")
 //        log.v("\tmhash=${mhash.map { v -> v.toHexString() }}")
 //        log.v("\tbhash=${bhash.map { v -> v.toHexString() }}")
-            val q = bhash + mhash
-            val b = q.sortedWith { v, n -> v.compare(n) }
+        val q = bhash + mhash
+        val b = q.sortedWith { v, n -> v.compare(n) }
 //        log.v("\tcombined=${b.map { v -> v.toHexString() }}")
-            val hash = LibsodiumInterface.merkleHash(b)
+        val hash = LibsodiumInterface.merkleHash(b)
 //        log.v("\tfinal=${hash.toHexString()}")
-            updateBundleHash(hash, root)
-        }
+        updateBundleHash(hash, root)
     }
 
     fun merkleRehash(scheduler: Scheduler = Schedulers.single()): Completable {
         return getDefaultRoot()
             .doOnSubscribe { log.v("getDefaultRoot merkleRehash") }
             .flatMapCompletable { r ->
-            //           log.v("merkleRehash start $r")
-            Completable.fromAction {
-                merkleRehash(r.id)
-            }.subscribeOn(scheduler)
-        }
+                //           log.v("merkleRehash start $r")
+                Completable.fromAction {
+                    lock.withLock {
+                        merkleRehash(r.id)
+                    }
+                }.subscribeOn(scheduler)
+            }
     }
 
     private fun iterativeMerkleInsert(
