@@ -27,7 +27,6 @@ import java.util.concurrent.locks.ReentrantLock
 
 @Dao
 abstract class MerkleDao {
-    private val lock = ReentrantLock()
     private val log by scatterLog()
 
     @Query("SELECT * FROM messages WHERE bundle = :id ORDER BY fileGlobalHash ASC")
@@ -552,71 +551,6 @@ abstract class MerkleDao {
 //
 
 
-    open fun merkleRehash(root: Long?, pos: Long = 0) {
-        if (root == null) {
-            return
-        }
-
-        val child1 = getChildOne(root)
-        val child2 = getChildTwo(root)
-        merkleRehash(child1, pos = pos + 1)
-        merkleRehash(child2, pos = pos + 1)
-
-        val messages = getMessagesForBundle(root)
-        val bundles = getBundlesForBundle(root)
-        val mhash = messages.map { v -> v.fileGlobalHash }
-        val bhash = bundles.map { v -> v.hash!! }
-//        log.v("merkleRehash depth=$pos root=$root")
-//        log.v("\tmhash=${mhash.map { v -> v.toHexString() }}")
-//        log.v("\tbhash=${bhash.map { v -> v.toHexString() }}")
-        val q = bhash + mhash
-        val b = q.sortedWith { v, n -> v.compare(n) }
-//        log.v("\tcombined=${b.map { v -> v.toHexString() }}")
-        val hash = LibsodiumInterface.merkleHash(b)
-//        log.v("\tfinal=${hash.toHexString()}")
-        updateBundleHash(hash, root)
-    }
-
-    fun merkleRehash(scheduler: Scheduler = Schedulers.single()): Completable {
-        return getDefaultRoot()
-            .doOnSubscribe { log.v("getDefaultRoot merkleRehash") }
-            .flatMapCompletable { r ->
-                //           log.v("merkleRehash start $r")
-                Completable.fromAction {
-                    lock.withLock {
-                        merkleRehash(r.id)
-                    }
-                }.subscribeOn(scheduler)
-            }
-    }
-
-    private fun iterativeMerkleInsert(
-        message: HashlessScatterMessage,
-        point: MerkleInsertCond,
-        bundles: ArrayList<MerkleBundle>,
-    ) {
-        if (point.complete(message.fileGlobalHash)) {
-            message.bundle = point.parent
-            updateBundleForMessage(point.parent, message.messageID!!)
-
-        } else {
-            val bundle = bundles.removeLastOrNull()!!
-            val isp = getInsertionPointWithoutDb(
-                message.fileGlobalHash,
-                bundle.id!!,
-                point.pos
-            )!!
-            if (point.childOne) {
-                updateParentChildOne(point.parent, bundle.id!!)
-                iterativeMerkleInsert(message, isp, bundles)
-            } else if (point.childTwo) {
-                updateParentChildTwo(point.parent, bundle.id!!)
-                iterativeMerkleInsert(message, isp, bundles)
-            }
-
-        }
-    }
-
     @Transaction
     @Query(
         """
@@ -648,30 +582,5 @@ abstract class MerkleDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     abstract fun insertBundleEntity(bundle: MerkleBundle): Single<Long>
-
-    open fun insertMerkle(message: HashlessScatterMessage) {
-        lock.withLock {
-            val r = getDefaultRoot()
-                .blockingGet()
-
-            val root = getInsertionPoint(message.fileGlobalHash, r.id!!, 0)
-
-            val bundles =
-                ArrayList((0..<(message.fileGlobalHash.size * Byte.SIZE_BITS - root.pos)).map { v ->
-                    MerkleBundle(
-                        hash = null,
-                        dirty = true
-                    )
-                })
-
-            val ids = insertBundleEntitySync(bundles)
-            for ((bundle, id) in bundles.zip(ids)) {
-                bundle.id = id
-            }
-            iterativeMerkleInsert(message, root, bundles)
-        }
-
-    }
-
 
 }

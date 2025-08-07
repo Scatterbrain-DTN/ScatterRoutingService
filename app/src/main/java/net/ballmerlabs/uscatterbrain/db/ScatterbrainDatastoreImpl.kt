@@ -21,6 +21,7 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.BiFunction
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.DesktopApp
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -43,8 +44,12 @@ import net.ballmerlabs.uscatterbrain.db.entities.JustFingerprint
 import net.ballmerlabs.uscatterbrain.db.entities.JustPackageSig
 import net.ballmerlabs.uscatterbrain.db.entities.KeylessIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.Keys
+import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
+import net.ballmerlabs.uscatterbrain.db.entities.MerkleInsertCond
 import net.ballmerlabs.uscatterbrain.db.entities.Metrics
+import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
@@ -55,6 +60,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import okio.withLock
 import scatterbrain.Transfer.MessageFlag
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -70,6 +76,7 @@ import java.util.UUID
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
@@ -166,6 +173,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val cachedPackages = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val disposable = CompositeDisposable()
     private val rehashAwaitables = ConcurrentHashMap<CompletableSubject, Boolean>()
+    private val lock = ReentrantLock()
 
     override fun getStats(handshakeResult: HandshakeResult): Maybe<HandshakeResult> {
         return mDatastore.identityDao().getNumIdentities().flatMapMaybe { idc ->
@@ -199,7 +207,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .insertMessage(message)
                     .flatMapCompletable { m ->
                         Completable.fromAction {
-                            mDatastore.merkleDao().insertMerkle(m)
+                            insertMerkle(m)
                         }.subscribeOn(databaseScheduler)
                     }
                     .subscribeOn(databaseScheduler)
@@ -1220,8 +1228,99 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .doFinally { LOG.v("awaitAllMerkle completed") }
     }
 
+
+     fun merkleRehash(root: Long?, pos: Long = 0) {
+        if (root == null) {
+            return
+        }
+
+        val child1 = mDatastore.merkleDao().getChildOne(root)
+        val child2 = mDatastore.merkleDao().getChildTwo(root)
+        merkleRehash(child1, pos = pos + 1)
+        merkleRehash(child2, pos = pos + 1)
+
+        val messages = mDatastore.merkleDao().getMessagesForBundle(root)
+        val bundles = mDatastore.merkleDao().getBundlesForBundle(root)
+        val mhash = messages.map { v -> v.fileGlobalHash }
+        val bhash = bundles.map { v -> v.hash!! }
+//        log.v("merkleRehash depth=$pos root=$root")
+//        log.v("\tmhash=${mhash.map { v -> v.toHexString() }}")
+//        log.v("\tbhash=${bhash.map { v -> v.toHexString() }}")
+        val q = bhash + mhash
+        val b = q.sortedWith { v, n -> v.compare(n) }
+//        log.v("\tcombined=${b.map { v -> v.toHexString() }}")
+        val hash = LibsodiumInterface.merkleHash(b)
+//        log.v("\tfinal=${hash.toHexString()}")
+        mDatastore.merkleDao().updateBundleHash(hash, root)
+    }
+
+    fun merkleRehash(scheduler: Scheduler = Schedulers.single()): Completable {
+        return mDatastore.merkleDao().getDefaultRoot()
+            .doOnSubscribe { LOG.v("getDefaultRoot merkleRehash") }
+            .flatMapCompletable { r ->
+                Completable.fromAction {
+                    lock.withLock {
+                        merkleRehash(r.id)
+                    }
+                }.subscribeOn(scheduler)
+            }
+    }
+
+    private fun iterativeMerkleInsert(
+        message: HashlessScatterMessage,
+        point: MerkleInsertCond,
+        bundles: ArrayList<MerkleBundle>,
+    ) {
+        LOG.v("iterativeMerkleInsert start")
+        if (point.complete(message.fileGlobalHash)) {
+            message.bundle = point.parent
+            mDatastore.merkleDao().updateBundleForMessage(point.parent, message.messageID!!)
+
+        } else {
+            val bundle = bundles.removeLastOrNull()!!
+            val isp = mDatastore.merkleDao().getInsertionPointWithoutDb(
+                message.fileGlobalHash,
+                bundle.id!!,
+                point.pos
+            )!!
+            if (point.childOne) {
+                mDatastore.merkleDao().updateParentChildOne(point.parent, bundle.id!!)
+                iterativeMerkleInsert(message, isp, bundles)
+            } else if (point.childTwo) {
+                mDatastore.merkleDao().updateParentChildTwo(point.parent, bundle.id!!)
+                iterativeMerkleInsert(message, isp, bundles)
+            }
+
+        }
+
+        LOG.v("iterativeMerkleInsert end")
+    }
+    fun insertMerkle(message: HashlessScatterMessage) {
+        lock.withLock {
+            val r = mDatastore.merkleDao().getDefaultRoot()
+                .blockingGet()
+
+            val root = mDatastore.merkleDao().getInsertionPoint(message.fileGlobalHash, r.id!!, 0)
+
+            val bundles =
+                ArrayList((0..<(message.fileGlobalHash.size * Byte.SIZE_BITS - root.pos)).map { v ->
+                    MerkleBundle(
+                        hash = null,
+                        dirty = true
+                    )
+                })
+
+            val ids = mDatastore.merkleDao().insertBundleEntitySync(bundles)
+            for ((bundle, id) in bundles.zip(ids)) {
+                bundle.id = id
+            }
+            iterativeMerkleInsert(message, root, bundles)
+        }
+
+    }
+
     override fun rehashMerkle(): Completable {
-        return mDatastore.merkleDao().merkleRehash(databaseScheduler)
+        return merkleRehash(databaseScheduler)
                 .andThen(advertiser.setAdvertisingLuid())
                 .subscribeOn(databaseScheduler)
     }
@@ -1229,7 +1328,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun rehashMerkleAsync(): Completable {
         return Completable.fromAction {
             val subject = CompletableSubject.create()
-            val obs = mDatastore.merkleDao().merkleRehash(databaseScheduler)
+            val obs = merkleRehash(databaseScheduler)
                 .andThen(advertiser.setAdvertisingLuid())
                 .doFinally { rehashAwaitables.remove(subject) }
                 .subscribeOn(databaseScheduler)
