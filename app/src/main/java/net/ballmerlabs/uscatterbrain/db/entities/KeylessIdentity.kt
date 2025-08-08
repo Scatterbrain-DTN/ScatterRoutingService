@@ -32,7 +32,13 @@ data class KeylessIdentity (
     var fingerprint: UUID,
 
     @ColumnInfo(name = "privatekey")
-    var privatekey: ByteArray?
+    var privatekey: ByteArray?,
+
+    @ColumnInfo(name = "send", defaultValue = "true")
+    var send: Boolean = true,
+
+    @ColumnInfo(name = "original_send", defaultValue = "true")
+    var originalSend: Boolean = send
 ) {
     @PrimaryKey(autoGenerate = true)
     var identityID: Long? = null

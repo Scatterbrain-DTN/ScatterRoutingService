@@ -574,6 +574,9 @@ interface ScatterbrainDatastore {
 
     fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int? = null): Single<HubResponse>
 
+    fun purge(start: Date, endDate: Date): Completable
+
+    fun purgeIdentities(purge: Boolean): Completable
 
     enum class WriteMode {
         APPEND, OVERWRITE

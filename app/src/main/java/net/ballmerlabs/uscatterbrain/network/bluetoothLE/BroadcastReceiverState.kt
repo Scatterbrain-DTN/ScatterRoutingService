@@ -109,9 +109,6 @@ class BroadcastReceiverState @Inject constructor(
                                             } else {
                                                 leState.get().updateGone(luid, e)
                                             }
-                                            if (e is RxJavaAssemblyException) {
-                                                LOG.e(e.stacktrace())
-                                            }
                                             e.printStackTrace()
                                         }
                                         .onErrorComplete()

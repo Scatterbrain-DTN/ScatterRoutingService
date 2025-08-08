@@ -88,6 +88,14 @@ class MockScatterbrainDatastore @Inject constructor(
         return Completable.complete()
     }
 
+    override fun purge(start: Date, endDate: Date): Completable {
+        return Completable.complete()
+    }
+
+    override fun purgeIdentities(purge: Boolean): Completable {
+        return Completable.complete()
+    }
+
     override fun getDesktopIdentitiesByFingerprint(identity: UUID?): Single<List<DesktopApiIdentity>> {
         return Single.just(
             listOf(

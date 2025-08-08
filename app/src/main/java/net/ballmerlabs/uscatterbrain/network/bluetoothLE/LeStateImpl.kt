@@ -386,6 +386,10 @@ class LeStateImpl @Inject constructor(
         }
     }
 
+    override fun clearActive() {
+        activeLuids.clear()
+    }
+
     private fun setupConnection(
         connection: RxBleConnection, luid: UUID, reverse: Boolean
     ): Completable {

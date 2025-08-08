@@ -179,6 +179,11 @@ interface LeState {
      */
     fun refreshPeers(): Completable
 
+    /**
+     * clears the luid cache to allow nodes to connect again
+     */
+    fun clearActive()
+
     fun setupChannels() {
         for (i in 0 until BluetoothLERadioModuleImpl.NUM_CHANNELS) {
             val channel = incrementUUID(

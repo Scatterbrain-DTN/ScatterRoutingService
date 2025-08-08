@@ -49,6 +49,7 @@ import net.ballmerlabs.uscatterbrain.db.entities.MerkleInsertCond
 import net.ballmerlabs.uscatterbrain.db.entities.Metrics
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
@@ -164,6 +165,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val broadcaster: Broadcaster,
     private val advertiser: Advertiser,
+    private val leState: LeState
 ) : ScatterbrainDatastore {
     private val LOG by scatterLog()
     private val mOpenFiles: ConcurrentHashMap<File, OpenFile> = ConcurrentHashMap()
@@ -854,7 +856,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun getTopRandomIdentities(count: Int): Flowable<IdentityPacket> {
-        return mDatastore.identityDao().getNumIdentities()
+        return mDatastore.identityDao().getNumSendableIdentities()
             .subscribeOn(databaseScheduler)
             .map { n -> min(count, n) }
             .flatMapPublisher { num ->
@@ -1295,6 +1297,20 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
         LOG.v("iterativeMerkleInsert end")
     }
+
+    override fun purge(start: Date, endDate: Date): Completable {
+        return mDatastore.scatterMessageDao().deleteByDate(start.time, endDate.time).ignoreElement()
+    }
+
+    override fun purgeIdentities(purge: Boolean): Completable {
+        return if (purge)
+            mDatastore.identityDao()
+                .nukeAllIdentities()
+        else
+            mDatastore.identityDao()
+                .restoreIdentities()
+    }
+
     fun insertMerkle(message: HashlessScatterMessage) {
         lock.withLock {
             val r = mDatastore.merkleDao().getDefaultRoot()
@@ -1323,6 +1339,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return merkleRehash(databaseScheduler)
                 .andThen(advertiser.setAdvertisingLuid())
                 .subscribeOn(databaseScheduler)
+            .doFinally { leState.clearActive() }
     }
 
     override fun rehashMerkleAsync(): Completable {
@@ -1332,6 +1349,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 .andThen(advertiser.setAdvertisingLuid())
                 .doFinally { rehashAwaitables.remove(subject) }
                 .subscribeOn(databaseScheduler)
+                .doFinally { leState.clearActive() }
             obs.subscribe(subject)
             rehashAwaitables[subject] = true
         }

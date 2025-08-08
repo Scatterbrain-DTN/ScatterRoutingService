@@ -342,6 +342,38 @@ class ScatterRoutingService : LifecycleService() {
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
+        override fun purge(startDate: Long, endDate: Long, callback: UnitCallback) {
+            checkSuperuserPermission()
+            val handle = generateNewHandle()
+
+            val disp = mBackend.datastore.purge(Date(startDate), Date(endDate))
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message)}
+                )
+
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+
+        }
+
+
+        override fun purgeIdentities(purge: Boolean, callback: UnitCallback) {
+            checkSuperuserPermission()
+            val handle = generateNewHandle()
+
+            val disp = mBackend.datastore.purgeIdentities(purge)
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message)}
+                )
+
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
         override fun onAppCallback(callback: SbAppCallback) {
             checkSuperuserPermission()
             val handle = generateNewHandle()

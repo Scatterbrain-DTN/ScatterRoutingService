@@ -37,9 +37,8 @@ interface IdentityDao {
     fun getKeys(ids: List<Long>): Single<List<Keys>>
 
     @Transaction
-    @Query("SELECT * FROM identities ORDER BY RANDOM() LIMIT :count")
+    @Query("SELECT * FROM identities WHERE send ORDER BY RANDOM() LIMIT :count")
     fun getTopRandom(count: Int): Single<List<Identity>>
-
 
 
     @Query("SELECT packageName FROM clientapp")
@@ -47,6 +46,9 @@ interface IdentityDao {
 
     @Query("SELECT COUNT(*) FROM identities")
     fun getNumIdentities(): Single<Int>
+
+    @Query("SELECT COUNT(*) FROM identities WHERE send")
+    fun getNumSendableIdentities(): Single<Int>
 
     @Insert
     fun insert(identity: KeylessIdentity): Single<Long>
@@ -58,6 +60,24 @@ interface IdentityDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun __insertKeys(keys: List<Keys>): List<Long>
 
+    @Query("UPDATE identities SET send = 'false'")
+    fun nukeAllIdentities(): Completable
+
+    @Query("UPDATE identities SET send = original_send")
+    fun restoreIdentities(): Completable
+
+
+    @Query("UPDATE identities SET send = :send WHERE identityID = :id")
+    fun setIdentitySend(id: Long, send: Boolean): Completable
+
+    @Query("UPDATE identities SET send = :send WHERE fingerprint = :fingerprint")
+    fun setIdentitySend(fingerprint: UUID, send: Boolean): Completable
+
+    @Query("UPDATE identities SET send = original_send WHERE identityID = :id")
+    fun restoreIdentitySend(id: Long): Completable
+
+    @Query("UPDATE identities SET send = original_send WHERE fingerprint = :fingerprint")
+    fun restoreIdentitySend(fingerprint: UUID): Completable
 
     @Transaction
     @Insert(onConflict = OnConflictStrategy.IGNORE)

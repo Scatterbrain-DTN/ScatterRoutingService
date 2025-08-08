@@ -43,6 +43,10 @@ class MockLeState(
         }
     }
 
+    override fun clearActive() {
+
+    }
+
     override fun observeDisconnects(): Observable<RxBleDevice> {
         return Observable.never()
     }
