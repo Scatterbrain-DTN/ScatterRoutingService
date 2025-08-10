@@ -32,7 +32,8 @@ open class ApiIdentity protected constructor(val builder: Builder) {
         builder.name!!,
         builder.sig!!,
         builder.fingerprint!!,
-        builder.hasPrivateKey
+        builder.hasPrivateKey,
+        builder.frozen
     )
 
 
@@ -50,6 +51,7 @@ open class ApiIdentity protected constructor(val builder: Builder) {
         private var signPair: KeyPair? = null
         var fingerprint: UUID? = null
         var hasPrivateKey = false
+        var frozen: Boolean = false
         private fun sumBytes(): ByteString {
             var result = ByteString.EMPTY
             result = result.concat(ByteString.copyFromUtf8(name))
@@ -102,6 +104,11 @@ open class ApiIdentity protected constructor(val builder: Builder) {
 
         fun sign(keyPair: KeyPair): Builder {
             signPair = keyPair
+            return this
+        }
+
+        fun frozen(frozen: Boolean): Builder {
+            this.frozen = frozen
             return this
         }
 

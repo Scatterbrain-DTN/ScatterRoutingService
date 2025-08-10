@@ -27,6 +27,7 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.*
 import net.ballmerlabs.uscatterbrain.network.b64
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.TransactionResult
 import net.ballmerlabs.uscatterbrain.util.initDiskLogging
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.*
@@ -350,7 +351,10 @@ class ScatterRoutingService : LifecycleService() {
                 .doOnDispose { callbackHandles.remove(handle) }
                 .doFinally { callbackHandles.remove(handle) }
                 .subscribe(
-                    { callback.onComplete() },
+                    {
+                        mBackend.broadcastHandshakeResult(0, 0)
+                        callback.onComplete()
+                    },
                     { err -> callback.onError(err.message)}
                 )
 
@@ -367,7 +371,28 @@ class ScatterRoutingService : LifecycleService() {
                 .doOnDispose { callbackHandles.remove(handle) }
                 .doFinally { callbackHandles.remove(handle) }
                 .subscribe(
-                    { callback.onComplete() },
+                    {
+                        mBackend.broadcastHandshakeResult(1, 0)
+                        callback.onComplete()
+                    },
+                    { err -> callback.onError(err.message)}
+                )
+
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
+        override fun purgeIdentity(identity: ParcelUuid, purge: Boolean, callback: UnitCallback) {
+            checkSuperuserPermission()
+            val handle = generateNewHandle()
+
+            val disp = mBackend.datastore.purgeIdentities(identity.uuid, purge)
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    {
+                        mBackend.broadcastHandshakeResult(1, 0)
+                        callback.onComplete()
+                    },
                     { err -> callback.onError(err.message)}
                 )
 

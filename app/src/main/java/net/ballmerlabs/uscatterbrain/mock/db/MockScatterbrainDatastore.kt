@@ -52,6 +52,10 @@ class MockScatterbrainDatastore @Inject constructor(
         return Single.just(ByteArray(LibsodiumInterface.MERKLE_HASH_SIZE))
     }
 
+    override fun purgeIdentities(fingerprint: UUID, purge: Boolean): Completable {
+        return Completable.complete()
+    }
+
     override fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int?): Single<HubResponse> {
         val out = Single.just(
             HubResponse(

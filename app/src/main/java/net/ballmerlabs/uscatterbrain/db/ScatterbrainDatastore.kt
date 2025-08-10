@@ -578,6 +578,8 @@ interface ScatterbrainDatastore {
 
     fun purgeIdentities(purge: Boolean): Completable
 
+    fun purgeIdentities(fingerprint: UUID, purge: Boolean): Completable
+
     enum class WriteMode {
         APPEND, OVERWRITE
     }

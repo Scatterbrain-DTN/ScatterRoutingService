@@ -580,6 +580,9 @@ abstract class MerkleDao {
     )
     abstract fun getBundlesForBundle(id: Long): List<MerkleBundle>
 
+    @Query("DELETE FROM bundles")
+    abstract fun nukeAllBundles(): Completable
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     abstract fun insertBundleEntity(bundle: MerkleBundle): Single<Long>
 

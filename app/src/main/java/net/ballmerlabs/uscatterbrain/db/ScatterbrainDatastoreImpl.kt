@@ -900,6 +900,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .setName(id.identity.givenName)
                     .addKeys(keys2map(id.keys))
                     .setSig(id.identity.signature)
+                    .frozen(!id.identity.send)
                     .setHasPrivateKey(id.identity.privatekey != null)
                     .build()
             }
@@ -976,6 +977,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     .setName(identity.identity.givenName)
                     .addKeys(keys2map(identity.keys))
                     .setSig(identity.identity.signature)
+                    .frozen(!identity.identity.send)
                     .setHasPrivateKey(identity.identity.privatekey != null)
                     .build()
             }.reduce(ArrayList<net.ballmerlabs.scatterbrainsdk.Identity>()) { list, id ->
@@ -1300,15 +1302,24 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun purge(start: Date, endDate: Date): Completable {
         return mDatastore.scatterMessageDao().deleteByDate(start.time, endDate.time).ignoreElement()
+            .andThen(mDatastore.merkleDao().nukeAllBundles())
+            .subscribeOn(databaseScheduler)
     }
 
     override fun purgeIdentities(purge: Boolean): Completable {
         return if (purge)
             mDatastore.identityDao()
                 .nukeAllIdentities()
+                .subscribeOn(databaseScheduler)
         else
             mDatastore.identityDao()
                 .restoreIdentities()
+                .subscribeOn(databaseScheduler)
+    }
+
+    override fun purgeIdentities(fingerprint: UUID, purge: Boolean): Completable {
+        return mDatastore.identityDao().setIdentitySend(fingerprint, !purge)
+            .subscribeOn(databaseScheduler)
     }
 
     fun insertMerkle(message: HashlessScatterMessage) {
