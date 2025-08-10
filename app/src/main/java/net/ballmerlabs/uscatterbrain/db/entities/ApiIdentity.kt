@@ -13,20 +13,17 @@ import net.ballmerlabs.uscatterbrain.util.hashAsUUID
 import java.util.SortedSet
 import java.util.TreeSet
 import java.util.UUID
+import kotlin.text.get
 
 /**
  * ApiIdentity is a mutable handle to an identity that allows more privileged
  * read/write access including the ability to sign and modify the private key
  * This is used for working with identities internally
  */
-open class ApiIdentity protected constructor(val builder: Builder) {
-    private val privatekey: ByteArray? = builder.privkey
-    val privateKey: ByteArray?
-        get() = privatekey
+data class ApiIdentity(val identity: Identity, val privateKey: ByteArray?) {
 
 
-    val identity: Identity
-    get() = Identity(
+    constructor(builder: Builder): this(Identity(
         builder.mPubKeymap.toImmutableMap(),
         builder.mPubKeymap[PROTOBUF_PRIVKEY_KEY]!!,
         builder.name!!,
@@ -34,7 +31,7 @@ open class ApiIdentity protected constructor(val builder: Builder) {
         builder.fingerprint!!,
         builder.hasPrivateKey,
         builder.frozen
-    )
+    ), privateKey = builder.privkey)
 
 
     /**
@@ -42,16 +39,17 @@ open class ApiIdentity protected constructor(val builder: Builder) {
      */
     class KeyPair(val secretkey: ByteArray, val publickey: ByteArray)
 
-    class Builder {
-        var sig: ByteArray? = null
-        val mPubKeymap: MutableMap<String, ByteArray> = HashMap()
-        var name: String? = null
-        private var pubkey: ByteArray? = null
-        var privkey: ByteArray? = null
-        private var signPair: KeyPair? = null
-        var fingerprint: UUID? = null
-        var hasPrivateKey = false
-        var frozen: Boolean = false
+    data class Builder (
+        var sig: ByteArray? = null,
+        val mPubKeymap: MutableMap<String, ByteArray> = HashMap(),
+        var name: String? = null,
+        private var pubkey: ByteArray? = null,
+        var privkey: ByteArray? = null,
+        private var signPair: KeyPair? = null,
+        var fingerprint: UUID? = null,
+        var hasPrivateKey: Boolean = false,
+        var frozen: Boolean = false,
+    ) {
         private fun sumBytes(): ByteString {
             var result = ByteString.EMPTY
             result = result.concat(ByteString.copyFromUtf8(name))
@@ -146,6 +144,38 @@ open class ApiIdentity protected constructor(val builder: Builder) {
             fingerprint = getPubkeyFingerprint()
             return ApiIdentity(this)
         }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as Builder
+
+            if (hasPrivateKey != other.hasPrivateKey) return false
+            if (frozen != other.frozen) return false
+            if (!sig.contentEquals(other.sig)) return false
+            if (mPubKeymap != other.mPubKeymap) return false
+            if (name != other.name) return false
+            if (!pubkey.contentEquals(other.pubkey)) return false
+            if (!privkey.contentEquals(other.privkey)) return false
+            if (signPair != other.signPair) return false
+            if (fingerprint != other.fingerprint) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = hasPrivateKey.hashCode()
+            result = 31 * result + frozen.hashCode()
+            result = 31 * result + (sig?.contentHashCode() ?: 0)
+            result = 31 * result + mPubKeymap.hashCode()
+            result = 31 * result + (name?.hashCode() ?: 0)
+            result = 31 * result + (pubkey?.contentHashCode() ?: 0)
+            result = 31 * result + (privkey?.contentHashCode() ?: 0)
+            result = 31 * result + (signPair?.hashCode() ?: 0)
+            result = 31 * result + (fingerprint?.hashCode() ?: 0)
+            return result
+        }
     }
 
     companion object {
@@ -159,6 +189,24 @@ open class ApiIdentity protected constructor(val builder: Builder) {
         fun newBuilder(): Builder {
             return Builder()
         }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as ApiIdentity
+
+        if (identity != other.identity) return false
+        if (!privateKey.contentEquals(other.privateKey)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = identity.hashCode()
+        result = 31 * result + (privateKey?.contentHashCode() ?: 0)
+        return result
     }
 
 }

@@ -115,7 +115,11 @@ class AdvertiserTest {
         leState = MockLeState(
             serverConnection = fakeGattServerConnection
         )
-        val mockDao =  object : MerkleDao() {
+        val mockDao = object : MerkleDao() {
+
+            override fun nukeAllBundles(): Completable {
+                TODO("Not yet implemented")
+            }
             override fun getMessagesForBundle(id: Long): List<HashlessScatterMessage> {
                 TODO("Not yet implemented")
             }
