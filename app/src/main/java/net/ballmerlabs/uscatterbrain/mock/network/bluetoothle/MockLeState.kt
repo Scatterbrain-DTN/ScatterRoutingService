@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 class MockLeState(
-    private val serverConnection: FakeGattServerConnectionSubcomponent,
+    private val serverConnection: FakeGattServerConnectionSubcomponent? = null,
     val connectionFactory: PublishSubject<CachedLeConnection> = PublishSubject.create(),
     private val resultFactory: Observable<HandshakeResult> = Observable.just(HandshakeResult(1, 1, HandshakeResult.TransactionStatus.STATUS_SUCCESS)),
     val connectionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> = ConcurrentHashMap(),
@@ -81,7 +81,7 @@ class MockLeState(
         reverse: Boolean
     ): Single<ScatterbrainTransactionSubcomponent> {
         return connectionFactory.firstOrError()
-            .map { c -> serverConnection.transaction().connection(c).luid(luid).build() }
+            .map { c -> serverConnection?.transaction()?.connection(c)?.luid(luid)?.build() }
     }
 
     override fun getAdvertisedLuid(scanResult: ScanResult): UUID? {

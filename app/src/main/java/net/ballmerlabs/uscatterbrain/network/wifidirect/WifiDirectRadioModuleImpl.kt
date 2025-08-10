@@ -463,6 +463,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     override fun getBand(): Single<Int> {
         return getConnected()
             .toSingle(FakeWifiP2pConfig.GROUP_OWNER_BAND_AUTO)
+            .doOnSuccess { v -> LOG.v("getBand $v") }
     }
 
     private fun cancelConnection(): Completable {

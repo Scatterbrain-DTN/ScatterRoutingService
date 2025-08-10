@@ -104,7 +104,7 @@ class AdvertiserTest {
         fakeGattServerConnection =  fake.gattConnectionBuilder()
             .gattServer(mock {  })
             .timeoutConfiguration(mock {  })
-            .build()
+            .build() as FakeGattServerConnectionSubcomponent
         fakeRoutingServiceComponent = fake
         return fake
     }

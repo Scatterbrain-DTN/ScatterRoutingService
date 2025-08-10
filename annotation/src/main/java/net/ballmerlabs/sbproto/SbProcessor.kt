@@ -130,7 +130,7 @@ class SbProcessor(
                 .addStatement(
                     "val buf = ByteBuffer.wrap(bytes)\n" +
                     "val type = buf.order(ByteOrder.BIG_ENDIAN).getInt()\n" +
-                    "val typeEnum = scatterbrain.Scatterbrain.MessageType.forNumber(type)\n" +
+                    "val typeEnum = Scatterbrain.MessageType.forNumber(type)\n" +
                     "val parser = when(typeEnum) {"
                 )
                 .returns(ScatterSerializable.Companion.TypedPacket::class)
@@ -281,11 +281,12 @@ class SbProcessor(
 
             val qualifiedName = ClassName.bestGuess("$packageName.$fileName")
 
-            val packetType = type.value?.toString()!!
+            val pt = (type.value as KSClassDeclaration)
+            val packetType = pt.toClassName().canonicalName
 
             parsers[fileName] = ParserElement(
                 parserClass = qualifiedName,
-                parserType = packetType
+                parserType =  packetType
             )
 
             val fileSpec = FileSpec.builder(

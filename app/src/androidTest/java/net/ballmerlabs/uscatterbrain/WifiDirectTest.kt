@@ -30,6 +30,7 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastoreImpl
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockAdvertiser
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockLeState
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
@@ -152,7 +153,8 @@ class WifiDirectTest {
 
             } },
             BroadcasterImpl(ctx),
-            MockAdvertiser()
+            MockAdvertiser(),
+            MockLeState()
         )
         val component = DaggerRoutingServiceComponent.builder()
             .applicationContext(ctx)

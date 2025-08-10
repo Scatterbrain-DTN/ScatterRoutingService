@@ -133,7 +133,7 @@ class GattServerTest {
                 )
             )
             .build()
-            .connection()
+            .connection() as GattServerConnectionImpl
     }
 
     @Test

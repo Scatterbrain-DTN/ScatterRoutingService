@@ -15,6 +15,7 @@ import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.mock.DaggerFakeRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.FakeGattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockCachedLeConnection
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockLeState
@@ -111,11 +112,11 @@ class WifiDirectTest {
             .bluetoothManager(bluetoothManager)
             .wifiManager(wifiManager)
             .build()!!
-        val trans = component
+        val trans = (component
             .gattConnectionBuilder()
             .timeoutConfiguration(mock { })
             .gattServer(mock { })
-            .build()
+            .build() as FakeGattServerConnectionSubcomponent)
             .transaction()
             .connection(
                 MockCachedLeConnection(
@@ -124,7 +125,7 @@ class WifiDirectTest {
                     state = MockLeState(
                         serverConnection = component.gattConnectionBuilder().timeoutConfiguration(
                             TimeoutConfiguration(0, TimeUnit.SECONDS, delayScheduler)
-                        ).gattServer(mock { }).build()
+                        ).gattServer(mock { }).build() as FakeGattServerConnectionSubcomponent
                     ),
                     leAdvertiser = mock { },
                     luid = UUID.randomUUID()

@@ -36,7 +36,7 @@ interface FakeGattServerConnectionSubcomponent: GattServerConnectionSubcomponent
         @BindsInstance
         override fun timeoutConfiguration(timeoutConfiguration: TimeoutConfiguration): Builder
 
-        override fun build(): FakeGattServerConnectionSubcomponent
+        override fun build(): GattServerConnectionSubcomponent
     }
 
     @Module(subcomponents = [

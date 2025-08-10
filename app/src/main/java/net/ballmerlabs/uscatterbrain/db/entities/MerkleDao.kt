@@ -29,6 +29,9 @@ import java.util.concurrent.locks.ReentrantLock
 abstract class MerkleDao {
     private val log by scatterLog()
 
+    private val lock = ReentrantLock()
+
+
     @Query("SELECT * FROM messages WHERE bundle = :id ORDER BY fileGlobalHash ASC")
     abstract fun getMessagesForBundle(id: Long): List<HashlessScatterMessage>
 
@@ -532,7 +535,47 @@ abstract class MerkleDao {
 
     @Query("SELECT * FROM bundles")
     abstract fun getAllBundles(): List<MerkleBundle>
+    
 
+   open fun merkleRehash(root: Long?, pos: Long = 0) {
+        if (root == null) {
+            return
+        }
+
+        val child1 = getChildOne(root)
+        val child2 = getChildTwo(root)
+        merkleRehash(child1, pos = pos + 1)
+        merkleRehash(child2, pos = pos + 1)
+
+        val messages = getMessagesForBundle(root)
+        val bundles = getBundlesForBundle(root)
+        val mhash = messages.map { v -> v.fileGlobalHash }
+        val bhash = bundles.map { v -> v.hash!! }
+//        log.v("merkleRehash depth=$pos root=$root")
+//        log.v("\tmhash=${mhash.map { v -> v.toHexString() }}")
+//        log.v("\tbhash=${bhash.map { v -> v.toHexString() }}")
+        val q = bhash + mhash
+        val b = q.sortedWith { v, n -> v.compare(n) }
+//        log.v("\tcombined=${b.map { v -> v.toHexString() }}")
+        val hash = LibsodiumInterface.merkleHash(b)
+//        log.v("\tfinal=${hash.toHexString()}")
+        updateBundleHash(hash, root)
+    }
+
+    open fun merkleRehash(scheduler: Scheduler = Schedulers.single()): Completable {
+        return getDefaultRoot()
+            .flatMapCompletable { r ->
+                Completable.fromAction {
+                    lock.withLock {
+                        merkleRehash(r.id)
+                    }
+                }.subscribeOn(scheduler)
+            }
+    }
+
+    open fun getLock(): ReentrantLock {
+        return lock
+    }
 
 //    private fun rehash(dirty: Long): Completable {
 //        return getBundlesForBundle(dirty)

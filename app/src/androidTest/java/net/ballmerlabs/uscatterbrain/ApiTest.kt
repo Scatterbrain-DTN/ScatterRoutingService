@@ -218,8 +218,8 @@ class ApiTest: TestBase() {
         runBlocking {
             val identity = binder.generateIdentity("fmef")
             val data = Random(0).nextBytes(128)
-            val sig = binder.sign(identity, data)
-            assert(binder.verify(identity, data, sig))
+            val sig = binder.sign(identity.fingerprint, data)
+            assert(binder.verify(identity.fingerprint, data, sig))
         }
     }
 
@@ -244,8 +244,8 @@ class ApiTest: TestBase() {
         runBlocking {
             val pkgname = "android"
             val id = binder.generateIdentity(pkgname)
-            binder.authorizeIdentity(id, pkgname)
-            val perms = binder.getPermissions(id)
+            binder.authorizeIdentity(id.fingerprint, pkgname)
+            val perms = binder.getPermissions(id.fingerprint)
             val pkg = perms.map { namePackage -> namePackage.info.packageName }
             assert(pkg.contains(pkgname))
         }

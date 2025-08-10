@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain
 
+import android.bluetooth.BluetoothGattServerCallback
 import android.content.Context
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
@@ -24,6 +25,8 @@ import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate9
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockAdvertiser
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockGattServerConnection
+import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockLeState
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.network.proto.*
@@ -145,7 +148,8 @@ class DatastoreTest {
 
             } },
             BroadcasterImpl(ctx),
-            MockAdvertiser()
+            MockAdvertiser(),
+            MockLeState()
         )
         database.clearAllTables()
     }

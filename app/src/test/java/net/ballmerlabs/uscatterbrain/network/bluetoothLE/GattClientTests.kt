@@ -124,7 +124,7 @@ class GattClientTests {
 
         val gattServerComponent = parent.gattConnectionBuilder().gattServer(androidGattServer).timeoutConfiguration(
             TimeoutConfiguration(5, TimeUnit.SECONDS, ioScheduler)
-        ).build()
+        ).build() as FakeGattServerConnectionSubcomponent
         leState = MockLeState(gattServerComponent)
 
         connection = CachedLEConnectionImpl(

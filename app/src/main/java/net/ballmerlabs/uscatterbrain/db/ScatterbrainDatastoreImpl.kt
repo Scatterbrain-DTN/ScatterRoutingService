@@ -175,7 +175,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val cachedPackages = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val disposable = CompositeDisposable()
     private val rehashAwaitables = ConcurrentHashMap<CompletableSubject, Boolean>()
-    private val lock = ReentrantLock()
 
     override fun getStats(handshakeResult: HandshakeResult): Maybe<HandshakeResult> {
         return mDatastore.identityDao().getNumIdentities().flatMapMaybe { idc ->
@@ -1232,44 +1231,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .doFinally { LOG.v("awaitAllMerkle completed") }
     }
 
-
-     fun merkleRehash(root: Long?, pos: Long = 0) {
-        if (root == null) {
-            return
-        }
-
-        val child1 = mDatastore.merkleDao().getChildOne(root)
-        val child2 = mDatastore.merkleDao().getChildTwo(root)
-        merkleRehash(child1, pos = pos + 1)
-        merkleRehash(child2, pos = pos + 1)
-
-        val messages = mDatastore.merkleDao().getMessagesForBundle(root)
-        val bundles = mDatastore.merkleDao().getBundlesForBundle(root)
-        val mhash = messages.map { v -> v.fileGlobalHash }
-        val bhash = bundles.map { v -> v.hash!! }
-//        log.v("merkleRehash depth=$pos root=$root")
-//        log.v("\tmhash=${mhash.map { v -> v.toHexString() }}")
-//        log.v("\tbhash=${bhash.map { v -> v.toHexString() }}")
-        val q = bhash + mhash
-        val b = q.sortedWith { v, n -> v.compare(n) }
-//        log.v("\tcombined=${b.map { v -> v.toHexString() }}")
-        val hash = LibsodiumInterface.merkleHash(b)
-//        log.v("\tfinal=${hash.toHexString()}")
-        mDatastore.merkleDao().updateBundleHash(hash, root)
-    }
-
-    fun merkleRehash(scheduler: Scheduler = Schedulers.single()): Completable {
-        return mDatastore.merkleDao().getDefaultRoot()
-            .doOnSubscribe { LOG.v("getDefaultRoot merkleRehash") }
-            .flatMapCompletable { r ->
-                Completable.fromAction {
-                    lock.withLock {
-                        merkleRehash(r.id)
-                    }
-                }.subscribeOn(scheduler)
-            }
-    }
-
     private fun iterativeMerkleInsert(
         message: HashlessScatterMessage,
         point: MerkleInsertCond,
@@ -1323,7 +1284,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     fun insertMerkle(message: HashlessScatterMessage) {
-        lock.withLock {
+        mDatastore.merkleDao().getLock().withLock {
             val r = mDatastore.merkleDao().getDefaultRoot()
                 .blockingGet()
 
@@ -1347,7 +1308,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun rehashMerkle(): Completable {
-        return merkleRehash(databaseScheduler)
+        return mDatastore.merkleDao().merkleRehash(databaseScheduler)
                 .andThen(advertiser.setAdvertisingLuid())
                 .subscribeOn(databaseScheduler)
             .doFinally { leState.clearActive() }
@@ -1356,7 +1317,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun rehashMerkleAsync(): Completable {
         return Completable.fromAction {
             val subject = CompletableSubject.create()
-            val obs = merkleRehash(databaseScheduler)
+            val obs = mDatastore.merkleDao().merkleRehash(databaseScheduler)
                 .andThen(advertiser.setAdvertisingLuid())
                 .doFinally { rehashAwaitables.remove(subject) }
                 .subscribeOn(databaseScheduler)
