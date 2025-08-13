@@ -77,7 +77,8 @@ class WifiDirectRadioModuleImpl @Inject constructor(
     private val provider: WifiDirectProvider,
     private val leState: Provider<LeState>,
     private val preferences: RouterPreferences,
-    private val broadcastReceiverState: BroadcastReceiverState
+    private val broadcastReceiverState: BroadcastReceiverState,
+    @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) private val mainThread: Scheduler
 ) : WifiDirectRadioModule {
     private val LOG by scatterLog()
 
@@ -125,10 +126,11 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             )
                             val newpass = base64pass.replace("-", "b")
                             val uuid = abs(Random().nextInt()) % 4096
-                            LOG.w("createGroup with band ${FakeWifiP2pConfig.bandToStr(band)} $newpass $uuid")
+                            val networkName = "DIRECT-$uuid"
+                            LOG.w("createGroup with band ${FakeWifiP2pConfig.bandToStr(band)} $uuid $newpass $networkName")
                             val fakeConfig = builder.fakeWifiP2pConfig(
                                 WifiDirectInfoSubcomponent.WifiP2pConfigArgs(
-                                    passphrase = newpass, networkName = "DIRECT-$uuid", band = band
+                                    passphrase = newpass, networkName = networkName, band = band
                                 )
                             ).build()!!.fakeWifiP2pConfig()
                             provider.getManager()
@@ -137,7 +139,7 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                             provider.getManager()?.createGroup(channel, listener)
                         }
                         // provider.getManager()?.createGroup(provider.getChannel()?, listener)
-                    }).lastOrError()
+                    }.subscribeOn(mainThread)).lastOrError()
             } catch (exc: SecurityException) {
                 Single.error(exc)
             }

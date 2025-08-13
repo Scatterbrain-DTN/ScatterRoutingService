@@ -81,6 +81,9 @@ android {
         disable 'JvmStaticProvidesInObjectDetector', 'FieldSiteTargetOnQualifierAnnotation', 'ModuleCompanionObjects', 'ModuleCompanionObjectsNotInModuleParent'
     }
     namespace 'net.ballmerlabs.uscatterbrain'
+    kotlinOptions {
+        freeCompilerArgs = ['-XXLanguage:+PropertyParamAnnotationDefaultTargetMode']
+    }
 }
 
 apply from: "../scatterbrainSDK/gradle/jacoco.gradle"
