@@ -7,6 +7,7 @@ import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.ParcelUuid
 import android.os.Parcelable
+import androidx.room.MapInfo
 import com.polidea.rxandroidble2.RxBleClient
 import com.polidea.rxandroidble2.scan.ScanFilter
 import com.polidea.rxandroidble2.scan.ScanSettings
@@ -67,6 +68,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
     private val meshtasticBinderProvider: MeshtasticConnectionProvider,
     @Named(RoutingServiceComponent.NamedSchedulers.COMPUTATION) private val operationsScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.MAIN_THREAD) private val mainThread: Scheduler,
+    @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) private val timeoutScheduler: Scheduler,
     val serverSocketManager: ServerSocketManager,
     val desktopBuilder: Provider<DesktopApiSubcomponent.Builder>,
     private val powerManager: WakeLockProvider,
@@ -278,8 +280,6 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         return if (transports.contains("bluetooth")) {
             LOG.v("starting!")
             Observable.just(client.state)
-                .subscribeOn(operationsScheduler)
-                .observeOn(operationsScheduler)
                 .mergeWith(client.observeStateChanges())
                 .switchMapCompletable { state ->
                     LOG.w("RxAndroidBle state change $state")
@@ -292,7 +292,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                                 .andThen(advertiser.startAdvertise(advertiser.getHashLuid()))
                                 .andThen(leState.startServer())
                                 .andThen(startDesktop())
-                                .timeout(10, TimeUnit.SECONDS)
+                                .timeout(10, TimeUnit.SECONDS, timeoutScheduler)
                         }
 
                         else -> {
@@ -300,10 +300,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                             broadcastRouterState(RouterState.OFFLINE)
                             pauseScan()
                             leState.dumpPeers(true)
-                                .subscribeOn(operationsScheduler)
-                                .observeOn(operationsScheduler)
                                 .andThen(unregisterReceiver())
-
                                 .andThen(advertiser.stopAdvertise())
                                 .andThen(leState.stopServer())
                         }
@@ -330,8 +327,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 0,
                 HandshakeResult.TransactionStatus.STATUS_SUCCESS
             )
-        ).subscribeOn(operationsScheduler)
-            .observeOn(operationsScheduler)
+        )
             .andThen(
                 preferences.getStringSet(
                     context.getString(R.string.pref_enabled_transports),
@@ -343,11 +339,12 @@ class ScatterbrainSchedulerImpl @Inject constructor(
             )
             .flatMapCompletable { transports ->
                 if (transports.contains("meshtastic") && meshtasticInstalled)
-                    Completable.defer {
+                    Completable.fromAction {
                         meshtasticBinderProvider.connectBinderAsync()
-                        meshtasticBinderProvider.awaitConnection().ignoreElement()
                     } .subscribeOn(mainThread)
                         .observeOn(operationsScheduler)
+                        .andThen(meshtasticBinderProvider.awaitConnection().ignoreElement())
+                        .timeout(10, TimeUnit.SECONDS, timeoutScheduler)
                         .doOnComplete { LOG.v("meshtastic binder connected on start!") }
                 else {
                     Completable.complete()
