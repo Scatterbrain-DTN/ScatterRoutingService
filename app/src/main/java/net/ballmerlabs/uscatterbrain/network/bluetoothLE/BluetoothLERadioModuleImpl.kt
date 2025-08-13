@@ -853,6 +853,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
 
                 //  state.updateDisconnected(luid)
             }
+            .onErrorResumeNext { err: Throwable ->
+                broadcastReceiver.removeCurrentGroup().andThen(Maybe.error(err))
+            }
             .onErrorReturnItem(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_FAIL))
             .doFinally {
                 LOG.e("TERMINATION: session $device terminated")
