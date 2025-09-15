@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import android.os.Build
-import io.mockk.InternalPlatformDsl.toArray
 import io.reactivex.Completable
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.toProto

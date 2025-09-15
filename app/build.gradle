@@ -48,6 +48,8 @@ android {
         }
     }
     packagingOptions {
+        exclude 'lib/x86/libsqlite3x.so'
+        exclude 'lib/armeabi-v7a/libsqlite3x.so'
         resources {
             pickFirsts += ['META-INF/com.google.dagger_dagger.version']
         }
@@ -84,6 +86,7 @@ android {
     kotlinOptions {
         freeCompilerArgs = ['-XXLanguage:+PropertyParamAnnotationDefaultTargetMode']
     }
+    compileSdk 36
 }
 
 apply from: "../scatterbrainSDK/gradle/jacoco.gradle"
@@ -213,7 +216,6 @@ dependencies {
     // Optional -- mockito-kotlin
     androidTestImplementation libs.mockito.kotlin
     // Optional -- Mockk framework
-    testImplementation libs.mockk
     testImplementation libs.androidx.monitor
     testImplementation libs.androidx.core.ktx
     testImplementation libs.androidx.core

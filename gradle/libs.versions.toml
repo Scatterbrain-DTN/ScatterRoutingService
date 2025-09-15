@@ -64,7 +64,6 @@ mgrs = "2.1.3"
 mockclient = "1.19.1"
 mockitoCore = "5.18.0"
 mockitoKotlin = "6.0.0"
-mockk = "1.14.5"
 monitor = "1.8.0"
 navigation = "2.9.3"
 navigationFragmentKtx = "2.9.3"
@@ -95,7 +94,7 @@ rxjava2ExtrasVersion = "0.2.2"
 rxJavaVersion = "2.2.21"
 rxrelay = "2.1.1"
 security-crypto = "1.1.0"
-sqliteAndroid = "3.45.0"
+sqliteAndroid = "3.49.0"
 startup-runtime = "1.2.0"
 streamsupport-minifuture = "1.7.4"
 uiautomator = "2.3.0"
@@ -212,7 +211,6 @@ mgrs = { group = "mil.nga", name = "mgrs", version.ref = "mgrs" }
 mockclient = { module = "com.polidea.rxandroidble2:mockclient", version.ref = "mockclient" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoCore" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
-mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 navigation-testing = { group = "androidx.navigation", name = "navigation-testing", version.ref = "navigation" }
 org-eclipse-paho-client-mqttv3 = { group = "org.eclipse.paho", name = "org.eclipse.paho.client.mqttv3", version.ref = "org-eclipse-paho-client-mqttv3" }
