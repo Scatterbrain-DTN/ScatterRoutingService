@@ -32,6 +32,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="31" />
@@ -52,7 +53,7 @@
         <service
             android:name=".ScatterRoutingService"
             android:exported="true"
-            android:foregroundServiceType="location"
+            android:foregroundServiceType="location|connectedDevice"
             android:permission="net.ballmerlabs.scatterroutingservice.permission.ACCESS">
             <intent-filter>
                 <action android:name="net.ballmerlabs.uscatterbrain.ScatterRoutingService.BIND" />
