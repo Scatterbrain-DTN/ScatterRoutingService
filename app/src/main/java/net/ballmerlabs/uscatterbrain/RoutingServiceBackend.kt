@@ -45,5 +45,4 @@ interface RoutingServiceBackend {
     fun deleteDesktopApp(pubkey: ByteArray): Completable
     fun connectMeshtastic(): Single<Boolean>
     fun syncMeshtastic(): Completable
-    fun broadcastHandshakeResult(identities: Int, messages: Int, success: HandshakeResult.TransactionStatus = HandshakeResult.TransactionStatus.STATUS_SUCCESS)
 }

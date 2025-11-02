@@ -352,7 +352,7 @@ class ScatterRoutingService : LifecycleService() {
                 .doFinally { callbackHandles.remove(handle) }
                 .subscribe(
                     {
-                        mBackend.broadcastHandshakeResult(0, 0)
+                        mBackend.scheduler.broadcastTransactionResult(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
                         callback.onComplete()
                     },
                     { err -> callback.onError(err.message)}
@@ -372,7 +372,7 @@ class ScatterRoutingService : LifecycleService() {
                 .doFinally { callbackHandles.remove(handle) }
                 .subscribe(
                     {
-                        mBackend.broadcastHandshakeResult(1, 0)
+                        mBackend.scheduler.broadcastTransactionResult(HandshakeResult(1, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
                         callback.onComplete()
                     },
                     { err -> callback.onError(err.message)}
@@ -390,7 +390,7 @@ class ScatterRoutingService : LifecycleService() {
                 .doFinally { callbackHandles.remove(handle) }
                 .subscribe(
                     {
-                        mBackend.broadcastHandshakeResult(1, 0)
+                        mBackend.scheduler.broadcastTransactionResult(HandshakeResult(1, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
                         callback.onComplete()
                     },
                     { err -> callback.onError(err.message)}

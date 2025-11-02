@@ -14,6 +14,7 @@ import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.plugins.RxJavaPlugins
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -320,7 +321,7 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.merkleDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash(io.reactivex.schedulers.Schedulers.single()).blockingAwait()
 
         val root = database.merkleDao().getDefaultRoot().blockingGet()
 
@@ -342,7 +343,7 @@ class DatastoreTest {
             .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        database.merkleDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         var root = database.merkleDao().getDefaultRoot().blockingGet()
         val messages = database.merkleDao().getTopRandomExcludingHash(root.id!!, 200, listOf<ByteArray>()).blockingGet()
@@ -354,7 +355,7 @@ class DatastoreTest {
             .build()
         datastore.insertAndHashFileFromApi(apiMessage2, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        database.merkleDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         root = database.merkleDao().getDefaultRoot().blockingGet()
 
@@ -419,7 +420,7 @@ class DatastoreTest {
         b5.id = b5i
 
         val remote = PublishSubject.create<ByteArray>()
-        database.merkleDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
         val hubs = database.merkleDao().getHubs(
             database.merkleDao().getBundle(b5i),
             remote.toFlowable(BackpressureStrategy.BUFFER)
@@ -466,7 +467,7 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.merkleDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val root = database.merkleDao().getRootsRandom().blockingGet()
 
@@ -490,7 +491,7 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.merkleDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         var prev = database.merkleDao().getDefaultRoot().blockingGet()
         for (x in 0..10) {
@@ -553,7 +554,7 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.merkleDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val root = database.merkleDao().getRootsRandom().blockingGet()
 
@@ -577,7 +578,7 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.merkleDao().merkleRehash().blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         var prev = database.merkleDao().getDefaultRoot().blockingGet()
         for (x in 0..10) {

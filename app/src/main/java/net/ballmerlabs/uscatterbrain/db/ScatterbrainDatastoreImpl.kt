@@ -203,6 +203,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun insertMessages(message: DbMessage): Completable {
         return scheduler.get().broadcastMessages(listOf(message))
+            .doOnSubscribe { LOG.v("insertMessages") }
             .andThen(
                 mDatastore.scatterMessageDao()
                     .insertMessage(message)
@@ -212,7 +213,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         }.subscribeOn(databaseScheduler)
                     }
                     .subscribeOn(databaseScheduler)
-            )
+            ).doOnComplete { LOG.v("insertMessages complete") }
     }
 
     override fun insertMessages(messages: List<DbMessage>): Completable {
@@ -1284,7 +1285,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     fun insertMerkle(message: HashlessScatterMessage) {
+        LOG.v("insertMerkle waiting for lock")
         mDatastore.merkleDao().getLock().withLock {
+            LOG.v("insertMerkle acquired lock")
             val r = mDatastore.merkleDao().getDefaultRoot()
                 .blockingGet()
 
@@ -1304,6 +1307,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             }
             iterativeMerkleInsert(message, root, bundles)
         }
+        LOG.v("insertMerkle complete")
 
     }
 
@@ -1334,6 +1338,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         sign: UUID?,
     ): Completable {
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
+            .doOnSubscribe { LOG.v("insertAndHashFileFromApi $packageName ${message.application}") }
             .flatMapCompletable { file ->
                 if (message.isFile) {
                     copyFile(message.fileDescriptor!!.fileDescriptor, file)
@@ -1370,7 +1375,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     buf.get(body)
                     hashData(body, blocksize)
                         .flatMapCompletable { hashes ->
-
+                            LOG.v("hashed data: ${hashes.size}")
                             val dbmessage = DbMessage.from(
                                 message,
                                 hashes,
@@ -1411,7 +1416,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         HandshakeResult.TransactionStatus.STATUS_SUCCESS
                     )
                 )
-            )
+            ).doFinally { LOG.v("insertAndHashFileFromApi complete $packageName ${message.application}") }
     }
 
     override fun deleteByPath(path: File): Int {

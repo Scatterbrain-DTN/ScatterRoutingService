@@ -30,6 +30,7 @@ import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProvider
 import net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate21
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate23
+import net.ballmerlabs.uscatterbrain.db.migration.Migrate26
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.AdvertiserImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
@@ -194,6 +195,7 @@ interface RoutingServiceComponent {
                 return Room.databaseBuilder(ctx!!, Datastore::class.java, DATABASE_NAME)
                     .openHelperFactory(RequerySQLiteOpenHelperFactory())
                     .addMigrations(Migrate21())
+                    .addMigrations(Migrate26())
                     //.addMigrations(Migrate23())
                     .fallbackToDestructiveMigration()
                     .build()
@@ -226,7 +228,7 @@ interface RoutingServiceComponent {
             @Singleton
             @Named(NamedSchedulers.DATABASE)
             fun provideDatabaseScheduler(): Scheduler {
-                return RxJavaPlugins.createComputationScheduler(ScatterbrainThreadFactory(NamedSchedulers.DATABASE))
+                return RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory(NamedSchedulers.DATABASE))
             }
 
             @Provides

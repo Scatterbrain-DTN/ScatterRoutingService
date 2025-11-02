@@ -562,13 +562,11 @@ abstract class MerkleDao {
         updateBundleHash(hash, root)
     }
 
-    open fun merkleRehash(scheduler: Scheduler = Schedulers.single()): Completable {
+    open fun merkleRehash(scheduler: Scheduler): Completable {
         return getDefaultRoot()
             .flatMapCompletable { r ->
                 Completable.fromAction {
-                    lock.withLock {
-                        merkleRehash(r.id)
-                    }
+                    merkleRehash(r.id)
                 }.subscribeOn(scheduler)
             }
     }

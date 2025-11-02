@@ -33,7 +33,14 @@ import androidx.room.PrimaryKey
             value = [ "childOne", "childTwo" ],
             unique = false
         ),
-
+        Index(
+            value = [ "childOne"],
+            unique = true
+        ),
+        Index(
+            value = [ "childTwo" ],
+            unique = true
+        ),
     ]
 )
 data class MerkleBundle(

@@ -17,6 +17,7 @@ import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.processors.PublishProcessor
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
@@ -251,8 +252,8 @@ class ProtocolTests {
             datastore1.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        ds1.merkleDao().merkleRehash().blockingAwait()
-        ds2.merkleDao().merkleRehash().blockingAwait()
+        ds1.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+        ds2.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val out1 = groupHandleTwo.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF).ignoreElement()
         val out2 = groupHandleOne.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF).toObservable()
@@ -272,7 +273,7 @@ class ProtocolTests {
             .build()
         datastore2.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        ds2.merkleDao().merkleRehash().blockingAwait()
+        ds2.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val out3 = groupHandleTwo.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF).ignoreElement()
         val out4 = groupHandleOne.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF).toObservable()
@@ -339,8 +340,8 @@ class ProtocolTests {
             .build()
         datastore2.insertAndHashFileFromApi(apiMessage2, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        ds1.merkleDao().merkleRehash().blockingAwait()
-        ds2.merkleDao().merkleRehash().blockingAwait()
+        ds1.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+        ds2.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val out1 = groupHandleTwo.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
@@ -364,7 +365,7 @@ class ProtocolTests {
 
         datastore2.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        ds2.merkleDao().merkleRehash().blockingAwait()
+        ds2.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val out3 = groupHandleOne.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF).ignoreElement()
         val out4 = groupHandleTwo.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF).toObservable()
@@ -394,8 +395,8 @@ class ProtocolTests {
 
         datastore2.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        ds1.merkleDao().merkleRehash().blockingAwait()
-        ds2.merkleDao().merkleRehash().blockingAwait()
+        ds1.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+        ds2.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
@@ -432,8 +433,8 @@ class ProtocolTests {
             .build()
         datastore2.insertAndHashFileFromApi(apiMessage2, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        ds1.merkleDao().merkleRehash().blockingAwait()
-        ds2.merkleDao().merkleRehash().blockingAwait()
+        ds1.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+        ds2.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }

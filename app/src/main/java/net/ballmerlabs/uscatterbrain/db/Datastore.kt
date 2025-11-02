@@ -55,7 +55,7 @@ class UuidTypeConverter {
         MerkleBundle::class,
         MessageFlags::class
     ],
-    version = 26,
+    version = 27,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(

@@ -484,6 +484,11 @@ class LeStateImpl @Inject constructor(
                                                 }
                                             }
 
+                                            is BleAlreadyConnectedException -> {
+                                                updateGone(luid, err)
+                                                cleanupConnection(device.macAddress, luid, true)
+                                                updateDisconnected(luid, "already connected")
+                                            }
                                             else -> LOG.w("BLE client error $err")
                                         }
                                     }.flatMapSingle { c ->
