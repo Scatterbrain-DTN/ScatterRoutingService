@@ -361,7 +361,8 @@ class DatastoreTest {
 
         val remote = PublishSubject.create<ByteArray>()
 
-        val iter = database.merkleDao().getHubs(root, remote.toFlowable(BackpressureStrategy.BUFFER)).hubs
+        val iter = database.merkleDao().getHubs(root,  remote.toFlowable(BackpressureStrategy.BUFFER),
+            Schedulers.io()).hubs
             .doOnNext { i -> remote.onNext(UUID.randomUUID().toBytes()) }
             .doFinally { remote.onComplete() }
             .toList().blockingGet()
@@ -423,7 +424,8 @@ class DatastoreTest {
         database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
         val hubs = database.merkleDao().getHubs(
             database.merkleDao().getBundle(b5i),
-            remote.toFlowable(BackpressureStrategy.BUFFER)
+            remote.toFlowable(BackpressureStrategy.BUFFER),
+            Schedulers.io()
         ).hubs
             .doOnNext { i -> remote.onNext(UUID.randomUUID().toBytes()) }
             .doFinally { remote.onComplete() }

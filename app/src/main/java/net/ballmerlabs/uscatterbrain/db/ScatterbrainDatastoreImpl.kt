@@ -693,7 +693,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int?): Single<HubResponse> {
         return mDatastore.merkleDao().getDefaultRoot()
             .map { root ->
-                mDatastore.merkleDao().getHubs(root, remote, limit)
+                mDatastore.merkleDao().getHubs(root, remote, databaseScheduler, limit)
             }.subscribeOn(databaseScheduler)
     }
 
@@ -1241,7 +1241,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         if (point.complete(message.fileGlobalHash)) {
             message.bundle = point.parent
             mDatastore.merkleDao().updateBundleForMessage(point.parent, message.messageID!!)
-
         } else {
             val bundle = bundles.removeLastOrNull()!!
             val isp = mDatastore.merkleDao().getInsertionPointWithoutDb(
@@ -1308,7 +1307,27 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             iterativeMerkleInsert(message, root, bundles)
         }
         LOG.v("insertMerkle complete")
+    }
 
+    override fun rebuildMerkle(): Completable {
+        return Completable.fromAction {
+            var offset = 0
+            val step = 64
+            while (true) {
+                try {
+                    val messages = mDatastore.merkleDao().getMessagesLimitOffset(step, offset)
+                    offset += step
+                    if (messages.isEmpty())
+                        break
+                    for (m in messages) { insertMerkle(m) }
+                } catch (exc: Exception) {
+                    LOG.w("rebuildMerkle exception $exc")
+                    break
+                }
+
+            }
+        }.andThen(rehashMerkle())
+            .subscribeOn(databaseScheduler)
     }
 
     override fun rehashMerkle(): Completable {

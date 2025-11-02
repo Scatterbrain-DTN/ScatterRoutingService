@@ -56,6 +56,10 @@ class MockScatterbrainDatastore @Inject constructor(
         return Completable.complete()
     }
 
+    override fun rebuildMerkle(): Completable {
+        return Completable.complete()
+    }
+
     override fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int?): Single<HubResponse> {
         val out = Single.just(
             HubResponse(

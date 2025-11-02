@@ -558,6 +558,8 @@ interface ScatterbrainDatastore {
 
     fun insertMessageFromDesktop(message: List<DesktopMessage>, callingId: String, sign: UUID?): Completable
 
+    fun rebuildMerkle(): Completable
+
     /**
      * Triggers a rehash of all unhashed merkle nodes
      * @return completable

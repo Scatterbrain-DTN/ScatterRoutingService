@@ -1,4 +1,5 @@
 package net.ballmerlabs.uscatterbrain.util
+import android.util.Log
 import io.reactivex.Flowable
 import io.reactivex.FlowableSubscriber
 import io.reactivex.Maybe
@@ -30,9 +31,14 @@ class QueueSubject<T>(): FlowableSubscriber<T> {
         complete.set(true)
     }
 
+    fun hasItem(): Boolean {
+        Log.v("debug","queue hasItem empty=${queue.isEmpty()} item=${queue.peek()?.item}")
+        return !(queue.isEmpty() || queue.peek()?.item == null)
+    }
+
     fun get(): Maybe<T> {
         return Maybe.defer {
-            if (complete.get() && queue.isEmpty()) {
+            if (complete.get() && (queue.isEmpty() || queue.peek()?.item == null)) {
                 Maybe.empty()
             } else {
                 val item = queue.poll(30, TimeUnit.SECONDS)?.item
@@ -46,6 +52,7 @@ class QueueSubject<T>(): FlowableSubscriber<T> {
     }
 
     override fun onComplete() {
+        Log.e("debug", "queue complete?")
        complete.set(true)
         queue.put(QueueItem(null))
     }

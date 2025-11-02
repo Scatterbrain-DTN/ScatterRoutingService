@@ -325,6 +325,20 @@ class ScatterRoutingService : LifecycleService() {
             callbackHandles[handle] = Callback(callingPackageName, disp)
         }
 
+
+        override fun rebuildMerkle(callback: UnitCallback) {
+            checkSuperuserPermission()
+            val handle = generateNewHandle()
+            val disp = mBackend.datastore.rebuildMerkle()
+                .doOnDispose { callbackHandles.remove(handle) }
+                .doFinally { callbackHandles.remove(handle) }
+                .subscribe(
+                    { callback.onComplete() },
+                    { err -> callback.onError(err.message) }
+                )
+            callbackHandles[handle] = Callback(callingPackageName, disp)
+        }
+
         override fun respondPairing(
             fingerprint: ByteArray,
             authorized: Boolean,

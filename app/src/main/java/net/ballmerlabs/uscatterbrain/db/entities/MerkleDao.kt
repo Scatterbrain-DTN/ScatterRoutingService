@@ -1,5 +1,6 @@
 package net.ballmerlabs.uscatterbrain.db.entities
 
+import android.util.Log
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -34,6 +35,10 @@ abstract class MerkleDao {
 
     @Query("SELECT * FROM messages WHERE bundle = :id ORDER BY fileGlobalHash ASC")
     abstract fun getMessagesForBundle(id: Long): List<HashlessScatterMessage>
+
+
+    @Query("SELECT * FROM messages ORDER BY fileGlobalHash LIMIT :limit OFFSET :offset")
+    abstract fun getMessagesLimitOffset(limit: Int, offset: Int): List<HashlessScatterMessage>
 
     @Query(
         """
@@ -308,10 +313,10 @@ abstract class MerkleDao {
             SELECT id, 0 FROM bundles WHERE id = :root
             UNION ALL
             SELECT childOne, pos + 1 FROM bundles, parent WHERE parent.ids = bundles.id 
-            AND (childTwo IS NULL OR childOne IS NULL) AND NOT (childOne IS NOT NULL AND childTwo IS NOT NULL)
+            AND childTwo IS NULL
             UNION ALL
             SELECT childTwo, pos + 1 FROM bundles, parent WHERE parent.ids = bundles.id
-            AND (childTwo IS NULL OR childOne IS NULL) AND NOT (childOne IS NOT NULL AND childTwo IS NOT NULL)
+            AND childOne IS NULL
        ) SELECT * FROM bundles INNER JOIN parent ON ids = id ORDER BY POS DESC LIMIT 1
         """
     )
@@ -351,7 +356,7 @@ abstract class MerkleDao {
     }
 
 
-    fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>, limit: Int? = null): HubResponse {
+    fun getHubs(root: MerkleBundle?, remote: Flowable<ByteArray>, scheduler: Scheduler, limit: Int? = null): HubResponse {
         if (root == null)
             return HubResponse(
                 hubs = Flowable.empty(),
@@ -366,7 +371,9 @@ abstract class MerkleDao {
         val remoteComplete = CompletableSubject.create()
         val rs = QueueSubject<RemoteItem>()
         remote.map { item -> RemoteItem(item) }
-            .doFinally { remoteComplete.onComplete() }
+            .doFinally {
+                remoteComplete.onComplete()
+            }
             .subscribe(rs)
 
         val hubsComplete = CompletableSubject.create()
@@ -381,6 +388,7 @@ abstract class MerkleDao {
                 mutableSetOf(),
                 mutableSetOf(),
                 AtomicInt(0),
+                scheduler,
                 limit
             )
             obs.onComplete()
@@ -414,30 +422,36 @@ abstract class MerkleDao {
         nextTheirs: MutableSet<String>,
         nextOurs: MutableSet<String>,
         count: AtomicInt = AtomicInt(0),
+        scheduler: Scheduler,
         target: Int? = null,
     ) {
         val c = count.getAndIncrement()
         if (root?.hash == null || permaRoot?.hash == null || (target != null && c >= target))
             return
-        val item = remote.get()
-            .subscribeOn(Schedulers.io())
-            .toObservable()
-            .mergeWith(Completable.fromAction {
-                hubs.onNext(
-                    MerkleElement(
-                        bundle = root,
+        val item = if (remote.hasItem()) {
+            remote.get()
+                .toObservable()
+                .subscribeOn(scheduler)
+                .mergeWith(Completable.fromAction {
+                    hubs.onNext(
+                        MerkleElement(
+                            bundle = root,
+                        )
                     )
-                )
-            })
-            .firstElement()
-            .onErrorComplete()
-            .blockingGet()
+                })
+                .firstElement()
+                .blockingGet()
+        } else {
+            log.v("sending regular")
+            hubs.onNext(MerkleElement(bundle = root))
+            null
+        }
 
         //val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
         //val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
+        log.v("comparing hash ${item?.item?.toHexString()}, ${root.hash.toHexString()}")
         val childOneHub = getNextHub(root.childOne)
         val childTwoHub = getNextHub(root.childTwo)
-        log.v("comparing hash ${item?.item?.toHexString()}, ${root.hash.toHexString()}")
         if (
             (item?.item != null && item.item.contentEquals(root.hash)) ||
             nextOurs.contains(root.hash.toHexString()) ||
@@ -467,6 +481,7 @@ abstract class MerkleDao {
                 nextTheirs,
                 nextOurs,
                 count,
+                scheduler,
                 target
             )
         }
@@ -482,6 +497,7 @@ abstract class MerkleDao {
                 nextTheirs,
                 nextOurs,
                 count,
+                scheduler,
                 target
             )
         }

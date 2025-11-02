@@ -116,7 +116,12 @@ class AdvertiserTest {
             serverConnection = fakeGattServerConnection
         )
         val mockDao = object : MerkleDao() {
-
+            override fun getMessagesLimitOffset(
+                limit: Int,
+                offset: Int
+            ): List<HashlessScatterMessage> {
+                TODO("Not yet implemented")
+            }
             override fun nukeAllBundles(): Completable {
                 TODO("Not yet implemented")
             }

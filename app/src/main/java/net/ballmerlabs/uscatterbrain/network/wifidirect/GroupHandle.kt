@@ -126,6 +126,7 @@ class GroupHandle @Inject constructor(
             socket.getInputStream(),
             operationsScheduler
         ).repeat()
+            .subscribeOn(operationsScheduler)
             .doOnNext { v -> LOG.v("received merkle hash ${v.optout}") }
             .takeWhile { p -> !p.optout }
             .doFinally { LOG.v("getIncomingMerkleHashes completed!") }
@@ -141,7 +142,7 @@ class GroupHandle @Inject constructor(
             .concatMapCompletable { packet ->
                 packet.build().writeToStream(socket.getOutputStream(), operationsScheduler)
                     .flatMapCompletable { v -> v }
-            }
+            }.subscribeOn(operationsScheduler)
 
 
     }
@@ -177,7 +178,7 @@ class GroupHandle @Inject constructor(
                                 complete.onComplete()
                             }
 
-                        val send = database.merkleDao().getHubs(root, incoming)
+                        val send = database.merkleDao().getHubs(root, incoming, operationsScheduler)
                         sendMerkleHashes(
                             socket,
                             send.hubs,
@@ -485,12 +486,11 @@ class GroupHandle @Inject constructor(
                         .doOnSuccess { LOG.v("received declare hashes packet seme") }
                         .flatMap { declareHashesPacket ->
                             LOG.v("declareHashesPacket ${declareHashesPacket.size}")
-                            declareHashesBarrier(socket).andThen(
+                            LOG.v("declareHashesPacket ${declareHashesPacket.size}")
                                 readBlockDataSeme(
                                     socket,
                                     declareHashesPacket
                                 )
-                            )
                         }.map { st -> stats.from(st) }
 
                 }
@@ -773,12 +773,10 @@ class GroupHandle @Inject constructor(
                             LOG.v("received declare hashes packet uke")
                         }
                         .flatMap { declareHashesPacket ->
-                            declareHashesBarrier(socket).andThen(
                                 readBlockDataUke(
                                     socket,
                                     declareHashesPacket
                                 )
-                            )
                         }.map { st -> stats.from(st) }
                 }
         }.doOnSuccess { LOG.v("bootstrapUkeSocket complete") }
