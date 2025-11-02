@@ -1236,7 +1236,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         point: MerkleInsertCond,
         bundles: ArrayList<MerkleBundle>,
     ) {
-        LOG.v("iterativeMerkleInsert start")
+        //LOG.v("iterativeMerkleInsert start")
         if (point.complete(message.fileGlobalHash)) {
             message.bundle = point.parent
             mDatastore.merkleDao().updateBundleForMessage(point.parent, message.messageID!!)
@@ -1258,7 +1258,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
         }
 
-        LOG.v("iterativeMerkleInsert end")
+        //LOG.v("iterativeMerkleInsert end")
     }
 
     override fun purge(start: Date, endDate: Date): Completable {

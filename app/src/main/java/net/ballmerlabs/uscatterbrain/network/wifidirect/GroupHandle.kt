@@ -2,19 +2,18 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import android.content.Context
 import android.net.wifi.p2p.WifiP2pDeviceList
-import com.github.davidmoten.rx2.flowable.Transformers
 import com.google.protobuf.ByteString
-import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable
-import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
-import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.scatterproto.MessageSizeException
+import net.ballmerlabs.scatterproto.MessageValidationException
+import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.GroupFinalizer
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
@@ -24,12 +23,20 @@ import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.MerkleElement
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
-import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.meshtastic.SEME_TRANSACTION_TIMEOUT
 import net.ballmerlabs.uscatterbrain.network.meshtastic.UKE_TIMEOUT
-import net.ballmerlabs.uscatterbrain.network.proto.*
+import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacketParser
+import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacketParser
+import net.ballmerlabs.uscatterbrain.network.proto.DeclareHashesPacket
+import net.ballmerlabs.uscatterbrain.network.proto.DeclareHashesPacketParser
+import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
+import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacketParser
+import net.ballmerlabs.uscatterbrain.network.proto.IpAnnouncePacket
+import net.ballmerlabs.uscatterbrain.network.proto.IpAnnouncePacketParser
+import net.ballmerlabs.uscatterbrain.network.proto.RoutingMetadataPacket
+import net.ballmerlabs.uscatterbrain.network.proto.RoutingMetadataPacketParser
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
@@ -51,7 +58,6 @@ class GroupHandle @Inject constructor(
     val datastore: ScatterbrainDatastore,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) private val timeoutScheduler: Scheduler,
     @Named(WifiGroupSubcomponent.NamedSchedulers.WIFI_OPERATIONS) private val operationsScheduler: Scheduler,
-    @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) private val databaseScheduler: Scheduler,
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val mBroadcastReceiver: WifiDirectBroadcastReceiver,
     private val serverSocketManager: ServerSocketManager,
@@ -63,7 +69,7 @@ class GroupHandle @Inject constructor(
     private val preferences: RouterPreferences,
     private val serverSocket: PortSocket,
     private val groupFinalizer: GroupFinalizer,
-    private val broadcastReceiverState: BroadcastReceiverState
+    private val broadcastReceiverState: BroadcastReceiverState,
 ) {
     val LOG by scatterLog()
     private val connectedPeers = ConcurrentHashMap<InetSocketAddress, InetSocketAddress>()
@@ -148,17 +154,17 @@ class GroupHandle @Inject constructor(
         ).toObservable()
             .doOnSubscribe { LOG.v("declareHashesBarrier start") }
             .mergeWith(
-            DeclareHashesPacket.newBuilder().optOut().build()
-                .writeToStream(socket.outputStream, operationsScheduler)
-                .flatMapCompletable { v -> v }
-        ).ignoreElements()
+                DeclareHashesPacket.newBuilder().optOut().build()
+                    .writeToStream(socket.outputStream, operationsScheduler)
+                    .flatMapCompletable { v -> v }
+            ).lastOrError().ignoreElement()
             .doFinally { LOG.v("declareHashesBarrier complete") }
             .doOnError { err -> LOG.e("error in declareHashesBarrier: $err") }
     }
 
     fun declareHashesMerkle(socket: Socket, mode: DeclareHashesMode): Single<List<ByteArray>> {
         return database.merkleDao().getDefaultRoot()
-            .subscribeOn(databaseScheduler)
+            .subscribeOn(operationsScheduler)
             .flatMap { root ->
                 when (mode) {
                     DeclareHashesMode.MERKLEPROOF -> {
@@ -172,10 +178,10 @@ class GroupHandle @Inject constructor(
                             }
 
                         val send = database.merkleDao().getHubs(root, incoming)
-                      sendMerkleHashes(
+                        sendMerkleHashes(
                             socket,
                             send.hubs,
-                        ).andThen(complete.andThen( send.exclude.toList()))
+                        ).andThen(complete.andThen(send.exclude.toList()))
                             .doOnSuccess { v -> LOG.v("got exclude ${v.size}") }
                     }
 
@@ -267,20 +273,15 @@ class GroupHandle @Inject constructor(
  * read blockdata packets as UKE and stream into datastore. Even if a transfer is interrupted we should still have
  * the files/metadata from packets we received
  */
-    private fun readBlockDataUke(socket: Socket): Single<HandshakeResult> {
+    private fun readBlockDataUke(
+        socket: Socket,
+        declareHashesPacket: List<ByteArray>,
+    ): Single<HandshakeResult> {
         return ScatterSerializable.parseWrapperFromCRC(
             BlockHeaderPacketParser.parser,
             socket.getInputStream(),
             operationsScheduler
-        ).retryWhen { err ->
-            err.flatMap { e ->
-                when (e) {
-                    is MessageSizeException -> Flowable.just(e)
-                    is MessageValidationException -> Flowable.just(e)
-                    else -> Flowable.error(e)
-                }
-            }
-        }
+        )
             .doOnSuccess { header -> LOG.v("uke reading header ${header.userFilename}") }
             .flatMap { headerPacket ->
                 LOG.v("uke read header success")
@@ -302,15 +303,32 @@ class GroupHandle @Inject constructor(
                             .doOnComplete { LOG.v("server read sequence packets") },
                         datastore.cacheDir
                     )
-                    datastore.insertMessage(m).andThen(m.await()).toSingleDefault(1)
+                    datastore.insertMessage(m).mergeWith(m.await()).toSingleDefault(1)
                 }
             }
+
             .repeat()
             .takeWhile { n -> n > 0 }
+            .mergeWith(
+                preferences.getInt(
+                    mContext.getString(R.string.pref_blockdatacap),
+                    2048
+                )
+                    .onErrorReturnItem(2048)
+                    .flatMapCompletable { v ->
+                        writeBlockDataUke(
+                            datastore.getTopRandomMessages(
+                                v,
+                                declareHashesPacket
+                            ),
+                            socket
+                        )
+                    })
+
+            .concatWith(datastore.rehashMerkle())
             .reduce { a, b -> a + b }
             .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
-            .flatMap { i -> datastore.rehashMerkle().toSingleDefault(i) }
             .onErrorResumeNext { e -> datastore.rehashMerkle().andThen(Single.error(e)) }
             .doOnError { e -> LOG.e("uke: error when reading message: $e") }
     }
@@ -321,21 +339,13 @@ class GroupHandle @Inject constructor(
      */
     private fun readBlockDataSeme(
         socket: Socket,
+        declareHashesPacket: List<ByteArray>,
     ): Single<HandshakeResult> {
         return ScatterSerializable.parseWrapperFromCRC(
             BlockHeaderPacketParser.parser,
             socket.getInputStream(),
             operationsScheduler
         )
-            .retryWhen { err ->
-                err.flatMap { e ->
-                    when (e) {
-                        is MessageSizeException -> Flowable.just(e)
-                        is MessageValidationException -> Flowable.just(e)
-                        else -> Flowable.error(e)
-                    }
-                }
-            }
             .doOnSuccess { header -> LOG.v("seme reading header ${header.userFilename}") }
             .flatMap { header ->
                 if (header.isEndOfStream) {
@@ -356,18 +366,34 @@ class GroupHandle @Inject constructor(
                             .doOnComplete { LOG.v("seme complete read sequence packets") },
                         datastore.cacheDir
                     )
-                    datastore.insertMessage(m).andThen(m.await())
+                    datastore.insertMessage(m).mergeWith(m.await())
                         .toSingleDefault(1)
                 }
             }
             .repeat()
             .doOnNext { v -> LOG.v("seme read header packet $v") }
             .takeWhile { n -> n > 0 }
+            .mergeWith(
+                preferences.getInt(
+                    mContext.getString(R.string.pref_blockdatacap),
+                    2048
+                )
+                    .onErrorReturnItem(2048)
+                    .flatMapCompletable { v ->
+                        writeBlockDataSeme(
+                            socket,
+                            datastore.getTopRandomMessages(
+                                v,
+                                declareHashesPacket
+                            )
+
+                        )
+                    })
+            .concatWith(datastore.rehashMerkle())
             .reduce { a, b -> a + b }
             .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
             .doOnError { e -> LOG.e("seme: error when reading message: $e") }
-            .flatMap { i -> datastore.rehashMerkle().toSingleDefault(i) }
             .onErrorResumeNext { e -> datastore.rehashMerkle().andThen(Single.error(e)) }
             .doOnSuccess { LOG.v("seme read blockdata complete") }
     }
@@ -413,7 +439,10 @@ class GroupHandle @Inject constructor(
         }
     }
 
-    private fun bootstrapSemeSocket(socket: Socket, mode: DeclareHashesMode): Single<HandshakeResult> {
+    private fun bootstrapSemeSocket(
+        socket: Socket,
+        mode: DeclareHashesMode,
+    ): Single<HandshakeResult> {
         return Single.defer {
             routingMetadataSeme(
                 socket,
@@ -454,30 +483,16 @@ class GroupHandle @Inject constructor(
                 .flatMap { stats ->
                     declareHashesMerkle(socket, mode)
                         .doOnSuccess { LOG.v("received declare hashes packet seme") }
-                        .flatMapObservable { declareHashesPacket ->
+                        .flatMap { declareHashesPacket ->
                             LOG.v("declareHashesPacket ${declareHashesPacket.size}")
                             declareHashesBarrier(socket).andThen(
-                            readBlockDataSeme(socket)
-                                .toObservable()
-                                .mergeWith(
-                                    preferences.getInt(
-                                        mContext.getString(R.string.pref_blockdatacap),
-                                        2048
-                                    )
-                                        .onErrorReturnItem(2048)
-                                        .flatMapObservable { v ->
-                                            writeBlockDataSeme(
-                                                socket,
-                                                datastore.getTopRandomMessages(
-                                                    v,
-                                                    declareHashesPacket
-                                                )
+                                readBlockDataSeme(
+                                    socket,
+                                    declareHashesPacket
+                                )
+                            )
+                        }.map { st -> stats.from(st) }
 
-                                            ).toObservable()
-                                        }
-                                ))
-                        }
-                        .reduce(stats) { obj, st -> obj.from(st) }
                 }
         }
     }
@@ -533,7 +548,7 @@ class GroupHandle @Inject constructor(
 
     fun bootstrapSeme(
         self: UUID,
-        mode: DeclareHashesMode
+        mode: DeclareHashesMode,
     ): Completable {
         return socketProvider.getSocket(
             session.wifiDirectInfo.groupOwnerAddress!!,
@@ -641,7 +656,7 @@ class GroupHandle @Inject constructor(
     @Synchronized
     fun bootstrapUke(
         selfLuid: UUID,
-        mode: DeclareHashesMode
+        mode: DeclareHashesMode,
     ) {
         val disp = ukeDispoable.get()
         if (disp != null) {
@@ -685,12 +700,12 @@ class GroupHandle @Inject constructor(
 
         }
             .subscribe(
-            { },
-            { e ->
-                LOG.w("uke process err $e")
-                mBroadcastReceiver.removeCurrentGroup()
-            }
-        )
+                { },
+                { e ->
+                    LOG.w("uke process err $e")
+                    mBroadcastReceiver.removeCurrentGroup()
+                }
+            )
         ukeDispoable.getAndSet(d)?.dispose()
     }
 
@@ -724,7 +739,10 @@ class GroupHandle @Inject constructor(
     }
 
 
-    private fun bootstrapUkeSocket(socket: Socket, mode: DeclareHashesMode): Single<HandshakeResult> {
+    private fun bootstrapUkeSocket(
+        socket: Socket,
+        mode: DeclareHashesMode,
+    ): Single<HandshakeResult> {
         return Single.defer {
             routingMetadataUke(
                 Flowable.just(
@@ -756,28 +774,12 @@ class GroupHandle @Inject constructor(
                         }
                         .flatMap { declareHashesPacket ->
                             declareHashesBarrier(socket).andThen(
-                            readBlockDataUke(socket)
-                                .subscribeOn(operationsScheduler)
-                                .toObservable()
-                                .mergeWith(
-                                    preferences.getInt(
-                                        mContext.getString(R.string.pref_blockdatacap),
-                                        2048
-                                    )
-                                        .onErrorReturnItem(2048)
-                                        .flatMapObservable { v ->
-                                            writeBlockDataUke(
-                                                datastore.getTopRandomMessages(
-                                                    v,
-                                                    declareHashesPacket
-                                                ),
-                                                socket
-                                            ).subscribeOn(operationsScheduler)
-                                                .toObservable()
-                                        }
+                                readBlockDataUke(
+                                    socket,
+                                    declareHashesPacket
                                 )
-                                .reduce(stats) { obj, stats -> obj.from(stats) })
-                        }
+                            )
+                        }.map { st -> stats.from(st) }
                 }
         }.doOnSuccess { LOG.v("bootstrapUkeSocket complete") }
             .doFinally { broadcastReceiverState.killBatch(UUID.randomUUID()) }
