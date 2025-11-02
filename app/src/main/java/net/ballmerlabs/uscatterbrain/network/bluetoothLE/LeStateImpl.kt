@@ -448,9 +448,7 @@ class LeStateImpl @Inject constructor(
         device: RxBleDevice, luid: UUID, reverse: Boolean
     ): Single<ScatterbrainTransactionSubcomponent> {
         val connectSingle = Single.defer {
-            val c = transactionCache[luid]
-
-            val res = when (c) {
+            val res = when (val c = transactionCache[luid]) {
                 null -> {
                     LOG.e("establishing NEW connection to ${device.macAddress} $reverse, $luid, ${transactionCache.size} devices connected")
                     val newconnection =
@@ -472,7 +470,7 @@ class LeStateImpl @Inject constructor(
                     val rawConnection =
                        Completable.timer(200, TimeUnit.MILLISECONDS, connectScheduler)
                             .andThen(
-                                device.establishConnection(false, Timeout(30, TimeUnit.SECONDS))
+                                device.establishConnection(false)
                                     .doOnError { err ->
                                         when (err) {
                                             is BleDisconnectedException -> {

@@ -70,8 +70,6 @@ class AdvertiserImpl @Inject constructor(
     private val randomizeLuidDisp = AtomicReference<Disposable?>(null)
     private val busy = BehaviorSubject.create<Boolean>()
     private val forgets = ConcurrentHashMap<UUID, Boolean>()
-    private val cooldown = AtomicBoolean(false)
-
     override fun awaitNotBusy(): Completable {
         return busy.takeUntil { v -> !v }.ignoreElements()
     }
@@ -206,8 +204,6 @@ class AdvertiserImpl @Inject constructor(
     @OptIn(ExperimentalStdlibApi::class)
     override fun setAdvertisingLuid(luid: UUID): Completable {
         return Completable.defer {
-            if (cooldown.get())
-                return@defer Completable.complete()
             val cmp = database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
                 LOG.v("setAdvertisingLuid with merkle root ${root.hash?.toHexString()}")
                     isAdvertising
@@ -378,8 +374,6 @@ class AdvertiserImpl @Inject constructor(
      */
     override fun startAdvertise(luid: UUID): Completable {
         return Completable.defer {
-            if (cooldown.get())
-                return@defer Completable.complete()
             val advertise = isAdvertising
                 .firstOrError()
                 .flatMapCompletable { v ->
@@ -387,7 +381,7 @@ class AdvertiserImpl @Inject constructor(
                         .doOnSubscribe { LOG.v("getDefaultRoot startAdvertise") }
                         .flatMapCompletable { root ->
                         if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
-                            Completable.complete()
+                            setAdvertisingLuid()
                         else
                             Completable.fromAction {
                                 LOG.v("Starting LE advertise")
