@@ -60,6 +60,14 @@ class MockScatterbrainDatastore @Inject constructor(
         return Completable.complete()
     }
 
+    override fun insertStreamCached(
+        stream: WifiDirectRadioModule.BlockDataStream,
+        immediate: Boolean
+    ): Completable {
+        return Completable.complete()
+    }
+
+
     override fun getMerkleHubs(remote: Flowable<ByteArray>, limit: Int?): Single<HubResponse> {
         val out = Single.just(
             HubResponse(
@@ -346,6 +354,9 @@ class MockScatterbrainDatastore @Inject constructor(
     override val cacheDir: File
         get() = File("/dev/null")
     override val userDir: File
+        get() = File("/dev/null")
+
+    override val streamDir: File
         get() = File("/dev/null")
 
     override fun getFileSize(path: File): Long {

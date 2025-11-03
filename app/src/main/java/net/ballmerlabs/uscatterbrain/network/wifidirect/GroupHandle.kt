@@ -304,7 +304,7 @@ class GroupHandle @Inject constructor(
                             .doOnComplete { LOG.v("server read sequence packets") },
                         datastore.cacheDir
                     )
-                    datastore.insertMessage(m).mergeWith(m.await()).toSingleDefault(1)
+                    datastore.insertStreamCached(m).mergeWith(m.await()).toSingleDefault(1)
                 }
             }
 
@@ -325,12 +325,9 @@ class GroupHandle @Inject constructor(
                             socket
                         )
                     })
-
-            .concatWith(datastore.rehashMerkle())
             .reduce { a, b -> a + b }
             .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
-            .onErrorResumeNext { e -> datastore.rehashMerkle().andThen(Single.error(e)) }
             .doOnError { e -> LOG.e("uke: error when reading message: $e") }
     }
 
@@ -367,7 +364,7 @@ class GroupHandle @Inject constructor(
                             .doOnComplete { LOG.v("seme complete read sequence packets") },
                         datastore.cacheDir
                     )
-                    datastore.insertMessage(m).mergeWith(m.await())
+                    datastore.insertStreamCached(m).mergeWith(m.await())
                         .toSingleDefault(1)
                 }
             }
@@ -390,12 +387,10 @@ class GroupHandle @Inject constructor(
 
                         )
                     })
-            .concatWith(datastore.rehashMerkle())
             .reduce { a, b -> a + b }
             .map { i -> HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS) }
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
             .doOnError { e -> LOG.e("seme: error when reading message: $e") }
-            .onErrorResumeNext { e -> datastore.rehashMerkle().andThen(Single.error(e)) }
             .doOnSuccess { LOG.v("seme read blockdata complete") }
     }
 

@@ -206,39 +206,9 @@ class AdvertiserImpl @Inject constructor(
         return Completable.defer {
             val cmp = database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
                 LOG.v("setAdvertisingLuid with merkle root ${root.hash?.toHexString()}")
-                    isAdvertising
-                        .firstOrError()
-                        .flatMapCompletable { v ->
-                            if (v.first.isPresent) {
-                                awaitAdvertiseDataUpdate()
-                                    .mergeWith(Completable.fromAction {
-                                        try {
-                                            val builder = AdvertiseData.Builder()
-                                                .setIncludeDeviceName(false)
-                                                .setIncludeTxPowerLevel(false)
-                                                .addServiceUuid(
-                                                    ParcelUuid(
-                                                        BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT
-                                                    )
-                                                )
-                                                .addServiceData(
-                                                    ParcelUuid(LUID_DATA),
-                                                    luid.toBytes()
-                                                )
+                stopAdvertise().andThen(startAdvertise(luid = luid))
 
-                                            if (root.hash != null)
-                                                builder.addServiceData(ParcelUuid(MERKLE_DATA), root.hash)
 
-                                            LOG.v("setting advertising data ${root.hash}")
-                                            v.first.item!!.setAdvertisingData(builder.build())
-                                        } catch (exc: SecurityException) {
-                                            throw exc
-                                        }
-                                    })
-                            } else {
-                                startAdvertise(luid = luid)
-                            }
-                        }
                 }.doOnError { err -> LOG.w("failed to set advertising luid: $err, retry") }
             cmp.retryDelay(10, 5)
                 .timeout(80, TimeUnit.SECONDS, timeoutScheduler)

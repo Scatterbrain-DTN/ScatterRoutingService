@@ -13,15 +13,15 @@ import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
-import io.reactivex.CompletableSource
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.disposables.Disposable
 import io.reactivex.functions.BiFunction
-import io.reactivex.schedulers.Schedulers
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.DesktopApp
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -29,6 +29,7 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 import net.ballmerlabs.scatterbrainsdk.newShm
+import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackend.Applications
@@ -47,18 +48,19 @@ import net.ballmerlabs.uscatterbrain.db.entities.Keys
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleInsertCond
 import net.ballmerlabs.uscatterbrain.db.entities.Metrics
-import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
-import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiIdentity
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacket
+import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacketParser
 import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
+import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacketParser
 import net.ballmerlabs.uscatterbrain.network.proto.DeclareHashesPacket
 import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule.BlockDataStream.Companion.endOfStream
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import okio.withLock
@@ -77,7 +79,7 @@ import java.util.UUID
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
@@ -171,10 +173,13 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val mOpenFiles: ConcurrentHashMap<File, OpenFile> = ConcurrentHashMap()
     private val userFilesDir: File = File(ctx.filesDir, USER_FILES_PATH)
     private val cacheFilesDir: File = File(ctx.filesDir, CACHE_FILES_PATH)
+    private val streamFileDir: File = File(ctx.filesDir, CACHE_STREAMS_PATH)
     private val userDirectoryObserver: FileObserver
     private val cachedPackages = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val disposable = CompositeDisposable()
-    private val rehashAwaitables = ConcurrentHashMap<CompletableSubject, Boolean>()
+    private val backgroundTasks = ConcurrentHashMap<CompletableSubject, Boolean>()
+    private val rehashDisp = AtomicReference<Disposable?>(null)
+    private val rehashWait = BehaviorSubject.create<Boolean>()
 
     override fun getStats(handshakeResult: HandshakeResult): Maybe<HandshakeResult> {
         return mDatastore.identityDao().getNumIdentities().flatMapMaybe { idc ->
@@ -203,7 +208,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun insertMessages(message: DbMessage): Completable {
         return scheduler.get().broadcastMessages(listOf(message))
-            .doOnSubscribe { LOG.v("insertMessages") }
+            //.doOnSubscribe { LOG.v("insertMessages") }
             .andThen(
                 mDatastore.scatterMessageDao()
                     .insertMessage(message)
@@ -1226,8 +1231,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun awaitAllMerkle(): Completable {
-        return Observable.fromIterable(rehashAwaitables.keys)
-            .doOnSubscribe { LOG.v("awaitAllMerkle awaiting pending merkle rehash ${rehashAwaitables.size}") }
+        return Observable.fromIterable(backgroundTasks.keys)
+            .doOnSubscribe { LOG.v("awaitAllMerkle awaiting pending merkle rehash ${backgroundTasks.size}") }
             .flatMapCompletable { v -> v }
             .doFinally { LOG.v("awaitAllMerkle completed") }
     }
@@ -1285,8 +1290,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     fun insertMerkle(message: HashlessScatterMessage) {
         LOG.v("insertMerkle waiting for lock")
-        mDatastore.merkleDao().getLock().withLock {
-            LOG.v("insertMerkle acquired lock")
+
             val r = mDatastore.merkleDao().getDefaultRoot()
                 .blockingGet()
 
@@ -1299,11 +1303,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         dirty = true
                     )
                 })
-
+            LOG.v("insertMerkle acquired lock")
             val ids = mDatastore.merkleDao().insertBundleEntitySync(bundles)
             for ((bundle, id) in bundles.zip(ids)) {
                 bundle.id = id
             }
+        mDatastore.merkleDao().getLock().withLock {
             iterativeMerkleInsert(message, root, bundles)
         }
         LOG.v("insertMerkle complete")
@@ -1331,22 +1336,34 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun rehashMerkle(): Completable {
-        return mDatastore.merkleDao().merkleRehash(databaseScheduler)
-                .andThen(advertiser.setAdvertisingLuid())
-                .subscribeOn(databaseScheduler)
-            .doFinally { leState.clearActive() }
+        return rehashWait.takeUntil { v -> !v }.ignoreElements()
+            .andThen(rehashMerkleAsync())
     }
 
     override fun rehashMerkleAsync(): Completable {
         return Completable.fromAction {
-            val subject = CompletableSubject.create()
-            val obs = mDatastore.merkleDao().merkleRehash(databaseScheduler)
-                .andThen(advertiser.setAdvertisingLuid())
-                .doFinally { rehashAwaitables.remove(subject) }
-                .subscribeOn(databaseScheduler)
-                .doFinally { leState.clearActive() }
-            obs.subscribe(subject)
-            rehashAwaitables[subject] = true
+            rehashDisp.updateAndGet { v ->
+                when(v) {
+                    null ->  mDatastore.merkleDao().merkleRehash(databaseScheduler)
+                        .doOnSubscribe {
+                            rehashWait.onNext(true)
+                            LOG.v("rehashMerkle start")
+                        }
+                        .andThen(advertiser.setAdvertisingLuid())
+                        .subscribeOn(databaseScheduler)
+                        .doFinally {
+                            leState.clearActive()
+                            rehashDisp.getAndSet(null)?.dispose()
+                            rehashWait.onNext(false)
+                            LOG.v("rehashMerkle end")
+                        }
+                        .subscribe(
+                            {},
+                            {}
+                        )
+                    else -> v
+                }
+            }
         }
     }
 
@@ -1357,7 +1374,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         sign: UUID?,
     ): Completable {
         return Single.fromCallable { File.createTempFile("scatterbrain", "insert") }
-            .doOnSubscribe { LOG.v("insertAndHashFileFromApi $packageName ${message.application}") }
             .flatMapCompletable { file ->
                 if (message.isFile) {
                     copyFile(message.fileDescriptor!!.fileDescriptor, file)
@@ -1394,7 +1410,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     buf.get(body)
                     hashData(body, blocksize)
                         .flatMapCompletable { hashes ->
-                            LOG.v("hashed data: ${hashes.size}")
+                            //LOG.v("hashed data: ${hashes.size}")
                             val dbmessage = DbMessage.from(
                                 message,
                                 hashes,
@@ -1435,7 +1451,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         HandshakeResult.TransactionStatus.STATUS_SUCCESS
                     )
                 )
-            ).doFinally { LOG.v("insertAndHashFileFromApi complete $packageName ${message.application}") }
+            )
     }
 
     override fun deleteByPath(path: File): Int {
@@ -1502,6 +1518,16 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 }
             }
             return userFilesDir
+        }
+
+    override val streamDir: File
+        get() {
+            if (!streamFileDir.exists()) {
+                if (!streamFileDir.mkdirs()) {
+                    throw java.lang.IllegalStateException("failed to create directory $streamFileDir")
+                }
+            }
+            return streamFileDir
         }
 
     override fun getFileSize(path: File): Long {
@@ -1575,6 +1601,85 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 )
             )
                 .toSingleDefault(file.length())
+        }
+    }
+
+    private fun getNewStreamDir(): Single<File> {
+        return Single.fromCallable {
+            val id = UUID.randomUUID()
+            File("$streamDir/$id.proto")
+        }
+    }
+
+    private fun streamFromFile(filePath: File, scheduler: Scheduler, cacheDir: File): Completable {
+        val log by scatterLog()
+        val inputStream = filePath.inputStream()
+        return ScatterSerializable.parseWrapperFromCRC(
+            BlockHeaderPacketParser.parser,
+            inputStream,
+            scheduler
+        ).flatMap { headerPacket ->
+            log.v("reading header packet in background ${headerPacket.isEndOfStream}")
+            if (headerPacket.isEndOfStream) {
+                Single.just(true)
+            } else {
+                val m = BlockDataStream(
+                    headerPacket,
+                    ScatterSerializable.parseWrapperFromCRC(
+                        BlockSequencePacketParser.parser,
+                        inputStream,
+                        scheduler,
+                    )
+                        .repeat()
+                        .takeWhile { p -> !p.isEnd },
+                    cacheDir
+                )
+                insertMessage(m).toSingleDefault(false)
+            }
+        }
+
+            .repeat()
+            .takeWhile { n -> !n }
+            .ignoreElements()
+            .timeout(60, TimeUnit.SECONDS, timeoutScheduler)
+            .doFinally { inputStream.close() }
+    }
+
+    override fun insertStreamCached(stream: BlockDataStream, immediate: Boolean): Completable {
+        return Single.just(stream).flatMapCompletable { stream ->
+            getNewStreamDir().flatMapCompletable { dir ->
+                val os = dir.outputStream()
+                stream.headerPacket.writeToStream(os, databaseScheduler).flatMapCompletable {
+                    v -> v
+                }.andThen(stream.sequencePackets)
+                    .concatMapCompletable { v ->
+                        v.writeToStream(os, databaseScheduler)
+                            .flatMapCompletable { v -> v }
+                    }.concatWith(BlockSequencePacket.newBuilder().setEnd(true).build().writeToStream(
+                        os, databaseScheduler
+                    ).flatMapCompletable { v -> v })
+                    .concatWith(endOfStream()
+                        .headerPacket.writeToStream(os, databaseScheduler)
+                        .flatMapCompletable { v -> v }).doFinally {
+                        os.close()
+                    }
+                    .doOnComplete {
+                        val subject = CompletableSubject.create()
+                        backgroundTasks[subject] = true
+                        streamFromFile(dir, databaseScheduler, cacheDir)
+                            .doOnSubscribe { LOG.v("starting background file insert") }
+                            .doOnError { err -> LOG.e("background file insert error: $err") }
+                            .doFinally {
+                                backgroundTasks.remove(subject)
+                                dir.delete()
+                                if (backgroundTasks.isEmpty()) {
+                                    rehashMerkleAsync().blockingAwait()
+                                }
+                                LOG.v("background file insert complete")
+                            }
+                            .subscribe(subject)
+                    }
+            }
         }
     }
 
@@ -1667,6 +1772,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 { err -> LOG.e("failed to initialize package cache: $err") }
             )
 
+        rehashWait.onNext(false)
         disposable.add(d)
 
         userDirectoryObserver = object : FileObserver(userFilesDir.absolutePath) {

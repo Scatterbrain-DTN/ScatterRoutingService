@@ -31,6 +31,7 @@ const val DATABASE_NAME = "scatterdb"
 const val DEFAULT_BLOCKSIZE = 1024 * 512
 const val USER_FILES_PATH = "userFiles"
 const val CACHE_FILES_PATH = "systemFiles"
+const val CACHE_STREAMS_PATH = "streamsFiles"
 
 data class ACL(val packageName: String, val appsig: String)
 
@@ -189,6 +190,8 @@ interface ScatterbrainDatastore {
      * @return completable
      */
     fun insertMessage(stream: BlockDataStream): Completable
+
+    fun insertStreamCached(stream: BlockDataStream, immediate: Boolean = true): Completable
 
     fun insertMessages(messages: List<DbMessage>): Completable
 
@@ -375,6 +378,8 @@ interface ScatterbrainDatastore {
     val cacheDir: File
 
     val userDir: File
+
+    val streamDir: File
 
     /**
      * Wrapper function to get filesize
