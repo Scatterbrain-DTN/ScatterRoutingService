@@ -582,7 +582,9 @@ abstract class MerkleDao {
         return getDefaultRoot()
             .flatMapCompletable { r ->
                 Completable.fromAction {
-                    merkleRehash(r.id)
+                    lock.withLock {
+                        merkleRehash(r.id)
+                    }
                 }.subscribeOn(scheduler)
             }
     }

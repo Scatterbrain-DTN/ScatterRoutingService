@@ -304,7 +304,7 @@ class GroupHandle @Inject constructor(
                             .doOnComplete { LOG.v("server read sequence packets") },
                         datastore.cacheDir
                     )
-                    datastore.insertStreamCached(m).mergeWith(m.await()).toSingleDefault(1)
+                    datastore.insertStreamCached(m).andThen(m.await()).toSingleDefault(1)
                 }
             }
 
@@ -364,7 +364,7 @@ class GroupHandle @Inject constructor(
                             .doOnComplete { LOG.v("seme complete read sequence packets") },
                         datastore.cacheDir
                     )
-                    datastore.insertStreamCached(m).mergeWith(m.await())
+                    datastore.insertStreamCached(m).andThen(m.await())
                         .toSingleDefault(1)
                 }
             }

@@ -203,17 +203,43 @@ class AdvertiserImpl @Inject constructor(
 
     @OptIn(ExperimentalStdlibApi::class)
     override fun setAdvertisingLuid(luid: UUID): Completable {
-        return Completable.defer {
-            val cmp = database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
-                LOG.v("setAdvertisingLuid with merkle root ${root.hash?.toHexString()}")
-                stopAdvertise().andThen(startAdvertise(luid = luid))
+        return database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
+            val settings = AdvertisingSetParameters.Builder()
+                .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                .setLegacyMode(false)
+                .setConnectable(true)
+                .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
+                .setSecondaryPhy(BluetoothDevice.PHY_LE_CODED)
+                .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+                .build()
+            val serviceDataBuilder = AdvertiseData.Builder()
+                .setIncludeDeviceName(false)
+                .setIncludeTxPowerLevel(false)
+                .addServiceUuid(ParcelUuid(BluetoothLERadioModuleImpl.SERVICE_UUID_NEXT))
 
+            val builder = serviceDataBuilder.addServiceData(
+                ParcelUuid(LUID_DATA),
+                getHashLuid().toBytes()
+            )
 
-                }.doOnError { err -> LOG.w("failed to set advertising luid: $err, retry") }
-            cmp.retryDelay(10, 5)
-                .timeout(80, TimeUnit.SECONDS, timeoutScheduler)
-                .doOnComplete { LOG.v("setAdvertisingLuid complete") }
-                .doOnError { err -> LOG.e("FATAL: failed to set advertising data, out of retries: $err") }
+            if (root.hash != null)
+                builder.addServiceData(
+                    ParcelUuid(MERKLE_DATA),
+                    root.hash
+                )
+
+            isAdvertising.takeUntil { v -> v.first.isPresent && v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS }
+                .flatMapCompletable { v ->
+                    try {
+                        v.first.item!!.setAdvertisingData(builder.build())
+                        LOG.v("setAdvertisingLuid ${root.hash?.toHexString()}")
+                        Completable.complete()
+                    } catch (exc: SecurityException) {
+                        Completable.error(exc)
+                    }
+
+                }
+
         }
     }
 
@@ -344,15 +370,12 @@ class AdvertiserImpl @Inject constructor(
      */
     override fun startAdvertise(luid: UUID): Completable {
         return Completable.defer {
-            val advertise = isAdvertising
-                .firstOrError()
+            val advertise = stopAdvertise().andThen( isAdvertising)
+                .takeUntil { v -> !v.first.isPresent }
                 .flatMapCompletable { v ->
                     database.merkleDao().getDefaultRoot()
                         .doOnSubscribe { LOG.v("getDefaultRoot startAdvertise") }
                         .flatMapCompletable { root ->
-                        if (v.first.isPresent && (v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS))
-                            setAdvertisingLuid()
-                        else
                             Completable.fromAction {
                                 LOG.v("Starting LE advertise")
                                 setRandomizeTimer(30)
@@ -371,7 +394,7 @@ class AdvertiserImpl @Inject constructor(
 
                                 val builder = serviceDataBuilder.addServiceData(
                                     ParcelUuid(LUID_DATA),
-                                    luid.toBytes()
+                                    getHashLuid().toBytes()
                                 )
 
                                 if (root.hash != null)
@@ -383,9 +406,6 @@ class AdvertiserImpl @Inject constructor(
 
 
                                 try {
-                                    manager.adapter.bluetoothLeAdvertiser.stopAdvertisingSet(
-                                        advertiseSetCallback
-                                    )
                                     manager.adapter.bluetoothLeAdvertiser.startAdvertisingSet(
                                         settings,
                                         builder.build(),

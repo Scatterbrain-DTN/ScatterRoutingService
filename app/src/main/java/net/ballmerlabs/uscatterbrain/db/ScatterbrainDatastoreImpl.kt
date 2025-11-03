@@ -1290,7 +1290,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     fun insertMerkle(message: HashlessScatterMessage) {
         LOG.v("insertMerkle waiting for lock")
-
+        mDatastore.merkleDao().getLock().withLock {
             val r = mDatastore.merkleDao().getDefaultRoot()
                 .blockingGet()
 
@@ -1308,7 +1308,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             for ((bundle, id) in bundles.zip(ids)) {
                 bundle.id = id
             }
-        mDatastore.merkleDao().getLock().withLock {
+
             iterativeMerkleInsert(message, root, bundles)
         }
         LOG.v("insertMerkle complete")
