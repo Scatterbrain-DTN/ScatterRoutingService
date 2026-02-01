@@ -260,9 +260,11 @@ class SbProcessor(
             val scatterType = classDeclaration.superTypes.find { v ->
                 val r = v.resolve()
                 val d = r.declaration
-                r.toClassName().simpleName == ScatterSerializable::class.simpleName
+                r.declaration.simpleName.asString() == ScatterSerializable::class.asTypeName().simpleName
                         || if (d is KSClassDeclaration) {
-                            d.superTypes.find { s -> s.resolve().toClassName().simpleName == ScatterSerializable::class.simpleName } != null
+                            d.superTypes.find { s ->
+                                s.resolve().declaration.simpleName.asString() == ScatterSerializable::class.asTypeName().simpleName
+                            } != null
                         } else {
                             false
                         }

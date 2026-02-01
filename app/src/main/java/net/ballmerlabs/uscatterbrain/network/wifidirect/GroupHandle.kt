@@ -142,25 +142,7 @@ class GroupHandle @Inject constructor(
             .concatMapCompletable { packet ->
                 packet.build().writeToStream(socket.getOutputStream(), operationsScheduler)
                     .flatMapCompletable { v -> v }
-            }.subscribeOn(operationsScheduler)
-
-
-    }
-
-    fun declareHashesBarrier(socket: Socket): Completable {
-        return ScatterSerializable.parseWrapperFromCRC(
-            DeclareHashesPacketParser.parser,
-            socket.inputStream,
-            operationsScheduler
-        ).toObservable()
-            .doOnSubscribe { LOG.v("declareHashesBarrier start") }
-            .mergeWith(
-                DeclareHashesPacket.newBuilder().optOut().build()
-                    .writeToStream(socket.outputStream, operationsScheduler)
-                    .flatMapCompletable { v -> v }
-            ).lastOrError().ignoreElement()
-            .doFinally { LOG.v("declareHashesBarrier complete") }
-            .doOnError { err -> LOG.e("error in declareHashesBarrier: $err") }
+            }
     }
 
     fun declareHashesMerkle(socket: Socket, mode: DeclareHashesMode): Single<List<ByteArray>> {
@@ -169,20 +151,18 @@ class GroupHandle @Inject constructor(
             .flatMap { root ->
                 when (mode) {
                     DeclareHashesMode.MERKLEPROOF -> {
-                        val complete = CompletableSubject.create()
                         LOG.v("declareHashes merkle")
                         val incoming = getIncomingMerkleHashes(socket)
                             .map { v -> v.hashes[0] }
                             .doFinally {
                                 LOG.w("remote complete")
-                                complete.onComplete()
                             }
 
                         val send = database.merkleDao().getHubs(root, incoming, operationsScheduler)
                         sendMerkleHashes(
                             socket,
                             send.hubs,
-                        ).andThen(complete.andThen(send.exclude.toList()))
+                        ).andThen(send.exclude.toList())
                             .doOnSuccess { v -> LOG.v("got exclude ${v.size}") }
                     }
 
@@ -480,7 +460,6 @@ class GroupHandle @Inject constructor(
                     declareHashesMerkle(socket, mode)
                         .doOnSuccess { LOG.v("received declare hashes packet seme") }
                         .flatMap { declareHashesPacket ->
-                            LOG.v("declareHashesPacket ${declareHashesPacket.size}")
                             LOG.v("declareHashesPacket ${declareHashesPacket.size}")
                                 readBlockDataSeme(
                                     socket,

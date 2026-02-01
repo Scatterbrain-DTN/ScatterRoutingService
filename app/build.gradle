@@ -89,7 +89,7 @@ android {
     compileSdk 36
 }
 
-apply from: "../scatterbrainSDK/gradle/jacoco.gradle"
+//apply from: "../scatterbrainSDK/gradle/jacoco.gradle"
 
 def protobuf_version = "4.30.2"
 /*

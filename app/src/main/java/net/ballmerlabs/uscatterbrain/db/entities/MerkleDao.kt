@@ -405,7 +405,6 @@ abstract class MerkleDao {
                     Flowable.fromIterable(exclude)
                 })
                 .doFinally {
-
                     log.w("remote completed")
                 }
 
