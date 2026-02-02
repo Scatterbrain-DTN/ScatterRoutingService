@@ -345,7 +345,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             if (uke.drop) {
                                 LOG.e("found another uke, nuking ourselves")
                                 broadcastReceiver.removeCurrentGroup()
-                                    .toSingleDefault<TransactionResult<BootstrapRequest>?>(
+                                    .toSingleDefault<TransactionResult<BootstrapRequest>>(
                                         TransactionResult.of(TransactionResult.STAGE_TERMINATE)
                                     )
                                     .doOnSuccess {
@@ -457,7 +457,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 second
                                             }
                                         }
-                                            .doOnSuccess { v -> LOG.w("seme terminating with stage ${v.stage}") }
+                                            .doOnSuccess { v -> LOG.w("seme terminating with stage ${v?.stage}") }
                                             .flatMap { v ->
                                                 if (v.isError) {
                                                     Single.error(v.err!!)
@@ -498,6 +498,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .toSingleDefault(TransactionResult.empty())
                     },
                     { conn ->
+                        state.startMerkle()
                         conn.readIdentityPacket()
                             .repeat()
                             .takeWhile { identityPacket ->
@@ -578,7 +579,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 )
                                             })
                                     }
-                            }.toSingleDefault(TransactionResult.empty())
+                            }.doFinally { state.stopMerkle() }
+                            .toSingleDefault(TransactionResult.empty())
+
                     },
                     { conn ->
                         conn.readBlockHeader()
@@ -614,7 +617,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             }
                             .ignoreElements()
                             .andThen(datastore.rehashMerkle())
+                            .doFinally { state.stopMerkle() }
                             .toSingleDefault(TransactionResult.of(TransactionResult.STAGE_TERMINATE))
+
                     })
 
                 // set our starting stage
@@ -819,6 +824,9 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                 }
                     .flatMap { v -> v }
+            }
+            .doOnError {
+                state.stopMerkle()
             }
             .doOnNext { transactionResult ->
                 val stage = transactionResult.stage ?: TransactionResult.STAGE_TERMINATE

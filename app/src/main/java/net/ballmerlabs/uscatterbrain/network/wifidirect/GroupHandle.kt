@@ -25,6 +25,7 @@ import net.ballmerlabs.uscatterbrain.db.MerkleElement
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.network.meshtastic.SEME_TRANSACTION_TIMEOUT
 import net.ballmerlabs.uscatterbrain.network.meshtastic.UKE_TIMEOUT
 import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacketParser
@@ -67,6 +68,7 @@ class GroupHandle @Inject constructor(
     private val advertiser: Advertiser,
     private val mContext: Context,
     private val preferences: RouterPreferences,
+    private val leState: LeState,
     private val serverSocket: PortSocket,
     private val groupFinalizer: GroupFinalizer,
     private val broadcastReceiverState: BroadcastReceiverState,
@@ -121,6 +123,7 @@ class GroupHandle @Inject constructor(
 //    }
 
     private fun getIncomingMerkleHashes(socket: Socket): Flowable<DeclareHashesPacket> {
+        leState.startMerkle()
         return ScatterSerializable.parseWrapperFromCRC(
             DeclareHashesPacketParser.parser,
             socket.getInputStream(),
@@ -284,7 +287,7 @@ class GroupHandle @Inject constructor(
                             .doOnComplete { LOG.v("server read sequence packets") },
                         datastore.cacheDir
                     )
-                    datastore.insertStreamCached(m).andThen(m.await()).toSingleDefault(1)
+                    datastore.insertStreamCached(m, ).andThen(m.await()).toSingleDefault(1)
                 }
             }
 
@@ -524,6 +527,7 @@ class GroupHandle @Inject constructor(
         self: UUID,
         mode: DeclareHashesMode,
     ): Completable {
+
         return socketProvider.getSocket(
             session.wifiDirectInfo.groupOwnerAddress!!,
             request.port,

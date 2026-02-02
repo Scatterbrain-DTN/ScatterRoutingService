@@ -41,6 +41,7 @@ import net.ballmerlabs.uscatterbrain.util.toUuid
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -69,7 +70,9 @@ class LeStateImpl @Inject constructor(
     private val refreshInProgresss = BehaviorRelay.create<Boolean>()
     private val transactionCache: ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent> =
         ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>()
-    private val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
+    private val activeLuids = ConcurrentHashMap<UUID, Boolean> ()
+
+    private val merkleInProgress = AtomicBoolean(false)
 
     // a "channel" is a characteristic that protobuf messages are written to.
     override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic> =
@@ -301,11 +304,20 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun updateActive(uuid: UUID?): Boolean {
-        return if (uuid != null) activeLuids.put(uuid, true) == null else false
+        return (if (uuid != null) activeLuids.put(uuid, true) == null else false) &&
+                ! merkleInProgress.get()
     }
 
     override fun updateActive(scanResult: ScanResult): Boolean {
         return updateActive(getAdvertisedLuid(scanResult))
+    }
+
+    override fun startMerkle() {
+        merkleInProgress.set(true)
+    }
+
+    override fun stopMerkle() {
+        merkleInProgress.set(false)
     }
 
     private fun cleanupConnection(mac: String, luid: UUID, dispose: Boolean) {
@@ -318,7 +330,7 @@ class LeStateImpl @Inject constructor(
         val device = c?.device()
         if (device != null) {
             getServerSync()?.connection()?.resetMtu(device.macAddress)
-            if (transactionCache.size == 0) {
+            if (transactionCache.isEmpty()) {
                 getServerSync()?.connection()?.clearMtu()
             }
             try {

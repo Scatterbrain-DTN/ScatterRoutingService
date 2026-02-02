@@ -184,6 +184,11 @@ interface LeState {
      */
     fun clearActive()
 
+
+    fun startMerkle()
+
+    fun stopMerkle()
+
     fun setupChannels() {
         for (i in 0 until BluetoothLERadioModuleImpl.NUM_CHANNELS) {
             val channel = incrementUUID(

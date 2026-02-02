@@ -223,7 +223,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun insertMessages(messages: List<DbMessage>): Completable {
         return Observable.fromIterable(messages)
-            .flatMapCompletable { scatterMessage -> insertMessages(scatterMessage) }
+            .concatMapCompletable { scatterMessage -> insertMessages(scatterMessage) }
     }
 
     override fun getPackages(): Single<ArrayList<String>> {
@@ -1667,15 +1667,22 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         val subject = CompletableSubject.create()
                         backgroundTasks[subject] = true
                         streamFromFile(dir, databaseScheduler, cacheDir)
+                            .subscribeOn(databaseScheduler)
                             .doOnSubscribe { LOG.v("starting background file insert") }
                             .doOnError { err -> LOG.e("background file insert error: $err") }
+                            .concatWith(Completable.defer {
+                                if (backgroundTasks.size <= 1) {
+                                    rehashMerkleAsync()
+                                } else {
+                                    Completable.complete()
+                                }
+                            })
                             .doFinally {
                                 backgroundTasks.remove(subject)
                                 dir.delete()
-                                if (backgroundTasks.isEmpty()) {
-                                    rehashMerkleAsync().blockingAwait()
-                                }
+
                                 LOG.v("background file insert complete")
+                                leState.stopMerkle()
                             }
                             .subscribe(subject)
                     }

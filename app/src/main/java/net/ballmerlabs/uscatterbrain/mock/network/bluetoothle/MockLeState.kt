@@ -17,6 +17,7 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.util.toUuid
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
@@ -28,10 +29,11 @@ class MockLeState(
     override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic> = ConcurrentHashMap(),
 ) : LeState {
 
-    private val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap<UUID, Boolean>()
+    private val activeLuids: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap()
     private var server: GattServerConnectionSubcomponent? = null
     private val transactionInProgress = AtomicInteger(0)
     private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
+    private val merkle = AtomicBoolean()
 
     init {
         setupChannels()
@@ -51,6 +53,14 @@ class MockLeState(
         return Observable.never()
     }
 
+    override fun startMerkle() {
+
+    }
+
+    override fun stopMerkle() {
+
+    }
+
     override fun stopServer():  Completable {
         server = null
         return Completable.complete()
@@ -64,11 +74,12 @@ class MockLeState(
     override fun shouldConnect(res: ScanResult): Boolean {
         val advertisingLuid = getAdvertisedLuid(res)
         return advertisingLuid != null
-                && !activeLuids.containsKey(advertisingLuid)
+                && !activeLuids.containsKey(advertisingLuid) &&
+                !merkle.get()
     }
 
     override fun shouldConnect(luid: UUID): Boolean {
-        return !activeLuids.containsKey(luid)
+        return !activeLuids.containsKey(luid) && !merkle.get()
     }
 
     override fun activeCount(): Int {
