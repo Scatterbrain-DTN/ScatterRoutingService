@@ -9,7 +9,6 @@ import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
-import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterproto.MessageSizeException
 import net.ballmerlabs.scatterproto.MessageValidationException
@@ -287,7 +286,7 @@ class GroupHandle @Inject constructor(
                             .doOnComplete { LOG.v("server read sequence packets") },
                         datastore.cacheDir
                     )
-                    datastore.insertStreamCached(m, ).andThen(m.await()).toSingleDefault(1)
+                    datastore.insertStreamCached(m).andThen(m.await()).toSingleDefault(1)
                 }
             }
 
@@ -464,10 +463,10 @@ class GroupHandle @Inject constructor(
                         .doOnSuccess { LOG.v("received declare hashes packet seme") }
                         .flatMap { declareHashesPacket ->
                             LOG.v("declareHashesPacket ${declareHashesPacket.size}")
-                                readBlockDataSeme(
-                                    socket,
-                                    declareHashesPacket
-                                )
+                            readBlockDataSeme(
+                                socket,
+                                declareHashesPacket
+                            )
                         }.map { st -> stats.from(st) }
 
                 }
@@ -575,9 +574,6 @@ class GroupHandle @Inject constructor(
                             .subscribeOn(operationsScheduler)
                             .doOnError { err -> LOG.w("seme bootstrapSemeSocket failed $err") }
 
-                    }.flatMapSingle { v ->
-                        scheduler.get().broadcastTransactionResult(v)
-                            .toSingleDefault(v)
                     }
             }.ignoreElements()
             .timeout(SEME_TRANSACTION_TIMEOUT, TimeUnit.SECONDS, timeoutScheduler)
@@ -660,10 +656,7 @@ class GroupHandle @Inject constructor(
                                 .subscribeOn(operationsScheduler)
 
                                 .doOnError { err -> LOG.w("uke bootstrapUkeSocket failed $err") })
-                        .flatMap { v ->
-                            scheduler.get().broadcastTransactionResult(v)
-                                .toSingleDefault(v)
-                        }.onErrorReturnItem(
+                        .onErrorReturnItem(
                             HandshakeResult(
                                 0,
                                 0,
@@ -751,10 +744,10 @@ class GroupHandle @Inject constructor(
                             LOG.v("received declare hashes packet uke")
                         }
                         .flatMap { declareHashesPacket ->
-                                readBlockDataUke(
-                                    socket,
-                                    declareHashesPacket
-                                )
+                            readBlockDataUke(
+                                socket,
+                                declareHashesPacket
+                            )
                         }.map { st -> stats.from(st) }
                 }
         }.doOnSuccess { LOG.v("bootstrapUkeSocket complete") }

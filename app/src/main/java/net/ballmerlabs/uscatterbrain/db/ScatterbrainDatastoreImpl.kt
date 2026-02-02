@@ -1618,7 +1618,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         }
     }
 
-    private fun streamFromFile(filePath: File, scheduler: Scheduler, cacheDir: File): Completable {
+    private fun streamFromFile(filePath: File, scheduler: Scheduler, cacheDir: File): Single<Long> {
         val log by scatterLog()
         val inputStream = filePath.inputStream()
         return ScatterSerializable.parseWrapperFromCRC(
@@ -1647,7 +1647,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
             .repeat()
             .takeWhile { n -> !n }
-            .ignoreElements()
+            .count()
             .timeout(60, TimeUnit.SECONDS, timeoutScheduler)
             .doFinally { inputStream.close() }
     }
@@ -1679,13 +1679,22 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .subscribeOn(databaseScheduler)
                             .doOnSubscribe { LOG.v("starting background file insert") }
                             .doOnError { err -> LOG.e("background file insert error: $err") }
-                            .concatWith(Completable.defer {
+                            .flatMapCompletable { count ->
                                 if (backgroundTasks.size <= 1) {
                                     rehashMerkleAsync()
                                 } else {
                                     Completable.complete()
-                                }
-                            })
+                                }.concatWith(
+                                    scheduler.get().broadcastTransactionResult(
+                                        HandshakeResult(
+                                            0,
+                                            count.toInt(),
+                                            HandshakeResult.TransactionStatus.STATUS_SUCCESS
+                                        )
+                                    )
+                                )
+                            }
+
                             .doFinally {
                                 backgroundTasks.remove(subject)
                                 dir.delete()
