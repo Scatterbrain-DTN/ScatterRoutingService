@@ -588,10 +588,6 @@ abstract class MerkleDao {
             }
     }
 
-    open fun getLock(): ReentrantLock {
-        return lock
-    }
-
 //    private fun rehash(dirty: Long): Completable {
 //        return getBundlesForBundle(dirty)
 //            .flatMapObservable { v -> Observable.fromIterable(v) }

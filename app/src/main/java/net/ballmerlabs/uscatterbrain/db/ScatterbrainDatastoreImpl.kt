@@ -80,6 +80,7 @@ import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
@@ -167,7 +168,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val scheduler: Provider<ScatterbrainScheduler>,
     private val broadcaster: Broadcaster,
     private val advertiser: Advertiser,
-    private val leState: LeState
+    private val leState: LeState,
 ) : ScatterbrainDatastore {
     private val LOG by scatterLog()
     private val mOpenFiles: ConcurrentHashMap<File, OpenFile> = ConcurrentHashMap()
@@ -180,6 +181,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     private val backgroundTasks = ConcurrentHashMap<CompletableSubject, Boolean>()
     private val rehashDisp = AtomicReference<Disposable?>(null)
     private val rehashWait = BehaviorSubject.create<Boolean>()
+    private val lock = ReentrantLock()
 
     override fun getStats(handshakeResult: HandshakeResult): Maybe<HandshakeResult> {
         return mDatastore.identityDao().getNumIdentities().flatMapMaybe { idc ->
@@ -434,52 +436,54 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return awaitAllMerkle().andThen(mDatastore.merkleDao().getDefaultRoot())
             .doOnSubscribe { LOG.v("getDefaultRoot getTopRandomMessage") }
             .flatMapPublisher { root ->
-            LOG.v("called getTopRandomMessages $count")
-            mDatastore.merkleDao().getTopRandomExcludingHash(
-                root.id!!,
-                count,
-                delareHashes,
-                flag?.map { v -> v.number },
-                fileSize
-            )
-                .subscribeOn(databaseScheduler)
-                .doOnSubscribe { LOG.v("subscribed to getTopRandomMessages") }
-                .toFlowable()
-                .zipWith(mDatastore.merkleDao().getMessageCount().toFlowable()){ source, count ->
-                    LOG.v("retrieved messages: ${source.size}/$count")
-                    Flowable.fromIterable(source)
-                }.flatMap { v -> v }
-                .map { message ->
-                    if (message.message.body == null) {
-                        BlockDataStream(
-                            message,
-                            readFile(File(message.file.global.filePath), DEFAULT_BLOCKSIZE),
-                            true
-                        )
-                    } else {
-                        BlockDataStream(
-                            message,
-                            readBody(message.message.body!!, DEFAULT_BLOCKSIZE),
-                            false
-                        )
+                LOG.v("called getTopRandomMessages $count")
+                mDatastore.merkleDao().getTopRandomExcludingHash(
+                    root.id!!,
+                    count,
+                    delareHashes,
+                    flag?.map { v -> v.number },
+                    fileSize
+                )
+                    .subscribeOn(databaseScheduler)
+                    .doOnSubscribe { LOG.v("subscribed to getTopRandomMessages") }
+                    .toFlowable()
+                    .zipWith(
+                        mDatastore.merkleDao().getMessageCount().toFlowable()
+                    ) { source, count ->
+                        LOG.v("retrieved messages: ${source.size}/$count")
+                        Flowable.fromIterable(source)
+                    }.flatMap { v -> v }
+                    .map { message ->
+                        if (message.message.body == null) {
+                            BlockDataStream(
+                                message,
+                                readFile(File(message.file.global.filePath), DEFAULT_BLOCKSIZE),
+                                true
+                            )
+                        } else {
+                            BlockDataStream(
+                                message,
+                                readBody(message.message.body!!, DEFAULT_BLOCKSIZE),
+                                false
+                            )
+                        }
                     }
-                }
-                .flatMapSingle { v ->
-                    updateStats(
-                        Metrics(
-                            application = v.headerPacket.application,
-                            messages = 1,
-                            signed = if (v.headerPacket.isSigned) 1 else 0
-                        )
-                    ).toSingleDefault(v)
-                }
-                .doOnError { err ->
-                    LOG.e("getTopRandomMessages error $err")
-                }
-                .concatWith(Single.just(BlockDataStream.endOfStream()))
-                .onErrorReturnItem(BlockDataStream.endOfStream())
-                .doOnComplete { LOG.v("getTopRandomMessages complete") }
-        }
+                    .flatMapSingle { v ->
+                        updateStats(
+                            Metrics(
+                                application = v.headerPacket.application,
+                                messages = 1,
+                                signed = if (v.headerPacket.isSigned) 1 else 0
+                            )
+                        ).toSingleDefault(v)
+                    }
+                    .doOnError { err ->
+                        LOG.e("getTopRandomMessages error $err")
+                    }
+                    .concatWith(Single.just(endOfStream()))
+                    .onErrorReturnItem(endOfStream())
+                    .doOnComplete { LOG.v("getTopRandomMessages complete") }
+            }
     }
 
     private val seq: Flowable<Int>
@@ -1290,7 +1294,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     fun insertMerkle(message: HashlessScatterMessage) {
         LOG.v("insertMerkle waiting for lock")
-        mDatastore.merkleDao().getLock().withLock {
+        lock.withLock {
             val r = mDatastore.merkleDao().getDefaultRoot()
                 .blockingGet()
 
@@ -1324,7 +1328,9 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     offset += step
                     if (messages.isEmpty())
                         break
-                    for (m in messages) { insertMerkle(m) }
+                    for (m in messages) {
+                        insertMerkle(m)
+                    }
                 } catch (exc: Exception) {
                     LOG.w("rebuildMerkle exception $exc")
                     break
@@ -1343,8 +1349,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     override fun rehashMerkleAsync(): Completable {
         return Completable.fromAction {
             rehashDisp.updateAndGet { v ->
-                when(v) {
-                    null ->  mDatastore.merkleDao().merkleRehash(databaseScheduler)
+                when (v) {
+                    null -> mDatastore.merkleDao().merkleRehash(databaseScheduler)
                         .doOnSubscribe {
                             rehashWait.onNext(true)
                             LOG.v("rehashMerkle start")
@@ -1361,6 +1367,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             {},
                             {}
                         )
+
                     else -> v
                 }
             }
@@ -1649,18 +1656,20 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Single.just(stream).flatMapCompletable { stream ->
             getNewStreamDir().flatMapCompletable { dir ->
                 val os = dir.outputStream()
-                stream.headerPacket.writeToStream(os, databaseScheduler).flatMapCompletable {
-                    v -> v
+                stream.headerPacket.writeToStream(os, databaseScheduler).flatMapCompletable { v ->
+                    v
                 }.andThen(stream.sequencePackets)
                     .concatMapCompletable { v ->
                         v.writeToStream(os, databaseScheduler)
                             .flatMapCompletable { v -> v }
-                    }.concatWith(BlockSequencePacket.newBuilder().setEnd(true).build().writeToStream(
-                        os, databaseScheduler
-                    ).flatMapCompletable { v -> v })
-                    .concatWith(endOfStream()
-                        .headerPacket.writeToStream(os, databaseScheduler)
-                        .flatMapCompletable { v -> v }).doFinally {
+                    }.concatWith(
+                        BlockSequencePacket.newBuilder().setEnd(true).build().writeToStream(
+                            os, databaseScheduler
+                        ).flatMapCompletable { v -> v })
+                    .concatWith(
+                        endOfStream()
+                            .headerPacket.writeToStream(os, databaseScheduler)
+                            .flatMapCompletable { v -> v }).doFinally {
                         os.close()
                     }
                     .doOnComplete {
