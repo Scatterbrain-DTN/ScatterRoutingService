@@ -393,6 +393,56 @@ class DatastoreTest {
         assertEquals(messages3.size, 1)
     }
 
+
+    @Test
+    fun rehashMemory() {
+        val b1 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b2 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b3 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b4 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b5 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b1i = database.merkleDao().insertBundleEntity(b1).blockingGet()
+        println("b1i $b1i")
+        b2.childOne = b1i
+        val b3i = database.merkleDao().insertBundleEntity(b3).blockingGet()
+        println("b3i $b3i")
+        b2.childTwo = b3i
+        val b2i = database.merkleDao().insertBundleEntity(b2).blockingGet()
+        println("b2i $b2i")
+        b4.childOne = b2i
+        val b4i = database.merkleDao().insertBundleEntity(b4).blockingGet()
+        println("b4i $b4i")
+        b5.childTwo = b4i
+        val b5i = database.merkleDao().insertBundleEntity(b5).blockingGet()
+        println("b5i $b5i")
+        val test = database.merkleDao().getNextHub(b5i)!!
+
+        assertEquals(test.id, b2i)
+
+        b5.id = b5i
+
+        val remote = PublishSubject.create<ByteArray>()
+        database.merkleDao().merkleRehashInMemory(Schedulers.single()).blockingAwait()
+        val hubs = database.merkleDao().getHubs(
+            database.merkleDao().getBundle(b5i),
+            remote.toFlowable(BackpressureStrategy.BUFFER),
+            Schedulers.io()
+        ).hubs
+            .doOnNext { i -> remote.onNext(UUID.randomUUID().toBytes()) }
+            .doFinally { remote.onComplete() }
+            .toList().blockingGet()
+
+        for (item in hubs) {
+            println(item)
+        }
+        assertEquals(hubs.size, 4)
+        val ids = hubs.map { v -> v.bundle.id }
+        assert(ids.contains(b5i))
+        assert(ids.contains(b3i))
+        assert(ids.contains(b1i))
+        assert(ids.contains(b2i))
+    }
+
     @Test
     fun getNextHub() {
         val b1 = MerkleBundle(hash = UUID.randomUUID().toBytes())

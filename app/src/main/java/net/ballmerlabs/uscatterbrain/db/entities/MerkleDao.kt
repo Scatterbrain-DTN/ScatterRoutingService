@@ -19,6 +19,7 @@ import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.uscatterbrain.db.HubResponse
 import net.ballmerlabs.uscatterbrain.db.MerkleElement
+import net.ballmerlabs.uscatterbrain.db.MerkleNode
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.util.QueueSubject
@@ -92,6 +93,22 @@ abstract class MerkleDao {
     """
     )
     abstract fun getMessagesForBundleRecursive(id: Long): Single<List<HashlessScatterMessage>>
+
+
+    @Query(
+        """
+        WITH RECURSIVE
+            parent(id) AS (
+                select id from bundles where id = :id
+                UNION ALL
+                SELECT childOne FROM bundles, parent WHERE bundles.id = parent.id 
+                UNION ALL
+                SELECT childTwo FROM bundles, parent WHERE bundles.id = parent.id
+        )
+        SELECT * FROM bundles, parent where bundles.id = parent.id
+    """
+    )
+    abstract fun getBundlesRecursive(id: Long): List<MerkleBundle>
 
     @Query(
         """
@@ -337,7 +354,7 @@ abstract class MerkleDao {
     ): List<ByteArray> {
         if (root?.hash == null)
             return list
-        list.add(root.hash)
+        list.add(root.hash!!)
         //      val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
         //     val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
         val childOneHub = getNextHub(root.childOne)
@@ -446,25 +463,26 @@ abstract class MerkleDao {
             null
         }
 
+        val hash = root.hash!!
         //val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
         //val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
-        log.v("comparing hash ${item?.item?.toHexString()}, ${root.hash.toHexString()}")
+        log.v("comparing hash ${item?.item?.toHexString()}, ${hash.toHexString()}")
         val childOneHub = getNextHub(root.childOne)
         val childTwoHub = getNextHub(root.childTwo)
         if (
-            (item?.item != null && item.item.contentEquals(root.hash)) ||
-            nextOurs.contains(root.hash.toHexString()) ||
+            (item?.item != null && item.item.contentEquals(hash)) ||
+            nextOurs.contains(hash.toHexString()) ||
             nextTheirs.contains(item?.item?.toHexString())
         ) {
-            log.w("MATCH! on ${root.hash.toHexString()}")
-            exclude.add(root.hash)
+            log.w("MATCH! on ${hash.toHexString()}")
+            exclude.add(hash)
             return
         }
 
         if (item?.item != null) {
             nextOurs.add(item.item.toHexString())
         }
-        nextTheirs.add(root.hash.toHexString())
+        nextTheirs.add(hash.toHexString())
 
 
 
@@ -550,7 +568,10 @@ abstract class MerkleDao {
 
     @Query("SELECT * FROM bundles")
     abstract fun getAllBundles(): List<MerkleBundle>
-    
+
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract fun bulkReplaceBundle(bundles: List<MerkleBundle>)
 
    open fun merkleRehash(root: Long?, pos: Long = 0) {
         if (root == null) {
@@ -577,12 +598,63 @@ abstract class MerkleDao {
         updateBundleHash(hash, root)
     }
 
+
+    open fun merkleRehashInMemory(memoryTree: MerkleNode?) {
+        if (memoryTree == null) {
+            return
+        }
+        merkleRehashInMemory(memoryTree.childOne)
+        merkleRehashInMemory(memoryTree.childTwo)
+
+        val root = memoryTree.bundle.id ?: return
+        val messages = getMessagesForBundle(root)
+        val bundles = getBundlesForBundle(root)
+        val mhash = messages.map { v -> v.fileGlobalHash }
+        val bhash = bundles.map { v -> v.hash!! }
+//        log.v("merkleRehash depth=$pos root=$root")
+//        log.v("\tmhash=${mhash.map { v -> v.toHexString() }}")
+//        log.v("\tbhash=${bhash.map { v -> v.toHexString() }}")
+        val q = bhash + mhash
+        val b = q.sortedWith { v, n -> v.compare(n) }
+//        log.v("\tcombined=${b.map { v -> v.toHexString() }}")
+        val hash = LibsodiumInterface.merkleHash(b)
+//        log.v("\tfinal=${hash.toHexString()}")
+        memoryTree.bundle.hash = hash
+        memoryTree.bundle.dirty = false
+
+    }
+
+    open fun merkleRehashInMemory(root: Long?, pos: Long = 0) {
+        if (root == null) {
+            return
+        }
+
+        val bundles = getBundlesRecursive(root)
+
+        val memoryTree = MerkleNode.fromBundles(bundles, root)
+
+        merkleRehashInMemory(memoryTree)
+
+        bulkReplaceBundle(bundles)
+    }
+
     open fun merkleRehash(scheduler: Scheduler): Completable {
         return getDefaultRoot()
             .flatMapCompletable { r ->
                 Completable.fromAction {
                     lock.withLock {
                         merkleRehash(r.id)
+                    }
+                }.subscribeOn(scheduler)
+            }
+    }
+    
+    open fun merkleRehashInMemory(scheduler: Scheduler): Completable {
+        return getDefaultRoot()
+            .flatMapCompletable { r ->
+                Completable.fromAction {
+                    lock.withLock {
+                        merkleRehashInMemory(r.id)
                     }
                 }.subscribeOn(scheduler)
             }

@@ -142,6 +142,14 @@ class AdvertiserTest {
                 TODO("Not yet implemented")
             }
 
+            override fun bulkReplaceBundle(bundles: List<MerkleBundle>) {
+                TODO("Not yet implemented")
+            }
+
+            override fun getBundlesRecursive(id: Long): List<MerkleBundle> {
+                TODO("Not yet implemented")
+            }
+
             override fun setBundleHash(hash: ByteArray, self: Long): Completable {
                 TODO("Not yet implemented")
             }

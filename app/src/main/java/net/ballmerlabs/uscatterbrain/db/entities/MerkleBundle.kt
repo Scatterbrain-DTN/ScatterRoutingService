@@ -46,7 +46,7 @@ import androidx.room.PrimaryKey
 data class MerkleBundle(
     @PrimaryKey(autoGenerate = true)
     var id: Long? = null,
-    val hash: ByteArray? = null,
+    var hash: ByteArray? = null,
     var childOne: Long? = null,
     var childTwo: Long? = null,
     @ColumnInfo(defaultValue = "0")
