@@ -584,8 +584,14 @@ abstract class MerkleDao {
 
         val child1 = getChildOne(root)
         val child2 = getChildTwo(root)
-        merkleRehash(child1?.id, pos = pos + 1)
-        merkleRehash(child2?.id, pos = pos + 1)
+        if ((child1?.children ?: 0) <= REHASH_BLOCK_SIZE)
+            merkleRehashInMemory(child1?.id)
+        else
+            merkleRehash(child1?.id, pos = pos + 1)
+        if ((child2?.children ?: 0) <= REHASH_BLOCK_SIZE)
+            merkleRehashInMemory(child2?.id)
+        else
+            merkleRehash(child2?.id, pos = pos + 1)
 
         val messages = getMessagesForBundle(root)
         val bundles = getBundlesForBundle(root)
@@ -635,7 +641,7 @@ abstract class MerkleDao {
 
     }
 
-    open fun merkleRehashInMemory(root: Long?, pos: Long = 0) {
+    open fun merkleRehashInMemory(root: Long?) {
         if (root == null) {
             return
         }
@@ -655,7 +661,10 @@ abstract class MerkleDao {
             .flatMapCompletable { r ->
                 Completable.fromAction {
                     lock.withLock {
-                        merkleRehash(r.id)
+                        if (r.children <= REHASH_BLOCK_SIZE)
+                            merkleRehashInMemory(r.id!!)
+                        else
+                            merkleRehash(r.id)
                     }
                 }.subscribeOn(scheduler)
             }
@@ -723,5 +732,9 @@ abstract class MerkleDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     abstract fun insertBundleEntity(bundle: MerkleBundle): Single<Long>
+
+    companion object {
+        const val REHASH_BLOCK_SIZE = 1024*1024
+    }
 
 }
