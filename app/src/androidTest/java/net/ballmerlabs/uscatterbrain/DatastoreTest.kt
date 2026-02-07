@@ -9,6 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
+import com.geeksville.mesh.util.toHexString
 import com.google.protobuf.ByteString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
@@ -396,11 +397,72 @@ class DatastoreTest {
 
     @Test
     fun rehashMemory() {
+
+        initTest()
+
+        val recursive = database.merkleDao()
+            .getBundlesRecursive(database.merkleDao().getDefaultRoot().blockingGet().id!!)
+
+
+        val test = database.merkleDao().getAllBundles()
+
+        assertEquals(test.size, recursive.size)
+
+        val newbundles = database.merkleDao().getAllBundles()
+        println(newbundles.map { v -> v.hash!!.toHexString() })
+        database.merkleDao().merkleRehashInMemory(Schedulers.single()).blockingAwait()
+
+
+        val newbundlesafter = database.merkleDao().getAllBundles()
+        println(newbundlesafter.map { v -> v.hash!!.toHexString() })
+        assertEquals(newbundles.size, newbundlesafter.size)
+
+        val newroot = database.merkleDao().getRoots().blockingGet()
+
+        assertEquals(newroot.size, 1)
+
+        database.clearAllTables()
+        initTest()
+
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+
+        val oldbundles = database.merkleDao().getAllBundles()
+
+        val oldroot = database.merkleDao().getRoots().blockingGet()
+
+        assertEquals(oldroot.size, 1)
+
+        assertEquals(newroot[0].hash!!.toHexString(), oldroot[0].hash!!.toHexString())
+
+    }
+
+
+    @Test
+    fun childrenSize() {
         val b1 = MerkleBundle(hash = UUID.randomUUID().toBytes())
         val b2 = MerkleBundle(hash = UUID.randomUUID().toBytes())
         val b3 = MerkleBundle(hash = UUID.randomUUID().toBytes())
-        val b4 = MerkleBundle(hash = UUID.randomUUID().toBytes())
-        val b5 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b1i = database.merkleDao().insertBundleEntity(b1).blockingGet()
+        println("b1i $b1i")
+        b2.childOne = b1i
+        val b3i = database.merkleDao().insertBundleEntity(b3).blockingGet()
+        println("b3i $b3i")
+        b2.childTwo = b3i
+        val b2i = database.merkleDao().insertBundleEntity(b2).blockingGet()
+        println("b2i $b2i")
+
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingGet()
+
+        val root = database.merkleDao().getRootsRandom().blockingGet()
+        assertEquals(root[0].children, 2)
+    }
+
+    fun initTest() {
+        val b1 = MerkleBundle(hash = UUID.fromString("101DB830-0C3F-4D91-8563-FF4AD0C697DA").toBytes())
+        val b2 = MerkleBundle(hash = UUID.fromString("9BE6C315-797C-4791-AAED-EF0C1B8872A0").toBytes())
+        val b3 = MerkleBundle(hash = UUID.fromString("4ABFF2BD-230F-40E4-90F4-9ED22C2A31F2").toBytes())
+        val b4 = MerkleBundle(hash = UUID.fromString("339F0227-FB18-4635-817B-2EAF5F0527A4").toBytes())
+        val b5 = MerkleBundle(hash = UUID.fromString("F6F1A385-7A40-4C15-8CC5-8AFFBC899E42").toBytes())
         val b1i = database.merkleDao().insertBundleEntity(b1).blockingGet()
         println("b1i $b1i")
         b2.childOne = b1i
@@ -420,31 +482,11 @@ class DatastoreTest {
         assertEquals(test.id, b2i)
 
         b5.id = b5i
-
-        val remote = PublishSubject.create<ByteArray>()
-        database.merkleDao().merkleRehashInMemory(Schedulers.single()).blockingAwait()
-        val hubs = database.merkleDao().getHubs(
-            database.merkleDao().getBundle(b5i),
-            remote.toFlowable(BackpressureStrategy.BUFFER),
-            Schedulers.io()
-        ).hubs
-            .doOnNext { i -> remote.onNext(UUID.randomUUID().toBytes()) }
-            .doFinally { remote.onComplete() }
-            .toList().blockingGet()
-
-        for (item in hubs) {
-            println(item)
-        }
-        assertEquals(hubs.size, 4)
-        val ids = hubs.map { v -> v.bundle.id }
-        assert(ids.contains(b5i))
-        assert(ids.contains(b3i))
-        assert(ids.contains(b1i))
-        assert(ids.contains(b2i))
     }
 
     @Test
     fun getNextHub() {
+
         val b1 = MerkleBundle(hash = UUID.randomUUID().toBytes())
         val b2 = MerkleBundle(hash = UUID.randomUUID().toBytes())
         val b3 = MerkleBundle(hash = UUID.randomUUID().toBytes())

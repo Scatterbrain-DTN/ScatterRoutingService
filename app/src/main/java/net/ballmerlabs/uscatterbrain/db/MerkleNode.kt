@@ -11,8 +11,7 @@ data class MerkleNode(
         fun fromBundles(bundles: List<MerkleBundle>, root: Long): MerkleNode {
             val childmap = mutableMapOf<Long, MerkleBundle>()
             for (bundle in bundles) {
-                if (bundle.id != null)
-                    childmap[bundle.id!!] = bundle
+                childmap[bundle.id!!] = bundle
             }
 
             val root = childmap[root]!!

@@ -53,7 +53,9 @@ data class MerkleBundle(
     val text: Boolean = false,
     val application: String? = null,
     @ColumnInfo(defaultValue = "1")
-    var dirty: Boolean = true
+    var dirty: Boolean = true,
+    @ColumnInfo(defaultValue = "-1")
+    var children: Long = -1,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
