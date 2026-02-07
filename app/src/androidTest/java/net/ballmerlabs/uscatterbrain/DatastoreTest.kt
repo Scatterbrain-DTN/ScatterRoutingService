@@ -451,7 +451,28 @@ class DatastoreTest {
         val b2i = database.merkleDao().insertBundleEntity(b2).blockingGet()
         println("b2i $b2i")
 
-        database.merkleDao().merkleRehash(Schedulers.single()).blockingGet()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+
+        val root = database.merkleDao().getRootsRandom().blockingGet()
+        assertEquals(root[0].children, 2)
+    }
+
+
+    @Test
+    fun childrenSizeInMemory() {
+        val b1 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b2 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b3 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+        val b1i = database.merkleDao().insertBundleEntity(b1).blockingGet()
+        println("b1i $b1i")
+        b2.childOne = b1i
+        val b3i = database.merkleDao().insertBundleEntity(b3).blockingGet()
+        println("b3i $b3i")
+        b2.childTwo = b3i
+        val b2i = database.merkleDao().insertBundleEntity(b2).blockingGet()
+        println("b2i $b2i")
+
+        database.merkleDao().merkleRehashInMemory(Schedulers.single()).blockingAwait()
 
         val root = database.merkleDao().getRootsRandom().blockingGet()
         assertEquals(root[0].children, 2)

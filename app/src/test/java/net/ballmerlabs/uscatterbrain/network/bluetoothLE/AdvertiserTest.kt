@@ -133,6 +133,10 @@ class AdvertiserTest {
                 TODO("Not yet implemented")
             }
 
+            override fun updateBundleHash(hash: ByteArray, id: Long, size: Long) {
+                TODO("Not yet implemented")
+            }
+
             override fun updateParentFromHash(
                 childHash: ByteArray,
                 pos: Int,

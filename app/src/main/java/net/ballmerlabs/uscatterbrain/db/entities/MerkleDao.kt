@@ -630,6 +630,8 @@ abstract class MerkleDao {
 //        log.v("\tfinal=${hash.toHexString()}")
         memoryTree.bundle.hash = hash
         memoryTree.bundle.dirty = false
+        val children = bundles.sumOf { v -> v.children }
+        memoryTree.bundle.children = bundles.size + children
 
     }
 
