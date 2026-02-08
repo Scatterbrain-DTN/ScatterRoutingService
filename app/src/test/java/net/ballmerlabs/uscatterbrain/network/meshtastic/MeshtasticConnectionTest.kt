@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.os.Build
-import com.geeksville.mesh.DataPacket
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory

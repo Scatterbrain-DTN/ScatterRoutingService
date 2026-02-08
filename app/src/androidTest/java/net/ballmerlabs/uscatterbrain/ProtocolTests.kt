@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
-import com.geeksville.mesh.util.toHexString
 import com.google.firebase.FirebaseApp
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite

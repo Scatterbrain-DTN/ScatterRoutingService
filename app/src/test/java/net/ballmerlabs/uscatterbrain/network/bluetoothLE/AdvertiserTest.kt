@@ -263,11 +263,11 @@ class AdvertiserTest {
                 TODO("Not yet implemented")
             }
 
-            override fun getChildOne(id: Long): Long? {
+            override fun getChildOne(id: Long): MerkleBundle? {
                 TODO("Not yet implemented")
             }
 
-            override fun getChildTwo(id: Long): Long? {
+            override fun getChildTwo(id: Long): MerkleBundle? {
                 TODO("Not yet implemented")
             }
 
@@ -275,9 +275,6 @@ class AdvertiserTest {
                 TODO("Not yet implemented")
             }
 
-            override fun updateBundleHash(hash: ByteArray, id: Long) {
-                TODO("Not yet implemented")
-            }
 
             override fun getAllBundles(): List<MerkleBundle> {
                 TODO("Not yet implemented")
