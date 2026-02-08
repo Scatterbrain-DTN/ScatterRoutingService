@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import android.content.IntentFilter
-import com.geeksville.mesh.IMeshService
 import dagger.Binds
 import dagger.BindsInstance
 import dagger.Module
@@ -10,6 +9,7 @@ import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import org.meshtastic.core.service.IMeshService
 import javax.inject.Named
 
 @MeshtasticConnectionScope

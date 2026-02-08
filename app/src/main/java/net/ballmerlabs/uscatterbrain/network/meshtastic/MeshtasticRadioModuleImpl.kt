@@ -1,7 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.MessageStatus
+import org.meshtastic.core.model.DataPacket
+import org.meshtastic.core.model.MessageStatus
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Scheduler

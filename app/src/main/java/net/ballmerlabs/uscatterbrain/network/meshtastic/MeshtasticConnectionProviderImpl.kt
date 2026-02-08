@@ -1,13 +1,11 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import com.geeksville.mesh.IMeshService
+
 import com.jakewharton.rxrelay2.BehaviorRelay
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
-import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.atomic.AtomicReference

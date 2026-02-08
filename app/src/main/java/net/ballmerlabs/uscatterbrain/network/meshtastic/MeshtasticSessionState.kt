@@ -1,17 +1,12 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.map
-import com.google.protobuf.MessageLite
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
-import kotlinx.coroutines.flow.Flow
 import net.ballmerlabs.scatterproto.ScatterSerializable
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.TransactionResult
+import org.meshtastic.core.model.DataPacket
 
 enum class Stage {
     LOCKED,

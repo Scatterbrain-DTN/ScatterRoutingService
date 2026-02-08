@@ -1,12 +1,13 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic.utils
 
-import android.util.Log
-import com.geeksville.mesh.DataPacket
 import com.google.protobuf.MessageLite
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.meshtastic.PORT_NUMBER
 import net.ballmerlabs.uscatterbrain.network.proto.parseTypePrefixNoCrc
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import okio.ByteString
+import okio.ByteString.Companion.toByteString
+import org.meshtastic.core.model.DataPacket
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
@@ -26,7 +27,7 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(from: String? = nu
     log.v("toBroadcast from=$from")
     return DataPacket(
         to = DataPacket.ID_BROADCAST,
-        bytes = bytes,
+        bytes = bytes.toByteString(),
         dataType = PORT_NUMBER,
         from = from
     )
@@ -39,13 +40,20 @@ fun ByteArray.fromMeshtastic(): ScatterSerializable.Companion.TypedPacket {
     return ret
 }
 
+fun ByteString.fromMeshtastic(): ScatterSerializable.Companion.TypedPacket {
+    val out = GZIPInputStream(this.toByteArray().inputStream())
+    val ret = parseTypePrefixNoCrc(out.readBytes())
+    out.close()
+    return ret
+}
+
 fun <T: ScatterSerializable<U>, U: MessageLite> DataPacket.reply(message: T, replyTo: Int, from: String?): DataPacket {
     val bytes = message.toMeshtastic()
     val log by scatterLog()
     log.v("reply from=$from to=$to")
     return DataPacket(
         to = from,
-        bytes = bytes,
+        bytes = bytes.toByteString(),
         dataType = PORT_NUMBER,
         replyId = replyTo
     )

@@ -1,9 +1,9 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.MessageStatus
-import com.geeksville.mesh.NodeInfo
 import io.reactivex.Flowable
+import org.meshtastic.core.model.DataPacket
+import org.meshtastic.core.model.MessageStatus
+import org.meshtastic.core.model.NodeInfo
 
 data class MessageStatusEvent(
     val packetId: Int,

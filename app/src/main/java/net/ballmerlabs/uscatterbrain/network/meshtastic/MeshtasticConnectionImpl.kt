@@ -3,17 +3,17 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 import android.content.Context
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.IMeshService
-import com.geeksville.mesh.MeshUser
-import com.geeksville.mesh.MyNodeInfo
-import com.geeksville.mesh.NodeInfo
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.core.model.DataPacket
+import org.meshtastic.core.model.MeshUser
+import org.meshtastic.core.model.MyNodeInfo
+import org.meshtastic.core.model.NodeInfo
+import org.meshtastic.core.service.IMeshService
 import javax.inject.Inject
 import javax.inject.Named
 

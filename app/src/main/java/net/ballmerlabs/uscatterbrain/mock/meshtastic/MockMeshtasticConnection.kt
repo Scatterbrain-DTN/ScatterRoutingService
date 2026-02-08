@@ -1,10 +1,8 @@
 package net.ballmerlabs.uscatterbrain.mock.meshtastic
 
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.MeshUser
-import com.geeksville.mesh.MessageStatus
-import com.geeksville.mesh.MyNodeInfo
-import com.geeksville.mesh.NodeInfo
+import org.meshtastic.core.model.DataPacket
+import org.meshtastic.core.model.MessageStatus
+import org.meshtastic.core.model.NodeInfo
 import com.jakewharton.rxrelay2.PublishRelay
 import io.reactivex.Completable
 import io.reactivex.Single
@@ -14,6 +12,8 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnection
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionScope
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MessageStatusEvent
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.core.model.MeshUser
+import org.meshtastic.core.model.MyNodeInfo
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject

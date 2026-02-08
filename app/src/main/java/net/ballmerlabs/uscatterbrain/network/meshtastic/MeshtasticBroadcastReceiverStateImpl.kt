@@ -1,17 +1,15 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.NodeInfo
-import com.jakewharton.rxrelay2.PublishRelay
+
+import org.meshtastic.core.model.DataPacket
+import org.meshtastic.core.model.NodeInfo
 import io.reactivex.Flowable
 import io.reactivex.Scheduler
 import io.reactivex.processors.PublishProcessor
-import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
-import javax.inject.Provider
 
 @MeshtasticConnectionScope
 class MeshtasticBroadcastReceiverStateImpl @Inject constructor(

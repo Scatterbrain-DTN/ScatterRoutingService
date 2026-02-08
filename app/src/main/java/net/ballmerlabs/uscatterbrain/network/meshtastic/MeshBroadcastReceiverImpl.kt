@@ -1,9 +1,9 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 import android.content.Context
 import android.content.Intent
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.MessageStatus
-import com.geeksville.mesh.NodeInfo
+import org.meshtastic.core.model.DataPacket
+import org.meshtastic.core.model.MessageStatus
+import org.meshtastic.core.model.NodeInfo
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import javax.inject.Inject
 

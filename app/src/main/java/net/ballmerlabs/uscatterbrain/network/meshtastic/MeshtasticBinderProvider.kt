@@ -1,7 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import com.geeksville.mesh.IMeshService
 import io.reactivex.Observable
+import org.meshtastic.core.service.IMeshService
 
 interface MeshtasticBinderProvider {
     fun connectBinder(): Observable<IMeshService>

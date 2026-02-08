@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.mock.meshtastic
 
 import android.content.IntentFilter
-import com.geeksville.mesh.IMeshService
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnection
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionScope
@@ -27,6 +26,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModule
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.PORT_NUMBER
+import org.meshtastic.core.service.IMeshService
 import org.mockito.kotlin.mock
 import javax.inject.Named
 

@@ -1,11 +1,11 @@
 package net.ballmerlabs.uscatterbrain.mock.meshtastic
 
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.NodeInfo
 import io.reactivex.Flowable
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticBroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionScope
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MessageStatusEvent
+import org.meshtastic.core.model.DataPacket
+import org.meshtastic.core.model.NodeInfo
 
 @MeshtasticConnectionScope
 class MockMeshBroadcastReceiverState :  MeshtasticBroadcastReceiverState {

@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
-import com.geeksville.mesh.IMeshService
+
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 
@@ -13,6 +13,7 @@ import net.ballmerlabs.scatterbrainsdk.BinderWrapper
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.core.service.IMeshService
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton

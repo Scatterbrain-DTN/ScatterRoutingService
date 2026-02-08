@@ -1,8 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import android.content.Context
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.util.toHexString
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
@@ -32,6 +30,7 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
 import net.ballmerlabs.uscatterbrain.util.enumerateMap
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.core.model.DataPacket
 import scatterbrain.Meshtastic
 import scatterbrain.Scatterbrain
 import scatterbrain.Meshtastic.MeshtasticAckCode
@@ -396,6 +395,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
     override fun handlePacket(packet: DataPacket): Flowable<ScatterSerializable<*>> {
         return Single.just(packet).flatMapPublisher { v ->
+
             val p = v.bytes?.fromMeshtastic()
             log.v("meshtastic packet ${p?.type}")
             when (p?.type) {

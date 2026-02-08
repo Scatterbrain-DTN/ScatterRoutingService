@@ -1,11 +1,11 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import com.geeksville.mesh.DataPacket
-import com.geeksville.mesh.MeshUser
-import com.geeksville.mesh.MyNodeInfo
-import com.geeksville.mesh.NodeInfo
 import io.reactivex.Completable
 import io.reactivex.Single
+import org.meshtastic.core.model.DataPacket
+import org.meshtastic.core.model.MeshUser
+import org.meshtastic.core.model.MyNodeInfo
+import org.meshtastic.core.model.NodeInfo
 
 interface MeshtasticConnection {
     fun subscribeReceiver()

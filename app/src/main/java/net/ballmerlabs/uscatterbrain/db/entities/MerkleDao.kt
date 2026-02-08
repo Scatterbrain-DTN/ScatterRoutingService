@@ -7,7 +7,6 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.concurrent.AtomicInt
-import com.geeksville.mesh.util.toHexString
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Flowable

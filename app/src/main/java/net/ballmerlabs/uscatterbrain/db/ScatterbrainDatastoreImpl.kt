@@ -8,7 +8,6 @@ import android.os.ParcelUuid
 import android.provider.DocumentsContract
 import android.util.Pair
 import android.webkit.MimeTypeMap
-import com.geeksville.mesh.util.toHexString
 import com.github.davidmoten.rx2.Bytes
 import com.google.protobuf.ByteString
 import io.reactivex.BackpressureStrategy

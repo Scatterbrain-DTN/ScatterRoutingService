@@ -242,6 +242,16 @@ dependencies {
 
     implementation libs.kotlinx.coroutines.rx2
     implementation libs.rxjava2.extras
+
+    // The core AIDL interface and Intent constants
+    implementation "com.github.meshtastic.Meshtastic-Android:meshtastic-android-api:v2.7.13-internal.4"
+
+    // Data models (DataPacket, MeshUser, NodeInfo, etc.)
+    implementation "com.github.meshtastic.Meshtastic-Android:meshtastic-android-model:v2.7.13-internal.4"
+
+    // Protobuf definitions (PortNum, Telemetry, etc.)
+    implementation "com.github.meshtastic.Meshtastic-Android:meshtastic-android-proto:v2.7.13-internal.4"
+
     implementation(project(':annotation'))
     ksp(project(':annotation'))
     implementation(project(':ser'))

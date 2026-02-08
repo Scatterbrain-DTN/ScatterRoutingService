@@ -7,6 +7,3 @@
 [submodule "ser/src/main/proto"]
 	path = ser/src/main/proto
 	url = https://github.com/Scatterbrain-DTN/proto.git
-[submodule "ser/src/main/meshtastic"]
-	path = ser/src/main/meshtastic
-	url = https://github.com/meshtastic/protobufs.git
