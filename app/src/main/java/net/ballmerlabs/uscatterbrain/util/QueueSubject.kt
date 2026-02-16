@@ -3,6 +3,7 @@ import android.util.Log
 import io.reactivex.Flowable
 import io.reactivex.FlowableSubscriber
 import io.reactivex.Maybe
+import io.reactivex.Single
 import io.reactivex.processors.PublishProcessor
 import org.reactivestreams.Subscriber
 import org.reactivestreams.Subscription
@@ -36,12 +37,27 @@ class QueueSubject<T>(): FlowableSubscriber<T> {
         return !(queue.isEmpty() || queue.peek()?.item == null)
     }
 
+    fun getOrNull(): Single<QueueItem<T>> {
+        return Single.defer {
+            if (complete.get() && (queue.isEmpty() || queue.peek()?.item == null)) {
+                Single.just(QueueItem(null))
+            } else {
+                val item = queue.poll()?.item
+                if (item != null)
+                    Single.just(QueueItem(item))
+                else
+                    Single.just(QueueItem(null))
+            }
+
+        }
+    }
+
     fun get(): Maybe<T> {
         return Maybe.defer {
             if (complete.get() && (queue.isEmpty() || queue.peek()?.item == null)) {
                 Maybe.empty()
             } else {
-                val item = queue.poll(30, TimeUnit.SECONDS)?.item
+                val item = queue.poll()?.item
                 if (item != null)
                     Maybe.just(item)
                 else

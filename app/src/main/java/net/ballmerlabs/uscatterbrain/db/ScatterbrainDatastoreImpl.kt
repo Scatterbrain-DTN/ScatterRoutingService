@@ -20,6 +20,7 @@ import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.functions.BiFunction
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.DesktopApp
@@ -1293,7 +1294,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     fun insertMerkle(message: HashlessScatterMessage) {
         LOG.v("insertMerkle waiting for lock")
-        lock.withLock {
+        mDatastore.merkleDao().getLock().withLock {
             val r = mDatastore.merkleDao().getDefaultRoot()
                 .blockingGet()
 
@@ -1319,24 +1320,29 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
     override fun rebuildMerkle(): Completable {
         return Completable.fromAction {
-            var offset = 0
-            val step = 64
-            while (true) {
-                try {
-                    val messages = mDatastore.merkleDao().getMessagesLimitOffset(step, offset)
-                    offset += step
-                    if (messages.isEmpty())
+            mDatastore.merkleDao().getLock().withLock {
+                var offset = 0
+                val step = 64
+                while (true) {
+                    try {
+                        mDatastore.merkleDao().clearAllBundles()
+                        val messages = mDatastore.merkleDao().getMessagesLimitOffset(step, offset)
+                        offset += step
+                        if (messages.isEmpty())
+                            break
+                        for (m in messages) {
+                            insertMerkle(m)
+                        }
+                    } catch (exc: Exception) {
+                        LOG.w("rebuildMerkle exception $exc")
                         break
-                    for (m in messages) {
-                        insertMerkle(m)
                     }
-                } catch (exc: Exception) {
-                    LOG.w("rebuildMerkle exception $exc")
-                    break
-                }
 
+                }
+                mDatastore.merkleDao().merkleRehashUnlocked(Schedulers.single()).blockingAwait()
+                LOG.e("rebuild finished: hash ${mDatastore.merkleDao().getDefaultRoot().blockingGet().hash}")
             }
-        }.andThen(rehashMerkle())
+        }
             .subscribeOn(databaseScheduler)
     }
 

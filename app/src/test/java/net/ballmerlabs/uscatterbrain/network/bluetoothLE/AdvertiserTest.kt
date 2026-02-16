@@ -122,6 +122,11 @@ class AdvertiserTest {
             ): List<HashlessScatterMessage> {
                 TODO("Not yet implemented")
             }
+
+            override fun clearAllBundles() {
+                TODO("Not yet implemented")
+            }
+
             override fun nukeAllBundles(): Completable {
                 TODO("Not yet implemented")
             }

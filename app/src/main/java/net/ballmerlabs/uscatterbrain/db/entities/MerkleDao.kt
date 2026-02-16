@@ -417,11 +417,10 @@ abstract class MerkleDao {
             )
             obs.onComplete()
         }, BackpressureStrategy.BUFFER)
-            .concatWith(rs.get()
-                .defaultIfEmpty(RemoteItem(null))
+            .concatWith(rs.getOrNull()
                 .repeat()
-                .takeWhile { v -> v.item != null }
-                .map { v -> exclude.add(v.item!!) }
+                .takeWhile { v -> v.item?.item != null }
+                .map { v -> exclude.add(v.item?.item!!) }
                 .ignoreElements()
             )
             //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
@@ -683,6 +682,21 @@ abstract class MerkleDao {
                 }.subscribeOn(scheduler)
             }
     }
+
+    open fun merkleRehashUnlocked(scheduler: Scheduler): Completable {
+        return getDefaultRoot()
+            .flatMapCompletable { r ->
+                Completable.fromAction {
+                        if (r.children <= REHASH_BLOCK_SIZE)
+                            merkleRehashInMemory(r.id!!)
+                        else
+                            merkleRehash(r.id)
+                }.subscribeOn(scheduler)
+            }
+    }
+
+    @Query("DELETE FROM bundles")
+    abstract fun clearAllBundles()
 
     open fun merkleRehashDisk(scheduler: Scheduler): Completable {
         return getDefaultRoot()
