@@ -147,7 +147,7 @@ class GroupHandle @Inject constructor(
             }
     }
 
-    fun declareHashesMerkle(socket: Socket, mode: DeclareHashesMode): Single<List<ByteArray>> {
+    fun declareHashesMerkle(socket: Socket, mode: DeclareHashesMode, limit: Int? = 16): Single<List<ByteArray>> {
         return database.merkleDao().getDefaultRoot()
             .subscribeOn(operationsScheduler)
             .flatMap { root ->
@@ -160,7 +160,7 @@ class GroupHandle @Inject constructor(
                                 LOG.w("remote complete")
                             }
 
-                        val send = database.merkleDao().getHubs(root, incoming, operationsScheduler, limit = 16)
+                        val send = database.merkleDao().getHubs(root, incoming, operationsScheduler, limit = limit)
                         sendMerkleHashes(
                             socket,
                             send.hubs,

@@ -408,7 +408,7 @@ class DatastoreTest {
 
         val newbundles = database.merkleDao().getAllBundles()
         println(newbundles.map { v -> v.hash!!.toHexString() })
-        database.merkleDao().merkleRehashInMemory(Schedulers.single()).blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
 
         val newbundlesafter = database.merkleDao().getAllBundles()
@@ -470,7 +470,7 @@ class DatastoreTest {
         val b2i = database.merkleDao().insertBundleEntity(b2).blockingGet()
         println("b2i $b2i")
 
-        database.merkleDao().merkleRehashInMemory(Schedulers.single()).blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val root = database.merkleDao().getRootsRandom().blockingGet()
         assertEquals(root[0].children, 2)

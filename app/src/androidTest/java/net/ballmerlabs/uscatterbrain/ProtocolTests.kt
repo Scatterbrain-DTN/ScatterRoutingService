@@ -394,13 +394,22 @@ class ProtocolTests {
 
         datastore2.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        ds1.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
-        ds2.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+        ds1.merkleDao().merkleRehashDisk(Schedulers.single()).blockingAwait()
+        ds2.merkleDao().merkleRehashDisk(Schedulers.single()).blockingAwait()
 
-        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
+        val out1 = groupHandleOne.declareHashesMerkle(
+            clientSocket,
+            Merkle.DeclareHashesMode.MERKLEPROOF,
+            limit = 8
+        )
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
             .ignoreElement()
-        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
+
+        val out2 = groupHandleTwo.declareHashesMerkle(
+            serverSocket,
+            Merkle.DeclareHashesMode.MERKLEPROOF,
+            limit = 8
+        )
             .toFlowable()
             .mergeWith(out1)
             .lastOrError()
@@ -435,10 +444,18 @@ class ProtocolTests {
         ds1.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
         ds2.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
-        val out1 = groupHandleOne.declareHashesMerkle(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
+        val out1 = groupHandleOne.declareHashesMerkle(
+            clientSocket,
+            Merkle.DeclareHashesMode.MERKLEPROOF,
+            limit = 8
+        )
             .doOnSuccess { out1 -> println("got out1: ${out1.map { v -> v.toByteString() }}") }
             .ignoreElement()
-        val out2 = groupHandleTwo.declareHashesMerkle(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
+        val out2 = groupHandleTwo.declareHashesMerkle(
+            serverSocket,
+            Merkle.DeclareHashesMode.MERKLEPROOF,
+            limit = 8
+        )
             .toFlowable()
             .mergeWith(out1)
             .lastOrError()
@@ -450,7 +467,7 @@ class ProtocolTests {
         assertNotEquals(root2.hash, nr.hash)
 
         println("got out2 ${out2.map { v -> v.toByteString() }}")
-        val o = ds1.merkleDao().getTopRandomExcludingHash(nr.id!!, 500, out2).blockingGet()
+        val o = ds2.merkleDao().getTopRandomExcludingHash(nr.id!!, 500, out2).blockingGet()
 
         assertEquals(1, o.size)
 

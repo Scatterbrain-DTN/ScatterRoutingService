@@ -370,6 +370,10 @@ abstract class MerkleDao {
         return list
     }
 
+    fun getLock(): ReentrantLock {
+        return lock
+    }
+
 
     fun getHubs(
         root: MerkleBundle?,
@@ -414,6 +418,13 @@ abstract class MerkleDao {
             )
             obs.onComplete()
         }, BackpressureStrategy.BUFFER)
+            .concatWith(rs.get()
+                .defaultIfEmpty(RemoteItem(null))
+                .repeat()
+                .takeWhile { v -> v.item != null }
+                .map { v -> exclude.add(v.item!!) }
+                .ignoreElements()
+            )
             //     .doOnNext { v -> log.v("getHubs hubs ${v.id}") }
             .doFinally {
                 log.v("getHubs complete!")
@@ -468,6 +479,9 @@ abstract class MerkleDao {
             null
         }
 
+        if (item?.item != null)
+            exclude.add(item.item)
+
         val hash = root.hash!!
         //val childOneHub = if (root.childOne != null ) getBundle(root.childOne!!) else null
         //val childTwoHub = if (root.childTwo != null) getBundle(root.childTwo!!) else null
@@ -476,13 +490,14 @@ abstract class MerkleDao {
         val childTwoHub = getNextHub(root.childTwo)
         if (
             (item?.item != null && item.item.contentEquals(hash)) ||
-            nextOurs.contains(hash.toHexString()) ||
-            nextTheirs.contains(item?.item?.toHexString())
+            nextTheirs.contains(item?.item?.toHexString()) ||
+            nextOurs.contains(hash.toHexString())
         ) {
             log.w("MATCH! on ${hash.toHexString()}")
-            exclude.add(hash)
             return
         }
+
+
 
         if (item?.item != null) {
             nextOurs.add(item.item.toHexString())
@@ -673,12 +688,12 @@ abstract class MerkleDao {
             }
     }
 
-    open fun merkleRehashInMemory(scheduler: Scheduler): Completable {
+    open fun merkleRehashDisk(scheduler: Scheduler): Completable {
         return getDefaultRoot()
             .flatMapCompletable { r ->
                 Completable.fromAction {
                     lock.withLock {
-                        merkleRehashInMemory(r.id)
+                        merkleRehash(r.id)
                     }
                 }.subscribeOn(scheduler)
             }
