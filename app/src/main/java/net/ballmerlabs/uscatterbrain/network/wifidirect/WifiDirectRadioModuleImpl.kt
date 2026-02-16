@@ -658,7 +658,10 @@ class WifiDirectRadioModuleImpl @Inject constructor(
                 serverSocketManager.getServerSocket().flatMap { socket ->
                     mBroadcastReceiver.createCurrentGroup(req)
                 }.map { g ->
-                    val obs = g.groupHandle().semeServer(mode).subscribe()
+                    val obs = g.groupHandle().semeServer(mode).subscribe(
+                        { broadcastReceiverState.killall() },
+                        { err -> broadcastReceiverState.killall() }
+                    )
                     groupDisposable.get()?.server = obs
                     g
                 }

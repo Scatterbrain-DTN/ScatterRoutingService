@@ -26,7 +26,7 @@ class PortSocket(
 ) {
     private val LOG by scatterLog()
     fun accept(scheduler: Scheduler): Flowable<DisposableSocket> {
-        return Flowable.create<DisposableSocket?>( { obs ->
+        return Flowable.create( { obs ->
             while (!socket.isClosed) {
                 try {
                     obs.onNext(

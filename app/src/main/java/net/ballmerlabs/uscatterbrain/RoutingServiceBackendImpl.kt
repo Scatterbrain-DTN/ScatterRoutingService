@@ -30,6 +30,7 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
@@ -65,6 +66,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     val serverSocketManager: ServerSocketManager,
     val firebaseWrapper: FirebaseWrapper,
     private val broadcaster: Broadcaster,
+    private val broadcastReceiverState: BroadcastReceiverState,
     private val meshtasticBinderProvider: MeshtasticConnectionProvider,
     @Named(RoutingServiceComponent.NamedSchedulers.DATABASE) val ioScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
@@ -80,6 +82,7 @@ class RoutingServiceBackendImpl @Inject constructor(
             try {
                 e.printStackTrace()
                 firebaseWrapper.recordException(e)
+                broadcastReceiverState.killall()
                 if (e is RxJavaAssemblyException) {
                     LOG.e(e.stacktrace())
                 }
