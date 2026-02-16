@@ -232,6 +232,7 @@ abstract class MerkleDao {
                     dirty = true
                 )
                 insertBundleEntity(bundle).map { id ->
+                    log.e("creating root $id")
                     bundle.apply {
                         this.id = id
                     }
@@ -592,17 +593,20 @@ abstract class MerkleDao {
     abstract fun bulkReplaceBundle(bundles: List<MerkleBundle>)
 
     open fun merkleRehash(root: Long?, pos: Long = 0) {
+//        log.v("merkleRehash root=$root pos=$pos")
         if (root == null) {
             return
         }
 
         val child1 = getChildOne(root)
         val child2 = getChildTwo(root)
-        if ((child1?.children ?: 0) <= REHASH_BLOCK_SIZE)
+//        log.v("merkleRehash childOne=$child1 childTwo=$child2")
+
+        if ((child1?.children ?: 0) < REHASH_BLOCK_SIZE)
             merkleRehashInMemory(child1?.id)
         else
             merkleRehash(child1?.id, pos = pos + 1)
-        if ((child2?.children ?: 0) <= REHASH_BLOCK_SIZE)
+        if ((child2?.children ?: 0) < REHASH_BLOCK_SIZE )
             merkleRehashInMemory(child2?.id)
         else
             merkleRehash(child2?.id, pos = pos + 1)
@@ -627,6 +631,7 @@ abstract class MerkleDao {
     abstract fun deleteBundle(bundle: MerkleBundle)
 
     open fun merkleRehashInMemory(memoryTree: MerkleNode?) {
+//        log.v("merkleRehashInMemory memoryTree=$memoryTree")
         if (memoryTree == null) {
             return
         }
@@ -641,6 +646,7 @@ abstract class MerkleDao {
         if (memoryTree.childTwo?.bundle != null)
             bundles.add(memoryTree.childTwo!!.bundle)
         if (messages.isEmpty() && bundles.isEmpty()) {
+            log.e("deleting orphan bundle ${memoryTree.bundle}")
             deleteBundle(memoryTree.bundle)
             return
         }
@@ -681,7 +687,7 @@ abstract class MerkleDao {
             .flatMapCompletable { r ->
                 Completable.fromAction {
                     lock.withLock {
-                        if (r.children <= REHASH_BLOCK_SIZE)
+                        if (r.children in 1..REHASH_BLOCK_SIZE)
                             merkleRehashInMemory(r.id!!)
                         else
                             merkleRehash(r.id)
@@ -694,10 +700,11 @@ abstract class MerkleDao {
         return getDefaultRoot()
             .flatMapCompletable { r ->
                 Completable.fromAction {
-                        if (r.children <= REHASH_BLOCK_SIZE)
-                            merkleRehashInMemory(r.id!!)
-                        else
-                            merkleRehash(r.id)
+                    log.e("r.children=${r.children} $REHASH_BLOCK_SIZE")
+                    if (r.children in 1..REHASH_BLOCK_SIZE)
+                        merkleRehashInMemory(r.id!!)
+                    else
+                        merkleRehash(r.id)
                 }.subscribeOn(scheduler)
             }
     }

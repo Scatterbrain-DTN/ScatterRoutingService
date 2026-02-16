@@ -1246,7 +1246,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         point: MerkleInsertCond,
         bundles: ArrayList<MerkleBundle>,
     ) {
-        //LOG.v("iterativeMerkleInsert start")
         if (point.complete(message.fileGlobalHash)) {
             message.bundle = point.parent
             mDatastore.merkleDao().updateBundleForMessage(point.parent, message.messageID!!)
@@ -1293,7 +1292,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     fun insertMerkle(message: HashlessScatterMessage) {
-        LOG.v("insertMerkle waiting for lock")
         mDatastore.merkleDao().getLock().withLock {
             val r = mDatastore.merkleDao().getDefaultRoot()
                 .blockingGet()
@@ -1307,7 +1305,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         dirty = true
                     )
                 })
-            LOG.v("insertMerkle acquired lock")
             val ids = mDatastore.merkleDao().insertBundleEntitySync(bundles)
             for ((bundle, id) in bundles.zip(ids)) {
                 bundle.id = id
@@ -1315,7 +1312,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
 
             iterativeMerkleInsert(message, root, bundles)
         }
-        LOG.v("insertMerkle complete")
     }
 
     override fun rebuildMerkle(): Completable {
@@ -1323,9 +1319,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             mDatastore.merkleDao().getLock().withLock {
                 var offset = 0
                 val step = 64
+                mDatastore.merkleDao().clearAllBundles()
+
                 while (true) {
                     try {
-                        mDatastore.merkleDao().clearAllBundles()
+                        val tmp = mDatastore.merkleDao().getDefaultRoot().blockingGet()
+                        LOG.v("root=${tmp?.id}")
                         val messages = mDatastore.merkleDao().getMessagesLimitOffset(step, offset)
                         offset += step
                         if (messages.isEmpty())
@@ -1339,8 +1338,12 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                     }
 
                 }
+                LOG.e("rebuild start rehash: hash ${mDatastore.merkleDao().getDefaultRoot().blockingGet().id}")
+                LOG.e("before rehash roots=${mDatastore.merkleDao().getRootsRandom().blockingGet().size}")
                 mDatastore.merkleDao().merkleRehashUnlocked(Schedulers.single()).blockingAwait()
-                LOG.e("rebuild finished: hash ${mDatastore.merkleDao().getDefaultRoot().blockingGet().hash}")
+                LOG.e("after rehash roots=${mDatastore.merkleDao().getRootsRandom().blockingGet().size}")
+                val n = mDatastore.merkleDao().getDefaultRoot().blockingGet()
+                LOG.e("rebuild finished: hash ${n.hash?.toHexString()}, ${n.id}")
             }
         }
             .subscribeOn(databaseScheduler)

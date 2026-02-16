@@ -618,10 +618,22 @@ class DatastoreTest {
             .build()
         datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
 
-        database.merkleDao().getDefaultRoot().blockingGet()
         val root = database.merkleDao().getRootsRandom().blockingGet()
 
         assertEquals(root.size, 1)
+    }
+
+
+    @Test
+    fun rebuildMerkle() {
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, byteArrayOf(1, 2, 3))
+            .setApplication("fmef")
+            .build()
+        datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        datastore.rebuildMerkle().blockingAwait()
+
+        assertNotNull(database.merkleDao().getDefaultRoot().blockingGet().hash)
     }
 
     @OptIn(ExperimentalStdlibApi::class)
