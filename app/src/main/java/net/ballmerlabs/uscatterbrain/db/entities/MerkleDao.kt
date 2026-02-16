@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.db.entities
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -622,6 +623,8 @@ abstract class MerkleDao {
         updateBundleHash(hash, root, bundles.size + children)
     }
 
+    @Delete
+    abstract fun deleteBundle(bundle: MerkleBundle)
 
     open fun merkleRehashInMemory(memoryTree: MerkleNode?) {
         if (memoryTree == null) {
@@ -637,6 +640,10 @@ abstract class MerkleDao {
             bundles.add(memoryTree.childOne!!.bundle)
         if (memoryTree.childTwo?.bundle != null)
             bundles.add(memoryTree.childTwo!!.bundle)
+        if (messages.isEmpty() && bundles.isEmpty()) {
+            deleteBundle(memoryTree.bundle)
+            return
+        }
         val mhash = messages.map { v -> v.fileGlobalHash }
         val bhash = bundles.map { v -> v.hash!! }
 //        log.v("merkleRehash root=$root")

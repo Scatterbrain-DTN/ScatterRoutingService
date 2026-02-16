@@ -10,6 +10,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.Hash
 import com.goterl.lazysodium.interfaces.Sign
+import io.ktor.util.moveToByteArray
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Flowable
 import io.reactivex.Observable
@@ -25,7 +26,13 @@ import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
+import net.ballmerlabs.uscatterbrain.db.entities.DiskFile
+import net.ballmerlabs.uscatterbrain.db.entities.GlobalHash
+import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
+import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.mock.DaggerFakeDbRoutingServiceComponent
+import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import org.junit.Before
 import org.junit.Test
@@ -53,6 +60,7 @@ import scatterbrain.Merkle
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.nio.ByteBuffer
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 class ProtocolTests {
@@ -65,6 +73,7 @@ class ProtocolTests {
 
     val socket = ServerSocket(0, 32, InetAddress.getLocalHost())
 
+    var fakeMessageVal: Long = 0
     lateinit var clientSocket: Socket
     lateinit var serverSocket: Socket
 
@@ -88,7 +97,7 @@ class ProtocolTests {
     fun init() {
          ctx = ApplicationProvider.getApplicationContext<Context>()
 
-
+        fakeMessageVal = 0
          ds1 = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
             .openHelperFactory(RequerySQLiteOpenHelperFactory())
             .fallbackToDestructiveMigration()
@@ -240,6 +249,35 @@ class ProtocolTests {
     }
 
 
+
+    fun insertFakeMessage(parent: Long, datastore: Datastore) {
+        val body = LibsodiumInterface.merkleHash(ByteBuffer.allocate(Long.SIZE_BYTES).apply {
+            putLong(fakeMessageVal)
+        }.moveToByteArray())
+        fakeMessageVal++
+        val b = datastore.scatterMessageDao().insertMessage(DbMessage(
+            message = HashlessScatterMessage(
+                body = body,
+                application = "test",
+                sig = null,
+                sessionid = 0,
+                extension = "test",
+                sendDate = Date().time,
+                receiveDate = Date().time,
+                fileGlobalHash = getGlobalHash(listOf(body)),
+                fileSize = 0,
+                packageName = "test",
+                bundle = parent
+            ),
+            recipient_fingerprints = listOf(),
+            identity_fingerprints = listOf(),
+            file = DiskFile(
+                GlobalHash(getGlobalHash(listOf(body)), "",),
+                messageHashes = listOf()
+            ),
+            flags = listOf()
+        )).blockingGet()
+    }
 
     @Test
     fun merkleSyncDiffSize() {

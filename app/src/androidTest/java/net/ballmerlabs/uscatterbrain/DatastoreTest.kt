@@ -9,6 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.protobuf.ByteString
+import io.ktor.util.moveToByteArray
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Observable
@@ -17,11 +18,15 @@ import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.io.bytestring.getByteString
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.db.*
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
+import net.ballmerlabs.uscatterbrain.db.entities.DiskFile
+import net.ballmerlabs.uscatterbrain.db.entities.GlobalHash
+import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate9
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockAdvertiser
@@ -45,6 +50,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.TimeoutException
+import kotlin.random.Random
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 class DatastoreTest {
@@ -53,7 +59,7 @@ class DatastoreTest {
     private lateinit var datastore: ScatterbrainDatastore
     private lateinit var database: Datastore
     private val scheduler = RxJavaPlugins.createIoScheduler(ScatterbrainThreadFactory("test"))
-
+    private var fakeMessageVal: Long = 0
 
     @Rule
     @JvmField
@@ -66,6 +72,7 @@ class DatastoreTest {
     @ExperimentalCoroutinesApi
     @Before
     fun init() {
+        fakeMessageVal = 0
         ctx = ApplicationProvider.getApplicationContext()
         database = Room.inMemoryDatabaseBuilder(ctx, Datastore::class.java)
             .openHelperFactory(RequerySQLiteOpenHelperFactory())
@@ -320,7 +327,7 @@ class DatastoreTest {
             datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
         }
 
-        database.merkleDao().merkleRehash(io.reactivex.schedulers.Schedulers.single()).blockingAwait()
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val root = database.merkleDao().getDefaultRoot().blockingGet()
 
@@ -397,6 +404,7 @@ class DatastoreTest {
     fun rehashMemory() {
 
         initTest()
+        fakeMessageVal = 0
 
         val recursive = database.merkleDao()
             .getBundlesRecursive(database.merkleDao().getDefaultRoot().blockingGet().id!!)
@@ -449,6 +457,10 @@ class DatastoreTest {
         val b2i = database.merkleDao().insertBundleEntity(b2).blockingGet()
         println("b2i $b2i")
 
+        insertFakeMessage(b1i)
+        insertFakeMessage(b2i)
+        insertFakeMessage(b3i)
+
         database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
         val root = database.merkleDao().getRootsRandom().blockingGet()
@@ -461,6 +473,7 @@ class DatastoreTest {
         val b1 = MerkleBundle(hash = UUID.randomUUID().toBytes())
         val b2 = MerkleBundle(hash = UUID.randomUUID().toBytes())
         val b3 = MerkleBundle(hash = UUID.randomUUID().toBytes())
+
         val b1i = database.merkleDao().insertBundleEntity(b1).blockingGet()
         println("b1i $b1i")
         b2.childOne = b1i
@@ -469,6 +482,9 @@ class DatastoreTest {
         b2.childTwo = b3i
         val b2i = database.merkleDao().insertBundleEntity(b2).blockingGet()
         println("b2i $b2i")
+        insertFakeMessage(b1i)
+        insertFakeMessage(b2i)
+        insertFakeMessage(b3i)
 
         database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
 
@@ -496,11 +512,45 @@ class DatastoreTest {
         b5.childTwo = b4i
         val b5i = database.merkleDao().insertBundleEntity(b5).blockingGet()
         println("b5i $b5i")
+        insertFakeMessage(b1i)
+        insertFakeMessage(b2i)
+        insertFakeMessage(b3i)
+        insertFakeMessage(b4i)
+        insertFakeMessage(b5i)
         val test = database.merkleDao().getNextHub(b5i)!!
 
         assertEquals(test.id, b2i)
 
         b5.id = b5i
+    }
+
+    fun insertFakeMessage(parent: Long) {
+        val body = ByteBuffer.allocate(Long.SIZE_BYTES).apply {
+            putLong(fakeMessageVal)
+        }.array()
+        fakeMessageVal++
+        val b = database.scatterMessageDao().insertMessage(DbMessage(
+            message = HashlessScatterMessage(
+                body = body,
+                application = "test",
+                sig = null,
+                sessionid = 0,
+                extension = "test",
+                sendDate = Date().time,
+                receiveDate = Date().time,
+                fileGlobalHash = getGlobalHash(listOf(body)),
+                fileSize = 0,
+                packageName = "test",
+                bundle = parent
+            ),
+            recipient_fingerprints = listOf(),
+            identity_fingerprints = listOf(),
+            file = DiskFile(
+                GlobalHash(getGlobalHash(listOf(body)), "",),
+                messageHashes = listOf()
+            ),
+            flags = listOf()
+        )).blockingGet()
     }
 
     @Test
@@ -530,6 +580,12 @@ class DatastoreTest {
         assertEquals(test.id, b2i)
 
         b5.id = b5i
+
+        insertFakeMessage(b4i)
+        insertFakeMessage(b5i)
+        insertFakeMessage(b3i)
+        insertFakeMessage(b2i)
+        insertFakeMessage(b1i)
 
         val remote = PublishSubject.create<ByteArray>()
         database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
