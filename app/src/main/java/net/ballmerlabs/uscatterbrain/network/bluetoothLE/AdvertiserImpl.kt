@@ -204,14 +204,7 @@ class AdvertiserImpl @Inject constructor(
     @OptIn(ExperimentalStdlibApi::class)
     override fun setAdvertisingLuid(luid: UUID): Completable {
         return database.merkleDao().getDefaultRoot().flatMapCompletable { root ->
-            val settings = AdvertisingSetParameters.Builder()
-                .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
-                .setLegacyMode(false)
-                .setConnectable(true)
-                .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
-                .setSecondaryPhy(BluetoothDevice.PHY_LE_CODED)
-                .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
-                .build()
+            LOG.v("setAdvertisingLuid ${root.hash?.toHexString()}")
             val serviceDataBuilder = AdvertiseData.Builder()
                 .setIncludeDeviceName(false)
                 .setIncludeTxPowerLevel(false)
@@ -232,7 +225,6 @@ class AdvertiserImpl @Inject constructor(
                 .flatMapCompletable { v ->
                     try {
                         v.first.item!!.setAdvertisingData(builder.build())
-                        LOG.v("setAdvertisingLuid ${root.hash?.toHexString()}")
                         Completable.complete()
                     } catch (exc: SecurityException) {
                         Completable.error(exc)

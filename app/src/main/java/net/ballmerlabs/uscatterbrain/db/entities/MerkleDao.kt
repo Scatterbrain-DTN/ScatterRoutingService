@@ -701,10 +701,7 @@ abstract class MerkleDao {
             .flatMapCompletable { r ->
                 Completable.fromAction {
                     log.e("r.children=${r.children} $REHASH_BLOCK_SIZE")
-                    if (r.children in 1..REHASH_BLOCK_SIZE)
-                        merkleRehashInMemory(r.id!!)
-                    else
-                        merkleRehash(r.id)
+                    merkleRehashInMemory(r.id!!)
                 }.subscribeOn(scheduler)
             }
     }

@@ -1350,7 +1350,23 @@ class ScatterbrainDatastoreImpl @Inject constructor(
     }
 
     override fun rehashMerkle(): Completable {
-        return rehashWait.takeUntil { v -> !v }.ignoreElements()
+        return mDatastore.merkleDao()
+            .merkleRehash(databaseScheduler)
+            .doOnSubscribe {
+                rehashWait.onNext(true)
+                LOG.v("rehashMerkle start")
+            }
+            .andThen(advertiser.setAdvertisingLuid())
+            .subscribeOn(databaseScheduler)
+            .doOnError { err -> LOG.e("rehashMerkle error: $err") }
+            .doFinally {
+                leState.clearActive()
+                rehashDisp.getAndSet(null)?.dispose()
+                rehashWait.onNext(false)
+                LOG.v("rehashMerkle end")
+            }
+        return rehashWait.takeUntil { v -> !v }
+            .ignoreElements()
             .andThen(rehashMerkleAsync())
     }
 
@@ -1358,7 +1374,8 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         return Completable.fromAction {
             rehashDisp.updateAndGet { v ->
                 when (v) {
-                    null -> mDatastore.merkleDao().merkleRehash(databaseScheduler)
+                    null -> mDatastore.merkleDao()
+                        .merkleRehash(databaseScheduler)
                         .doOnSubscribe {
                             rehashWait.onNext(true)
                             LOG.v("rehashMerkle start")
@@ -1711,7 +1728,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                                 leState.stopMerkle()
                             }
                             .subscribe(subject)
+                    }.doOnDispose {
+                        leState.stopMerkle()
                     }
+                    .doOnError { leState.stopMerkle() }
             }
         }
     }
