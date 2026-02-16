@@ -1365,9 +1365,6 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 rehashWait.onNext(false)
                 LOG.v("rehashMerkle end")
             }
-        return rehashWait.takeUntil { v -> !v }
-            .ignoreElements()
-            .andThen(rehashMerkleAsync())
     }
 
     override fun rehashMerkleAsync(): Completable {
@@ -1706,7 +1703,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .doOnError { err -> LOG.e("background file insert error: $err") }
                             .flatMapCompletable { count ->
                                 if (backgroundTasks.size <= 1) {
-                                    rehashMerkleAsync()
+                                    rehashMerkle()
                                 } else {
                                     Completable.complete()
                                 }.concatWith(
