@@ -29,9 +29,12 @@ class AdvertiseStage : LeDeviceSession.Stage {
                 add(Provides.WIFIP2P)
             }
         }
-        val self: AdvertisePacket = AdvertisePacket.newBuilder()
+        fun self(busy: Boolean): AdvertisePacket  {
+            return AdvertisePacket.newBuilder()
+                .setBusy(busy)
                 .setProvides(provides)
                 .build()!!
+        }
 
     }
 }

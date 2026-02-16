@@ -23,6 +23,9 @@ class AdvertisePacket(packet: Advertise) :
 
     val mode = packet.mode
 
+    val busy: Boolean
+        get() = packet.busy
+
     override fun validate(): Boolean {
         return provides.size <= MAX_PROVIDES_LIST
     }
@@ -32,7 +35,8 @@ class AdvertisePacket(packet: Advertise) :
      */
     data class Builder(
         var provides: List<Provides>? = null,
-        var mode: DeclareHashesMode = DeclareHashesMode.MERKLEPROOF
+        var mode: DeclareHashesMode = DeclareHashesMode.MERKLEPROOF,
+        var busy: Boolean = false
     )
     /**
      * Instantiates a new Builder.
@@ -48,8 +52,18 @@ class AdvertisePacket(packet: Advertise) :
             this.provides = provides
         }
 
+
         /**
-         * Sets the declarehashes mode flag for future message transfer
+         * Sets busy, peers will drop connection
+         * @param busy
+         * @return builder
+         */
+        fun setBusy(busy: Boolean) = apply {
+            this.busy = busy
+        }
+
+        /**
+        * Sets the declarehashes mode flag for future message transfer
          * @param mode to set, defaults to MERKLEPROOF
          * @return builder
          */
@@ -67,6 +81,7 @@ class AdvertisePacket(packet: Advertise) :
                     Advertise.newBuilder()
                         //  .setType(ScatterProto.MessageType.ADVERTISE)
                         .addAllProvides(providesToValArray(provides))
+                        .setBusy(busy)
                         .build()
             )
         }

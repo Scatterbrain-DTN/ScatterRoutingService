@@ -201,7 +201,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { serverConn ->
                         LOG.v("gatt server advertise stage")
                         serverConn.serverNotify(
-                            AdvertiseStage.self,
+                            AdvertiseStage.self(state.isMerkle()),
                             session.remoteLuid,
                             session.device
                         )
@@ -214,7 +214,10 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .doOnError { err -> LOG.e("error while receiving advertise packet: $err") }
                             .map { advertisePacket ->
                                 session.advertiseStage.addPacket(advertisePacket)
-                                TransactionResult.of(TransactionResult.STAGE_ELECTION_HASHED)
+                                if (advertisePacket.busy)
+                                    TransactionResult.of(TransactionResult.STAGE_TERMINATE)
+                                else
+                                    TransactionResult.of(TransactionResult.STAGE_ELECTION_HASHED)
                             }
                     })
 

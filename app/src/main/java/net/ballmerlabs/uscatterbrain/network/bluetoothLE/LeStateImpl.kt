@@ -320,6 +320,10 @@ class LeStateImpl @Inject constructor(
         merkleInProgress.set(false)
     }
 
+    override fun isMerkle(): Boolean {
+        return merkleInProgress.get()
+    }
+
     private fun cleanupConnection(mac: String, luid: UUID, dispose: Boolean) {
         broadcastReceiverState.killBatch(luid)
         val c = transactionCache.remove(luid)

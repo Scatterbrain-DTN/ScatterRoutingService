@@ -29,6 +29,7 @@ interface LeState {
      */
     fun updateDisconnected(luid: UUID, reason: String)
 
+    fun isMerkle(): Boolean
 
     /**
      * Starts the gatt server and event handlers.

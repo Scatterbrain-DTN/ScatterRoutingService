@@ -39,6 +39,11 @@ class MockLeState(
         setupChannels()
     }
 
+
+    override fun isMerkle(): Boolean {
+        return merkle.get()
+    }
+
     override fun startServer(): Completable {
         return Completable.fromAction {
             server = serverConnection
