@@ -160,7 +160,7 @@ class GroupHandle @Inject constructor(
                                 LOG.w("remote complete")
                             }
 
-                        val send = database.merkleDao().getHubs(root, incoming, operationsScheduler, limit = 32)
+                        val send = database.merkleDao().getHubs(root, incoming, operationsScheduler, limit = 16)
                         sendMerkleHashes(
                             socket,
                             send.hubs,

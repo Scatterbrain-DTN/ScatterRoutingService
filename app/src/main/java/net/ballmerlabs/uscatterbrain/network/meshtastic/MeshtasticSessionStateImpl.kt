@@ -287,7 +287,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
                     .concatMap { h ->
                         Flowable.fromIterable(h.hashes)
                     },
-                limit = 8
+                limit = 4
             ).flatMapPublisher { hubresponse ->
                 log.w("got hubsresponse")
                 val obs: Flowable<ScatterSerializable<*>> =

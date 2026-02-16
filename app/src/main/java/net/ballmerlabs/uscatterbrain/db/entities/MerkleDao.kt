@@ -409,6 +409,7 @@ abstract class MerkleDao {
                 mutableSetOf(),
                 AtomicInt(0),
                 scheduler,
+                0,
                 limit
             )
             obs.onComplete()
@@ -442,10 +443,11 @@ abstract class MerkleDao {
         nextOurs: MutableSet<String>,
         count: AtomicInt = AtomicInt(0),
         scheduler: Scheduler,
+        depth: Int,
         target: Int? = null,
     ) {
         val c = count.getAndIncrement()
-        if (root?.hash == null || permaRoot?.hash == null || (target != null && c >= target))
+        if (root?.hash == null || permaRoot?.hash == null || (target != null && depth >= target))
             return
         val item = if (remote.hasItem()) {
             remote.get()
@@ -502,6 +504,7 @@ abstract class MerkleDao {
                 nextOurs,
                 count,
                 scheduler,
+                depth + 1,
                 target
             )
         }
@@ -518,6 +521,7 @@ abstract class MerkleDao {
                 nextOurs,
                 count,
                 scheduler,
+                depth + 1,
                 target
             )
         }
