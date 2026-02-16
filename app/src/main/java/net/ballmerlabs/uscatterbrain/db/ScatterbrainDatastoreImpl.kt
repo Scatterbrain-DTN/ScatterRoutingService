@@ -1340,7 +1340,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                 }
                 LOG.e("rebuild start rehash: hash ${mDatastore.merkleDao().getDefaultRoot().blockingGet().id}")
                 LOG.e("before rehash roots=${mDatastore.merkleDao().getRootsRandom().blockingGet().size}")
-                mDatastore.merkleDao().merkleRehashUnlocked(Schedulers.single()).blockingAwait()
+                mDatastore.merkleDao().merkleRehashUnlocked(databaseScheduler).blockingAwait()
                 LOG.e("after rehash roots=${mDatastore.merkleDao().getRootsRandom().blockingGet().size}")
                 val n = mDatastore.merkleDao().getDefaultRoot().blockingGet()
                 LOG.e("rebuild finished: hash ${n.hash?.toHexString()}, ${n.id}")
