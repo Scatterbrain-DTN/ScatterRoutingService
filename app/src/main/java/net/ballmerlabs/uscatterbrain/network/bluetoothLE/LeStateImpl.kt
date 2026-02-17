@@ -304,8 +304,7 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun updateActive(uuid: UUID?): Boolean {
-        return (if (uuid != null) activeLuids.put(uuid, true) == null else false) &&
-                ! merkleInProgress.get()
+        return (if (uuid != null) activeLuids.put(uuid, true) == null else false)
     }
 
     override fun updateActive(scanResult: ScanResult): Boolean {
@@ -321,7 +320,7 @@ class LeStateImpl @Inject constructor(
     }
 
     override fun isMerkle(): Boolean {
-        return merkleInProgress.get()
+        return false
     }
 
     private fun cleanupConnection(mac: String, luid: UUID, dispose: Boolean) {

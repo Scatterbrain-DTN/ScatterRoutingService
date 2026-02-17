@@ -613,6 +613,11 @@ abstract class MerkleDao {
 
         val messages = getMessagesForBundle(root)
         val bundles = getBundlesForBundle(root)
+        if (messages.isEmpty() && bundles.isEmpty()) {
+            log.e("deleting orphan bundle $root")
+            deleteBundle(root)
+            return
+        }
         val mhash = messages.map { v -> v.fileGlobalHash }
         val bhash = bundles.map { v -> v.hash!! }
 //        log.v("merkleRehash depth=$pos root=$root")
@@ -629,6 +634,9 @@ abstract class MerkleDao {
 
     @Delete
     abstract fun deleteBundle(bundle: MerkleBundle)
+
+    @Query("DELETE FROM bundles WHERE id = :bundle")
+    abstract fun deleteBundle(bundle: Long): Int
 
     open fun merkleRehashInMemory(memoryTree: MerkleNode?) {
 //        log.v("merkleRehashInMemory memoryTree=$memoryTree")

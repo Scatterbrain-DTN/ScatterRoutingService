@@ -120,7 +120,10 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                         connection.send(dataPacket.apply {
                             this.id = id
                             from = myId
-                        }).doOnError { err -> log.e("failed to sendPacket: $err") }
+                        }).doOnError { err ->
+                            log.e("failed to sendPacket: $err")
+                            err.printStackTrace()
+                        }
                             .doOnComplete { log.v("initiated sendPacket") }
                             .onErrorComplete()
                     )
