@@ -201,7 +201,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                     { serverConn ->
                         LOG.v("gatt server advertise stage")
                         serverConn.serverNotify(
-                            AdvertiseStage.self(state.isMerkle()),
+                            AdvertiseStage.self(),
                             session.remoteLuid,
                             session.device
                         )
@@ -501,7 +501,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             .toSingleDefault(TransactionResult.empty())
                     },
                     { conn ->
-                        state.startMerkle()
                         conn.readIdentityPacket()
                             .repeat()
                             .takeWhile { identityPacket ->
@@ -582,7 +581,7 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                                                 )
                                             })
                                     }
-                            }.doFinally { state.stopMerkle() }
+                            }
                             .toSingleDefault(TransactionResult.empty())
 
                     },
@@ -620,7 +619,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                             }
                             .ignoreElements()
                             .andThen(datastore.rehashMerkle())
-                            .doFinally { state.stopMerkle() }
                             .toSingleDefault(TransactionResult.of(TransactionResult.STAGE_TERMINATE))
 
                     })
@@ -827,9 +825,6 @@ class BluetoothLERadioModuleImpl @Inject constructor(
                         }
                 }
                     .flatMap { v -> v }
-            }
-            .doOnError {
-                state.stopMerkle()
             }
             .doOnNext { transactionResult ->
                 val stage = transactionResult.stage ?: TransactionResult.STAGE_TERMINATE

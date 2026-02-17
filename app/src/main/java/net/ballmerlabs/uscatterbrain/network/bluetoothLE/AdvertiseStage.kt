@@ -29,7 +29,7 @@ class AdvertiseStage : LeDeviceSession.Stage {
                 add(Provides.WIFIP2P)
             }
         }
-        fun self(busy: Boolean): AdvertisePacket  {
+        fun self(busy: Boolean = false): AdvertisePacket  {
             return AdvertisePacket.newBuilder()
                 .setBusy(busy)
                 .setProvides(provides)

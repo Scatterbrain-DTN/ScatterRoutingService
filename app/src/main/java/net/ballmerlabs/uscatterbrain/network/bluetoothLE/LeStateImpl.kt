@@ -72,8 +72,6 @@ class LeStateImpl @Inject constructor(
         ConcurrentHashMap<UUID, ScatterbrainTransactionSubcomponent>()
     private val activeLuids = ConcurrentHashMap<UUID, Boolean> ()
 
-    private val merkleInProgress = AtomicBoolean(false)
-
     // a "channel" is a characteristic that protobuf messages are written to.
     override val channels: ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic> =
         ConcurrentHashMap<UUID, BluetoothLERadioModuleImpl.LockedCharacteristic>()
@@ -309,18 +307,6 @@ class LeStateImpl @Inject constructor(
 
     override fun updateActive(scanResult: ScanResult): Boolean {
         return updateActive(getAdvertisedLuid(scanResult))
-    }
-
-    override fun startMerkle() {
-        merkleInProgress.set(true)
-    }
-
-    override fun stopMerkle() {
-        merkleInProgress.set(false)
-    }
-
-    override fun isMerkle(): Boolean {
-        return false
     }
 
     private fun cleanupConnection(mac: String, luid: UUID, dispose: Boolean) {

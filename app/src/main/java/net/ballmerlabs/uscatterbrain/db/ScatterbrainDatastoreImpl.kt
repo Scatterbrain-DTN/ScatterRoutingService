@@ -1720,15 +1720,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                             .doFinally {
                                 backgroundTasks.remove(subject)
                                 dir.delete()
-
                                 LOG.v("background file insert complete")
-                                leState.stopMerkle()
                             }
                             .subscribe(subject)
-                    }.doOnDispose {
-                        leState.stopMerkle()
                     }
-                    .doOnError { leState.stopMerkle() }
             }
         }
     }

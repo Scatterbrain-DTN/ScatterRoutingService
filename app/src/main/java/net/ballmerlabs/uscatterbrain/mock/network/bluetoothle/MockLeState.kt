@@ -33,15 +33,9 @@ class MockLeState(
     private var server: GattServerConnectionSubcomponent? = null
     private val transactionInProgress = AtomicInteger(0)
     private val transactionLock: AtomicReference<UUID?> = AtomicReference<UUID?>(null)
-    private val merkle = AtomicBoolean()
 
     init {
         setupChannels()
-    }
-
-
-    override fun isMerkle(): Boolean {
-        return merkle.get()
     }
 
     override fun startServer(): Completable {
@@ -58,14 +52,6 @@ class MockLeState(
         return Observable.never()
     }
 
-    override fun startMerkle() {
-
-    }
-
-    override fun stopMerkle() {
-
-    }
-
     override fun stopServer():  Completable {
         server = null
         return Completable.complete()
@@ -79,12 +65,11 @@ class MockLeState(
     override fun shouldConnect(res: ScanResult): Boolean {
         val advertisingLuid = getAdvertisedLuid(res)
         return advertisingLuid != null
-                && !activeLuids.containsKey(advertisingLuid) &&
-                !merkle.get()
+                && !activeLuids.containsKey(advertisingLuid)
     }
 
     override fun shouldConnect(luid: UUID): Boolean {
-        return !activeLuids.containsKey(luid) && !merkle.get()
+        return !activeLuids.containsKey(luid)
     }
 
     override fun activeCount(): Int {

@@ -29,8 +29,6 @@ interface LeState {
      */
     fun updateDisconnected(luid: UUID, reason: String)
 
-    fun isMerkle(): Boolean
-
     /**
      * Starts the gatt server and event handlers.
      *
@@ -184,11 +182,6 @@ interface LeState {
      * clears the luid cache to allow nodes to connect again
      */
     fun clearActive()
-
-
-    fun startMerkle()
-
-    fun stopMerkle()
 
     fun setupChannels() {
         for (i in 0 until BluetoothLERadioModuleImpl.NUM_CHANNELS) {

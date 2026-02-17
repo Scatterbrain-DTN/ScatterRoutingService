@@ -123,6 +123,10 @@ class AdvertiserTest {
                 TODO("Not yet implemented")
             }
 
+            override fun deleteBundle(bundle: Long): Int {
+                TODO("Not yet implemented")
+            }
+
             override fun deleteBundle(bundle: MerkleBundle) {
                 TODO("Not yet implemented")
             }

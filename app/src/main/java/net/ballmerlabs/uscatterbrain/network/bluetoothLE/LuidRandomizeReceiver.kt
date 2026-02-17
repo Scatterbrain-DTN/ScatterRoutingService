@@ -44,10 +44,6 @@ class LuidRandomizeReceiver : BroadcastReceiver() {
             if(this::wakeLockProvider.isInitialized) {
                 wakeLockProvider.releaseAll()
             }
-
-            if (this::leState.isInitialized) {
-                leState.stopMerkle()
-            }
         } else {
             LOG.e("timer fired but component was null")
         }

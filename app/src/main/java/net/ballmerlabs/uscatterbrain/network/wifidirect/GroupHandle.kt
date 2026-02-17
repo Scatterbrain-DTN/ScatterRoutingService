@@ -122,7 +122,6 @@ class GroupHandle @Inject constructor(
 //    }
 
     private fun getIncomingMerkleHashes(socket: Socket): Flowable<DeclareHashesPacket> {
-        leState.startMerkle()
         return ScatterSerializable.parseWrapperFromCRC(
             DeclareHashesPacketParser.parser,
             socket.getInputStream(),
@@ -309,16 +308,12 @@ class GroupHandle @Inject constructor(
                     })
             .reduce { a, b -> a + b }
             .map { i ->
-                if (i == 0)
-                    leState.stopMerkle()
                 HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS)
             }
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
             .doOnError { e ->
-                leState.stopMerkle()
                 LOG.e("uke: error when reading message: $e")
             }
-            .doOnDispose { leState.stopMerkle() }
     }
 
     /*
@@ -379,15 +374,12 @@ class GroupHandle @Inject constructor(
                     })
             .reduce { a, b -> a + b }
             .map { i ->
-                if (i == 0)
-                    leState.stopMerkle()
                 HandshakeResult(0, i, HandshakeResult.TransactionStatus.STATUS_SUCCESS)
             }
             .toSingle(HandshakeResult(0, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
             .doOnError {
                 e -> LOG.e("seme: error when reading message: $e")
-                leState.stopMerkle()
-            }.doOnDispose { leState.stopMerkle() }
+            }
             .doOnSuccess { LOG.v("seme read blockdata complete") }
     }
 
