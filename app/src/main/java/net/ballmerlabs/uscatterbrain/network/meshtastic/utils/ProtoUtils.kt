@@ -27,7 +27,7 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(from: String? = nu
     log.v("toBroadcast from=$from")
     return DataPacket(
         to = DataPacket.ID_BROADCAST,
-        bytes = bytes.toByteString(),
+        bytes = bytes,
         dataType = PORT_NUMBER,
         from = from
     )
@@ -53,7 +53,7 @@ fun <T: ScatterSerializable<U>, U: MessageLite> DataPacket.reply(message: T, rep
     log.v("reply from=$from to=$to")
     return DataPacket(
         to = from,
-        bytes = bytes.toByteString(),
+        bytes = bytes,
         dataType = PORT_NUMBER,
         replyId = replyTo
     )
