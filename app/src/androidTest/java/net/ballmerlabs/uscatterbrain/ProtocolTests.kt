@@ -279,6 +279,39 @@ class ProtocolTests {
         )).blockingGet()
     }
 
+
+
+    fun syncTest(size: Int) {
+        val huge = ScatterMessage.Builder.newInstance(ctx, ByteArray(size))
+            .setApplication("fmef")
+            .build()
+
+        datastore1.insertAndHashFileFromApi(huge, DEFAULT_BLOCKSIZE, "fmef").blockingAwait()
+
+        val out = groupHandleTwo.bootstrapSemeSocket(serverSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
+            .toObservable()
+            .mergeWith( groupHandleOne.bootstrapUkeSocket(clientSocket, Merkle.DeclareHashesMode.MERKLEPROOF)
+                .ignoreElement())
+            .toList()
+            .blockingGet()
+
+        assertEquals(1, out.size)
+        assertEquals( 1, out[0].messages)
+    }
+
+
+
+
+    @Test
+    fun fullSync() {
+        syncTest(64)
+    }
+
+    @Test
+    fun fullSyncLarge() {
+        syncTest(420485)
+    }
+
     @Test
     fun merkleSyncDiffSize() {
         val big = 5

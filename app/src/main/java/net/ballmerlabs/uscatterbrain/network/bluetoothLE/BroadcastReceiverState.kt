@@ -16,6 +16,7 @@ import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -115,12 +116,17 @@ class BroadcastReceiverState @Inject constructor(
 
                             }.observeOn(sched)
                                 // .doOnDispose { scatterbrainScheduler.unpauseScan() }
+                                .timeout(30, TimeUnit.SECONDS, timeoutScheduler)
                                 .doFinally {
                                     //   scatterbrainScheduler.unpauseScan()
                                     connectLock.set(false)
                                     batchDisposables.remove(luid)
                                 }
-                                .subscribe()
+                                .subscribe({
+                                    batchDisposables.remove(luid)
+                                }, {
+                                    batchDisposables.remove(luid)
+                                })
                         }
                         if (d.isDisposed) {
                             batchDisposables.remove(luid)

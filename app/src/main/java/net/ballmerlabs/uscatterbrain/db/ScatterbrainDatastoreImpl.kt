@@ -29,6 +29,7 @@ import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 import net.ballmerlabs.scatterbrainsdk.newShm
+import net.ballmerlabs.scatterproto.BLOCK_SIZE_CAP
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.R
 import net.ballmerlabs.uscatterbrain.RouterPreferences
@@ -463,7 +464,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
                         } else {
                             BlockDataStream(
                                 message,
-                                readBody(message.message.body!!, DEFAULT_BLOCKSIZE),
+                                readBody(message.message.body!!, BLOCK_SIZE_CAP),
                                 false
                             )
                         }

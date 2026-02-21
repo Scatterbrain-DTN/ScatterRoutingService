@@ -5,6 +5,7 @@ import android.net.wifi.p2p.WifiP2pDeviceList
 import com.google.protobuf.ByteString
 import io.reactivex.Completable
 import io.reactivex.Flowable
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
@@ -22,6 +23,7 @@ import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.MerkleElement
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.entities.GlobalHash
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BroadcastReceiverState
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
@@ -290,7 +292,7 @@ class GroupHandle @Inject constructor(
             }
 
             .repeat()
-            .takeWhile { n -> n > 0 }
+            .takeUntil { n -> n == 0 }
             .mergeWith(
                 preferences.getInt(
                     mContext.getString(R.string.pref_blockdatacap),
@@ -355,7 +357,7 @@ class GroupHandle @Inject constructor(
             }
             .repeat()
             .doOnNext { v -> LOG.v("seme read header packet $v") }
-            .takeWhile { n -> n > 0 }
+            .takeUntil { n -> n == 0 }
             .mergeWith(
                 preferences.getInt(
                     mContext.getString(R.string.pref_blockdatacap),
@@ -380,7 +382,7 @@ class GroupHandle @Inject constructor(
             .doOnError {
                 e -> LOG.e("seme: error when reading message: $e")
             }
-            .doOnSuccess { LOG.v("seme read blockdata complete") }
+            .doOnSuccess { v -> LOG.v("seme read blockdata complete ${v.messages}") }
     }
 
     //transfer blockdata packets as SEME
@@ -389,10 +391,21 @@ class GroupHandle @Inject constructor(
         stream: Flowable<WifiDirectRadioModule.BlockDataStream>,
     ): Completable {
         return stream.concatMapCompletable { blockDataStream ->
+            LOG.v("writeBlockData processing BlockDataStream ${blockDataStream.entity}")
             blockDataStream.headerPacket.writeToStream(
                 socket.getOutputStream(),
                 operationsScheduler
-            ).flatMapCompletable { c ->
+            ).switchIfEmpty(Maybe.defer {
+                val message = blockDataStream.entity
+                if (message != null) {
+                    LOG.e("CORRUPT MESSAGE attempting to delete!")
+                    datastore.deleteMessage(message.file.global).toMaybe()
+                }
+                else {
+                    Maybe.empty()
+                }
+            })
+                .flatMapCompletable { c ->
                 c.doOnComplete { LOG.v("wrote headerpacket to client socket") }
                     .andThen(
                         blockDataStream.sequencePackets
@@ -401,13 +414,13 @@ class GroupHandle @Inject constructor(
                                 sequencePacket.writeToStream(
                                     socket.getOutputStream(),
                                     operationsScheduler
-                                ).flatMapCompletable { v -> v }
+                                ).toSingle().flatMapCompletable { v -> v }
                             }
                             .doOnComplete { LOG.v("wrote sequence packets to client socket") }
                     )
                     .andThen(datastore.incrementShareCount(blockDataStream.headerPacket))
             }
-        }
+        }.doOnError { e -> LOG.e("WRITEBLOCKDATA ERROR: $e") }
     }
 
     private fun updateConnectedPeers() {
@@ -424,7 +437,7 @@ class GroupHandle @Inject constructor(
         }
     }
 
-    private fun bootstrapSemeSocket(
+    fun bootstrapSemeSocket(
         socket: Socket,
         mode: DeclareHashesMode,
     ): Single<HandshakeResult> {
@@ -693,12 +706,23 @@ class GroupHandle @Inject constructor(
         socket: Socket,
     ): Completable {
         return stream.doOnSubscribe { LOG.v("subscribed to BlockDataStream observable") }
-            .doOnNext { LOG.v("writeBlockData processing BlockDataStream") }
+
             .concatMapCompletable { blockDataStream ->
+                LOG.v("writeBlockData processing BlockDataStream ${blockDataStream.entity}")
                 blockDataStream.headerPacket.writeToStream(
                     socket.getOutputStream(),
                     operationsScheduler
-                ).flatMapCompletable { c ->
+                ).switchIfEmpty(Maybe.defer {
+                        val message = blockDataStream.entity
+                        if (message != null) {
+                            LOG.e("CORRUPT MESSAGE attempting to delete!")
+                            datastore.deleteMessage(message.file.global).toMaybe()
+                        }
+                        else {
+                            Maybe.empty()
+                        }
+                    })
+                    .flatMapCompletable { c ->
                     c.doOnComplete { LOG.v("server wrote header packet") }
                         .andThen(
                             blockDataStream.sequencePackets
@@ -707,17 +731,19 @@ class GroupHandle @Inject constructor(
                                     blockSequencePacket.writeToStream(
                                         socket.getOutputStream(),
                                         operationsScheduler
-                                    ).flatMapCompletable { c -> c }
+                                    ).toSingle().flatMapCompletable { v -> v }
+                                        .doOnError { err -> LOG.v("sequence packet error $err") }
                                 }
                                 .doOnComplete { LOG.v("server wrote sequence packets") }
                         )
                         .andThen(datastore.incrementShareCount(blockDataStream.headerPacket))
                 }
             }.doOnComplete { LOG.v("writeBlockDataUke complete") }
+            .doOnError { e -> LOG.e("WRITEBLOCKDATA ERROR: $e") }
     }
 
 
-    private fun bootstrapUkeSocket(
+    fun bootstrapUkeSocket(
         socket: Socket,
         mode: DeclareHashesMode,
     ): Single<HandshakeResult> {
@@ -736,7 +762,7 @@ class GroupHandle @Inject constructor(
                         ) { list: ArrayList<IdentityPacket>, packet: IdentityPacket ->
                             list.add(packet)
                             list
-                        }.flatMap { p: ArrayList<IdentityPacket> ->
+                        }.flatMap { p ->
                             datastore.insertIdentityPacket(p).toSingleDefault(
                                 HandshakeResult(
                                     p.size,
