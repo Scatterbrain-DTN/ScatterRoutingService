@@ -23,7 +23,6 @@ import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.scatterproto.*
-import net.ballmerlabs.uscatterbrain.db.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
