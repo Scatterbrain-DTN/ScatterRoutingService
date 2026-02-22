@@ -40,7 +40,7 @@ data class BlockSequencePacket(
     get() = packet.end
 
     override fun validate(): Boolean {
-        return data.size <= BLOCK_SIZE_CAP
+        return true
     }
 
     /**

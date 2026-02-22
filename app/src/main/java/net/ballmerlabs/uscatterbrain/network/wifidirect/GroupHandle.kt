@@ -415,6 +415,8 @@ class GroupHandle @Inject constructor(
                                     socket.getOutputStream(),
                                     operationsScheduler
                                 ).toSingle().flatMapCompletable { v -> v }
+                                    .doOnError { err -> LOG.e("seme sequence packet error $err") }
+
                             }
                             .doOnComplete { LOG.v("wrote sequence packets to client socket") }
                     )
@@ -732,7 +734,7 @@ class GroupHandle @Inject constructor(
                                         socket.getOutputStream(),
                                         operationsScheduler
                                     ).toSingle().flatMapCompletable { v -> v }
-                                        .doOnError { err -> LOG.v("sequence packet error $err") }
+                                        .doOnError { err -> LOG.e("uke sequence packet error $err") }
                                 }
                                 .doOnComplete { LOG.v("server wrote sequence packets") }
                         )

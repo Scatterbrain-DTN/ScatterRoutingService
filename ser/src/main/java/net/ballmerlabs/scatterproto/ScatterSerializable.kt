@@ -92,7 +92,6 @@ abstract class ScatterSerializable<T : MessageLite>(
     val type: MessageType
 ) : Limits {
     var luid: UUID? = null
-
     val bytes: ByteArray
         get() {
             val type = TypePrefix.newBuilder().setMessageType(type).build()
@@ -303,7 +302,7 @@ abstract class ScatterSerializable<T : MessageLite>(
 
             val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).int
             val s2 = ByteBuffer.wrap(typesize).order(ByteOrder.BIG_ENDIAN).int
-            if (s > MESSAGE_SIZE_CAP) {
+            if (s > BLOCK_SIZE_CAP) {
                 throw MessageSizeException(s)
             }
             if (s2 > BLOCK_SIZE_CAP) {
