@@ -23,14 +23,13 @@ import net.ballmerlabs.uscatterbrain.util.logger
 import net.ballmerlabs.uscatterbrain.mock.util.mockLoggerGenerator
 import org.junit.Before
 import org.junit.Test
-import org.junit.internal.runners.JUnit38ClassRunner
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import scatterbrain.Bootstrap
-import scatterbrain.Scatterbrain
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -91,6 +90,22 @@ class ProtocolUnitTest {
         val key = PublicKeyPair.create()
         val fingerprint = key.fingerprint()
         assert(fingerprint.size == GenericHash.BLAKE2B_BYTES_MIN)
+    }
+
+
+    @Test
+    fun unsignedInt() {
+        for (lv in listOf(Int.MAX_VALUE.toLong() + 1, 1234)) {
+            val i: Long = lv
+            val buf = ByteBuffer.allocate(4)
+            buf.putUnsignedInt(i)
+            buf.rewind()
+            val out = buf.getUnsignedInt()
+            assert(out == i)
+
+            buf.rewind()
+            assert(i.toInt() == buf.getInt())
+        }
     }
 
     @Test

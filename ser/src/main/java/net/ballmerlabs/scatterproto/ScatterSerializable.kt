@@ -27,14 +27,24 @@ private const val MASK = 0xFFFFFFFFL
 fun bytes2long(payload: ByteArray): Long {
     val buffer = ByteBuffer.wrap(payload)
     buffer.order(ByteOrder.BIG_ENDIAN)
-    return (buffer.int.toLong() and MASK)
+    return buffer.getUnsignedInt()
 }
 
 private fun longToByte(value: Long): ByteArray {
     val buffer = ByteBuffer.allocate(4)
     buffer.order(ByteOrder.BIG_ENDIAN)
-    buffer.putInt(value.toInt())
+    buffer.putUnsignedInt(value)
     return buffer.array()
+}
+
+
+fun ByteBuffer.putUnsignedInt(v: Long): ByteBuffer {
+    putInt((v and 0xffffffffL).toInt())
+    return this
+}
+
+fun ByteBuffer.getUnsignedInt(): Long {
+    return (getInt().toLong() and 0xffffffffL)
 }
 
 fun providesToValArray(provides: List<Provides>?): List<Int> {
@@ -100,19 +110,19 @@ abstract class ScatterSerializable<T : MessageLite>(
                 packet.serializedSize + type.serializedSize + Int.SIZE_BYTES + Int.SIZE_BYTES * 2
             val buf = ByteBuffer.allocate(size)
 
-            buf.order(ByteOrder.BIG_ENDIAN).putInt(type.serializedSize)
-            buf.order(ByteOrder.BIG_ENDIAN).putInt(packet.serializedSize)
+            buf.order(ByteOrder.BIG_ENDIAN).putUnsignedInt(type.serializedSize.toLong())
+            buf.order(ByteOrder.BIG_ENDIAN).putUnsignedInt(packet.serializedSize.toLong())
             val crc32 = CRC32()
             val bytes = packet.toByteArray()
             val typebytes = type.toByteArray()
             crc32.update(
                 ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.BIG_ENDIAN)
-                    .putInt(type.serializedSize).array()
+                    .putUnsignedInt(type.serializedSize.toLong()).array()
             )
 
             crc32.update(
                 ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.BIG_ENDIAN)
-                    .putInt(packet.serializedSize).array()
+                    .putUnsignedInt(packet.serializedSize.toLong()).array()
             )
 
             crc32.update(typebytes, 0, typebytes.size)
@@ -129,7 +139,7 @@ abstract class ScatterSerializable<T : MessageLite>(
             val size =
                 packet.serializedSize + Int.SIZE_BYTES
             val buf = ByteBuffer.allocate(size)
-            buf.order(ByteOrder.BIG_ENDIAN).putInt(type.number)
+            buf.order(ByteOrder.BIG_ENDIAN).putUnsignedInt(type.number.toLong())
             val bytes = packet.toByteArray()
             buf.put(bytes)
             return buf.array()
@@ -145,11 +155,11 @@ abstract class ScatterSerializable<T : MessageLite>(
 
         stream.write(
             ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.BIG_ENDIAN)
-                .putInt(ts.serializedSize).array()
+                .putUnsignedInt(ts.serializedSize.toLong()).array()
         )
         stream.write(
             ByteBuffer.allocate(Int.SIZE_BYTES).order(ByteOrder.BIG_ENDIAN)
-                .putInt(packet.serializedSize).array()
+                .putUnsignedInt(packet.serializedSize.toLong()).array()
         )
         ts.writeTo(stream)
         packet.writeTo(stream)
@@ -300,8 +310,8 @@ abstract class ScatterSerializable<T : MessageLite>(
                 throw IOException("end of stream")
             }
 
-            val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).int
-            val s2 = ByteBuffer.wrap(typesize).order(ByteOrder.BIG_ENDIAN).int
+            val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).getUnsignedInt().toInt()
+            val s2 = ByteBuffer.wrap(typesize).order(ByteOrder.BIG_ENDIAN).getUnsignedInt().toInt()
             if (s > BLOCK_SIZE_CAP) {
                 throw MessageSizeException(s)
             }

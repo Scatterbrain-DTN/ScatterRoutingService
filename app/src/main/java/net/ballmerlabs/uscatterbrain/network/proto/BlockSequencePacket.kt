@@ -50,7 +50,7 @@ data class BlockSequencePacket(
      * @return boolean whether verification succeeded
      */
     fun verifyHash(bd: BlockHeaderPacket): Boolean {
-        val seqnum = ByteBuffer.allocate(4).putInt(sequenceNum).order(ByteOrder.BIG_ENDIAN).array()
+        val seqnum = ByteBuffer.allocate(4).putUnsignedInt(sequenceNum.toLong()).order(ByteOrder.BIG_ENDIAN).array()
         val testhash = ByteArray(GenericHash.BYTES)
         val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
         LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, testhash.size)
@@ -68,7 +68,7 @@ data class BlockSequencePacket(
     fun calculateHash(): ByteArray {
         val hashbytes = ByteArray(GenericHash.BYTES)
         val state = ByteArray(LibsodiumInterface.sodium.crypto_generichash_statebytes())
-        val seqnum = ByteBuffer.allocate(4).putInt(sequenceNum).order(ByteOrder.BIG_ENDIAN).array()
+        val seqnum = ByteBuffer.allocate(4).putUnsignedInt(sequenceNum.toLong()).order(ByteOrder.BIG_ENDIAN).array()
         LibsodiumInterface.sodium.crypto_generichash_init(state, null, 0, hashbytes.size)
         LibsodiumInterface.sodium.crypto_generichash_update(state, seqnum, seqnum.size.toLong())
         LibsodiumInterface.sodium.crypto_generichash_update(state, data, data.size.toLong())

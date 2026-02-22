@@ -106,8 +106,8 @@ class SbProcessor(
                             "              throw IOException(\"end of stream\")\n" +
                             "          }\n" +
                             "\n" +
-                            "          val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).int\n" +
-                            "          val s2 = ByteBuffer.wrap(typesize).order(ByteOrder.BIG_ENDIAN).int\n" +
+                            "          val s = ByteBuffer.wrap(size).order(ByteOrder.BIG_ENDIAN).getUnsignedInt().toInt()\n" +
+                            "          val s2 = ByteBuffer.wrap(typesize).order(ByteOrder.BIG_ENDIAN).getUnsignedInt().toInt()\n" +
                             "          if (s > BLOCK_SIZE_CAP) {\n" +
                             "              throw MessageSizeException(s)\n" +
                             "          }\n" +
@@ -129,7 +129,7 @@ class SbProcessor(
                 .addParameter(ParameterSpec("bytes", ByteArray::class.asTypeName()))
                 .addStatement(
                     "val buf = ByteBuffer.wrap(bytes)\n" +
-                    "val type = buf.order(ByteOrder.BIG_ENDIAN).getInt()\n" +
+                    "val type = buf.order(ByteOrder.BIG_ENDIAN).getUnsignedInt().toInt()\n" +
                     "val typeEnum = Scatterbrain.MessageType.forNumber(type)\n" +
                     "val parser = when(typeEnum) {"
                 )
@@ -210,6 +210,8 @@ class SbProcessor(
                 )
 
                 addImport("net.ballmerlabs.scatterproto", "bytes2long")
+                addImport("net.ballmerlabs.scatterproto", "getUnsignedInt")
+                addImport("net.ballmerlabs.scatterproto", "putUnsignedInt")
                 addFunction(funSpecBuilder.build())
                 addFunction(rawTypePrefix.build())
             }.build()
