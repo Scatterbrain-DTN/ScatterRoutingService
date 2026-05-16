@@ -86,7 +86,7 @@ android {
     kotlinOptions {
         freeCompilerArgs = ['-XXLanguage:+PropertyParamAnnotationDefaultTargetMode']
     }
-    compileSdk 36
+    compileSdk 37
 }
 
 apply from: "../scatterbrainSDK/gradle/jacoco.gradle"

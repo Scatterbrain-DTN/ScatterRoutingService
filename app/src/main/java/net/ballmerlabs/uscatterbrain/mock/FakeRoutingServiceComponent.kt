@@ -362,13 +362,6 @@ interface FakeRoutingServiceComponent {
                 return Schedulers.from(executor)
             }
 
-
-            @Provides
-            @JvmStatic
-            fun provideLeAdvertiser(): BluetoothLeAdvertiser {
-                return BluetoothAdapter.getDefaultAdapter().bluetoothLeAdvertiser
-            }
-
             @Provides
             @JvmStatic
             @Singleton
