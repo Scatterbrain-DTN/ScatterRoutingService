@@ -175,7 +175,7 @@ class GattClientTests {
 
 
     fun <T: ScatterSerializable<U>, U: MessageLite> testPacket(packet: T, func: () -> Single<T>): T {
-        connection.subscribeConnection(Observable.never<RxBleConnection?>().mergeWith(Observable.just(mockConnection as RxBleConnection)))
+        connection.subscribeConnection(Observable.never<RxBleConnection>().mergeWith(Observable.just(mockConnection as RxBleConnection)))
         val disp =  packet.writeToStream(20, scheduler)
             .blockingGet()
             .subscribe(notif)

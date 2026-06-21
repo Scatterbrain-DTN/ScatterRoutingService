@@ -3,15 +3,15 @@ plugins {
     id 'kotlin-android'
     id 'com.google.devtools.ksp'
     id("org.jetbrains.kotlin.plugin.parcelize")
-    id("org.jetbrains.dokka") version "2.0.0"
+    id("org.jetbrains.dokka") version "2.2.0"
 }
 
 
 android {
     defaultConfig {
         minSdkVersion 26
-        targetSdkVersion 36
-        compileSdkVersion 36
+        targetSdkVersion 37
+        compileSdkVersion 37
         multiDexEnabled true
         javaCompileOptions {
             annotationProcessorOptions {
@@ -107,7 +107,7 @@ configurations {
 
 dependencies {
     def lifecycle_version = "2.8.2"
-    def dagger_version = "2.55"
+    def dagger_version = "2.59.2"
     implementation libs.appcompat
     implementation libs.protobuf.kotlin
     implementation libs.protobuf.kotlin
@@ -134,12 +134,13 @@ dependencies {
     androidTestImplementation libs.mockclient
 
     ksp libs.room.compiler // For Kotlin use kapt instead of annotationProcessor
+    ksp libs.kotlin.metadata.jvm
     implementation libs.androidx.lifecycle.service
     androidTestImplementation libs.androidx.espresso.idling.resource
     androidTestImplementation libs.androidx.runner
     androidTestImplementation libs.androidx.rules
     // Optional -- Hamcrest library
-    androidTestImplementation 'org.hamcrest:hamcrest-library:1.3'
+    androidTestImplementation 'org.hamcrest:hamcrest-library:3.0'
     // Optional -- UI testing with Espresso
     androidTestImplementation libs.espresso.core
     // Optional -- UI testing with UI Automator
@@ -150,15 +151,15 @@ dependencies {
 //    implementation(libs.lazysodium.android)
 //    implementation libs.jna
     implementation "com.goterl:lazysodium-android:5.2.0@aar"
-    implementation "net.java.dev.jna:jna:5.17.0@aar"
+    implementation "net.java.dev.jna:jna:5.19.1@aar"
     implementation libs.androidx.datastore.preferences
     implementation libs.androidx.datastore.preferences.rxjava2
 
 
     //lazysodium cryptographic library
     testImplementation "com.goterl:lazysodium-android:5.2.0@aar"
-    testImplementation 'net.java.dev.jna:jna:5.17.0@aar'
-    testImplementation 'net.java.dev.jna:jna-platform:5.17.0'
+    testImplementation 'net.java.dev.jna:jna:5.19.1@aar'
+    testImplementation 'net.java.dev.jna:jna-platform:5.19.1'
 
     implementation libs.rxjava2.extras
 
