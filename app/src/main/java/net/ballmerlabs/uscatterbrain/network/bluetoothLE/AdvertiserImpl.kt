@@ -408,7 +408,7 @@ class AdvertiserImpl @Inject constructor(
                                     )
                                 } catch (exc: SecurityException) {
                                     throw exc
-                                } catch (exc: Exception) {`
+                                } catch (exc: Exception) {
                                     LOG.e("failed to advertise $exc")
                                 }
                                 LOG.v("advertise start")
