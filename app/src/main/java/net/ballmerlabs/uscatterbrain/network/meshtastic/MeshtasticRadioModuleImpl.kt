@@ -140,7 +140,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                 log.v("packet? ${p.dataType} ${p.from}")
                 handlePacket(p)
             }.concatMapCompletable { v ->
-                sendPacket(v)
+                sendPacket(v).onErrorComplete()
             }
             .doOnSubscribe { log.v("handlePackets subscribed") }
     }
@@ -158,7 +158,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                         sendPacket(
                             MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
                                 .toBroadcast(from = routerId)
-                        )
+                        ).onErrorComplete()
                             .doFinally { log.v("sendPacket complete") }
                     }
                     .doFinally { log.v("handshake complete") }
