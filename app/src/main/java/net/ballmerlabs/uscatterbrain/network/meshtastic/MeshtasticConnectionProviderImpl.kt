@@ -14,7 +14,6 @@ import javax.inject.Singleton
 
 @Singleton
 class MeshtasticConnectionProviderImpl @Inject constructor(
-    val binderProvider: MeshtasticBinderProvider,
     val firebaseCrashlytics: FirebaseWrapper,
     val builder: MeshtasticConnectionSubcomponent.Builder
 ) : MeshtasticConnectionProvider {
@@ -25,15 +24,7 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
     private val connectionUpdate = BehaviorRelay.create<AtomicReference<Observable<MeshtasticConnectionSubcomponent>?>>()
 
     private fun connectBinder(): Observable<MeshtasticConnectionSubcomponent> {
-        return  binderProvider.connectBinder().flatMap { v ->
-            val conn = builder.service(v).build()!!
-            conn.connection().subscribeReceiver()
-            conn.module().handlePackets()
-                .toObservable<MeshtasticConnectionSubcomponent>()
-                .mergeWith(Observable.just(conn))
-                .doOnError { err -> log.e("meshtastic connection error: $err") }
-                .doOnComplete { log.e("meshtastic connection completed?") }
-        }
+        return Observable.error(NotImplementedError())
     }
 
     override fun awaitConnection(): Single<MeshtasticConnectionSubcomponent> {

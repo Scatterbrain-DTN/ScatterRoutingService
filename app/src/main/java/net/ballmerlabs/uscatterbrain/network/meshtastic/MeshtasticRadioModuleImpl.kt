@@ -1,22 +1,14 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import org.meshtastic.core.model.DataPacket
-import org.meshtastic.core.model.MessageStatus
 import io.reactivex.Completable
-import io.reactivex.Flowable
 import io.reactivex.Scheduler
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
-import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnouncePacket
-import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.reply
-import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.toBroadcast
-import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -79,90 +71,14 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         return currentTransactions.size
     }
 
-    override fun handlePacket(dataPacket: DataPacket): Flowable<DataPacket> {
-        return connection.getMyId().flatMapPublisher { myID ->
-            val from = dataPacket.from
 
-            log.v("handlePacket from=$from my=$myID")
-
-            if (from != myID) {
-                if (from != null)
-                    startSession(myID).state().handlePacket(dataPacket)
-                        .map { v ->
-                            dataPacket.reply(v, dataPacket.id, dataPacket.from)
-                        }
-                else
-                    Flowable.empty<DataPacket>()
-                        .doOnComplete { log.v("got packet without from") }
-            } else {
-                log.w("got connection from self??")
-                Flowable.empty()
-            }
-        }
-    }
-
-    override fun sendPacket(dataPacket: DataPacket): Completable {
-        return connection.getPacketId().flatMapCompletable { id ->
-            connection.getMyId().flatMapCompletable { myId ->
-                log.v("sendPacket with id $id")
-                broadcastReceiver.onMessageStatus()
-                    .filter { v -> v.packetId == id }
-                    .flatMap { v ->
-                        log.v("sendPacket message status ${v.messageStatus}")
-                        when (v.messageStatus) {
-                            MessageStatus.ERROR -> Flowable.error(IllegalStateException("message send err"))
-                            else -> Flowable.just(v)
-                        }
-                    }
-                    .takeUntil { v -> v.messageStatus == MessageStatus.DELIVERED || v.messageStatus == MessageStatus.RECEIVED }
-                    .ignoreElements()
-                    .mergeWith(
-                        connection.send(dataPacket.apply {
-                            this.id = id
-                            from = myId
-                        }).doOnError { err ->
-                            log.e("failed to sendPacket: $err")
-                            err.printStackTrace()
-                        }
-                            .doOnComplete { log.v("initiated sendPacket") }
-                            .onErrorComplete()
-                    )
-            }.doOnComplete {
-                log.v("sendPacket complete")
-            }
-        }.timeout(45, TimeUnit.SECONDS, timeoutScheduler)
-            .retryDelay(5, 1)
-    }
 
     override fun handlePackets(): Completable {
-        return broadcastReceiver.onDataPacket()
-            .flatMap { p ->
-                log.v("packet? ${p.dataType} ${p.from}")
-                handlePacket(p)
-            }.concatMapCompletable { v ->
-                sendPacket(v).onErrorComplete()
-            }
-            .doOnSubscribe { log.v("handlePackets subscribed") }
+        return Completable.complete()
     }
 
     override fun handshake(): Completable {
         log.w("explicit handshake!")
-        return datastore.rehashMerkle().andThen(datastore.getDefaultMerkleRoot())
-            .flatMapCompletable { root ->
-                log.v("default root ${root.size}")
-                connection.getMyId()
-                    .toMaybe()
-                    .onErrorComplete()
-                    .flatMapCompletable { routerId ->
-                        log.v("initiate handshake with root me=$routerId")
-                        sendPacket(
-                            MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
-                                .toBroadcast(from = routerId)
-                        ).onErrorComplete()
-                            .doFinally { log.v("sendPacket complete") }
-                    }
-                    .doFinally { log.v("handshake complete") }
-            }
-
+        return Completable.complete()
     }
 }

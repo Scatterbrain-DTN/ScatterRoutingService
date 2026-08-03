@@ -26,7 +26,6 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModule
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.PORT_NUMBER
-import org.meshtastic.core.service.IMeshService
 import org.mockito.kotlin.mock
 import javax.inject.Named
 
@@ -76,12 +75,6 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
             @Named(NamedSchedulers.BINDER_SCHEDULER)
             fun providesBinderScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BINDER_SCHEDULER))
-            }
-
-            @Provides
-            @MeshtasticConnectionScope
-            fun providesMeshService(): IMeshService {
-                return mock {  }
             }
 
             @Provides

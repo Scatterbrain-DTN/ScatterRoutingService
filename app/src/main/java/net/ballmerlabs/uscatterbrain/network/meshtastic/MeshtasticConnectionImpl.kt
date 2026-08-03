@@ -8,18 +8,12 @@ import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
-import net.ballmerlabs.uscatterbrain.util.scatterLog
-import org.meshtastic.core.model.DataPacket
-import org.meshtastic.core.model.MeshUser
-import org.meshtastic.core.model.MyNodeInfo
-import org.meshtastic.core.model.NodeInfo
-import org.meshtastic.core.service.IMeshService
+import net.ballmerlabs.uscatterbrain.util .scatterLog
 import javax.inject.Inject
 import javax.inject.Named
 
 @MeshtasticConnectionScope
 class MeshtasticConnectionImpl @Inject constructor(
-    val service: IMeshService,
     val context: Context,
     val receiver: MeshBroadcastReceiver,
     val intentFilter: IntentFilter,
@@ -38,7 +32,7 @@ class MeshtasticConnectionImpl @Inject constructor(
                 intentFilter,
                 ContextCompat.RECEIVER_EXPORTED
             )
-            service.subscribeReceiver(context.packageName, "net.ballmerlabs.scatterroutingservice")
+           //service.subscribeReceiver(context.packageName, "net.ballmerlabs.scatterroutingservice")
             log.v("meshtastic receiver subscribed")
         } catch (exc: Exception) {
             log.w("failed to subscribeReceiver: $exc")
@@ -54,61 +48,6 @@ class MeshtasticConnectionImpl @Inject constructor(
             crashlytics.recordException(exc)
         }
     }
-
-    override fun setOwner(user: MeshUser): Completable {
-        return Completable.fromAction {
-            service.setOwner(user)
-        }.subscribeOn(scheduler)
-    }
-
-    override fun getMyId(): Single<String> {
-        return Single.fromCallable {
-            service.myId
-        }.subscribeOn(scheduler)
-    }
-
-    override fun getPacketId(): Single<Int> {
-        return Single.fromCallable {
-            service.packetId
-        }.subscribeOn(scheduler)
-    }
-
-    override fun send(packet: DataPacket): Completable {
-        return Completable.fromAction {
-            service.send(packet)
-        }.subscribeOn(scheduler)
-    }
-
-    override fun getNodes(): Single<List<NodeInfo>> {
-        return Single.fromCallable {
-            service.nodes
-        }.subscribeOn(scheduler)
-    }
-
-    override fun connectionState(): Single<String> {
-        return Single.fromCallable {
-            service.connectionState()
-        }.subscribeOn(scheduler)
-    }
-
-    override fun getMyNodeInfo(): Single<MyNodeInfo> {
-        return Single.fromCallable {
-            service.myNodeInfo
-        }.subscribeOn(scheduler)
-    }
-
-    override fun startProvideLocation(): Completable {
-        return Completable.fromAction {
-            service.startProvideLocation()
-        }.subscribeOn(scheduler)
-    }
-
-    override fun stopProvideLocation(): Completable {
-        return Completable.fromAction {
-            service.stopProvideLocation()
-        }.subscribeOn(scheduler)
-    }
-
     @Throws(Throwable::class)
     protected fun finalize() {
         finalizer.onFinalize()

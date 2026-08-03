@@ -2,14 +2,12 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import android.content.IntentFilter
 import dagger.Binds
-import dagger.BindsInstance
 import dagger.Module
 import dagger.Provides
 import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
-import org.meshtastic.core.service.IMeshService
 import javax.inject.Named
 
 @MeshtasticConnectionScope
@@ -25,8 +23,6 @@ interface MeshtasticConnectionSubcomponent {
 
     @Subcomponent.Builder
     interface Builder {
-        @BindsInstance
-        fun service(service: IMeshService): Builder
 
         fun build(): MeshtasticConnectionSubcomponent?
     }
