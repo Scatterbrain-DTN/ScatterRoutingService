@@ -242,8 +242,8 @@ dependencies {
     implementation libs.androidx.work.multiprocess
 
     implementation libs.kotlinx.coroutines.rx2
+    implementation libs.kotlinx.coroutines.android
     implementation libs.rxjava2.extras
-
     implementation libs.sdk.core
     implementation libs.sdk.transport.tcp     // pick a transport
     implementation libs.sdk.storage.sqldelight

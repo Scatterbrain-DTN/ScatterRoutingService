@@ -2,12 +2,16 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import android.content.IntentFilter
 import dagger.Binds
+import dagger.BindsInstance
 import dagger.Module
 import dagger.Provides
 import dagger.Subcomponent
+import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
+import kotlinx.coroutines.rx2.rxCompletable
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import org.meshtastic.sdk.RadioClient
 import javax.inject.Named
 
 @MeshtasticConnectionScope
@@ -23,7 +27,8 @@ interface MeshtasticConnectionSubcomponent {
 
     @Subcomponent.Builder
     interface Builder {
-
+        @BindsInstance
+        fun client(client: RadioClient): Builder
         fun build(): MeshtasticConnectionSubcomponent?
     }
 
@@ -76,11 +81,18 @@ interface MeshtasticConnectionSubcomponent {
             @MeshtasticConnectionScope
             fun providesConnectionFinalizer(
                 @Named(NamedSchedulers.CALLBACK_SCHEDULER)
-                scheduler: Scheduler
+                scheduler: Scheduler,
+                client: RadioClient
             ): MeshtasticConnectionFinalizer {
                 return object : MeshtasticConnectionFinalizer {
                     override fun onFinalize() {
-                        scheduler.shutdown()
+                        rxCompletable { client.disconnect() }
+                            .onErrorComplete()
+                            .andThen(
+                            Completable.fromAction {
+                                scheduler.shutdown()
+                            }.onErrorComplete()
+                        ).subscribe()
                     }
                 }
             }

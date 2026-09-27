@@ -23,6 +23,10 @@ import net.ballmerlabs.uscatterbrain.db.entities.Metrics
 import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessageDao
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopClientDao
 import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.ChannelEntity
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.ConfigBundleEntity
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MeshtasticDao
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MyNodeInfoEntity
 import java.util.UUID
 
 
@@ -53,9 +57,11 @@ class UuidTypeConverter {
         Metrics::class,
         DesktopClient::class,
         MerkleBundle::class,
-        MessageFlags::class
+        MessageFlags::class,
+        ChannelEntity::class,
+        MyNodeInfoEntity::class
     ],
-    version = 28,
+    version = 29,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(
@@ -89,6 +95,10 @@ class UuidTypeConverter {
         AutoMigration(
             from = 27,
             to = 28
+        ),
+        AutoMigration(
+            from = 28,
+            to = 29
         )
     ]
 )
@@ -98,6 +108,7 @@ abstract class Datastore : RoomDatabase() {
     abstract fun scatterMessageDao(): ScatterMessageDao
     abstract fun desktopClientDao(): DesktopClientDao
     abstract fun merkleDao(): MerkleDao
+    abstract fun meshtasticDao(): MeshtasticDao
 
     @DeleteColumn(
         tableName = "messages",
