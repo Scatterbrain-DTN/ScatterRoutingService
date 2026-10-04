@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 29,
-    "identityHash": "7d3d69685f8f8624dd21a9331895c4da",
+    "identityHash": "6156cd21be9784fc21ac9be7bd19f207",
     "entities": [
       {
         "tableName": "messages",
@@ -719,11 +719,17 @@
       },
       {
         "tableName": "meshtastic_channels",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`index` INTEGER NOT NULL, `role` INTEGER NOT NULL, `channel_unknown_fields` BLOB NOT NULL, `channelNum` INTEGER, `psk` BLOB, `name` TEXT, `id` INTEGER, `uplinkEnabled` INTEGER, `downlinkEnabled` INTEGER, `positionPrecision` INTEGER, `isMuted` INTEGER, `module_unknown_fields` BLOB, PRIMARY KEY(`index`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scope` TEXT NOT NULL, `idx` INTEGER NOT NULL, `role` INTEGER NOT NULL, `name` TEXT, `psk` BLOB, `pskIndex` INTEGER, `uplink` INTEGER NOT NULL, `downlink` INTEGER NOT NULL, `settingsRaw` BLOB, PRIMARY KEY(`scope`, `idx`))",
         "fields": [
           {
-            "fieldPath": "index",
-            "columnName": "index",
+            "fieldPath": "scope",
+            "columnName": "scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idx",
+            "columnName": "idx",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -734,68 +740,56 @@
             "notNull": true
           },
           {
-            "fieldPath": "unknownFields",
-            "columnName": "channel_unknown_fields",
-            "affinity": "BLOB",
-            "notNull": true
-          },
-          {
-            "fieldPath": "channelSettings.channelNum",
-            "columnName": "channelNum",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "channelSettings.psk",
-            "columnName": "psk",
-            "affinity": "BLOB"
-          },
-          {
-            "fieldPath": "channelSettings.name",
+            "fieldPath": "name",
             "columnName": "name",
             "affinity": "TEXT"
           },
           {
-            "fieldPath": "channelSettings.id",
-            "columnName": "id",
+            "fieldPath": "psk",
+            "columnName": "psk",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "pskIndex",
+            "columnName": "pskIndex",
             "affinity": "INTEGER"
           },
           {
-            "fieldPath": "channelSettings.uplinkEnabled",
-            "columnName": "uplinkEnabled",
-            "affinity": "INTEGER"
+            "fieldPath": "uplink",
+            "columnName": "uplink",
+            "affinity": "INTEGER",
+            "notNull": true
           },
           {
-            "fieldPath": "channelSettings.downlinkEnabled",
-            "columnName": "downlinkEnabled",
-            "affinity": "INTEGER"
+            "fieldPath": "downlink",
+            "columnName": "downlink",
+            "affinity": "INTEGER",
+            "notNull": true
           },
           {
-            "fieldPath": "channelSettings.moduleSettings.positionPrecision",
-            "columnName": "positionPrecision",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "channelSettings.moduleSettings.isMuted",
-            "columnName": "isMuted",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "channelSettings.moduleSettings.unknownFields",
-            "columnName": "module_unknown_fields",
+            "fieldPath": "settingsRaw",
+            "columnName": "settingsRaw",
             "affinity": "BLOB"
           }
         ],
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
-            "index"
+            "scope",
+            "idx"
           ]
         }
       },
       {
         "tableName": "my_node_info",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`my_node_info_unknown_fields` BLOB NOT NULL, `myNodeNum` INTEGER NOT NULL, `deviceId` BLOB NOT NULL, `minAppVersion` INTEGER NOT NULL, `nodedbCount` INTEGER NOT NULL, `pioEnv` TEXT NOT NULL, `rebootCount` INTEGER NOT NULL, `name` TEXT NOT NULL, `value` INTEGER NOT NULL, PRIMARY KEY(`myNodeNum`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scope` TEXT NOT NULL, `my_node_info_unknown_fields` BLOB NOT NULL, `myNodeNum` INTEGER NOT NULL, `deviceId` BLOB NOT NULL, `minAppVersion` INTEGER NOT NULL, `nodedbCount` INTEGER NOT NULL, `pioEnv` TEXT NOT NULL, `rebootCount` INTEGER NOT NULL, `name` TEXT NOT NULL, `value` INTEGER NOT NULL, PRIMARY KEY(`myNodeNum`))",
         "fields": [
+          {
+            "fieldPath": "scope",
+            "columnName": "scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
           {
             "fieldPath": "unknownFields",
             "columnName": "my_node_info_unknown_fields",
@@ -857,11 +851,203 @@
             "myNodeNum"
           ]
         }
+      },
+      {
+        "tableName": "SessionEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scope` TEXT NOT NULL, `key` TEXT NOT NULL, `data` BLOB NOT NULL, PRIMARY KEY(`scope`, `key`))",
+        "fields": [
+          {
+            "fieldPath": "scope",
+            "columnName": "scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "data",
+            "columnName": "data",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "scope",
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "ConfigEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scope` TEXT NOT NULL, `key` TEXT NOT NULL, `data` BLOB NOT NULL, PRIMARY KEY(`scope`, `key`))",
+        "fields": [
+          {
+            "fieldPath": "scope",
+            "columnName": "scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "data",
+            "columnName": "data",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "scope",
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "Node",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scope` TEXT NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT, `nodeNum` INTEGER NOT NULL, `userId` TEXT, `longName` TEXT, `shortName` TEXT, `hwModel` INTEGER, `isLicensed` INTEGER, `role` INTEGER, `publicKey` BLOB, `lastHeardEpoch` INTEGER, `snr` REAL, `rssi` INTEGER, `hopsAway` INTEGER, `viaMqtt` INTEGER NOT NULL, `isSelf` INTEGER NOT NULL, `rawNodeInfo` BLOB)",
+        "fields": [
+          {
+            "fieldPath": "scope",
+            "columnName": "scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "nodeNum",
+            "columnName": "nodeNum",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "longName",
+            "columnName": "longName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "shortName",
+            "columnName": "shortName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "hwModel",
+            "columnName": "hwModel",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "isLicensed",
+            "columnName": "isLicensed",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "role",
+            "columnName": "role",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "publicKey",
+            "columnName": "publicKey",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "lastHeardEpoch",
+            "columnName": "lastHeardEpoch",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "snr",
+            "columnName": "snr",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "rssi",
+            "columnName": "rssi",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "hopsAway",
+            "columnName": "hopsAway",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "viaMqtt",
+            "columnName": "viaMqtt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSelf",
+            "columnName": "isSelf",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawNodeInfo",
+            "columnName": "rawNodeInfo",
+            "affinity": "BLOB"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "heartbeats",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT, `nodeNum` INTEGER NOT NULL, `lastHeartbeatAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "nodeNum",
+            "columnName": "nodeNum",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastHeartbeatAt",
+            "columnName": "lastHeartbeatAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7d3d69685f8f8624dd21a9331895c4da')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6156cd21be9784fc21ac9be7bd19f207')"
     ]
   }
 }

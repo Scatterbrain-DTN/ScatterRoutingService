@@ -8,6 +8,8 @@ import org.meshtastic.proto.MyNodeInfo
 
 @Entity(tableName = "my_node_info")
 data class MyNodeInfoEntity(
+    @ColumnInfo
+    val scope: String,
     @ColumnInfo(name = "my_node_info_unknown_fields")
     val unknownFields: ByteArray,
     @PrimaryKey
@@ -21,7 +23,7 @@ data class MyNodeInfoEntity(
     val rebootCount: Int
 
 ) {
-    constructor(info: MyNodeInfo): this(
+    constructor(scope: String, info: MyNodeInfo): this(
         unknownFields = info.unknownFields.toByteArray(),
         myNodeNum = info.my_node_num,
         deviceId = info.device_id.toByteArray(),
@@ -29,7 +31,8 @@ data class MyNodeInfoEntity(
         minAppVersion = info.min_app_version,
         nodedbCount = info.nodedb_count,
         pioEnv = info.pio_env,
-        rebootCount =  info.reboot_count
+        rebootCount =  info.reboot_count,
+        scope = scope
     )
 
     override fun equals(other: Any?): Boolean {
@@ -42,6 +45,7 @@ data class MyNodeInfoEntity(
         if (minAppVersion != other.minAppVersion) return false
         if (nodedbCount != other.nodedbCount) return false
         if (rebootCount != other.rebootCount) return false
+        if (scope != other.scope) return false
         if (!unknownFields.contentEquals(other.unknownFields)) return false
         if (!deviceId.contentEquals(other.deviceId)) return false
         if (firmwareEdition != other.firmwareEdition) return false
@@ -55,6 +59,7 @@ data class MyNodeInfoEntity(
         result = 31 * result + minAppVersion
         result = 31 * result + nodedbCount
         result = 31 * result + rebootCount
+        result = 31 * result + scope.hashCode()
         result = 31 * result + unknownFields.contentHashCode()
         result = 31 * result + deviceId.contentHashCode()
         result = 31 * result + firmwareEdition.hashCode()

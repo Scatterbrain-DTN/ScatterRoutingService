@@ -11,6 +11,7 @@ import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import kotlinx.coroutines.rx2.rxCompletable
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MeshtasticDbSubcomponent
 import org.meshtastic.sdk.RadioClient
 import javax.inject.Named
 
@@ -25,15 +26,25 @@ interface MeshtasticConnectionSubcomponent {
         const val CALLBACK_SCHEDULER = "meshtastic-callbacks"
     }
 
+    companion object {
+        const val CONNECTION_NAME = "connection-name"
+    }
+
     @Subcomponent.Builder
     interface Builder {
         @BindsInstance
         fun client(client: RadioClient): Builder
+        @BindsInstance
+        @Named(CONNECTION_NAME)
+        fun name(name: String): Builder
         fun build(): MeshtasticConnectionSubcomponent?
     }
 
 
-    @Module(subcomponents = [ MeshtasticSessionSubcomponent::class ])
+    @Module(subcomponents = [
+        MeshtasticSessionSubcomponent::class,
+        MeshtasticDbSubcomponent::class
+    ])
     abstract class MeshtasticConnectionModule {
         @Binds
         @MeshtasticConnectionScope

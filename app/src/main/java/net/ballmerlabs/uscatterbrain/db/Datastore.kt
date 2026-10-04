@@ -24,9 +24,12 @@ import net.ballmerlabs.uscatterbrain.db.entities.ScatterMessageDao
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopClientDao
 import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
 import net.ballmerlabs.uscatterbrain.network.meshtastic.db.ChannelEntity
-import net.ballmerlabs.uscatterbrain.network.meshtastic.db.ConfigBundleEntity
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.ConfigEntity
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.Heartbeat
 import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MeshtasticDao
 import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MyNodeInfoEntity
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.Node
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.SessionEntity
 import java.util.UUID
 
 
@@ -59,7 +62,11 @@ class UuidTypeConverter {
         MerkleBundle::class,
         MessageFlags::class,
         ChannelEntity::class,
-        MyNodeInfoEntity::class
+        MyNodeInfoEntity::class,
+        SessionEntity::class,
+        ConfigEntity::class,
+        Node::class,
+        Heartbeat::class
     ],
     version = 29,
     exportSchema = true,
