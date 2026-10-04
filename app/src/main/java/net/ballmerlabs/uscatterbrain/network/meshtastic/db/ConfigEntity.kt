@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.db
 
 import androidx.room.Entity
 
-@Entity(primaryKeys = ["scope", "key"])
+@Entity(primaryKeys = ["scope", "key"], tableName = "configs")
 data class ConfigEntity(
     val scope: String,
     val key: String,

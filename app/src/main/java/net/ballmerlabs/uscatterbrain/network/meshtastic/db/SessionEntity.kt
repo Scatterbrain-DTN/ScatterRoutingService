@@ -2,7 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.db
 
 import androidx.room.Entity
 
-@Entity(primaryKeys = ["scope", "key"])
+@Entity(tableName = "meshtastic_sessions", primaryKeys = ["scope", "key"])
 data class SessionEntity(
     val scope: String,
     val key: String,

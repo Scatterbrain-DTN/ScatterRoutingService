@@ -3,7 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity
+@Entity(tableName = "meshtastic_nodes")
 data class Node(
     val scope: String,
     @PrimaryKey(autoGenerate = true)

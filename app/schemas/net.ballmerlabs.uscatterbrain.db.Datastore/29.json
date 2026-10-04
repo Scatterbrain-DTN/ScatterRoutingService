@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 29,
-    "identityHash": "6156cd21be9784fc21ac9be7bd19f207",
+    "identityHash": "a8792dffad51b41f10b04b3c6304fd2f",
     "entities": [
       {
         "tableName": "messages",
@@ -853,7 +853,7 @@
         }
       },
       {
-        "tableName": "SessionEntity",
+        "tableName": "meshtastic_sessions",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scope` TEXT NOT NULL, `key` TEXT NOT NULL, `data` BLOB NOT NULL, PRIMARY KEY(`scope`, `key`))",
         "fields": [
           {
@@ -884,7 +884,7 @@
         }
       },
       {
-        "tableName": "ConfigEntity",
+        "tableName": "configs",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scope` TEXT NOT NULL, `key` TEXT NOT NULL, `data` BLOB NOT NULL, PRIMARY KEY(`scope`, `key`))",
         "fields": [
           {
@@ -915,7 +915,7 @@
         }
       },
       {
-        "tableName": "Node",
+        "tableName": "meshtastic_nodes",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scope` TEXT NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT, `nodeNum` INTEGER NOT NULL, `userId` TEXT, `longName` TEXT, `shortName` TEXT, `hwModel` INTEGER, `isLicensed` INTEGER, `role` INTEGER, `publicKey` BLOB, `lastHeardEpoch` INTEGER, `snr` REAL, `rssi` INTEGER, `hopsAway` INTEGER, `viaMqtt` INTEGER NOT NULL, `isSelf` INTEGER NOT NULL, `rawNodeInfo` BLOB)",
         "fields": [
           {
@@ -1047,7 +1047,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6156cd21be9784fc21ac9be7bd19f207')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a8792dffad51b41f10b04b3c6304fd2f')"
     ]
   }
 }
