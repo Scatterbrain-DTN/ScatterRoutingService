@@ -16,21 +16,6 @@ data class ModuleSettings(
     @ColumnInfo(name = "module_unknown_fields")
     val unknownFields: ByteArray? = moduleSettings.unknownFields.toByteArray(),
 ) {
-
-
-
-    constructor(
-        positionPrecision: Int ,
-        isMuted: Boolean,
-        unknownFields: ByteArray?
-    ): this(
-        moduleSettings = ModuleSettings(
-            position_precision = positionPrecision,
-            is_muted = isMuted,
-            unknownFields = unknownFields?.toByteString()?: ByteString.EMPTY
-        )
-    )
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false

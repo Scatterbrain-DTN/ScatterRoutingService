@@ -245,7 +245,8 @@ dependencies {
     implementation libs.kotlinx.coroutines.android
     implementation libs.rxjava2.extras
     implementation libs.sdk.core
-    implementation libs.sdk.transport.tcp     // pick a transport
+    implementation libs.sdk.transport.tcp
+    implementation libs.sdk.transport.ble// pick a transport
     // The core AIDL interface and Intent constants
     //implementation "com.github.meshtastic.Meshtastic-Android:meshtastic-android-api:v2.7.13-internal.6"
 

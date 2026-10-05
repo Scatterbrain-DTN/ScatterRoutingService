@@ -30,10 +30,15 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(client: RadioClien
     val bytes = this.toMeshtastic()
     val log by scatterLog()
     log.v("toBroadcast from=$from")
-    return MeshPacket(
-        to = NodeId.BROADCAST.raw,
-        decoded = Data(portnum = PortNum.fromValue(PORT_NUMBER)!!, payload = bytes.toByteString()),
-    )
+    return MeshPacket.build {
+        to = NodeId.BROADCAST.raw
+        decoded = Data.build {
+            portnum = PortNum.fromValue(PORT_NUMBER)!!
+        }
+
+        //TODO: is this right
+        encrypted = bytes.toByteString()
+    }
 }
 
 fun ByteArray.fromMeshtastic(): ScatterSerializable.Companion.TypedPacket {
@@ -53,8 +58,11 @@ fun ByteString.fromMeshtastic(): ScatterSerializable.Companion.TypedPacket {
 fun <T: ScatterSerializable<U>, U: MessageLite> T.toPacket(message: T, to: Int?): MeshPacket {
     val bytes = message.toMeshtastic()
     val log by scatterLog()
-    return MeshPacket(
-        to = to?:0,
-        decoded = Data(portnum = PortNum.fromValue(PORT_NUMBER)!!, payload = bytes.toByteString()),
-    )
+    return MeshPacket.build {
+        this.to = to ?: 0
+        decoded = Data.build {
+            portnum = PortNum.fromValue(PORT_NUMBER)!!
+         encrypted = bytes . toByteString ()
+         }
+    }
 }

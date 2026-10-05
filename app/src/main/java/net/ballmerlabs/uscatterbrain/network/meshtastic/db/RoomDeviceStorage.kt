@@ -36,7 +36,9 @@ class RoomDeviceStorage @Inject constructor(
                 } catch (_: Exception) {
                     null
                 }
-            } ?: NodeInfo(num = v.nodeNum.toInt())
+            } ?: NodeInfo.build {
+                num = v.nodeNum.toInt()
+            }
         }.associateBy { v -> NodeId(v.num) }
     }
 
@@ -81,7 +83,7 @@ class RoomDeviceStorage @Inject constructor(
             } catch (_: Exception) {
                 null
             }
-        } ?: DeviceMetadata()
+        } ?: DeviceMetadata.build {  }
 
         val allConfigs = meshtasticDao.selectAllConfigs()
         val configs: List<Config> = allConfigs
@@ -118,9 +120,9 @@ class RoomDeviceStorage @Inject constructor(
 
     override suspend fun loadChannels(): List<Channel> {
         return meshtasticDao.loadChannelsByScope(scope).map { v ->
-            Channel(
-                index = v.idx.toInt(),
-                role = Channel.Role.fromValue(v.role.toInt())!!,
+            Channel.build {
+                index = v.idx.toInt()
+                role = Channel.Role.fromValue(v.role.toInt())!!
                 settings = if (v.settingsRaw != null) {
                     try {
                         ChannelSettings.ADAPTER.decode(v.settingsRaw)
@@ -129,8 +131,8 @@ class RoomDeviceStorage @Inject constructor(
                     }
                 } else {
                     null
-                },
-            )
+                }
+            }
         }
     }
 

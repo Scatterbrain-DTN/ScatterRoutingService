@@ -92,6 +92,9 @@ rxjava2Extras = "0.2.2"
 rxjava2ExtrasVersion = "0.2.2"
 rxJavaVersion = "2.2.21"
 rxrelay = "2.1.1"
+sdkCore = "0.1.0"
+sdkStorageSqldelight = "0.1.0"
+sdkTransportTcp = "0.2.0"
 security-crypto = "1.1.0"
 sqliteAndroid = "3.49.0"
 startup-runtime = "1.2.0"
@@ -235,6 +238,10 @@ rxjava = { module = "io.reactivex.rxjava2:rxjava", version.ref = "rxJavaVersion"
 rxjava2-debug = { module = "com.akaita.java:rxjava2-debug", version.ref = "rxjava2-debug" }
 rxjava2-extras = { module = "com.github.davidmoten:rxjava2-extras", version.ref = "rxjava2Extras" }
 rxrelay = { module = "com.jakewharton.rxrelay2:rxrelay", version.ref = "rxrelay" }
+sdk-core = { module = "org.meshtastic:sdk-core", version.ref = "sdkCore" }
+sdk-storage-sqldelight = { module = "org.meshtastic:sdk-storage-sqldelight", version.ref = "sdkStorageSqldelight" }
+sdk-transport-tcp = { module = "org.meshtastic:sdk-transport-tcp", version.ref = "sdkTransportTcp" }
+sdk-transport-ble = { module = "org.meshtastic:sdk-transport-ble", version.ref = "sdkTransportTcp" }
 sqlite-android = { module = "com.github.requery:sqlite-android", version.ref = "sqliteAndroid" }
 streamsupport-minifuture = { group = "net.sourceforge.streamsupport", name = "streamsupport-minifuture", version.ref = "streamsupport-minifuture" }
 usb-serial-android = { group = "com.github.mik3y", name = "usb-serial-for-android", version.ref = "usb-serial-android" }
