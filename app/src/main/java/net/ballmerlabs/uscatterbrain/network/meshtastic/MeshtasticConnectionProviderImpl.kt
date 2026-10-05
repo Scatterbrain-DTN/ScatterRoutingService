@@ -8,6 +8,7 @@ import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.sdk.transport.tcp.TcpTransport
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,7 +25,13 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
     private val connectionUpdate = BehaviorRelay.create<AtomicReference<Observable<MeshtasticConnectionSubcomponent>?>>()
 
     private fun connectBinder(): Observable<MeshtasticConnectionSubcomponent> {
-        return Observable.error(NotImplementedError())
+        return Observable.fromCallable {
+            builder
+                .name("main")
+                .client(TcpTransport("localhost"))
+                .build()
+
+        }
     }
 
     override fun awaitConnection(): Single<MeshtasticConnectionSubcomponent> {

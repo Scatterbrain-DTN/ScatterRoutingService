@@ -13,6 +13,7 @@ import kotlinx.coroutines.rx2.rxCompletable
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MeshtasticDbSubcomponent
 import org.meshtastic.sdk.RadioClient
+import org.meshtastic.sdk.RadioTransport
 import javax.inject.Named
 
 @MeshtasticConnectionScope
@@ -33,7 +34,7 @@ interface MeshtasticConnectionSubcomponent {
     @Subcomponent.Builder
     interface Builder {
         @BindsInstance
-        fun client(client: RadioClient): Builder
+        fun client(client: RadioTransport): Builder
         @BindsInstance
         @Named(CONNECTION_NAME)
         fun name(name: String): Builder
@@ -93,7 +94,7 @@ interface MeshtasticConnectionSubcomponent {
             fun providesConnectionFinalizer(
                 @Named(NamedSchedulers.CALLBACK_SCHEDULER)
                 scheduler: Scheduler,
-                client: RadioClient
+                client: RadioTransport
             ): MeshtasticConnectionFinalizer {
                 return object : MeshtasticConnectionFinalizer {
                     override fun onFinalize() {
