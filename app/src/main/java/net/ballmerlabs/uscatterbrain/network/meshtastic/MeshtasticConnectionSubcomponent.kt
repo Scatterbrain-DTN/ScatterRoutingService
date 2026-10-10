@@ -11,7 +11,7 @@ import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import kotlinx.coroutines.rx2.rxCompletable
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
-import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MeshtasticDbSubcomponent
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.RoomDeviceStorage
 import org.meshtastic.sdk.RadioClient
 import org.meshtastic.sdk.RadioTransport
 import javax.inject.Named
@@ -43,8 +43,7 @@ interface MeshtasticConnectionSubcomponent {
 
 
     @Module(subcomponents = [
-        MeshtasticSessionSubcomponent::class,
-        MeshtasticDbSubcomponent::class
+        MeshtasticSessionSubcomponent::class
     ])
     abstract class MeshtasticConnectionModule {
         @Binds
@@ -69,6 +68,17 @@ interface MeshtasticConnectionSubcomponent {
             @Named(NamedSchedulers.BINDER_SCHEDULER)
             fun providesBinderScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BINDER_SCHEDULER))
+            }
+
+
+            @Provides
+            @MeshtasticConnectionScope
+            fun providesRadioClient(transport: RadioTransport, storage: RoomDeviceStorage): RadioClient {
+                return RadioClient.Builder()
+                    .autoReconnect(true)
+                    .storage(storage)
+                    .transport(transport)
+                    .build()
             }
 
             @Provides

@@ -14,6 +14,8 @@ import org.meshtastic.sdk.ConfigBundle
 import org.meshtastic.sdk.DeviceStorage
 import org.meshtastic.sdk.NodeId
 import org.meshtastic.sdk.SessionPasskey
+import org.meshtastic.sdk.StorageProvider
+import org.meshtastic.sdk.TransportIdentity
 import javax.inject.Inject
 import javax.inject.Named
 import kotlin.time.Clock
@@ -26,7 +28,7 @@ const val SESSION_KEY_MY_INFO = "key-myinfo"
 class RoomDeviceStorage @Inject constructor(
     val meshtasticDao: MeshtasticDao,
     @Named(MeshtasticConnectionSubcomponent.CONNECTION_NAME) val scope: String
-) : DeviceStorage {
+) : DeviceStorage, StorageProvider {
     override suspend fun loadNodes(): Map<NodeId, NodeInfo> {
         return meshtasticDao.loadNodesByScope(scope)
             .map{ v ->
@@ -198,5 +200,9 @@ class RoomDeviceStorage @Inject constructor(
 
     override suspend fun loadHeartbeats(): Map<NodeId, Long> {
         return meshtasticDao.getAllHeartbeats().associate { v -> NodeId(v.nodeNum.toInt()) to v.lastHeartbeatAt }
+    }
+
+    override suspend fun activate(identity: TransportIdentity): DeviceStorage {
+        return this
     }
 }
