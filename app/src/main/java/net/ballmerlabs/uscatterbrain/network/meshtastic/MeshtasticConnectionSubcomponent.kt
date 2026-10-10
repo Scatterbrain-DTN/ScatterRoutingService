@@ -11,6 +11,8 @@ import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import kotlinx.coroutines.rx2.rxCompletable
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
+import net.ballmerlabs.uscatterbrain.db.Datastore
+import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MeshtasticDao
 import net.ballmerlabs.uscatterbrain.network.meshtastic.db.RoomDeviceStorage
 import org.meshtastic.sdk.RadioClient
 import org.meshtastic.sdk.RadioTransport
@@ -36,8 +38,7 @@ interface MeshtasticConnectionSubcomponent {
         @BindsInstance
         fun client(client: RadioTransport): Builder
         @BindsInstance
-        @Named(CONNECTION_NAME)
-        fun name(name: String): Builder
+        fun name(@Named(CONNECTION_NAME) name: String): Builder
         fun build(): MeshtasticConnectionSubcomponent?
     }
 
@@ -79,6 +80,13 @@ interface MeshtasticConnectionSubcomponent {
                     .storage(storage)
                     .transport(transport)
                     .build()
+            }
+
+
+            @Provides
+            @MeshtasticConnectionScope
+            fun providesMeshtasticDao(datastore: Datastore): MeshtasticDao {
+                return datastore.meshtasticDao()
             }
 
             @Provides

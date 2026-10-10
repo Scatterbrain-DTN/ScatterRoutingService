@@ -9,6 +9,7 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util .scatterLog
+import org.meshtastic.sdk.RadioClient
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -19,6 +20,7 @@ class MeshtasticConnectionImpl @Inject constructor(
     val intentFilter: IntentFilter,
     val crashlytics: FirebaseWrapper,
     val finalizer: MeshtasticConnectionFinalizer,
+    val radioClient: RadioClient,
     @Named(MeshtasticConnectionSubcomponent.NamedSchedulers.BINDER_SCHEDULER) val scheduler: Scheduler,
 ) : MeshtasticConnection {
 

@@ -1,6 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic.db
 
-import net.ballmerlabs.uscatterbrain.network.MeshtasticDbScope
+import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionScope
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
 import okio.ByteString.Companion.toByteString
 import org.meshtastic.proto.Channel
@@ -24,7 +24,7 @@ const val SESSION_KEY_METADATA = "key-metadata"
 const val SESSION_KEY_MY_INFO = "key-myinfo"
 
 
-@MeshtasticDbScope
+@MeshtasticConnectionScope
 class RoomDeviceStorage @Inject constructor(
     val meshtasticDao: MeshtasticDao,
     @Named(MeshtasticConnectionSubcomponent.CONNECTION_NAME) val scope: String
