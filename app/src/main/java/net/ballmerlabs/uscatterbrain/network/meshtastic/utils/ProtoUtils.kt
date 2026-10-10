@@ -34,10 +34,8 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(client: RadioClien
         to = NodeId.BROADCAST.raw
         decoded = Data.build {
             portnum = PortNum.fromValue(PORT_NUMBER)!!
+            payload = bytes.toByteString()
         }
-
-        //TODO: is this right
-        encrypted = bytes.toByteString()
     }
 }
 
@@ -62,7 +60,7 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toPacket(message: T, to: Int?)
         this.to = to ?: 0
         decoded = Data.build {
             portnum = PortNum.fromValue(PORT_NUMBER)!!
-         encrypted = bytes . toByteString ()
+            payload = bytes . toByteString ()
          }
     }
 }
