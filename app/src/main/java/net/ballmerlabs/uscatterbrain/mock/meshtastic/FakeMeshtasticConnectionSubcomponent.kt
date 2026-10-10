@@ -1,8 +1,6 @@
 package net.ballmerlabs.uscatterbrain.mock.meshtastic
 
 import android.content.IntentFilter
-import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnection
-import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionScope
 
 import dagger.Binds
@@ -60,10 +58,6 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
         @Binds
         @MeshtasticConnectionScope
         abstract fun bindsBroadcastReceiver(impl: MeshBroadcastReceiverImpl): MeshBroadcastReceiver
-
-        @Binds
-        @MeshtasticConnectionScope
-        abstract fun bindsCOnnection(impl: MockMeshtasticConnection): MeshtasticConnection
 
         @Binds
         @MeshtasticConnectionScope

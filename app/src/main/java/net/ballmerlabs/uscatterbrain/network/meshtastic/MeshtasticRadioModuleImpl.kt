@@ -15,7 +15,6 @@ import javax.inject.Named
 @MeshtasticConnectionScope
 class MeshtasticRadioModuleImpl @Inject constructor(
     val datastore: ScatterbrainDatastore,
-    val connection: MeshtasticConnection,
     val broadcastReceiver: MeshtasticBroadcastReceiverState,
     val sessionBuilder: MeshtasticSessionSubcomponent.Builder,
     val advertiser: Advertiser,

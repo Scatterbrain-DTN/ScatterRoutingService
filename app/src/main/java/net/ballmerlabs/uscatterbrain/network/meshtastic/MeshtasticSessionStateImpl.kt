@@ -42,7 +42,6 @@ import javax.inject.Named
 
 @MeshtasticSessionScope
 class MeshtasticSessionStateImpl @Inject constructor(
-    val connection: MeshtasticConnection,
     val broadcastReceiver: MeshtasticBroadcastReceiverState,
     val datastore: ScatterbrainDatastore,
     val radioModule: MeshtasticRadioModule,
