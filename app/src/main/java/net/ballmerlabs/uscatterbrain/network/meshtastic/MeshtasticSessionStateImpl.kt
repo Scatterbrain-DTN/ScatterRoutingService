@@ -17,17 +17,23 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounceAckPacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnouncePacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounceSynAckPacket
+import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticErrPacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticMerklePacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticMerklePacketParser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticStreamPacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticStreamPacketParser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.MeshtasticPacketStream
+import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.fromMeshtastic
 import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacketParser
 import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacketParser
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
 import net.ballmerlabs.uscatterbrain.util.enumerateMap
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.proto.MeshPacket
+import org.meshtastic.sdk.NodeId.Companion.BROADCAST
+import scatterbrain.Meshtastic
+import scatterbrain.Scatterbrain
 import scatterbrain.Meshtastic.MeshtasticAckCode
 import scatterbrain.Meshtastic.MeshtasticStream
 import scatterbrain.Transfer
@@ -169,7 +175,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
 
     private fun handleAnnouncePacket(
         packet: MeshtasticAnnouncePacket,
-        to: String?,
+        to: Int?,
     ): Flowable<ScatterSerializable<*>> {
         if (remoteLuid == null)
             remoteLuid = packet.remoteLuid
@@ -177,7 +183,31 @@ class MeshtasticSessionStateImpl @Inject constructor(
             log.w("attempting duplicate handshake with $routerId, ignoring")
             return Flowable.empty()
         }
-        return Flowable.empty()
+        return mapStagePublisher(Stage.ACK) { s ->
+            log.v("handleAnnouncePacket id=$routerId")
+            datastore.getDefaultMerkleRoot().flatMapPublisher { root ->
+                val code = if (radioModule.getSessionCount() > MAX_SESSIONS) {
+                    radioModule.startBacklog(routerId)
+                    MeshtasticAckCode.FULL
+                } else {
+                    MeshtasticAckCode.TRANSACTION
+                }
+
+                when (to) {
+                    BROADCAST.raw -> Flowable.just(
+                        MeshtasticAnnounceAckPacket(
+                            advertiser.getHashLuid(),
+                            root,
+                            code
+                        )
+                    ).doOnSubscribe { log.v("replying to broadcast me=$routerId") }
+
+                    null -> Flowable.error(IllegalStateException("packet with null to field"))
+                    else -> Flowable.error(IllegalStateException("packet with invalid to field $to my=$routerId"))
+                }
+
+            }
+        }
     }
 
     private fun handleAnnounceAckPacket(packet: MeshtasticAnnounceAckPacket): Flowable<ScatterSerializable<*>> {
@@ -359,6 +389,52 @@ class MeshtasticSessionStateImpl @Inject constructor(
         }.doFinally {
             log.v("handleAnnounceSynAckPacket complete")
         }
+    }
+
+
+    override fun handlePacket(packet: MeshPacket): Flowable<ScatterSerializable<*>> {
+        return Single.just(packet).flatMapPublisher { v ->
+
+            val p = v.decoded?.payload?.fromMeshtastic()
+            log.v("meshtastic packet ${p?.type}")
+            when (p?.type) {
+                Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE -> handleAnnouncePacket(
+                    p.get(),
+                    packet.to
+                )
+
+                Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE_ACK -> handleAnnounceAckPacket(p.get())
+                Scatterbrain.MessageType.MESHTASTIC_ANNOUNCE_SYNACK -> handleAnnounceSynAckPacket(p.get())
+                Scatterbrain.MessageType.MESHTASTIC_MERKLE -> {
+                    val merkle = currentMerkleStream.get()
+                    merkle?.onPacket(p.get())!!.toFlowable()
+                }
+
+                Scatterbrain.MessageType.MESHTASTIC_STREAM -> {
+                    val packet: MeshtasticStreamPacket = p.get()
+                    log.v("$routerId received stream packet with seq=${packet.seq}")
+                    currentDataStream.get()?.first
+                        ?.onPacket(packet)!!.toFlowable()
+                }
+
+                else -> Flowable.just(MeshtasticErrPacket(Meshtastic.MeshtasticErrCode.INVALID_ARGUMENT))
+            }
+        }.doOnNext { p -> log.v("replying with ${p.type}") }
+            .onErrorResumeNext { e: Throwable ->
+                log.e("meshtastic error $e")
+                e.printStackTrace()
+                when (e) {
+                    is ErrorStage -> {
+                        stage.set(e.stage)
+                        Flowable.empty()
+                    }
+
+                    else -> {
+                        stage.set(Stage.FAIL)
+                        Flowable.error(e)
+                    }
+                }
+            }
     }
 
     override fun awaitHandshake(): Completable {

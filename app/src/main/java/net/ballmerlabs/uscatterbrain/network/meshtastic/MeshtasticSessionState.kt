@@ -5,6 +5,8 @@ import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
+import net.ballmerlabs.scatterproto.ScatterSerializable
+import org.meshtastic.proto.MeshPacket
 
 enum class Stage {
     LOCKED,
@@ -53,5 +55,8 @@ interface MeshtasticSessionState {
             }
         }
     }
+
+    fun handlePacket(packet: MeshPacket): Flowable<ScatterSerializable<*>>
+
     fun awaitHandshake(): Completable
 }
