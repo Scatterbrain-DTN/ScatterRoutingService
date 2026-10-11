@@ -23,7 +23,7 @@ interface MeshtasticSessionSubcomponent {
     @Subcomponent.Builder
     interface Builder {
         @BindsInstance
-        fun id(@Named(ROUTER_ID) id: String): Builder
+        fun id(@Named(ROUTER_ID) id: Int): Builder
         fun build(): MeshtasticSessionSubcomponent
     }
 

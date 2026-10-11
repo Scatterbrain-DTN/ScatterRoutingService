@@ -2,11 +2,13 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import io.reactivex.Completable
 import io.reactivex.Scheduler
+import kotlinx.coroutines.rx2.asFlowable
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.sdk.RadioClient
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
@@ -18,6 +20,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     val sessionBuilder: MeshtasticSessionSubcomponent.Builder,
     val advertiser: Advertiser,
     val database: Datastore,
+    val radioClient: RadioClient,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
 ) : MeshtasticRadioModule {
 
@@ -25,14 +28,14 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     private val log by scatterLog()
 
 
-    private val currentTransactions = ConcurrentHashMap<String, MeshtasticSessionSubcomponent>()
+    private val currentTransactions = ConcurrentHashMap<Int, MeshtasticSessionSubcomponent>()
     private val backlog = ConcurrentLinkedQueue<MeshtasticSessionSubcomponent>()
 
     override fun popBacklog(): MeshtasticSessionSubcomponent? {
         return backlog.poll()
     }
 
-    override fun startBacklog(from: String) {
+    override fun startBacklog(from: Int) {
         val session = currentTransactions.compute(from) { k, v ->
             when (v) {
                 null -> sessionBuilder.id(k).build()
@@ -43,7 +46,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         backlog.add(session)
     }
 
-    override fun startSession(from: String): MeshtasticSessionSubcomponent {
+    override fun startSession(from: Int): MeshtasticSessionSubcomponent {
         val session = currentTransactions.compute(from) { k, v ->
             when (v) {
                 null -> sessionBuilder.id(k).build()
@@ -61,7 +64,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         }
     }
 
-    override fun stopSession(from: String) {
+    override fun stopSession(from: Int) {
         currentTransactions.remove(from)
     }
 
@@ -72,7 +75,9 @@ class MeshtasticRadioModuleImpl @Inject constructor(
 
 
     override fun handlePackets(): Completable {
-        return Completable.complete()
+        return radioClient.packets.asFlowable()
+            .flatMap { packet -> startSession(packet.from).state().handlePacket(packet) }
+            .ignoreElements()
     }
 
     override fun handshake(): Completable {

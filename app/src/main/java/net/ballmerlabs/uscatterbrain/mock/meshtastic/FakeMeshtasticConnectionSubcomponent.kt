@@ -16,6 +16,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubc
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModule
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticRadioModuleImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionSubcomponent
+import org.meshtastic.sdk.RadioClient
 import org.mockito.kotlin.mock
 import javax.inject.Named
 
@@ -56,6 +57,13 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
             @MeshtasticConnectionScope
             fun providesIntentFilter(): IntentFilter {
                 return mock {  }
+            }
+
+
+            @Provides
+            @MeshtasticConnectionScope
+            fun providesRadioClient(): RadioClient {
+                return mock { }
             }
 
             @Provides

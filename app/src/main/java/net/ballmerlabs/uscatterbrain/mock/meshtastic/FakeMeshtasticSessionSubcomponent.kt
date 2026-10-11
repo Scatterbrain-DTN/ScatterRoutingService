@@ -25,7 +25,7 @@ interface FakeMeshtasticSessionSubcomponent : MeshtasticSessionSubcomponent {
     interface Builder: MeshtasticSessionSubcomponent.Builder {
 
         @BindsInstance
-        override fun id(@Named(ROUTER_ID) id: String): MeshtasticSessionSubcomponent.Builder
+        override fun id(@Named(ROUTER_ID) id: Int): MeshtasticSessionSubcomponent.Builder
 
         override fun build(): MeshtasticSessionSubcomponent
     }

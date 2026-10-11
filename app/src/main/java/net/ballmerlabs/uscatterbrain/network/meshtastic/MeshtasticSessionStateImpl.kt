@@ -52,7 +52,7 @@ class MeshtasticSessionStateImpl @Inject constructor(
     val context: Context,
     val finalizer: MeshtasticSessionFinalizer,
     @Named(MeshtasticSessionSubcomponent.PARSE_SCHEDULER) val parseScheduler: Scheduler,
-    @Named(MeshtasticSessionSubcomponent.ROUTER_ID) val routerId: String,
+    @Named(MeshtasticSessionSubcomponent.ROUTER_ID) val routerId: Int,
 ) : MeshtasticSessionState {
 
     private val log by scatterLog()
