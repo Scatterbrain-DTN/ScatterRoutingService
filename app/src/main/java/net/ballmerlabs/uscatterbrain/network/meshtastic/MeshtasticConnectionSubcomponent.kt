@@ -49,14 +49,6 @@ interface MeshtasticConnectionSubcomponent {
     abstract class MeshtasticConnectionModule {
         @Binds
         @MeshtasticConnectionScope
-        abstract fun bindsMeshBroadcastReceiver(impl: MeshBroadcastReceiverImpl): MeshBroadcastReceiver
-
-        @Binds
-        @MeshtasticConnectionScope
-        abstract fun bindsMeshBroadcastReceiverState(impl: MeshtasticBroadcastReceiverStateImpl): MeshtasticBroadcastReceiverState
-
-        @Binds
-        @MeshtasticConnectionScope
         abstract fun bindsMeshtasticRadioModule(impl: MeshtasticRadioModuleImpl): MeshtasticRadioModule
 
         companion object {
@@ -83,17 +75,6 @@ interface MeshtasticConnectionSubcomponent {
             @MeshtasticConnectionScope
             fun providesMeshtasticDao(datastore: Datastore): MeshtasticDao {
                 return datastore.meshtasticDao()
-            }
-
-            @Provides
-            @MeshtasticConnectionScope
-            fun providesIntentFilter(): IntentFilter {
-                return IntentFilter().apply {
-                    addAction(ACTION_MESH_CONNECTED)
-                    addAction(ACTION_MESSAGE_STATUS)
-                    addAction(ACTION_NODE_CHANGE)
-                    addAction(MeshBroadcastReceiver.actionReceived(PORT_NUMBER))
-                }
             }
 
             @Provides
