@@ -19,6 +19,7 @@ import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
 import io.reactivex.Completable
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.RouterPreferencesImpl
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
@@ -89,6 +90,10 @@ class WifiDirectTest {
 
                 override fun stop(): Boolean {
                     return true
+                }
+
+                override fun setMeshtasticConfig(config: MeshtasticConnectionConfig) {
+                    TODO("Not yet implemented")
                 }
 
                 override fun pauseScan() {

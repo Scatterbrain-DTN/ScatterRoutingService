@@ -18,6 +18,7 @@ import io.reactivex.disposables.Disposable
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.Identity
+import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterproto.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.ACL
@@ -198,8 +199,8 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     }
 
-    override fun connectMeshtastic(): Single<Boolean> {
-        meshtasticBinderProvider.connectBinderAsync()
+    override fun connectMeshtastic(config: MeshtasticConnectionConfig): Single<Boolean> {
+        meshtasticBinderProvider.connectBinderAsync(config)
         return meshtasticBinderProvider.awaitConnection().map {
             LOG.v("meshtastic binder CONNECTED!")
             true

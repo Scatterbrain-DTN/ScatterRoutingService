@@ -6,6 +6,7 @@ import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
+import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import org.meshtastic.sdk.transport.tcp.TcpTransport
@@ -24,7 +25,7 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
     private val connection = AtomicReference<Observable<MeshtasticConnectionSubcomponent>?>(null)
     private val connectionUpdate = BehaviorRelay.create<AtomicReference<Observable<MeshtasticConnectionSubcomponent>?>>()
 
-    private fun connectBinder(): Observable<MeshtasticConnectionSubcomponent> {
+    private fun connectBinder(config: MeshtasticConnectionConfig): Observable<MeshtasticConnectionSubcomponent> {
         return Observable.defer {
             val module = builder
                 .name("main")
@@ -48,12 +49,12 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
             .firstOrError()
     }
 
-    override fun connectBinderAsync() {
+    override fun connectBinderAsync(config: MeshtasticConnectionConfig) {
         connection.updateAndGet { v ->
             when(v) {
                 null -> {
                     val obs = BehaviorSubject.create<MeshtasticConnectionSubcomponent>()
-                    connectBinder().subscribe(obs)
+                    connectBinder(config).subscribe(obs)
                     obs
                 }
                 else -> v

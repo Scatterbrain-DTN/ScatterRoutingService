@@ -16,6 +16,7 @@ import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.disposables.Disposable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
 import net.ballmerlabs.scatterbrainsdk.RouterState
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.R
@@ -77,6 +78,7 @@ class ScatterbrainSchedulerImpl @Inject constructor(
 ) : ScatterbrainScheduler {
     private val LOG by scatterLog()
 
+    var currentMeshtasticConfig: MeshtasticConnectionConfig? = null
     // private var pendingIntentLegacy = ScanBroadcastReceiver.newPendingIntentLegacy(context)
     private val discoveryLock = AtomicReference(false)
     override val isDiscovering: Boolean
@@ -311,6 +313,10 @@ class ScatterbrainSchedulerImpl @Inject constructor(
         }
     }
 
+    override fun setMeshtasticConfig(config: MeshtasticConnectionConfig) {
+        currentMeshtasticConfig = config
+    }
+
     override fun start() {
         val discovering = discoveryLock.getAndSet(true)
         if (discovering) {
@@ -337,9 +343,10 @@ class ScatterbrainSchedulerImpl @Inject constructor(
                 )
             )
             .flatMapCompletable { transports ->
-                if (transports.contains("meshtastic") && meshtasticInstalled)
+                val config = currentMeshtasticConfig
+                if (transports.contains("meshtastic") && meshtasticInstalled && config != null)
                     Completable.fromAction {
-                        meshtasticBinderProvider.connectBinderAsync()
+                        meshtasticBinderProvider.connectBinderAsync(config)
                     } .subscribeOn(mainThread)
                         .observeOn(operationsScheduler)
                         .andThen(meshtasticBinderProvider.awaitConnection().ignoreElement())

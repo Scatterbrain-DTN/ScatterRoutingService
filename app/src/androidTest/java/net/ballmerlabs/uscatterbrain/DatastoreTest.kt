@@ -17,6 +17,7 @@ import io.reactivex.subjects.PublishSubject
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.scatterproto.DEFAULT_BLOCKSIZE
 import net.ballmerlabs.uscatterbrain.db.Datastore
@@ -121,6 +122,10 @@ class DatastoreTest {
                 }
 
                 override fun releaseWakeLock() {
+
+                }
+
+                override fun setMeshtasticConfig(config: MeshtasticConnectionConfig) {
 
                 }
 

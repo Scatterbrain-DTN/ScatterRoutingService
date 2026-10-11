@@ -731,11 +731,11 @@ class ScatterRoutingService : LifecycleService() {
         /**
          * Attempts to connect to the meshtastic app's binder interface
          */
-        override fun connectMeshtastic(callback: BoolCallback) {
+        override fun connectMeshtastic(config: MeshtasticConnectionConfig, callback: BoolCallback) {
             checkAdminPermission()
             val handle = generateNewHandle()
-
-            val disp = mBackend.connectMeshtastic()
+            mBackend.scheduler.setMeshtasticConfig(config)
+            val disp = mBackend.connectMeshtastic(config)
                 .doOnDispose { callbackHandles.remove(handle) }
                 .doFinally { callbackHandles.remove(handle) }
                 .subscribe(

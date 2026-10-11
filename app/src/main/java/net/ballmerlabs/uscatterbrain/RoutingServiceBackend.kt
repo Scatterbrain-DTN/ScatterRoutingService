@@ -4,6 +4,7 @@ import android.net.Uri
 import io.reactivex.Completable
 import io.reactivex.Single
 import net.ballmerlabs.scatterbrainsdk.Identity
+import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
@@ -42,6 +43,6 @@ interface RoutingServiceBackend {
     fun refreshPeers(): Completable
     fun dumpDatastore(uri: Uri): Completable
     fun deleteDesktopApp(pubkey: ByteArray): Completable
-    fun connectMeshtastic(): Single<Boolean>
+    fun connectMeshtastic(config: MeshtasticConnectionConfig): Single<Boolean>
     fun syncMeshtastic(): Completable
 }

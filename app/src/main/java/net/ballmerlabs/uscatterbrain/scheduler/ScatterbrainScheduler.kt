@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.scheduler
 
 import io.reactivex.Completable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
+import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import java.util.UUID
@@ -23,6 +24,7 @@ interface ScatterbrainScheduler {
     fun stopDesktopServer()
     fun broadcastIdentities(identities: List<IdentityPacket>): Completable
     fun broadcastMessages(messages: List<DbMessage>): Completable
+    fun setMeshtasticConfig(config: MeshtasticConnectionConfig)
     val isDiscovering: Boolean
     val isPassive: Boolean
 }
