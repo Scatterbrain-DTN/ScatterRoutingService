@@ -25,12 +25,14 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
     private val connectionUpdate = BehaviorRelay.create<AtomicReference<Observable<MeshtasticConnectionSubcomponent>?>>()
 
     private fun connectBinder(): Observable<MeshtasticConnectionSubcomponent> {
-        return Observable.fromCallable {
-            builder
+        return Observable.defer {
+            val module = builder
                 .name("main")
                 .client(TcpTransport("localhost"))
-                .build()
+                .build()!!
 
+            Observable.just(module)
+                .mergeWith(module.module().handlePackets())
         }
     }
 
