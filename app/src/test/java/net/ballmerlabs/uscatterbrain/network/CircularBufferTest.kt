@@ -3,12 +3,11 @@ package net.ballmerlabs.uscatterbrain.network
 import android.os.Build
 import com.github.davidmoten.rx2.Bytes
 import com.google.android.gms.common.util.Hex
-import io.reactivex.Observable
 import io.reactivex.schedulers.Schedulers
-import net.ballmerlabs.uscatterbrain.network.proto.*
 import net.ballmerlabs.scatterproto.InputStreamFlowableSubscriber
 import net.ballmerlabs.scatterproto.InputStreamObserver
 import net.ballmerlabs.scatterproto.ScatterSerializable
+import net.ballmerlabs.uscatterbrain.network.proto.AckPacketParser
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner

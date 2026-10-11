@@ -4,9 +4,8 @@ import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import scatterbrain.Desktop
-import scatterbrain.Scatterbrain
-import scatterbrain.Scatterbrain.MessageType
 import scatterbrain.Desktop.RespCode
+import scatterbrain.Scatterbrain.MessageType
 import java.util.UUID
 
 @SbPacket(messageType = MessageType.GENERATE_IDENTITY_RESPONSE)

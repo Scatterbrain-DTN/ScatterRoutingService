@@ -6,16 +6,19 @@ import com.goterl.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain
-import java.util.SortedSet
-import java.util.TreeMap
-import java.util.TreeSet
-import java.util.UUID
-import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.scatterproto.MAX_FILENAME
+import net.ballmerlabs.scatterproto.MAX_KEY
+import net.ballmerlabs.scatterproto.MAX_SIG
+import net.ballmerlabs.scatterproto.PROTOBUF_PRIVKEY_KEY
+import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
 import scatterbrain.Scatterbrain.MessageType
 import scatterbrain.Trust
+import java.util.SortedSet
+import java.util.TreeMap
+import java.util.TreeSet
+import java.util.UUID
 
 /**
  * wrapper class for Identity protobuf message

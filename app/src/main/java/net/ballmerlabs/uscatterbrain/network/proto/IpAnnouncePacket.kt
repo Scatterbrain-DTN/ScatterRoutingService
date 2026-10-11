@@ -1,13 +1,16 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain
+import net.ballmerlabs.scatterproto.MAX_ADDRESS
+import net.ballmerlabs.scatterproto.MAX_IP_LIST
+import net.ballmerlabs.scatterproto.ScatterSerializable
+import net.ballmerlabs.scatterproto.toProto
+import net.ballmerlabs.scatterproto.toUuid
+import scatterbrain.Bootstrap
 import scatterbrain.Bootstrap.IpAnnounceItem
+import scatterbrain.Scatterbrain.MessageType
 import java.net.InetSocketAddress
 import java.util.UUID
-import net.ballmerlabs.scatterproto.*
-import scatterbrain.Bootstrap
-import scatterbrain.Scatterbrain.MessageType
 
 data class Address (
     val is_uke: Boolean,

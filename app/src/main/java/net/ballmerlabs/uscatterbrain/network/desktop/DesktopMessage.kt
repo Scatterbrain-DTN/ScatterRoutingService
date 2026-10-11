@@ -7,7 +7,6 @@ import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
 import scatterbrain.Desktop
-import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 import java.util.UUID
 

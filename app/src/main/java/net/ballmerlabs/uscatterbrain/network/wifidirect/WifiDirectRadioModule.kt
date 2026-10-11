@@ -2,18 +2,17 @@ package net.ballmerlabs.uscatterbrain.network.wifidirect
 
 import io.reactivex.Completable
 import io.reactivex.Flowable
-import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.subjects.CompletableSubject
-import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.WifiGroupSubcomponent
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
-import java.io.File
-import java.util.UUID
-import net.ballmerlabs.uscatterbrain.network.proto.*
+import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacket
+import net.ballmerlabs.uscatterbrain.network.proto.BlockSequencePacket
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import scatterbrain.Merkle.DeclareHashesMode
+import java.io.File
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**

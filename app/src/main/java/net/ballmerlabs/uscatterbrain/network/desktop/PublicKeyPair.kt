@@ -6,7 +6,6 @@ import com.goterl.lazysodium.interfaces.KeyExchange
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface.sodium
 import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
-import net.ballmerlabs.uscatterbrain.scheduler.DesktopSession
 
 data class PublicKeyPair(
     val pubkey: ByteArray,

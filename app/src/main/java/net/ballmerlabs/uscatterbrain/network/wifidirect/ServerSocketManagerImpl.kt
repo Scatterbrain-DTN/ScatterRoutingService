@@ -1,15 +1,12 @@
 package net.ballmerlabs.uscatterbrain.network.wifidirect
 
-import io.reactivex.Scheduler
 import io.reactivex.Single
-import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
-import javax.inject.Named
 import javax.inject.Singleton
 
 /**

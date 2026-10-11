@@ -12,7 +12,6 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.PublishSubject
 import kotlinx.collections.immutable.toImmutableList
 import net.ballmerlabs.scatterbrainsdk.PairingStage
 import net.ballmerlabs.scatterbrainsdk.PairingState
@@ -35,7 +34,6 @@ import net.ballmerlabs.uscatterbrain.network.proto.PairingRequest
 import net.ballmerlabs.uscatterbrain.network.proto.PairingSynAck
 import net.ballmerlabs.uscatterbrain.network.wifidirect.PortSocket
 import net.ballmerlabs.uscatterbrain.scheduler.DesktopSession
-import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import scatterbrain.Scatterbrain
 import java.net.Inet6Address

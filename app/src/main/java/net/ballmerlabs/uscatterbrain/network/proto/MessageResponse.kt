@@ -4,13 +4,10 @@ import android.content.Context
 import com.google.protobuf.ByteString
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
-
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
 import scatterbrain.Desktop
-
-import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 
 fun ScatterMessage.toProto(): Desktop.ApiMessage {

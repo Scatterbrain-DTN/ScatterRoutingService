@@ -8,12 +8,10 @@ import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
-import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionScope
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionState
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionStateImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionSubcomponent
-import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionSubcomponent.Builder
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionSubcomponent.Companion.PARSE_SCHEDULER
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionSubcomponent.Companion.ROUTER_ID
 import java.util.Date

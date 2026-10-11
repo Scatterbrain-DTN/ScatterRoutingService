@@ -1,14 +1,10 @@
 package net.ballmerlabs.uscatterbrain.util
 import android.util.Log
-import io.reactivex.Flowable
 import io.reactivex.FlowableSubscriber
 import io.reactivex.Maybe
 import io.reactivex.Single
-import io.reactivex.processors.PublishProcessor
-import org.reactivestreams.Subscriber
 import org.reactivestreams.Subscription
 import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock

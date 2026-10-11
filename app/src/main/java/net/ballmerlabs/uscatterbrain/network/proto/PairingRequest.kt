@@ -1,7 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain
-import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.scatterproto.MAX_APPLICATION_NAME
+import net.ballmerlabs.scatterproto.ScatterSerializable
 import scatterbrain.Desktop
 import scatterbrain.Scatterbrain.MessageType
 

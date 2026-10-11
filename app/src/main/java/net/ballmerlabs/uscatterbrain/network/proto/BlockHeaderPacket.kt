@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
-import androidx.work.impl.schedulers
 import com.google.protobuf.ByteString
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.MAX_APPLICATION_NAME
@@ -14,13 +13,11 @@ import net.ballmerlabs.scatterproto.isValidFilename
 import net.ballmerlabs.scatterproto.sanitizeFilename
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
-import net.ballmerlabs.uscatterbrain.util.scatterLog
+import scatterbrain.Scatterbrain.MessageType
 import scatterbrain.Transfer.BlockData
 import scatterbrain.Transfer.MessageFlag
-import scatterbrain.Scatterbrain.MessageType
 import java.util.Date
 import java.util.EnumMap
-import java.util.HashMap
 import java.util.UUID
 
 /**

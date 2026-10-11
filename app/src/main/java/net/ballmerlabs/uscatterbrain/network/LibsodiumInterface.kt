@@ -4,12 +4,8 @@ import com.goterl.lazysodium.LazySodiumAndroid
 import com.goterl.lazysodium.Sodium
 import com.goterl.lazysodium.SodiumAndroid
 import com.goterl.lazysodium.interfaces.GenericHash
-import com.goterl.lazysodium.interfaces.Hash
-import com.goterl.lazysodium.interfaces.KeyExchange
 import com.goterl.lazysodium.interfaces.SecretBox
-import net.ballmerlabs.scatterbrainsdk.internal.SbApp
 import java.math.BigInteger
-import java.nio.ByteBuffer
 
 /**
  * Singleton interface to libsodium/lazysodium over JNA

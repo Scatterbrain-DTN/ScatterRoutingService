@@ -17,7 +17,6 @@ import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounceAckPacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnouncePacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounceSynAckPacket
-import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticErrPacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticMerklePacket
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticMerklePacketParser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticStreamPacket
@@ -29,8 +28,6 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.util.concatMapLast
 import net.ballmerlabs.uscatterbrain.util.enumerateMap
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import scatterbrain.Meshtastic
-import scatterbrain.Scatterbrain
 import scatterbrain.Meshtastic.MeshtasticAckCode
 import scatterbrain.Meshtastic.MeshtasticStream
 import scatterbrain.Transfer

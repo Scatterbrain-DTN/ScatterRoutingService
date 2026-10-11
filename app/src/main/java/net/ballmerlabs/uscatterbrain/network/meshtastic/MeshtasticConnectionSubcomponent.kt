@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import android.content.IntentFilter
 import dagger.Binds
 import dagger.BindsInstance
 import dagger.Module

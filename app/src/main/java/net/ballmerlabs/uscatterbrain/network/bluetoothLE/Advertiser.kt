@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.app.PendingIntent
 import io.reactivex.Completable
-import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
 import java.util.UUID
 
 interface Advertiser {

@@ -4,7 +4,6 @@ import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.MAX_APPLICATION_NAME
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import scatterbrain.Desktop
-import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.PAIRING_SYNACK)

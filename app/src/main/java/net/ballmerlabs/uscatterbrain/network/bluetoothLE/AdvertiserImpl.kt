@@ -21,14 +21,14 @@ import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterproto.Optional
-import net.ballmerlabs.uscatterbrain.network.proto.*
-import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
-
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WakeLockProvider
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.LUID_DATA
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser.Companion.MERKLE_DATA
+import net.ballmerlabs.uscatterbrain.network.proto.UkeAnnouncePacket
+import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
+import net.ballmerlabs.uscatterbrain.network.proto.getHashUuid
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.retryDelay
@@ -38,7 +38,6 @@ import java.util.Date
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named

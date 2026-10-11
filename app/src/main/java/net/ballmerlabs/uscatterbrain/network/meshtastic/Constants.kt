@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import android.content.Context
 import android.content.pm.PackageManager
-import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 
 const val PORT_NUMBER = 288
 

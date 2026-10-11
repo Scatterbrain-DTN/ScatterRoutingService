@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain
 
-import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import androidx.test.core.app.ApplicationProvider
@@ -21,8 +20,6 @@ import net.ballmerlabs.scatterbrainsdk.internal.MockBinderProvider
 import net.ballmerlabs.scatterbrainsdk.internal.ScatterbrainBroadcastReceiverImpl
 import org.junit.Before
 import org.junit.Rule
-import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.mock
 
 fun getBogusRxBleDevice(mac: String): RxBleDevice {
     return RxBleDeviceMock.Builder()

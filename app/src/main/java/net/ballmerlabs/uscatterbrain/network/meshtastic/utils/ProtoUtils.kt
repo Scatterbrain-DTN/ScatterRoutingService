@@ -12,7 +12,6 @@ import org.meshtastic.proto.MeshPacket
 import org.meshtastic.proto.PortNum
 import org.meshtastic.sdk.NodeId
 import org.meshtastic.sdk.RadioClient
-import org.meshtastic.sdk.send
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream

@@ -1,10 +1,6 @@
 package net.ballmerlabs.sbproto
 
-import com.google.devtools.ksp.containingFile
-import com.google.devtools.ksp.getAllSuperTypes
-import com.google.devtools.ksp.outerType
 import com.google.devtools.ksp.processing.CodeGenerator
-import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor

@@ -16,13 +16,11 @@ import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionScope
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopSessionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.desktop.IdentityImportState
-import net.ballmerlabs.uscatterbrain.network.desktop.PublicKeyPair
 import net.ballmerlabs.uscatterbrain.network.desktop.StateEntry
 import net.ballmerlabs.uscatterbrain.network.desktop.entity.DesktopClient
 import net.ballmerlabs.uscatterbrain.network.desktop.getAll
 import net.ballmerlabs.uscatterbrain.network.proto.CryptoMessage
 import net.ballmerlabs.uscatterbrain.network.proto.CryptoMessageParser
-import net.ballmerlabs.uscatterbrain.network.proto.SbEventsResponse
 import net.ballmerlabs.uscatterbrain.network.proto.GenerateIdentityCommand
 import net.ballmerlabs.uscatterbrain.network.proto.GenerateIdentityResponse
 import net.ballmerlabs.uscatterbrain.network.proto.GetEventsCommand
@@ -31,11 +29,12 @@ import net.ballmerlabs.uscatterbrain.network.proto.GetMessageCommand
 import net.ballmerlabs.uscatterbrain.network.proto.ImportIdentityCommand
 import net.ballmerlabs.uscatterbrain.network.proto.ImportIdentityResponse
 import net.ballmerlabs.uscatterbrain.network.proto.MessageResponse
+import net.ballmerlabs.uscatterbrain.network.proto.SbEventsResponse
 import net.ballmerlabs.uscatterbrain.network.proto.SendMessageCommand
 import net.ballmerlabs.uscatterbrain.network.proto.UnitResponse
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import scatterbrain.Scatterbrain
 import scatterbrain.Desktop.RespCode
+import scatterbrain.Scatterbrain
 import java.io.InputStream
 import java.net.Socket
 import java.util.UUID

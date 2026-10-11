@@ -3,8 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.db
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
-import okio.ByteString
-import okio.ByteString.Companion.toByteString
 import org.meshtastic.proto.ModuleSettings
 
 @Entity

@@ -10,7 +10,6 @@ import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
-import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 import scatterbrain.Scatterbrain.TypePrefix
 import scatterbrain.Uuid

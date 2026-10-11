@@ -2,11 +2,9 @@ package net.ballmerlabs.uscatterbrain
 
 import android.Manifest
 import android.content.Context
-import android.content.IntentFilter
 import android.net.wifi.WifiManager
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
-import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Parcel
 import android.util.Log
@@ -18,9 +16,6 @@ import androidx.test.rule.GrantPermissionRule
 import com.google.firebase.FirebaseApp
 import com.polidea.rxandroidble2.internal.RxBleLog
 import com.polidea.rxandroidble2.internal.operations.TimeoutConfiguration
-import com.polidea.rxandroidble2.mockrxandroidble.RxBleConnectionMock
-import com.polidea.rxandroidble2.mockrxandroidble.RxBleDeviceMock
-import com.polidea.rxandroidble2.mockrxandroidble.RxBleScanRecordMock
 import io.reactivex.Completable
 import io.reactivex.plugins.RxJavaPlugins
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
@@ -31,7 +26,6 @@ import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastoreImpl
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockAdvertiser
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockLeState
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
 import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.*
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
@@ -40,8 +34,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.mock
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException

@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain.network.proto
 import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import scatterbrain.Desktop
-import scatterbrain.Scatterbrain
 import scatterbrain.Scatterbrain.MessageType
 
 @SbPacket(messageType = MessageType.GENERATE_IDENTITY)

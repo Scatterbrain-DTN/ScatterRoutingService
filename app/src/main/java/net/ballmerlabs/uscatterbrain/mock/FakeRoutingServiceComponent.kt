@@ -2,9 +2,7 @@ package net.ballmerlabs.uscatterbrain.mock
 
 import android.annotation.SuppressLint
 import android.app.AlarmManager
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
-import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.ConnectivityManager
@@ -13,7 +11,11 @@ import android.net.wifi.p2p.WifiP2pManager
 import android.os.PowerManager
 import androidx.room.Room
 import com.polidea.rxandroidble2.RxBleClient
-import dagger.*
+import dagger.Binds
+import dagger.BindsInstance
+import dagger.Component
+import dagger.Module
+import dagger.Provides
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
@@ -47,7 +49,10 @@ import net.ballmerlabs.uscatterbrain.mock.network.wifidirect.MockWifiDirectBroad
 import net.ballmerlabs.uscatterbrain.mock.util.FakeBroadcaster
 import net.ballmerlabs.uscatterbrain.mock.util.FakeWakeLockProvider
 import net.ballmerlabs.uscatterbrain.mock.util.MockRouterPreferences
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.*
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.AdvertiserImpl
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeState
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.LeStateImpl
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServer
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.server.GattServerImpl
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
@@ -55,7 +60,10 @@ import net.ballmerlabs.uscatterbrain.network.desktop.DesktopApiSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProvider
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionProviderImpl
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
-import net.ballmerlabs.uscatterbrain.network.wifidirect.*
+import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
+import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
+import net.ballmerlabs.uscatterbrain.network.wifidirect.SocketProvider
+import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectBroadcastReceiver
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainSchedulerImpl
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper

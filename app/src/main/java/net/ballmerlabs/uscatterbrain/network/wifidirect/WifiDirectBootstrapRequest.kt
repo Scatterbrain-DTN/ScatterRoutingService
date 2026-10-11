@@ -4,6 +4,10 @@ import android.os.Bundle
 import android.os.Parcel
 import android.os.ParcelUuid
 import net.ballmerlabs.scatterproto.Provides
+import net.ballmerlabs.uscatterbrain.BootstrapRequestScope
+import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
+import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket.Companion.FROM
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket.Companion.KEY_BAND
@@ -12,13 +16,7 @@ import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket.Companion.KEY_O
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket.Companion.KEY_PASSPHRASE
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket.Companion.KEY_PORT
 import net.ballmerlabs.uscatterbrain.network.proto.UpgradePacket.Companion.KEY_ROLE
-import net.ballmerlabs.uscatterbrain.BootstrapRequestScope
-import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
-
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
-import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BootstrapRequest
 import scatterbrain.Bootstrap
-import scatterbrain.Scatterbrain
 import java.net.InetAddress
 import java.util.UUID
 import javax.inject.Inject

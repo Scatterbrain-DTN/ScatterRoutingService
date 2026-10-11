@@ -10,7 +10,6 @@ import net.ballmerlabs.uscatterbrain.network.desktop.DesktopMessage
 import net.ballmerlabs.uscatterbrain.network.proto.BlockHeaderPacket
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
 import scatterbrain.Meshtastic
-import scatterbrain.Scatterbrain
 import scatterbrain.Transfer
 import java.io.File
 import java.util.Date

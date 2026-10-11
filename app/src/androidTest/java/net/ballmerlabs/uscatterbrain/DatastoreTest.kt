@@ -1,6 +1,5 @@
 package net.ballmerlabs.uscatterbrain
 
-import android.bluetooth.BluetoothGattServerCallback
 import android.content.Context
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
@@ -9,7 +8,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.protobuf.ByteString
-import io.ktor.util.moveToByteArray
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Completable
 import io.reactivex.Observable
@@ -18,39 +16,44 @@ import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.PublishSubject
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.io.bytestring.getByteString
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
-import net.ballmerlabs.scatterproto.*
-import net.ballmerlabs.uscatterbrain.db.*
+import net.ballmerlabs.scatterproto.DEFAULT_BLOCKSIZE
+import net.ballmerlabs.uscatterbrain.db.Datastore
+import net.ballmerlabs.uscatterbrain.db.RouterPreferencesImpl
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastoreImpl
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.db.entities.DiskFile
 import net.ballmerlabs.uscatterbrain.db.entities.GlobalHash
 import net.ballmerlabs.uscatterbrain.db.entities.HashlessScatterMessage
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
+import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.db.migration.Migrate9
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockAdvertiser
-import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockGattServerConnection
 import net.ballmerlabs.uscatterbrain.mock.network.bluetoothle.MockLeState
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.compare
-import net.ballmerlabs.uscatterbrain.network.proto.*
+import net.ballmerlabs.uscatterbrain.network.proto.DeclareHashesPacket
+import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import net.ballmerlabs.uscatterbrain.network.wifidirect.WifiDirectRadioModule
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.toBytes
 import okio.ByteString.Companion.decodeHex
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.mock
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.BitSet
+import java.util.Date
+import java.util.UUID
 import java.util.concurrent.TimeoutException
-import kotlin.random.Random
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 class DatastoreTest {

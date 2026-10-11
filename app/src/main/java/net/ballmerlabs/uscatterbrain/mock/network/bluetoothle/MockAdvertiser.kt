@@ -1,11 +1,8 @@
 package net.ballmerlabs.uscatterbrain.mock.network.bluetoothle
 
 import android.app.PendingIntent
-import io.ktor.util.Digest
-import io.ktor.util.build
 import io.reactivex.Completable
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
-import net.ballmerlabs.uscatterbrain.util.toBytes
 import org.mockito.kotlin.mock
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference

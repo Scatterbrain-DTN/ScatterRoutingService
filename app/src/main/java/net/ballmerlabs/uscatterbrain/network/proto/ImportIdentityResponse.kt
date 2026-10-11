@@ -5,10 +5,9 @@ import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid
 import scatterbrain.Desktop
-import scatterbrain.Scatterbrain
 import scatterbrain.Desktop.ImportIdentityResponse.FinalResponse
-import scatterbrain.Scatterbrain.MessageType
 import scatterbrain.Desktop.RespCode
+import scatterbrain.Scatterbrain.MessageType
 
 data class FinalResult(
     val handle: java.util.UUID,

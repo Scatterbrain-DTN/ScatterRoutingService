@@ -6,7 +6,6 @@ import android.os.Parcelable
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.uscatterbrain.network.desktop.ACTION_DESKTOP_EVENT
 import net.ballmerlabs.uscatterbrain.network.desktop.Broadcaster
-import net.ballmerlabs.uscatterbrain.network.desktop.DesktopAddr
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopAddrs
 import net.ballmerlabs.uscatterbrain.network.desktop.DesktopPower
 import net.ballmerlabs.uscatterbrain.network.desktop.EXTRA_APPS

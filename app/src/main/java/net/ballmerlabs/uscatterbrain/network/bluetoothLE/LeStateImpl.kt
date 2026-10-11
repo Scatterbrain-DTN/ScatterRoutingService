@@ -10,16 +10,13 @@ import com.polidea.rxandroidble2.RxBlePhyOption
 import com.polidea.rxandroidble2.Timeout
 import com.polidea.rxandroidble2.exceptions.BleAlreadyConnectedException
 import com.polidea.rxandroidble2.exceptions.BleDisconnectedException
-import com.polidea.rxandroidble2.exceptions.BleGattCallbackTimeoutException
 import com.polidea.rxandroidble2.scan.ScanResult
 import io.reactivex.Completable
-import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import io.reactivex.subjects.BehaviorSubject
-import io.reactivex.subjects.CompletableSubject
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterproto.bytes2uuid
 import net.ballmerlabs.scatterproto.uuid2bytes
@@ -38,17 +35,15 @@ import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import net.ballmerlabs.uscatterbrain.util.toBytes
 import net.ballmerlabs.uscatterbrain.util.toUuid
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Provider
 import javax.inject.Singleton
-import kotlin.jvm.Throws
 
 @Singleton
 class LeStateImpl @Inject constructor(

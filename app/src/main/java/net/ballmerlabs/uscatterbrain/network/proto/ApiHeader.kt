@@ -1,11 +1,12 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain
-import java.util.UUID
-import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.scatterproto.ScatterSerializable
+import net.ballmerlabs.scatterproto.toProto
+import net.ballmerlabs.scatterproto.toUuid
 import scatterbrain.Desktop
 import scatterbrain.Scatterbrain.MessageType
+import java.util.UUID
 
 @SbPacket(messageType = MessageType.API_HEADER)
 class ApiHeader(

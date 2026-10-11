@@ -3,7 +3,6 @@ package net.ballmerlabs.uscatterbrain
 import android.net.Uri
 import io.reactivex.Completable
 import io.reactivex.Single
-import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore

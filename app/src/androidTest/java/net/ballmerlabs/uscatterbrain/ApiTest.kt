@@ -11,16 +11,14 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
-import net.ballmerlabs.scatterproto.sanitizeFilename
 import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
-import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.proto.IdentityPacket
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.TimeoutException
 import kotlin.random.Random
 

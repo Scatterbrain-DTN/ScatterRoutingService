@@ -11,20 +11,16 @@ import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.Hash
 import com.goterl.lazysodium.interfaces.Sign
 import io.ktor.util.moveToByteArray
-import io.reactivex.BackpressureStrategy
 import io.reactivex.Flowable
-import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.plugins.RxJavaPlugins
-import io.reactivex.processors.PublishProcessor
 import io.reactivex.schedulers.Schedulers
-import io.reactivex.subjects.PublishSubject
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import net.ballmerlabs.scatterbrainsdk.ScatterMessage
-import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.scatterproto.*
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
+import net.ballmerlabs.uscatterbrain.db.entities.ApiIdentity
 import net.ballmerlabs.uscatterbrain.db.entities.DbMessage
 import net.ballmerlabs.uscatterbrain.db.entities.DiskFile
 import net.ballmerlabs.uscatterbrain.db.entities.GlobalHash
@@ -33,13 +29,6 @@ import net.ballmerlabs.uscatterbrain.db.getGlobalHash
 import net.ballmerlabs.uscatterbrain.mock.DaggerFakeDbRoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.BluetoothLEModule
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
-import scatterbrain.Scatterbrain
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.util.*
 import net.ballmerlabs.uscatterbrain.network.proto.*
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.GroupHandle
@@ -54,12 +43,18 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
 import scatterbrain.Bootstrap
 import scatterbrain.Merkle
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.ByteBuffer
+import java.util.*
 
 @RunWith(AndroidJUnit4ClassRunner::class)
 class ProtocolTests {

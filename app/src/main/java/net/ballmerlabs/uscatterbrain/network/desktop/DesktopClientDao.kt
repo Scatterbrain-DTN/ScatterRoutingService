@@ -8,12 +8,10 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
-import com.goterl.lazysodium.interfaces.KeyExchange
 import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Single
 import net.ballmerlabs.uscatterbrain.db.entities.ClientApp
-import net.ballmerlabs.uscatterbrain.db.entities.JustFingerprint
 import net.ballmerlabs.uscatterbrain.db.entities.JustPackageName
 import net.ballmerlabs.uscatterbrain.db.entities.JustPackageSig
 import net.ballmerlabs.uscatterbrain.network.b64

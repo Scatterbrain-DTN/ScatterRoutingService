@@ -2,7 +2,6 @@ package net.ballmerlabs.uscatterbrain
 
 import android.os.Build
 import net.ballmerlabs.scatterproto.sanitizeFilename
-import okio.ByteString.Companion.encodeUtf8
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

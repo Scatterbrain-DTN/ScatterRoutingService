@@ -6,12 +6,10 @@ import android.net.nsd.NsdServiceInfo
 import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.Scheduler
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.PortSocket
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.lang.IllegalArgumentException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Named

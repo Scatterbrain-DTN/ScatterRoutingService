@@ -1,11 +1,14 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.net.wifi.WpsInfo
-import dagger.*
+import dagger.Binds
+import dagger.BindsInstance
+import dagger.Module
+import dagger.Provides
+import dagger.Subcomponent
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfig
 import net.ballmerlabs.uscatterbrain.network.wifidirect.FakeWifiP2pConfigImpl
 import javax.inject.Named
-import javax.inject.Singleton
 
 
 @Subcomponent(modules = [WifiDirectInfoSubcomponent.WifiDirectDaggerModule::class])

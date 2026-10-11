@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import io.reactivex.Completable
-import io.reactivex.Flowable
 
 interface MeshtasticRadioModule {
     fun getSessionCount(): Int

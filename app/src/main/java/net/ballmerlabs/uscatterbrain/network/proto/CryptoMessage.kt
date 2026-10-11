@@ -1,17 +1,14 @@
 package net.ballmerlabs.uscatterbrain.network.proto
 
-import android.util.Log
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
 import com.goterl.lazysodium.interfaces.SecretBox
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain
-
-import java.io.ByteArrayInputStream
-import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import scatterbrain.Desktop
 import scatterbrain.Scatterbrain.MessageType
+import java.io.ByteArrayInputStream
 
 @SbPacket(messageType = MessageType.CRYPTO_MESSAGE)
 class CryptoMessage(

@@ -1,13 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.desktop
 
-import android.os.Parcel
-import android.os.ParcelUuid
 import com.google.protobuf.ByteString
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableMap
-import kotlinx.collections.immutable.toImmutableSet
-import net.ballmerlabs.sbproto.SbPacket
-import net.ballmerlabs.scatterbrainsdk.internal.writeParcelableMap
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.scatterproto.toProto
 import net.ballmerlabs.scatterproto.toUuid

@@ -8,12 +8,8 @@ import androidx.room.Query
 import androidx.room.Transaction
 import io.reactivex.Completable
 import io.reactivex.Maybe
-import io.reactivex.Observable
 import io.reactivex.Single
-import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
-import net.ballmerlabs.uscatterbrain.network.compare
 import net.ballmerlabs.uscatterbrain.util.scatterLog
-import java.util.BitSet
 import java.util.Date
 import java.util.UUID
 

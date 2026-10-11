@@ -8,7 +8,6 @@ import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 
 fun <T> Observable<T>.retryDelay(count: Int, seconds: Int): Observable<T> {
     return this

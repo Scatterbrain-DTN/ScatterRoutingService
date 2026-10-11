@@ -5,7 +5,6 @@ import net.ballmerlabs.sbproto.SbPacket
 import net.ballmerlabs.scatterproto.MAX_DECLAREHASHES
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import scatterbrain.Merkle
-import scatterbrain.Scatterbrain
 import scatterbrain.Merkle.DeclareHashesMode
 import scatterbrain.Scatterbrain.MessageType
 

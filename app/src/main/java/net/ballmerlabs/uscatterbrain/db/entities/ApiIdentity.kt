@@ -7,13 +7,12 @@ import com.sun.jna.Pointer
 import com.sun.jna.ptr.PointerByReference
 import kotlinx.collections.immutable.toImmutableMap
 import net.ballmerlabs.scatterbrainsdk.Identity
-import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.scatterproto.PROTOBUF_PRIVKEY_KEY
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.util.hashAsUUID
 import java.util.SortedSet
 import java.util.TreeSet
 import java.util.UUID
-import kotlin.text.get
 
 /**
  * ApiIdentity is a mutable handle to an identity that allows more privileged

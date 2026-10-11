@@ -1,7 +1,6 @@
 package net.ballmerlabs.uscatterbrain.util
 
 import android.os.Build
-import io.reactivex.Flowable
 import io.reactivex.Observable
 import org.junit.Test
 import org.junit.runner.RunWith

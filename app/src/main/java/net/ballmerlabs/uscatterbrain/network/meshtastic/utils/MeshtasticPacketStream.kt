@@ -4,10 +4,7 @@ import androidx.room.concurrent.AtomicInt
 import com.google.protobuf.MessageLite
 import io.reactivex.Flowable
 import io.reactivex.Maybe
-import io.reactivex.Observable
-import io.reactivex.Observer
 import io.reactivex.processors.PublishProcessor
-import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import okio.withLock

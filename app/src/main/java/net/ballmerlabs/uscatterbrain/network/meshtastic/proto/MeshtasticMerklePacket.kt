@@ -4,7 +4,6 @@ import com.google.protobuf.kotlin.toByteString
 import io.reactivex.Observable
 import io.reactivex.Single
 import net.ballmerlabs.sbproto.SbPacket
-import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.db.entities.MerkleBundle
 import net.ballmerlabs.uscatterbrain.network.LibsodiumInterface
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MESHTASTIC_MAX_LEN
@@ -12,7 +11,6 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.SeqLike
 import scatterbrain.Meshtastic.MeshtasticMerkle
 import scatterbrain.Scatterbrain.MessageType
 import kotlin.math.floor
-import kotlin.math.sqrt
 
 @SbPacket(messageType = MessageType.MESHTASTIC_MERKLE)
 class MeshtasticMerklePacket(

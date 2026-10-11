@@ -1,18 +1,15 @@
 package net.ballmerlabs.uscatterbrain.network.desktop
 
 import android.content.Context
-import android.content.Intent
 import android.os.Parcel
 import android.os.Parcelable
 import io.reactivex.subjects.PublishSubject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
-import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterbrainsdk.internal.readBool
 import net.ballmerlabs.scatterbrainsdk.internal.writeBool
 import net.ballmerlabs.uscatterbrain.network.proto.DesktopEvent
 import net.ballmerlabs.uscatterbrain.network.proto.ImportIdentityResponse
-import net.ballmerlabs.uscatterbrain.util.scatterLog
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue

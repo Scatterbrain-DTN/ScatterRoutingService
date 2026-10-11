@@ -2,12 +2,13 @@ package net.ballmerlabs.uscatterbrain.network.proto
 
 import com.google.protobuf.ByteString
 import net.ballmerlabs.sbproto.SbPacket
-import scatterbrain.Scatterbrain
-import scatterbrain.Transfer.RoutingMetadata
-import java.util.UUID
-import net.ballmerlabs.scatterproto.*
+import net.ballmerlabs.scatterproto.MAX_METADATA
+import net.ballmerlabs.scatterproto.MAX_METADATA_VALUE
+import net.ballmerlabs.scatterproto.ScatterSerializable
 import scatterbrain.Scatterbrain.MessageType
+import scatterbrain.Transfer.RoutingMetadata
 import scatterbrain.Uuid
+import java.util.UUID
 
 /**
  * wrapper class for RoutingMetadata protobuf message

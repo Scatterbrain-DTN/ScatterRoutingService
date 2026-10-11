@@ -1,9 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.bluetoothLE
 
 import android.os.ParcelUuid
-import com.akaita.java.rxjava2debug.extensions.RxJavaAssemblyException
 import com.polidea.rxandroidble2.scan.ScanResult
-import io.ktor.util.encodeBase64
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.disposables.Disposable
