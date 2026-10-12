@@ -7,8 +7,10 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
+import net.ballmerlabs.scatterbrainsdk.MeshtasticMode
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.sdk.transport.ble.BleTransport
 import org.meshtastic.sdk.transport.tcp.TcpTransport
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
@@ -27,10 +29,19 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
 
     private fun connectBinder(config: MeshtasticConnectionConfig): Observable<MeshtasticConnectionSubcomponent> {
         return Observable.defer {
-            val module = builder
-                .name("main")
-                .client(TcpTransport("localhost"))
-                .build()!!
+            val builder = when(config.mode) {
+                MeshtasticMode.BLUETOOTH -> {
+                    log.v("building BLUETOOTH meshtastic client")
+                    builder.name("main")
+                        .client(BleTransport(config.device!!.address))
+                }
+                MeshtasticMode.TCP -> {
+                    log.v("building TCP meshtastic client")
+                    builder.name("main")
+                        .client(TcpTransport(host = config.host!!, port = config.port!!))
+                }
+            }
+            val module = builder.build()!!
 
             Observable.just(module)
                 .mergeWith(module.module().handlePackets())
