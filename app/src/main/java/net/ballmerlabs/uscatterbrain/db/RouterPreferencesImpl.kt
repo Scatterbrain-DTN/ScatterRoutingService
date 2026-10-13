@@ -1,19 +1,25 @@
 package net.ballmerlabs.uscatterbrain.db
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import io.reactivex.Completable
 import io.reactivex.Maybe
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.rx2.rxCompletable
 import kotlinx.coroutines.rx2.rxMaybe
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import javax.inject.Inject
@@ -26,7 +32,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class RouterPreferencesImpl @Inject constructor(
-        private val preferences: DataStore<Preferences>
+    private val preferences: DataStore<Preferences>
 ) : RouterPreferences {
     override fun getBoolean(key: String, def: Boolean?): Maybe<Boolean> {
         val k = booleanPreferencesKey(key)
@@ -82,6 +88,12 @@ class RouterPreferencesImpl @Inject constructor(
 
     override fun <T> contains(key: Preferences.Key<T>): Boolean {
         return runBlocking { preferences.data.map { pref -> pref.contains(key) }.first() }
+    }
+
+    override fun edit(func: suspend (MutablePreferences) -> Unit): Completable {
+        return rxCompletable {
+                preferences.edit { pref -> func(pref) }
+        }
     }
 
 }

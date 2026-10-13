@@ -127,7 +127,7 @@ dependencies {
     androidTestImplementation project(':scatterbrainSDK')
     implementation libs.rxrelay
     implementation libs.rxdogtag
-    implementation libs.rxandroidble
+    api libs.rxandroidble
     implementation libs.kotlinx.collections.immutable
 
     testImplementation libs.mockclient

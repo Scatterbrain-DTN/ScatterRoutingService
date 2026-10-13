@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 
 import com.jakewharton.rxrelay2.BehaviorRelay
+import io.ktor.http.Url
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
@@ -12,6 +13,8 @@ import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import org.meshtastic.sdk.transport.ble.BleTransport
 import org.meshtastic.sdk.transport.tcp.TcpTransport
+import java.net.InetSocketAddress
+import java.net.SocketAddress
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,12 +36,13 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
                 MeshtasticMode.BLUETOOTH -> {
                     log.v("building BLUETOOTH meshtastic client")
                     builder.name("main")
-                        .client(BleTransport(config.device!!.address))
+                        .client(BleTransport(config.connection))
                 }
                 MeshtasticMode.TCP -> {
                     log.v("building TCP meshtastic client")
+                    val url = Url(config.connection)
                     builder.name("main")
-                        .client(TcpTransport(host = config.host!!, port = config.port!!))
+                        .client(TcpTransport(host = url.host, port = url.port))
                 }
             }
             val module = builder.build()!!

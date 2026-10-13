@@ -1,9 +1,11 @@
 package net.ballmerlabs.uscatterbrain
 
 import android.content.Context
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import io.reactivex.Completable
 import io.reactivex.Maybe
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
@@ -56,6 +58,7 @@ interface RouterPreferences {
     fun getInt(key: String, def: Int?): Maybe<Int>
     fun getString(key: String, def: String?): Maybe<String>
     fun getStringSet(key: String, def: Set<String?>?): Maybe<Set<String?>>
+    fun edit(func: suspend (MutablePreferences) -> Unit): Completable
     val all: Maybe<Map<Preferences.Key<*>, Any>>
     operator fun <T> contains(key: Preferences.Key<T>): Boolean
 

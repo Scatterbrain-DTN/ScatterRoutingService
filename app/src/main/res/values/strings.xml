@@ -15,14 +15,22 @@
     <string name="powersave_active">active</string>
     <string name="powersave_passive">passive</string>
     <string name="powersave_opportunistic">opportunistic</string>
+    <string name="pref_meshtastic_mode">meshtastic_mode</string>
+    <string name="meshtastic_autoconnect">meshtastic_autoconnect</string>
     <string-array name="meshtastic_options">
         <item>optin</item>
         <item>all</item>
     </string-array>
 
+    <string-array name="meshtastic_modes">
+        <item>tcp</item>
+        <item>ble</item>
+    </string-array>
+
     <string-array name="meshtastic_descriptions">
         <item>Opt-in</item>
         <item>All small messages</item>
+        <item>Disabled</item>
     </string-array>
 
     <!-- wakelock -->

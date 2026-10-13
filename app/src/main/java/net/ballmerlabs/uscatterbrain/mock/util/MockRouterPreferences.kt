@@ -1,8 +1,12 @@
 package net.ballmerlabs.uscatterbrain.mock.util
 
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
+import io.reactivex.Completable
 import io.reactivex.Maybe
+import kotlinx.coroutines.rx2.rxCompletable
 import net.ballmerlabs.uscatterbrain.RouterPreferences
+import org.mockito.kotlin.mock
 
 class MockRouterPreferences: RouterPreferences {
     private val data = mutableMapOf<String, Any?>()
@@ -45,5 +49,11 @@ class MockRouterPreferences: RouterPreferences {
 
     override fun <T> contains(key: Preferences.Key<T>): Boolean {
         return data.containsKey(key.name)
+    }
+
+    override fun edit(func: suspend (MutablePreferences) -> Unit): Completable {
+        return rxCompletable {
+            func(mock())
+        }
     }
 }

@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.net.Uri
 import android.os.RemoteException
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.akaita.java.rxjava2debug.extensions.RxJavaAssemblyException
 import com.goterl.lazysodium.interfaces.Sign
 import com.sun.jna.Pointer
@@ -201,10 +202,13 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     override fun connectMeshtastic(config: MeshtasticConnectionConfig): Single<Boolean> {
         meshtasticBinderProvider.connectBinderAsync(config)
-        return meshtasticBinderProvider.awaitConnection().map {
-            LOG.v("meshtastic binder CONNECTED!")
-            true
-        }
+        val key = context.getString(R.string.meshtastic_autoconnect)
+        return prefs.edit { prefs -> prefs[stringPreferencesKey(key)] = config.connection }
+            .andThen(meshtasticBinderProvider.awaitConnection())
+            .map {
+                LOG.v("meshtastic binder CONNECTED!")
+                true
+            }
     }
 
     override fun sendAndSignMessage(
