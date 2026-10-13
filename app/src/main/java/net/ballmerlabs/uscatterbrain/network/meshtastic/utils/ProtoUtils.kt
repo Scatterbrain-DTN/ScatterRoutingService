@@ -52,14 +52,14 @@ fun ByteString.fromMeshtastic(): ScatterSerializable.Companion.TypedPacket {
     return ret
 }
 
-fun <T: ScatterSerializable<U>, U: MessageLite> T.toPacket(message: T, to: Int?): MeshPacket {
-    val bytes = message.toMeshtastic()
+fun <T: ScatterSerializable<U>, U: MessageLite> T.toPacket(to: Int?): MeshPacket {
+    val bytes = this.toMeshtastic()
     val log by scatterLog()
     return MeshPacket.build {
         this.to = to ?: 0
         decoded = Data.build {
             portnum = PortNum.fromValue(PORT_NUMBER)!!
-            payload = bytes . toByteString ()
+            payload = bytes.toByteString()
          }
     }
 }
