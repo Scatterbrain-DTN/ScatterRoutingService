@@ -10,6 +10,7 @@ import io.reactivex.subjects.BehaviorSubject
 import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
 import net.ballmerlabs.scatterbrainsdk.MeshtasticMode
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
+import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import org.meshtastic.sdk.transport.ble.BleTransport
 import org.meshtastic.sdk.transport.tcp.TcpTransport
@@ -48,6 +49,9 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
             val module = builder.build()!!
 
             Observable.just(module)
+                .flatMapSingle { v -> v.module().connect()
+                    .retryDelay(5, 5)
+                    .andThen(Single.just(v)) }
                 .mergeWith(module.module().handlePackets())
         }
     }

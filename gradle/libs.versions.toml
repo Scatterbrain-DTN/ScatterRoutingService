@@ -57,6 +57,7 @@ ktor-server-websockets = "3.5.0"
 legacySupportV4 = "1.0.0"
 lifecycle = "2.11.0"
 lifecycle-service = "2.11.0"
+lifecycleReactivestreamsKtx = "2.11.0"
 material = "1.14.0"
 material3 = "1.4.0"
 mgrs = "2.1.3"
@@ -92,8 +93,8 @@ rxjava2Extras = "0.2.2"
 rxjava2ExtrasVersion = "0.2.2"
 rxJavaVersion = "2.2.21"
 rxrelay = "2.1.1"
-sdkCore = "0.1.0"
-sdkStorageSqldelight = "0.1.0"
+sdkCore = "0.2.0"
+sdkStorageSqldelight = "0.2.0"
 sdkTransportTcp = "0.2.0"
 security-crypto = "1.1.0"
 sqliteAndroid = "3.49.0"
@@ -113,6 +114,7 @@ zxing-android-embedded = "4.3.0"
 zxing-core = "3.5.4" #do not update
 
 [libraries]
+androidx-lifecycle-reactivestreams-ktx = { module = "androidx.lifecycle:lifecycle-reactivestreams-ktx", version.ref = "lifecycleReactivestreamsKtx" }
 gradle = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 accompanist-permissions = { module = "com.google.accompanist:accompanist-permissions", version.ref = "accompanistPermissions" }

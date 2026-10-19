@@ -1,15 +1,18 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import io.reactivex.Completable
+import io.reactivex.Flowable
 import io.reactivex.Scheduler
 import kotlinx.coroutines.rx2.asFlowable
 import kotlinx.coroutines.rx2.rxCompletable
+import kotlinx.coroutines.rx2.rxSingle
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.toPacket
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.sdk.ConnectionState
 import org.meshtastic.sdk.RadioClient
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -72,6 +75,17 @@ class MeshtasticRadioModuleImpl @Inject constructor(
 
     override fun getSessionCount(): Int {
         return currentTransactions.size
+    }
+
+    override fun getConnection(): Flowable<ConnectionState> {
+        return radioClient.connection.asFlowable()
+    }
+
+
+    override fun connect(): Completable {
+        return rxCompletable {
+            radioClient.connect()
+        }
     }
 
 
