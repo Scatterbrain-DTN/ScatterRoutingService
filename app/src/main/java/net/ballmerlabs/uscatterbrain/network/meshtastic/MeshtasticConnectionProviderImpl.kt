@@ -14,8 +14,7 @@ import net.ballmerlabs.uscatterbrain.util.retryDelay
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import org.meshtastic.sdk.transport.ble.BleTransport
 import org.meshtastic.sdk.transport.tcp.TcpTransport
-import java.net.InetSocketAddress
-import java.net.SocketAddress
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -49,10 +48,14 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
             val module = builder.build()!!
 
             Observable.just(module)
-                .flatMapSingle { v -> v.module().connect()
-                    .retryDelay(5, 5)
-                    .andThen(Single.just(v)) }
-                .mergeWith(module.module().handlePackets())
+                .flatMap { v ->
+                    Observable.just(v)
+                        .mergeWith(v.module()
+                            .connect().timeout(20, TimeUnit.SECONDS)
+                            .retryDelay(5, 5))
+//                    .mergeWith(module.module().handlePackets())
+                }
+
         }
     }
 
@@ -73,7 +76,8 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
             when(v) {
                 null -> {
                     val obs = BehaviorSubject.create<MeshtasticConnectionSubcomponent>()
-                    connectBinder(config).subscribe(obs)
+                    connectBinder(config)
+                        .subscribe(obs)
                     obs
                 }
                 else -> v

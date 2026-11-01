@@ -3,6 +3,7 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Scheduler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.rx2.asFlowable
 import kotlinx.coroutines.rx2.rxCompletable
 import kotlinx.coroutines.rx2.rxSingle
@@ -27,6 +28,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     val database: Datastore,
     val radioClient: RadioClient,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
+    @Named(MeshtasticConnectionSubcomponent.NamedSchedulers.COROUTINE_CONTEXT) val coroutineScope: CoroutineScope
 ) : MeshtasticRadioModule {
 
 
@@ -84,8 +86,9 @@ class MeshtasticRadioModuleImpl @Inject constructor(
 
     override fun connect(): Completable {
         return rxCompletable {
+            log.w("attempting meshtastic connection")
             radioClient.connect()
-        }
+        }.doOnComplete { log.w("meshtastic connected!") }
     }
 
 

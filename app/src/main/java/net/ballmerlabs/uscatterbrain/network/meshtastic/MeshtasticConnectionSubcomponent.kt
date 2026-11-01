@@ -8,6 +8,9 @@ import dagger.Subcomponent
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.rx2.rxCompletable
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.db.Datastore
@@ -16,6 +19,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.db.RoomDeviceStorage
 import org.meshtastic.sdk.RadioClient
 import org.meshtastic.sdk.RadioTransport
 import javax.inject.Named
+import kotlin.coroutines.CoroutineContext
 
 @MeshtasticConnectionScope
 @Subcomponent(modules = [
@@ -26,6 +30,7 @@ interface MeshtasticConnectionSubcomponent {
     object NamedSchedulers {
         const val BINDER_SCHEDULER = "meshtastic-binder"
         const val CALLBACK_SCHEDULER = "meshtastic-callbacks"
+        const val COROUTINE_CONTEXT = "meshtastic-coroutine-context"
     }
 
     companion object {
@@ -61,10 +66,20 @@ interface MeshtasticConnectionSubcomponent {
 
             @Provides
             @MeshtasticConnectionScope
-            fun providesRadioClient(transport: RadioTransport, storage: RoomDeviceStorage): RadioClient {
+            @Named(NamedSchedulers.COROUTINE_CONTEXT)
+            fun providesCoroutineContext(): CoroutineScope {
+                return CoroutineScope(Dispatchers.Default)
+            }
+
+
+            @Provides
+            @MeshtasticConnectionScope
+            fun providesRadioClient(transport: RadioTransport, storage: RoomDeviceStorage, @Named(
+                NamedSchedulers.COROUTINE_CONTEXT) coroutineScope: CoroutineScope): RadioClient {
                 return RadioClient.Builder()
-                    .autoReconnect(true)
+                    .autoReconnect(false)
                     .storage(storage)
+                    .coroutineContext(coroutineScope.coroutineContext)
                     .transport(transport)
                     .build()
             }

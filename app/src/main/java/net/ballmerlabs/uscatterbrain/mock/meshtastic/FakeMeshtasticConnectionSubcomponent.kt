@@ -10,6 +10,9 @@ import dagger.Provides
 import dagger.Subcomponent
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent.NamedSchedulers
@@ -52,6 +55,14 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
             fun providesBinderScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.BINDER_SCHEDULER))
             }
+
+            @Provides
+            @MeshtasticConnectionScope
+            @Named(NamedSchedulers.COROUTINE_CONTEXT)
+            fun providesCoroutineContext(): CoroutineScope {
+                return CoroutineScope( Dispatchers.Unconfined)
+            }
+
 
             @Provides
             @MeshtasticConnectionScope
