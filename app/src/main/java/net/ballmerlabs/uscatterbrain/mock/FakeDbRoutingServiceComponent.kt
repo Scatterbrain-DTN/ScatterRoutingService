@@ -17,12 +17,15 @@ import dagger.Provides
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.BroadcasterImpl
 import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackend
 import net.ballmerlabs.uscatterbrain.RoutingServiceBackendImpl
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.WakeLockProvider
 import net.ballmerlabs.uscatterbrain.WakeLockProviderImpl
@@ -217,6 +220,14 @@ interface FakeDbRoutingServiceComponent {
             @Named(NamedSchedulers.DATABASE)
             fun provideDatabaseScheduler(): Scheduler {
                 return RxJavaPlugins.createComputationScheduler(ScatterbrainThreadFactory(NamedSchedulers.DATABASE))
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_COROUTINE)
+            fun providesGlobalCoroutineScope(): CoroutineScope {
+                return CoroutineScope(Dispatchers.Default)
             }
 
             @Provides

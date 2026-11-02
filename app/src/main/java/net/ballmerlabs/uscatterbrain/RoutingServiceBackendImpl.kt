@@ -17,6 +17,7 @@ import io.reactivex.Scheduler
 import io.reactivex.Single
 import io.reactivex.disposables.Disposable
 import io.reactivex.plugins.RxJavaPlugins
+import kotlinx.coroutines.rx2.rxCompletable
 import net.ballmerlabs.scatterbrainsdk.HandshakeResult
 import net.ballmerlabs.scatterbrainsdk.Identity
 import net.ballmerlabs.scatterbrainsdk.MeshtasticConnectionConfig
@@ -358,7 +359,10 @@ class RoutingServiceBackendImpl @Inject constructor(
                         .doOnError { e -> LOG.v("failed to get meshtastic connection $e") }
                         .doOnComplete { LOG.v("meshtastic getConnection complete") }
                         .flatMapCompletable { c ->
-                            c.module().handshake()
+                            //TODO: maybe not?
+                            rxCompletable {
+                                c.module().handshake()
+                            }
                         }
                 )
                 .timeout(
@@ -372,7 +376,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     override fun syncMeshtastic(): Completable {
         return meshtasticBinderProvider.getConnection()
             .flatMapCompletable { c ->
-                datastore.rehashMerkle().andThen(c.module().handshake())
+                datastore.rehashMerkle().andThen(rxCompletable { c.module().handshake() })
             }
     }
 

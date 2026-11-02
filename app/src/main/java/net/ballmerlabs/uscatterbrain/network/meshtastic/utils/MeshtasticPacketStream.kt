@@ -48,7 +48,7 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
             close()
     }
 
-    fun onPacket(packet: T): Maybe<ScatterSerializable<*>> {
+    fun onPacket(packet: T) {
         lock.withLock {
             if (obs.hasSubscribers()) {
                 pushPacket(packet)
@@ -56,7 +56,6 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
                 waiting.add(packet)
             }
 
-            return Maybe.empty()
         }
     }
 

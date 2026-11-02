@@ -22,6 +22,7 @@ import io.reactivex.schedulers.Schedulers
 import io.requery.android.database.sqlite.RequerySQLiteOpenHelperFactory
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent.RoutingServiceModule
 import net.ballmerlabs.uscatterbrain.db.DATABASE_NAME
@@ -82,6 +83,7 @@ interface RoutingServiceComponent {
         const val TIMEOUT = "global-timeout"
         const val BLE_ADVERTISE = "ble-advertise"
         const val WIFI_CONNECT = "wifi-connect"
+        const val GLOBAL_COROUTINE = "global-coroutine-scope"
     }
 
     object NamedExecutors {
@@ -280,6 +282,14 @@ interface RoutingServiceComponent {
             @Singleton
             fun providesConnectivityManager(context: Context): ConnectivityManager {
                 return context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(NamedSchedulers.GLOBAL_COROUTINE)
+            fun providesGlobalCoroutineScope(): CoroutineScope {
+                return CoroutineScope(Dispatchers.Default)
             }
 
             @Provides

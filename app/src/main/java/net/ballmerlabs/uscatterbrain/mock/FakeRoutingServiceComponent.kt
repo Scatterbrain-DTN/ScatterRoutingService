@@ -19,6 +19,8 @@ import dagger.Provides
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import net.ballmerlabs.uscatterbrain.BootstrapRequestSubcomponent
 import net.ballmerlabs.uscatterbrain.GattServerConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.RouterPreferences
@@ -227,6 +229,14 @@ interface FakeRoutingServiceComponent {
             @Named("band")
             fun providesBand(): Int {
                 return FakeWifiP2pConfig.GROUP_OWNER_BAND_2GHZ
+            }
+
+            @Provides
+            @JvmStatic
+            @Singleton
+            @Named(RoutingServiceComponent.NamedSchedulers.GLOBAL_COROUTINE)
+            fun providesGlobalCoroutineScope(): CoroutineScope {
+                return CoroutineScope(Dispatchers.Default)
             }
 
             @Provides

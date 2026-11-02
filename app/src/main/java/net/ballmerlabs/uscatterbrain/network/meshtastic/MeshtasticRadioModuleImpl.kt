@@ -17,6 +17,7 @@ import org.meshtastic.sdk.ConnectionState
 import org.meshtastic.sdk.RadioClient
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Flow
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -79,35 +80,28 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         return currentTransactions.size
     }
 
-    override fun getConnection(): Flowable<ConnectionState> {
+    override suspend fun getConnection(): Flowable<ConnectionState> {
         return radioClient.connection.asFlowable()
     }
 
 
-    override fun connect(): Completable {
-        return rxCompletable {
-            log.w("attempting meshtastic connection")
-            radioClient.connect()
-        }.doOnComplete { log.w("meshtastic connected!") }
+    override suspend fun connect() {
+        log.w("attempting meshtastic connection")
+        radioClient.connect()
+        log.w("meshtastic connected!")
     }
 
 
 
-    override fun handlePackets(): Completable {
-        return radioClient.packets.asFlowable()
-            .concatMapCompletable { packet ->
-                startSession(packet.from).state().handlePacket(packet)
-                    .concatMapCompletable { reply ->
-                       rxCompletable {
-                           radioClient.send(reply.toPacket(packet.from))
-                       }
-
-                    }
+    override suspend fun handlePackets() {
+        radioClient.packets.collect { packet ->
+            startSession(packet.from).state().handlePacket(packet).collect { reply ->
+                radioClient.send(reply.toPacket(packet.from))
             }
+        }
     }
 
-    override fun handshake(): Completable {
+    override suspend fun handshake(){
         log.w("explicit handshake!")
-        return Completable.complete()
     }
 }

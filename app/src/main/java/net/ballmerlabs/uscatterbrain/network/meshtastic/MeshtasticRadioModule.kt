@@ -10,8 +10,8 @@ interface MeshtasticRadioModule {
     fun startBacklog(from: Int)
     fun popBacklog(): MeshtasticSessionSubcomponent?
     fun stopSession(from: Int)
-    fun handlePackets(): Completable
-    fun handshake(): Completable
-    fun connect(): Completable
-    fun getConnection(): Flowable<ConnectionState>
+    suspend fun handlePackets()
+    suspend fun handshake()
+    suspend fun connect()
+    suspend fun getConnection(): Flowable<ConnectionState>
 }

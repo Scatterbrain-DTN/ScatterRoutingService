@@ -5,6 +5,7 @@ import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
+import kotlinx.coroutines.flow.Flow
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import org.meshtastic.proto.MeshPacket
 
@@ -34,7 +35,10 @@ interface MeshtasticSessionState {
 
     fun <R> mapStageMaybe(onSuccess: Stage, func: (Stage) -> Maybe<R>): Maybe<R>
 
-    fun <R> mapStagePublisher(onSuccess: Stage, func: (Stage) -> Flowable<R>): Flowable<R>
+    suspend fun <R> mapStagePublisher(
+        onSuccess: Stage,
+        func: suspend (Stage) -> Flow<R>,
+    ): Flow<R>
 
     fun mapStageCompletable(onSuccess: Stage, func: (Stage) -> Completable): Completable
 
@@ -56,7 +60,7 @@ interface MeshtasticSessionState {
         }
     }
 
-    fun handlePacket(packet: MeshPacket): Flowable<ScatterSerializable<*>>
+    suspend fun handlePacket(packet: MeshPacket): Flow<ScatterSerializable<*>>
 
     fun awaitHandshake(): Completable
 }

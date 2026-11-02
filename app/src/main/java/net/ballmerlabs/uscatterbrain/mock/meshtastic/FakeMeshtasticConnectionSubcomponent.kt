@@ -13,6 +13,7 @@ import io.reactivex.plugins.RxJavaPlugins
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent
 import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticConnectionSubcomponent.NamedSchedulers
@@ -22,6 +23,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.MeshtasticSessionSubcomp
 import org.meshtastic.sdk.RadioClient
 import org.mockito.kotlin.mock
 import javax.inject.Named
+import javax.inject.Singleton
 
 @MeshtasticConnectionScope
 @Subcomponent(modules = [
@@ -83,6 +85,7 @@ interface FakeMeshtasticConnectionSubcomponent: MeshtasticConnectionSubcomponent
             fun providesCallbackScheduler(): Scheduler {
                 return RxJavaPlugins.createSingleScheduler(ScatterbrainThreadFactory(NamedSchedulers.CALLBACK_SCHEDULER))
             }
+
         }
     }
 
