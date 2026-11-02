@@ -8,6 +8,7 @@ import dagger.Subcomponent
 import io.reactivex.Completable
 import io.reactivex.Scheduler
 import io.reactivex.plugins.RxJavaPlugins
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,6 +17,7 @@ import net.ballmerlabs.uscatterbrain.ScatterbrainThreadFactory
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MeshtasticDao
 import net.ballmerlabs.uscatterbrain.network.meshtastic.db.RoomDeviceStorage
+import net.ballmerlabs.uscatterbrain.util.scatterLog
 import org.meshtastic.sdk.RadioClient
 import org.meshtastic.sdk.RadioTransport
 import javax.inject.Named
@@ -68,7 +70,12 @@ interface MeshtasticConnectionSubcomponent {
             @MeshtasticConnectionScope
             @Named(NamedSchedulers.COROUTINE_CONTEXT)
             fun providesCoroutineContext(): CoroutineScope {
-                return CoroutineScope(Dispatchers.Default)
+                val log by scatterLog()
+                val handler = CoroutineExceptionHandler { _, exc ->
+                    exc.printStackTrace()
+                    log.e("global coroutine exception: $exc")
+                }
+                return CoroutineScope(Dispatchers.Default + handler)
             }
 
 
