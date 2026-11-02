@@ -51,9 +51,11 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
                 .flatMap { v ->
                     Observable.just(v)
                         .mergeWith(v.module()
-                            .connect().timeout(20, TimeUnit.SECONDS)
-                            .retryDelay(5, 5))
-//                    .mergeWith(module.module().handlePackets())
+                            .connect()
+                            .doOnError { err -> log.e("connect err: $err") }
+                            .doOnComplete { log.w("connect success") }
+                            .doFinally { log.e("connect attempt completed") })
+                        .mergeWith(module.module().handlePackets())
                 }
 
         }
@@ -77,6 +79,7 @@ class MeshtasticConnectionProviderImpl @Inject constructor(
                 null -> {
                     val obs = BehaviorSubject.create<MeshtasticConnectionSubcomponent>()
                     connectBinder(config)
+                        .doFinally { log.e("meshtastic connection completed!") }
                         .subscribe(obs)
                     obs
                 }
