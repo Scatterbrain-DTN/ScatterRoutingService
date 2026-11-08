@@ -25,12 +25,14 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toMeshtastic(): ByteArray {
     return b.toByteArray()
 }
 
-fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(client: RadioClient, from: String? = null): MeshPacket {
+fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(from: Int? = null): MeshPacket {
     val bytes = this.toMeshtastic()
     val log by scatterLog()
     log.v("toBroadcast from=$from")
     return MeshPacket.build {
         to = NodeId.BROADCAST.raw
+        if (from != null)
+            this.from = from
         decoded = Data.build {
             portnum = PortNum.fromValue(PORT_NUMBER)!!
             payload = bytes.toByteString()

@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
+import kotlin.math.log
 
 /**
  * Parent class for the entire scatterbrain backend. This is what is
@@ -374,8 +375,10 @@ class RoutingServiceBackendImpl @Inject constructor(
     }
 
     override fun syncMeshtastic(): Completable {
+        LOG.v("sync start meshtastic")
         return meshtasticBinderProvider.getConnection()
             .flatMapCompletable { c ->
+                LOG.v("sync got meshtastic")
                 datastore.rehashMerkle().andThen(rxCompletable { c.module().handshake() })
             }
     }

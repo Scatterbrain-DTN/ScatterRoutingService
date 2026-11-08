@@ -1,23 +1,23 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
-import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Scheduler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.rx2.asFlowable
-import kotlinx.coroutines.rx2.rxCompletable
-import kotlinx.coroutines.rx2.rxSingle
+import kotlinx.coroutines.rx2.await
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
 import net.ballmerlabs.uscatterbrain.network.bluetoothLE.Advertiser
+import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnouncePacket
+import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.toBroadcast
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.toPacket
 import net.ballmerlabs.uscatterbrain.util.scatterLog
 import org.meshtastic.sdk.ConnectionState
 import org.meshtastic.sdk.RadioClient
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.Flow
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -29,7 +29,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     val database: Datastore,
     val radioClient: RadioClient,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
-    @Named(MeshtasticConnectionSubcomponent.NamedSchedulers.COROUTINE_CONTEXT) val coroutineScope: CoroutineScope
+    @Named(MeshtasticConnectionSubcomponent.NamedSchedulers.COROUTINE_CONTEXT) val coroutineScope: CoroutineScope,
 ) : MeshtasticRadioModule {
 
 
@@ -92,16 +92,32 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     }
 
 
-
     override suspend fun handlePackets() {
-        radioClient.packets.collect { packet ->
-            startSession(packet.from).state().handlePacket(packet).collect { reply ->
-                radioClient.send(reply.toPacket(packet.from))
+        radioClient.packets
+            .filter { p -> p.decoded?.portnum?.value == PORT_NUMBER }
+            .collect { packet ->
+                try {
+                    startSession(packet.from).state()
+                        .handlePacket(packet)
+                        .collect { reply ->
+                            radioClient.send(reply.toPacket(packet.from))
+                        }
+                } catch (exc: Exception) {
+                    log.w("exception when handling packet: $exc")
+                }
             }
-        }
     }
 
-    override suspend fun handshake(){
-        log.w("explicit handshake!")
+    override suspend fun handshake() {
+        log.v("meshtastic handshake start")
+        datastore.rehashMerkle().await()
+        val root = datastore.getDefaultMerkleRoot().await()
+        val id = radioClient.ownNode.value?.num
+        if (id != null) {
+            val packet = MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
+                .toBroadcast(from = id)
+            radioClient.send(packet).await()
+        }
+        log.v("handshake complete")
     }
 }

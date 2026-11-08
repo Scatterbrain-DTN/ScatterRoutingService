@@ -1,6 +1,8 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic.db
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
@@ -49,19 +51,20 @@ abstract class MeshtasticDao {
     @Query("SELECT * FROM meshtastic_nodes WHERE nodeNum = :nodeNum")
     abstract suspend fun getNodeByNum(nodeNum: Long): Node?
 
-    @Upsert
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertConfig(configEntity: ConfigEntity)
 
-    @Upsert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertSession(sessionEntity: SessionEntity)
 
-    @Upsert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertChannel(channelEntity: ChannelEntity)
 
-    @Upsert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertNode(node: Node)
 
-    @Upsert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertHeartbeat(heartbeat: Heartbeat)
 
 
