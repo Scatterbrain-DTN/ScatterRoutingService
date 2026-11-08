@@ -18,6 +18,7 @@ import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.network.meshtastic.db.MeshtasticDao
 import net.ballmerlabs.uscatterbrain.network.meshtastic.db.RoomDeviceStorage
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.sdk.LogLevel
 import org.meshtastic.sdk.RadioClient
 import org.meshtastic.sdk.RadioTransport
 import javax.inject.Named
@@ -83,10 +84,13 @@ interface MeshtasticConnectionSubcomponent {
             @MeshtasticConnectionScope
             fun providesRadioClient(transport: RadioTransport, storage: RoomDeviceStorage, @Named(
                 NamedSchedulers.COROUTINE_CONTEXT) coroutineScope: CoroutineScope): RadioClient {
+                val ll by scatterLog()
                 return RadioClient.Builder()
-                    .autoReconnect(false)
+                    .autoReconnect(true)
                     .storage(storage)
                     .coroutineContext(coroutineScope.coroutineContext)
+                    .protocolLogging(LogLevel.VERBOSE)
+                    .logger { level, scope, str, throwable ->  ll.v("$scope : $str") }
                     .transport(transport)
                     .build()
             }

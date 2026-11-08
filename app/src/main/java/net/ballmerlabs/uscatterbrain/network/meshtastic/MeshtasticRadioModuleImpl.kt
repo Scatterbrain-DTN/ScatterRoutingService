@@ -94,7 +94,11 @@ class MeshtasticRadioModuleImpl @Inject constructor(
 
     override suspend fun handlePackets() {
         radioClient.packets
-            .filter { p -> p.decoded?.portnum?.value == PORT_NUMBER }
+            .filter { p ->
+               val v = p.decoded?.portnum?.value
+                log.v("packet! $v")
+               v == PORT_NUMBER
+            }
             .collect { packet ->
                 log.w("got meshtastic packet ${packet.id}")
                 try {
@@ -117,7 +121,8 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         if (id != null) {
             val packet = MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
                 .toBroadcast(from = id)
-            radioClient.send(packet).await()
+            val outcome = radioClient.send(packet).await()
+            log.v("send res=$outcome")
         }
         log.v("handshake complete")
     }
