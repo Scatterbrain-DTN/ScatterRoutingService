@@ -1358,7 +1358,10 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             }
             .andThen(advertiser.setAdvertisingLuid())
             .subscribeOn(databaseScheduler)
-            .doOnError { err -> LOG.e("rehashMerkle error: $err") }
+            .doOnError { err ->
+                err.printStackTrace()
+                LOG.e("rehashMerkle error: $err")
+            }
             .doFinally {
                 leState.clearActive()
                 rehashDisp.getAndSet(null)?.dispose()

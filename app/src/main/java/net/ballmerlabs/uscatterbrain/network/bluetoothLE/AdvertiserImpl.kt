@@ -13,6 +13,7 @@ import android.os.ParcelUuid
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.polidea.rxandroidble2.RxBleClient
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Scheduler
@@ -21,6 +22,8 @@ import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import net.ballmerlabs.scatterbrainsdk.ScatterbrainApi
 import net.ballmerlabs.scatterproto.Optional
+import net.ballmerlabs.uscatterbrain.R
+import net.ballmerlabs.uscatterbrain.RouterPreferences
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.WakeLockProvider
 import net.ballmerlabs.uscatterbrain.db.Datastore
@@ -53,6 +56,8 @@ class AdvertiserImpl @Inject constructor(
     private val database: Datastore,
     private val leState: Provider<LeState>,
     private val wifiDirectBroadcastReceiver: WifiDirectBroadcastReceiver,
+    private val client: RxBleClient,
+    val preferences: RouterPreferences,
     @Named(RoutingServiceComponent.NamedSchedulers.BLE_ADVERTISE) private val advertiseScheduler: Scheduler,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) private val timeoutScheduler: Scheduler,
 ) : Advertiser {
@@ -220,13 +225,23 @@ class AdvertiserImpl @Inject constructor(
                     root.hash
                 )
 
-            isAdvertising.takeUntil { v -> v.first.isPresent && v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS }
-                .flatMapCompletable { v ->
-                    try {
-                        v.first.item?.setAdvertisingData(builder.build())
+            preferences.getStringSet(
+            context.getString(R.string.pref_enabled_transports), setOf("wifi", "bluetooth"))
+                .flatMapCompletable { transports ->
+                    if (client.state == RxBleClient.State.READY && transports.contains("bluetooth")) {
+                        isAdvertising.takeUntil { v ->
+                            v.first.isPresent && v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS
+                        }
+                            .flatMapCompletable { v ->
+                                try {
+                                    v.first.item?.setAdvertisingData(builder.build())
+                                    Completable.complete()
+                                } catch (exc: SecurityException) {
+                                    Completable.error(exc)
+                                }
+                            }
+                    } else {
                         Completable.complete()
-                    } catch (exc: SecurityException) {
-                        Completable.error(exc)
                     }
                 }
 

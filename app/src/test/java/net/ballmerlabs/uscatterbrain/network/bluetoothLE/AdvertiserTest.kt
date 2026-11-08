@@ -315,6 +315,8 @@ class AdvertiserTest {
             advertiseScheduler = scheduler,
             timeoutScheduler = scheduler,
             wifiDirectBroadcastReceiver = MockWifiDirectBroadcastReceiver(mock()),
+            client = mock { },
+            preferences = mock {  },
             database = mock {
                 on { merkleDao() } doReturn mockDao
             }

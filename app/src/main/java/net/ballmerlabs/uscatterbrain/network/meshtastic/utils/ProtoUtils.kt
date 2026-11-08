@@ -1,6 +1,7 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic.utils
 
 import com.google.protobuf.MessageLite
+import com.google.protobuf.Value
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.meshtastic.PORT_NUMBER
 import net.ballmerlabs.uscatterbrain.network.proto.parseTypePrefixNoCrc
@@ -12,6 +13,7 @@ import org.meshtastic.proto.MeshPacket
 import org.meshtastic.proto.PortNum
 import org.meshtastic.sdk.NodeId
 import org.meshtastic.sdk.RadioClient
+import scatterbrain.Hack
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
@@ -34,7 +36,7 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(from: Int? = null)
         if (from != null)
             this.from = from
         decoded = Data.build {
-            portnum = PortNum.fromValue(PORT_NUMBER)!!
+            portnum = PortNum.ADAPTER.decode(Hack.MeshtasticPort.SCATTERBRAIN.valueDescriptor.toProto().toByteArray())
             payload = bytes.toByteString()
         }
     }

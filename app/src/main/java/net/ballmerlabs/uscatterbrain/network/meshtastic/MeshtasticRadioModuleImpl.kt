@@ -96,6 +96,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         radioClient.packets
             .filter { p -> p.decoded?.portnum?.value == PORT_NUMBER }
             .collect { packet ->
+                log.w("got meshtastic packet ${packet.id}")
                 try {
                     startSession(packet.from).state()
                         .handlePacket(packet)

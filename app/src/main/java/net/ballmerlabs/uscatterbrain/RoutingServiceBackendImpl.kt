@@ -380,6 +380,9 @@ class RoutingServiceBackendImpl @Inject constructor(
             .flatMapCompletable { c ->
                 LOG.v("sync got meshtastic")
                 datastore.rehashMerkle().andThen(rxCompletable { c.module().handshake() })
+            }.doOnError { err ->
+                err.printStackTrace()
+                LOG.e("failed syncMeshtastic: $err")
             }
     }
 

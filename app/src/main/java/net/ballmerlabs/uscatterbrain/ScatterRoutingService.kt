@@ -759,7 +759,7 @@ class ScatterRoutingService : LifecycleService() {
                 .doFinally { callbackHandles.remove(handle) }
                 .subscribe(
                     { callback.onComplete() },
-                    { err -> callback.onError(err.message) }
+                    { err -> callback.onError(err.message ?: "") }
                 )
 
             callbackHandles[handle] = Callback(callingPackageName, disp)
