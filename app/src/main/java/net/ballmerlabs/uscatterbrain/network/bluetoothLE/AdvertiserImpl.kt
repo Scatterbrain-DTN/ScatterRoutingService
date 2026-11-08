@@ -223,12 +223,11 @@ class AdvertiserImpl @Inject constructor(
             isAdvertising.takeUntil { v -> v.first.isPresent && v.second == AdvertisingSetCallback.ADVERTISE_SUCCESS }
                 .flatMapCompletable { v ->
                     try {
-                        v.first.item!!.setAdvertisingData(builder.build())
+                        v.first.item?.setAdvertisingData(builder.build())
                         Completable.complete()
                     } catch (exc: SecurityException) {
                         Completable.error(exc)
                     }
-
                 }
 
         }
