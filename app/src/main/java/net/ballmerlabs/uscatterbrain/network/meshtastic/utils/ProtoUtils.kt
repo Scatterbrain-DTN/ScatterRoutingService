@@ -2,6 +2,11 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.utils
 
 import com.google.protobuf.MessageLite
 import com.google.protobuf.Value
+import com.squareup.wire.EnumAdapter
+import com.squareup.wire.ProtoAdapter
+import com.squareup.wire.ProtoReader
+import com.squareup.wire.Syntax
+import com.squareup.wire.WireEnum
 import net.ballmerlabs.scatterproto.ScatterSerializable
 import net.ballmerlabs.uscatterbrain.network.meshtastic.PORT_NUMBER
 import net.ballmerlabs.uscatterbrain.network.proto.parseTypePrefixNoCrc
@@ -27,6 +32,18 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toMeshtastic(): ByteArray {
     return b.toByteArray()
 }
 
+class ScatterbrainPortEnum(override val value: Int) : WireEnum {
+    companion object {
+        @JvmField
+        val ADAPTER: ProtoAdapter<ScatterbrainPortEnum> = object : EnumAdapter<ScatterbrainPortEnum>(ScatterbrainPortEnum::class,
+        Syntax.PROTO_3, ScatterbrainPortEnum(288)) {
+            override fun fromValue(value: Int): ScatterbrainPortEnum? {
+                return ScatterbrainPortEnum(value)
+            }
+        }
+    }
+}
+
 fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(from: Int? = null): MeshPacket {
     val bytes = this.toMeshtastic()
     val log by scatterLog()
@@ -36,7 +53,9 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(from: Int? = null)
         if (from != null)
             this.from = from
         decoded = Data.build {
-            portnum = PortNum.ADAPTER.decode(Hack.MeshtasticPort.SCATTERBRAIN.valueDescriptor.toProto().toByteArray())
+            portnum = PortNum.ADAPTER.decode(ScatterbrainPortEnum.ADAPTER.encodeByteString(ScatterbrainPortEnum(288)).toByteArray())
+            log.v("portNum ${portnum.value}")
+            //portnum = PortNum.ATAK_PLUGIN
             payload = bytes.toByteString()
         }
     }
