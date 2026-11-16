@@ -36,6 +36,7 @@ import net.ballmerlabs.uscatterbrain.network.wifidirect.ServerSocketManager
 import net.ballmerlabs.uscatterbrain.scheduler.ScatterbrainScheduler
 import net.ballmerlabs.uscatterbrain.util.FirebaseWrapper
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.sdk.ConnectionState
 import java.io.File
 import java.util.Collections
 import java.util.UUID
@@ -45,7 +46,6 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
-import kotlin.math.log
 
 /**
  * Parent class for the entire scatterbrain backend. This is what is
@@ -87,13 +87,11 @@ class RoutingServiceBackendImpl @Inject constructor(
                 LOG.cry("triple fault $exc")
             }
         }
-     //  RxBleLog.setLogLevel(RxBleLog.DEBUG)
-     //RxDogTag.install()
-     //RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
+        //  RxBleLog.setLogLevel(RxBleLog.DEBUG)
+        //RxDogTag.install()
+        //RxJava2Debug.enableRxJava2AssemblyTracking(arrayOf("net.ballmerlabs.uscatterbrain"))
     }
 
-
- 
 
     override fun dumpDatastore(uri: Uri): Completable {
         return Completable.fromAction {
@@ -178,27 +176,28 @@ class RoutingServiceBackendImpl @Inject constructor(
     override fun signDataDetached(
         data: ByteArray,
         identity: UUID,
-        callingPackageName: String
+        callingPackageName: String,
     ): Single<ByteArray> {
         return datastore.getACLs(identity)
             .flatMapObservable { Observable.fromIterable(it) }
             .flatMapCompletable { acl -> verifyCallingSig(acl, callingPackageName) }
-            .andThen(datastore.getIdentityKey(identity)
-                .map { keypair ->
-                    val res = ByteArray(Sign.ED25519_BYTES)
-                    val p = PointerByReference(Pointer.NULL).pointer
-                    val status = LibsodiumInterface.sodium.crypto_sign_detached(
-                        res,
-                        p,
-                        data,
-                        data.size.toLong(),
-                        keypair.secretkey
-                    )
-                    if (status != 0) {
-                        throw IllegalStateException("failed to sign: $status")
-                    }
-                    res
-                })
+            .andThen(
+                datastore.getIdentityKey(identity)
+                    .map { keypair ->
+                        val res = ByteArray(Sign.ED25519_BYTES)
+                        val p = PointerByReference(Pointer.NULL).pointer
+                        val status = LibsodiumInterface.sodium.crypto_sign_detached(
+                            res,
+                            p,
+                            data,
+                            data.size.toLong(),
+                            keypair.secretkey
+                        )
+                        if (status != 0) {
+                            throw IllegalStateException("failed to sign: $status")
+                        }
+                        res
+                    })
 
     }
 
@@ -216,7 +215,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     override fun sendAndSignMessage(
         message: ScatterMessage,
         identity: UUID,
-        callingPackageName: String
+        callingPackageName: String,
     ): Completable {
         return datastore.getACLs(identity)
             .flatMapObservable { Observable.fromIterable(it) }
@@ -237,7 +236,7 @@ class RoutingServiceBackendImpl @Inject constructor(
     override fun sendAndSignMessages(
         messages: List<ScatterMessage>,
         identity: UUID,
-        callingPackageName: String
+        callingPackageName: String,
     ): Completable {
         return datastore.getACLs(identity)
             .flatMapObservable { Observable.fromIterable(it) }
@@ -261,7 +260,11 @@ class RoutingServiceBackendImpl @Inject constructor(
             }
     }
 
-    override fun generateIdentity(name: String, callingPackageName: String, desktop: Boolean): Single<Identity> {
+    override fun generateIdentity(
+        name: String,
+        callingPackageName: String,
+        desktop: Boolean,
+    ): Single<Identity> {
         return Single.defer {
             val apiidentity = ApiIdentity.newBuilder()
                 .setName(name)
@@ -272,7 +275,13 @@ class RoutingServiceBackendImpl @Inject constructor(
                 .andThen(authorizeApp(identity.fingerprint, callingPackageName, desktop))
                 .toSingleDefault(identity)
                 .doOnSuccess {
-                    scheduler.broadcastTransactionResult(HandshakeResult(1, 0, HandshakeResult.TransactionStatus.STATUS_SUCCESS))
+                    scheduler.broadcastTransactionResult(
+                        HandshakeResult(
+                            1,
+                            0,
+                            HandshakeResult.TransactionStatus.STATUS_SUCCESS
+                        )
+                    )
                     asyncRefreshPeers()
                 }
         }
@@ -299,7 +308,7 @@ class RoutingServiceBackendImpl @Inject constructor(
 
     override fun sendMessages(
         messages: List<ScatterMessage>,
-        callingPackageName: String
+        callingPackageName: String,
     ): Completable {
         return Observable.fromIterable(messages)
             .flatMapCompletable { m ->
@@ -337,7 +346,11 @@ class RoutingServiceBackendImpl @Inject constructor(
             }
     }
 
-    override fun authorizeApp(fingerprint: UUID, packageName: String, desktop: Boolean): Completable {
+    override fun authorizeApp(
+        fingerprint: UUID,
+        packageName: String,
+        desktop: Boolean,
+    ): Completable {
         return Observable.just(packageName).flatMap { name -> getSigs(name) }
             .flatMapCompletable { signature ->
                 val sig = signature.toCharsString()
@@ -378,8 +391,21 @@ class RoutingServiceBackendImpl @Inject constructor(
         LOG.v("sync start meshtastic")
         return meshtasticBinderProvider.getConnection()
             .flatMapCompletable { c ->
-                LOG.v("sync got meshtastic")
-                datastore.rehashMerkle().andThen(rxCompletable { c.module().handshake() })
+                c.module()
+                    .getConnection()
+                    .firstOrError()
+                    .flatMapCompletable { state ->
+                        LOG.v("sync got meshtastic")
+
+                        when (state) {
+                            ConnectionState.Connected -> datastore.rehashMerkle()
+                                .andThen(rxCompletable {
+                                    c.module().handshake()
+
+                                })
+                            else -> Completable.complete()
+                        }
+                    }
             }.doOnError { err ->
                 err.printStackTrace()
                 LOG.e("failed syncMeshtastic: $err")

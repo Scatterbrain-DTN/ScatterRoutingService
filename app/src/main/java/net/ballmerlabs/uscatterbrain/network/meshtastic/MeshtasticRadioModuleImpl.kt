@@ -2,10 +2,13 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic
 
 import io.reactivex.Flowable
 import io.reactivex.Scheduler
+import io.reactivex.Single
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.rx2.asFlowable
 import kotlinx.coroutines.rx2.await
+import kotlinx.coroutines.rx2.rxSingle
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
@@ -14,6 +17,7 @@ import net.ballmerlabs.uscatterbrain.network.meshtastic.proto.MeshtasticAnnounce
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.toBroadcast
 import net.ballmerlabs.uscatterbrain.network.meshtastic.utils.toPacket
 import net.ballmerlabs.uscatterbrain.util.scatterLog
+import org.meshtastic.proto.PortNum
 import org.meshtastic.sdk.ConnectionState
 import org.meshtastic.sdk.RadioClient
 import java.util.concurrent.ConcurrentHashMap
@@ -80,7 +84,7 @@ class MeshtasticRadioModuleImpl @Inject constructor(
         return currentTransactions.size
     }
 
-    override suspend fun getConnection(): Flowable<ConnectionState> {
+    override fun getConnection(): Flowable<ConnectionState> {
         return radioClient.connection.asFlowable()
     }
 
@@ -88,6 +92,13 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     override suspend fun connect() {
         log.w("attempting meshtastic connection")
         radioClient.connect()
+        // Temporary hack to await connected, TODO: handle connecting and disconnecting
+        // states in order
+        radioClient.connection.filter { v -> when(v) {
+            ConnectionState.Connected -> true
+            ConnectionState.Disconnected -> true
+            else -> false
+        } }.first()
         log.w("meshtastic connected!")
     }
 
@@ -95,12 +106,12 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     override suspend fun handlePackets() {
         radioClient.packets
             .filter { p ->
-               val v = p.decoded?.portnum?.value
-                log.v("packet! $v")
-               v == PORT_NUMBER
+               val v = p.decoded?.portnum
+                log.v("packet! $v ${p.channel}")
+               v == PortNum.PRIVATE_APP
             }
             .collect { packet ->
-                log.w("got meshtastic packet ${packet.id}")
+                log.w("got meshtastic packet ${packet.channel}")
                 try {
                     startSession(packet.from).state()
                         .handlePacket(packet)

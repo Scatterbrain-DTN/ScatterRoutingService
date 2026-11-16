@@ -52,9 +52,10 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toBroadcast(from: Int? = null)
         to = NodeId.BROADCAST.raw
         if (from != null)
             this.from = from
+        //channel = 42
         decoded = Data.build {
-            portnum = PortNum.ADAPTER.decode(ScatterbrainPortEnum.ADAPTER.encodeByteString(ScatterbrainPortEnum(288)).toByteArray())
-            log.v("portNum ${portnum.value}")
+            portnum = PortNum.PRIVATE_APP
+            log.v("portNum $portnum")
             //portnum = PortNum.ATAK_PLUGIN
             payload = bytes.toByteString()
         }
