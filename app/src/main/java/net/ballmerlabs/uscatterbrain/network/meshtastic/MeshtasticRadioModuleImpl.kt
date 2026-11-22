@@ -116,7 +116,8 @@ class MeshtasticRadioModuleImpl @Inject constructor(
                     startSession(packet.from).state()
                         .handlePacket(packet)
                         .collect { reply ->
-                            radioClient.send(reply.toPacket(packet.from))
+                            log.v("sending reply: ${reply.type}")
+                            radioClient.send(reply.toPacket(packet.from)).await()
                         }
                 } catch (exc: Exception) {
                     log.w("exception when handling packet: $exc")

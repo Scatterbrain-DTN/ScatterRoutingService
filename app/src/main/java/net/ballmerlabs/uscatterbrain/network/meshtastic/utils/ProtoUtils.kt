@@ -76,14 +76,19 @@ fun ByteString.fromMeshtastic(): ScatterSerializable.Companion.TypedPacket {
     return ret
 }
 
-fun <T: ScatterSerializable<U>, U: MessageLite> T.toPacket(to: Int?): MeshPacket {
+fun <T: ScatterSerializable<U>, U: MessageLite> T.toPacket(to: Int, from: Int? = null): MeshPacket {
     val bytes = this.toMeshtastic()
     val log by scatterLog()
     return MeshPacket.build {
-        this.to = to ?: 0
+        this.to = to
+        if (from != null)
+            this.from = from
+        //channel = 42
         decoded = Data.build {
-            portnum = PortNum.fromValue(PORT_NUMBER)!!
+            portnum = PortNum.PRIVATE_APP
+            log.v("portNum $portnum")
+            //portnum = PortNum.ATAK_PLUGIN
             payload = bytes.toByteString()
-         }
+        }
     }
 }
