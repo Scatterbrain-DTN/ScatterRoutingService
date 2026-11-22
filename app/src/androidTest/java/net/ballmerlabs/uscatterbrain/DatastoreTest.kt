@@ -325,6 +325,96 @@ class DatastoreTest {
         assertEquals(dirty.size, 0)
     }
 
+    /**
+     * Regression: a message whose freshly inserted (still unhashed) merkle leaf is deleted
+     * before the next rehash — as trimDatastore()/purge() do, outside the merkle lock — left an
+     * orphan leaf with hash == null that the parent then dereferenced
+     * (`bundles.map { v -> v.hash!! }` in MerkleDao).
+     */
+    @Test
+    fun merkleRehashAfterUnhashedLeafMessageDeleted() {
+        for (x in 0..<8) {
+            val apiMessage = ScatterMessage.Builder.newInstance(ctx, UUID.randomUUID().toBytes())
+                .setApplication("fmef")
+                .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+        }
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+
+        // New message -> new chain of bundles with hash == null, not yet rehashed.
+        val apiMessage = ScatterMessage.Builder.newInstance(ctx, UUID.randomUUID().toBytes())
+            .setApplication("fmef")
+            .build()
+        datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+
+        // Delete it before any rehash, the way trimDatastore does.
+        val newest = database.scatterMessageDao().getAllMessages().maxBy { v -> v.messageID!! }
+        database.scatterMessageDao().delete(newest).blockingAwait()
+
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+        val rehashed = database.merkleDao().getDefaultRoot().blockingGet().hash
+        assertNotNull(rehashed)
+
+        // The incrementally rehashed root must match a from-scratch rebuild of the same messages.
+        datastore.rebuildMerkle().blockingAwait()
+        val rebuilt = database.merkleDao().getDefaultRoot().blockingGet().hash
+        assertEquals(rebuilt!!.toList(), rehashed!!.toList())
+    }
+
+    /** Control: with no deletions, incremental rehash must match a from-scratch rebuild. */
+    @Test
+    fun merkleRehashMatchesRebuildWithoutDeletion() {
+        for (x in 0..<9) {
+            val apiMessage = ScatterMessage.Builder.newInstance(ctx, UUID.randomUUID().toBytes())
+                .setApplication("fmef")
+                .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+        }
+        database.merkleDao().merkleRehash(Schedulers.single()).blockingAwait()
+        val rehashed = database.merkleDao().getDefaultRoot().blockingGet().hash
+
+        datastore.rebuildMerkle().blockingAwait()
+        val rebuilt = database.merkleDao().getDefaultRoot().blockingGet().hash
+        assertEquals(rebuilt!!.toList(), rehashed!!.toList())
+    }
+
+    /**
+     * Concurrency regression: messages trimmed from another thread while rehashes run must not
+     * crash the rehash, and the settled tree must match a from-scratch rebuild.
+     */
+    @Test
+    fun merkleRehashConcurrentWithMessageDeletion() {
+        val total = 48
+        for (x in 0..<total) {
+            val apiMessage = ScatterMessage.Builder.newInstance(ctx, UUID.randomUUID().toBytes())
+                .setApplication("fmef")
+                .build()
+            datastore.insertAndHashFileFromApi(apiMessage, DEFAULT_BLOCKSIZE, "").blockingAwait()
+        }
+
+        val toDelete = database.scatterMessageDao().getAllMessages().shuffled().take(total / 2)
+        // Deliberately unlocked: the rehash itself must tolerate messages vanishing mid-pass.
+        val deleter = Thread {
+            for (m in toDelete) {
+                database.scatterMessageDao().delete(m).blockingAwait()
+            }
+        }
+        deleter.start()
+        while (deleter.isAlive) {
+            database.merkleDao().merkleRehash(Schedulers.io()).blockingAwait()
+        }
+        deleter.join()
+        database.merkleDao().merkleRehash(Schedulers.io()).blockingAwait()
+
+        val rehashed = database.merkleDao().getDefaultRoot().blockingGet().hash
+        assertNotNull(rehashed)
+        assertEquals(total - toDelete.size, database.scatterMessageDao().getAllMessages().size)
+
+        datastore.rebuildMerkle().blockingAwait()
+        val rebuilt = database.merkleDao().getDefaultRoot().blockingGet().hash
+        assertEquals(rebuilt!!.toList(), rehashed!!.toList())
+    }
+
     @Test
     fun merkleTopRandomMany() {
         val size = 16

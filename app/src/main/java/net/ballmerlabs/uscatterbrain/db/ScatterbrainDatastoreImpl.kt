@@ -521,7 +521,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .subscribeOn(databaseScheduler)
             .flatMapObservable { list -> Observable.fromIterable(list) }
             .flatMapSingle { scatterMessage ->
-                mDatastore.scatterMessageDao().delete(scatterMessage.message)
+                deleteMessageLocked(scatterMessage.message)
                     .andThen(deleteFile(File(scatterMessage.file.global.filePath)))
                     .toSingleDefault(scatterMessage.message.fileSize)
             }
@@ -533,7 +533,7 @@ class ScatterbrainDatastoreImpl @Inject constructor(
             .subscribeOn(databaseScheduler)
             .flatMapObservable { list -> Observable.fromIterable(list) }
             .flatMapSingle { scatterMessage ->
-                mDatastore.scatterMessageDao().delete(scatterMessage.message)
+                deleteMessageLocked(scatterMessage.message)
                     .andThen(deleteFile(File(scatterMessage.file.global.filePath)))
                     .toSingleDefault(scatterMessage.message.fileSize)
             }
@@ -1269,10 +1269,25 @@ class ScatterbrainDatastoreImpl @Inject constructor(
         //LOG.v("iterativeMerkleInsert end")
     }
 
+    /**
+     * Delete a message while holding the merkle lock. Rehash and insertMerkle hold the same
+     * lock; deleting outside it let a rehash observe a leaf whose message vanished mid-pass.
+     */
+    private fun deleteMessageLocked(message: HashlessScatterMessage): Completable {
+        return Completable.fromAction {
+            mDatastore.merkleDao().getLock().withLock {
+                mDatastore.scatterMessageDao().delete(message).blockingAwait()
+            }
+        }
+    }
+
     override fun purge(start: Date, endDate: Date): Completable {
-        return mDatastore.scatterMessageDao().deleteByDate(start.time, endDate.time).ignoreElement()
-            .andThen(mDatastore.merkleDao().nukeAllBundles())
-            .subscribeOn(databaseScheduler)
+        return Completable.fromAction {
+            mDatastore.merkleDao().getLock().withLock {
+                mDatastore.scatterMessageDao().deleteByDate(start.time, endDate.time).blockingGet()
+                mDatastore.merkleDao().nukeAllBundles().blockingAwait()
+            }
+        }.subscribeOn(databaseScheduler)
     }
 
     override fun purgeIdentities(purge: Boolean): Completable {

@@ -615,7 +615,7 @@ abstract class MerkleDao {
         val bundles = getBundlesForBundle(root)
         if (messages.isEmpty() && bundles.isEmpty()) {
             log.e("deleting orphan bundle $root")
-            deleteBundle(root)
+            deleteOrphanBundle(root)
             return
         }
         val mhash = messages.map { v -> v.fileGlobalHash }
@@ -638,15 +638,53 @@ abstract class MerkleDao {
     @Query("DELETE FROM bundles WHERE id = :bundle")
     abstract fun deleteBundle(bundle: Long): Int
 
-    open fun merkleRehashInMemory(memoryTree: MerkleNode?) {
+    @Query("UPDATE bundles SET childOne = NULL WHERE childOne = :id")
+    abstract fun unlinkFromParentChildOne(id: Long)
+
+    @Query("UPDATE bundles SET childTwo = NULL WHERE childTwo = :id")
+    abstract fun unlinkFromParentChildTwo(id: Long)
+
+    /**
+     * Delete an orphan bundle without taking its ancestors with it.
+     *
+     * `childOne`/`childTwo` are foreign keys to `bundles.id` with `onDelete = CASCADE`, and the
+     * row holding the reference is the *parent*. A bare delete therefore cascades upward and
+     * deletes the parent, grandparent, ... up to the root, splitting the remaining subtrees
+     * into disjoint roots (getDefaultRoot() then picks one at random). Clear the parent's
+     * pointer first so the delete only removes this row.
+     */
+    @Transaction
+    open fun deleteOrphanBundle(id: Long) {
+        unlinkFromParentChildOne(id)
+        unlinkFromParentChildTwo(id)
+        deleteBundle(id)
+    }
+
+    /**
+     * Rehash [memoryTree] bottom-up. Returns true if the node was deleted as an orphan (no
+     * messages and no surviving children), so the caller can unlink it.
+     *
+     * Orphans appear when a message is deleted (trimDatastore/purge) after insertMerkle built
+     * its path: the leaf then has no messages, and a freshly inserted leaf still has
+     * hash == null. Deleted children must be dropped from the parent before hashing, or the
+     * parent dereferences that null hash (and would otherwise fold a deleted node's stale hash
+     * into its own and keep a dangling child pointer).
+     */
+    open fun merkleRehashInMemory(memoryTree: MerkleNode?): Boolean {
 //        log.v("merkleRehashInMemory memoryTree=$memoryTree")
         if (memoryTree == null) {
-            return
+            return false
         }
-        merkleRehashInMemory(memoryTree.childOne)
-        merkleRehashInMemory(memoryTree.childTwo)
+        if (merkleRehashInMemory(memoryTree.childOne)) {
+            memoryTree.childOne = null
+            memoryTree.bundle.childOne = null
+        }
+        if (merkleRehashInMemory(memoryTree.childTwo)) {
+            memoryTree.childTwo = null
+            memoryTree.bundle.childTwo = null
+        }
 
-        val root = memoryTree.bundle.id ?: return
+        val root = memoryTree.bundle.id ?: return false
         val messages = getMessagesForBundle(root)
         val bundles = mutableListOf<MerkleBundle>()
         if (memoryTree.childOne?.bundle != null)
@@ -655,8 +693,8 @@ abstract class MerkleDao {
             bundles.add(memoryTree.childTwo!!.bundle)
         if (messages.isEmpty() && bundles.isEmpty()) {
             log.e("deleting orphan bundle ${memoryTree.bundle}")
-            deleteBundle(memoryTree.bundle)
-            return
+            deleteOrphanBundle(root)
+            return true
         }
         val mhash = messages.map { v -> v.fileGlobalHash }
         val bhash = bundles.map { v -> v.hash!! }
@@ -672,7 +710,7 @@ abstract class MerkleDao {
         memoryTree.bundle.dirty = false
         val children = bundles.sumOf { v -> v.children }
         memoryTree.bundle.children = bundles.size + children
-
+        return false
     }
 
     open fun merkleRehashInMemory(root: Long?) {

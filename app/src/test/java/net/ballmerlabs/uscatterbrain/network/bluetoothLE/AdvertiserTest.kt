@@ -127,6 +127,14 @@ class AdvertiserTest {
                 TODO("Not yet implemented")
             }
 
+            override fun unlinkFromParentChildOne(id: Long) {
+                TODO("Not yet implemented")
+            }
+
+            override fun unlinkFromParentChildTwo(id: Long) {
+                TODO("Not yet implemented")
+            }
+
             override fun clearAllBundles() {
                 TODO("Not yet implemented")
             }
