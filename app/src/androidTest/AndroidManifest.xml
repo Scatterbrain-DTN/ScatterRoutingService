@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Test-only manifest overlay. The library manifest hard-codes the documents provider
+  authority, which the installed frontend app also declares, so the test APK fails to
+  install alongside it (INSTALL_FAILED_CONFLICTING_PROVIDER). Give the test APK a distinct
+  authority instead.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <provider
+            android:name="net.ballmerlabs.uscatterbrain.db.file.DatastoreImportProviderImpl"
+            android:authorities="${applicationId}.documents"
+            tools:replace="android:authorities" />
+    </application>
+</manifest>
