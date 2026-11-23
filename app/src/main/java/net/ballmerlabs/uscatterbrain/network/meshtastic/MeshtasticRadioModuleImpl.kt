@@ -1,14 +1,10 @@
 package net.ballmerlabs.uscatterbrain.network.meshtastic
 
+import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Scheduler
-import io.reactivex.Single
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.rx2.asFlowable
-import kotlinx.coroutines.rx2.await
-import kotlinx.coroutines.rx2.rxSingle
+import kotlinx.coroutines.rx2.rxCompletable
 import net.ballmerlabs.uscatterbrain.RoutingServiceComponent
 import net.ballmerlabs.uscatterbrain.db.Datastore
 import net.ballmerlabs.uscatterbrain.db.ScatterbrainDatastore
@@ -33,7 +29,6 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     val database: Datastore,
     val radioClient: RadioClient,
     @Named(RoutingServiceComponent.NamedSchedulers.TIMEOUT) val timeoutScheduler: Scheduler,
-    @Named(MeshtasticConnectionSubcomponent.NamedSchedulers.COROUTINE_CONTEXT) val coroutineScope: CoroutineScope,
 ) : MeshtasticRadioModule {
 
 
@@ -89,53 +84,48 @@ class MeshtasticRadioModuleImpl @Inject constructor(
     }
 
 
-    override suspend fun connect() {
-        log.w("attempting meshtastic connection")
-        radioClient.connect()
-        // Temporary hack to await connected, TODO: handle connecting and disconnecting
-        // states in order
-        radioClient.connection.filter { v -> when(v) {
-            ConnectionState.Connected -> true
-            ConnectionState.Disconnected -> true
-            else -> false
-        } }.first()
-        log.w("meshtastic connected!")
-    }
-
-
-    override suspend fun handlePackets() {
-        radioClient.packets
-            .filter { p ->
-               val v = p.decoded?.portnum
-                log.v("packet! $v ${p.channel}")
-               v == PortNum.PRIVATE_APP
-            }
-            .collect { packet ->
-                log.w("got meshtastic packet ${packet.channel}")
-                try {
-                    startSession(packet.from).state()
-                        .handlePacket(packet)
-                        .collect { reply ->
-                            log.v("sending reply: ${reply.type}")
-                            radioClient.send(reply.toPacket(packet.from)).await()
-                        }
-                } catch (exc: Exception) {
-                    log.w("exception when handling packet: $exc")
-                }
-            }
-    }
-
-    override suspend fun handshake() {
-        log.v("meshtastic handshake start")
-        datastore.rehashMerkle().await()
-        val root = datastore.getDefaultMerkleRoot().await()
-        val id = radioClient.ownNode.value?.num
-        if (id != null) {
-            val packet = MeshtasticAnnouncePacket(advertiser.getHashLuid(), root)
-                .toBroadcast(from = id)
-            val outcome = radioClient.send(packet).await()
-            log.v("send res=$outcome")
+    override fun connect(): Completable {
+        return rxCompletable {
+            radioClient.connect()
         }
-        log.v("handshake complete")
+    }
+
+
+    override fun handlePackets(): Completable {
+        return radioClient.packets.asFlowable()
+            .filter { p -> p.decoded?.portnum == PortNum.PRIVATE_APP }
+            .flatMapCompletable { packet ->
+                startSession(packet.from).state().handlePacket(packet)
+                    .concatMapCompletable { reply ->
+                        val from = radioClient.ownNode.value?.num
+                        rxCompletable {
+                            radioClient.send(reply.toPacket(packet.from, from = from)).await()
+                        }
+
+                    }.doOnError { err-> log.e("failed to handle packet: $err") }
+                    .onErrorComplete()
+            }.doFinally { log.e("handlePackets completed") }
+            .retry()
+            .repeat()
+    }
+
+    override fun handshake(): Completable {
+        return datastore.rehashMerkle().andThen(datastore.getDefaultMerkleRoot())
+            .flatMapCompletable { root ->
+                log.v("default root ${root.size}")
+                val routerId = radioClient.ownNode.value?.num
+
+                log.v("initiate handshake with root me=$routerId")
+                rxCompletable {
+                    radioClient.send(
+                        MeshtasticAnnouncePacket(
+                            advertiser.getHashLuid(),
+                            root
+                        )
+                            .toBroadcast(from = routerId)
+                    ).await()
+                }
+                    .doFinally { log.v("sendPacket complete") }
+            }
     }
 }

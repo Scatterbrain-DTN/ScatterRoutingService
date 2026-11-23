@@ -2,6 +2,7 @@ package net.ballmerlabs.uscatterbrain.network.meshtastic.utils
 
 import androidx.room.concurrent.AtomicInt
 import com.google.protobuf.MessageLite
+import io.reactivex.Completable
 import io.reactivex.Flowable
 import io.reactivex.Maybe
 import io.reactivex.processors.PublishProcessor
@@ -48,7 +49,7 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
             close()
     }
 
-    fun onPacket(packet: T) {
+    fun onPacket(packet: T): Completable {
         lock.withLock {
             if (obs.hasSubscribers()) {
                 pushPacket(packet)
@@ -57,6 +58,7 @@ class MeshtasticPacketStream<T: SeqLike<U>, U: MessageLite>(
             }
 
         }
+        return Completable.complete()
     }
 
     override fun subscribeActual(observer: Subscriber<in T>?) {

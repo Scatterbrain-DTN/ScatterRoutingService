@@ -391,18 +391,15 @@ class RoutingServiceBackendImpl @Inject constructor(
         LOG.v("sync start meshtastic")
         return meshtasticBinderProvider.getConnection()
             .flatMapCompletable { c ->
+                LOG.v("got connection")
                 c.module()
                     .getConnection()
-                    .firstOrError()
+                    .takeUntil { state -> state == ConnectionState.Connected || state == ConnectionState.Disconnected }
                     .flatMapCompletable { state ->
-                        LOG.v("sync got meshtastic")
+                        LOG.v("sync got meshtastic $state")
 
                         when (state) {
-                            ConnectionState.Connected -> datastore.rehashMerkle()
-                                .andThen(rxCompletable {
-                                    c.module().handshake()
-
-                                })
+                            ConnectionState.Connected -> c.module().handshake()
                             else -> Completable.complete()
                         }
                     }
