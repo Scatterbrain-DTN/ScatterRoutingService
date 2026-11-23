@@ -81,6 +81,9 @@ fun <T: ScatterSerializable<U>, U: MessageLite> T.toPacket(to: Int, from: Int? =
     val log by scatterLog()
     return MeshPacket.build {
         this.to = to
+        // Session packets are a strict sequence; a single lost packet stalls the merkle sync.
+        // want_ack makes the radio retransmit until the peer ACKs (or report a failure).
+        want_ack = true
         if (from != null)
             this.from = from
         //channel = 42
